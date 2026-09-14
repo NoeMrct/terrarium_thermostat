@@ -1,0 +1,120 @@
+# Vérification automatique à chaque modification : les bancs d'essai tournent en
+# quelques secondes, la compilation ESP32 en quelques minutes. Une régression est
+# ainsi signalée avant d'arriver sur la carte.
+name: Vérification
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  banc-dessai:
+    name: Bancs d'essai (PC)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Régulation, anneau d'historique, formatage
+        working-directory: sim
+        run: make test
+
+      - name: Rejouer sous détecteurs d'erreurs mémoire
+        working-directory: sim
+        run: make sanitize
+
+      - name: Analyse statique
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq cppcheck
+          cppcheck --enable=all --inconclusive --std=c++11 --error-exitcode=1 \
+                   --suppress=missingIncludeSystem --suppress=unusedFunction \
+                   --suppress=checkersReport --suppress=memsetClassFloat \
+                   --suppress=unmatchedSuppression \
+                   --quiet controle.cpp anneau.cpp format.cpp
+
+  reseau:
+    name: Protocole, application et interface web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+
+      - name: Broker MQTT local
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq mosquitto
+          sudo systemctl stop mosquitto || true
+          printf 'listener 1883 127.0.0.1\nprotocol mqtt\nlistener 9001 127.0.0.1\nprotocol websockets\nallow_anonymous true\n' > mosquitto.conf
+          mosquitto -c mosquitto.conf -d
+          sleep 2
+
+      - name: Dépendances
+        working-directory: outils
+        run: npm install --no-save
+
+      - name: Interface web embarquée
+        working-directory: outils
+        run: node test-page-web.js
+
+      - name: Démonstration autonome
+        working-directory: outils
+        run: node construire-demo.js && node test-demo.js
+
+      - name: Socle simulé
+        working-directory: outils
+        run: |
+          nohup node socle-simule.js --broker mqtt://localhost:1883 --id terraSIM001 &
+          sleep 3
+
+      - name: Test du protocole
+        working-directory: outils
+        run: node test-protocole.js --broker mqtt://localhost:1883 --id terraSIM001 --jeton SIMULATIONTESTJETON00001
+
+      - name: Test de l'application
+        working-directory: outils
+        run: node test-application.js --broker ws://localhost:9001/mqtt --id terraSIM001 --jeton SIMULATIONTESTJETON00001
+
+      - name: La démonstration reste synchronisée avec l'application
+        run: |
+          node outils/construire-demo.js
+          git diff --exit-code -- app/demo.html \
+            || { echo "::error::app/demo.html n'est pas à jour : lance 'node outils/construire-demo.js' et valide le résultat"; exit 1; }
+
+      - name: La bibliothèque MQTT embarquée correspond bien à la version déclarée
+        working-directory: outils
+        run: |
+          npm install --no-save mqtt@$(node -p "require('./package.json').dependencies.mqtt")
+          cmp node_modules/mqtt/dist/mqtt.min.js ../app/vendor/mqtt.min.js \
+            || { echo "::error::app/vendor/mqtt.min.js diverge de la version declaree dans outils/package.json"; exit 1; }
+
+  firmware:
+    name: Compilation ESP32
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: arduino/setup-arduino-cli@v2
+
+      - name: Installer le cœur ESP32
+        run: |
+          arduino-cli core update-index \
+            --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32 \
+            --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+
+      - name: Installer les bibliothèques
+        run: |
+          arduino-cli lib install "OneWire" "DallasTemperature" \
+            "Adafruit GFX Library" "Adafruit SSD1306" "PubSubClient" "ArduinoJson"
+
+      - name: Compiler, avertissements traités comme des erreurs de relecture
+        run: |
+          mkdir -p build/terrarium_thermostat
+          cp *.ino *.h *.cpp partitions.csv build/terrarium_thermostat/
+          arduino-cli compile --fqbn esp32:esp32:esp32:PartitionScheme=custom \
+            --warnings all build/terrarium_thermostat 2>&1 | tee sortie.txt
+          if grep -q "terrarium_thermostat/.*warning:" sortie.txt; then
+            echo "::error::Des avertissements de compilation subsistent"
+            exit 1
+          fi

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Terrariums</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icone.svg">
+<meta name="theme-color" content="#111111">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header id="entete">
+  <h1>Terrariums</h1>
+  <div id="lien" class="etat">connexion…</div>
+</header>
+
+<!-- Première utilisation : configuration du broker -->
+<section id="vue-broker" class="vue">
+  <div class="carte">
+    <h2>Connexion</h2>
+    <p class="aide">
+      Ces informations viennent de ton fournisseur MQTT. Elles restent sur cet
+      appareil et ne sont envoyées à personne d'autre qu'au broker.
+    </p>
+    <label>Adresse du broker (WebSocket sécurisé)</label>
+    <input id="b-url" placeholder="wss://xxxx.hivemq.cloud:8884/mqtt" autocomplete="off">
+    <label>Utilisateur</label>
+    <input id="b-user" autocomplete="username">
+    <label>Mot de passe</label>
+    <input id="b-pass" type="password" autocomplete="current-password">
+    <label>Préfixe des sujets</label>
+    <input id="b-prefixe" value="terrarium" autocomplete="off">
+    <button onclick="App.enregistrerBroker()">Se connecter</button>
+  </div>
+</section>
+
+<!-- Liste des socles -->
+<section id="vue-liste" class="vue">
+  <div id="socles"></div>
+  <div class="carte">
+    <h2>Ajouter un socle</h2>
+    <p class="aide">
+      L'identifiant et le code d'appairage sont affichés à l'écran du socle au
+      premier démarrage, et retrouvables par la commande <code>jeton</code>.
+    </p>
+    <label>Identifiant</label>
+    <input id="a-id" placeholder="terraA1B2C3" autocomplete="off">
+    <label>Code d'appairage</label>
+    <input id="a-jeton" placeholder="24 caractères" autocomplete="off">
+    <label>Nom (pour t'y retrouver)</label>
+    <input id="a-nom" placeholder="Terrarium du salon" autocomplete="off">
+    <div class="rangee">
+      <button onclick="App.ajouterSocle()">Ajouter</button>
+      <button class="secondaire" id="btn-scan" onclick="App.scanner()">Scanner un QR</button>
+    </div>
+  </div>
+  <div class="carte">
+    <button class="secondaire" onclick="App.oublierBroker()">Changer de broker</button>
+  </div>
+</section>
+
+<!-- Détail d'un socle -->
+<section id="vue-socle" class="vue">
+  <button class="retour" onclick="App.montrer('liste')">← Tous les socles</button>
+  <div id="detail"></div>
+</section>
+
+<div id="message"></div>
+
+<!-- Bibliotheque MQTT embarquee et non chargee d'un CDN : l'agent de service ne
+     met en cache que les fichiers de la meme origine, et l'application doit
+     pouvoir s'ouvrir hors ligne. Voir vendor/LISEZMOI.md. -->
+<script src="vendor/mqtt.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

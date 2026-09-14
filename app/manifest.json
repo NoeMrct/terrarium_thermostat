@@ -1,0 +1,14 @@
+{
+  "name": "Terrariums",
+  "short_name": "Terrariums",
+  "description": "Pilotage a distance des socles chauffants",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#111111",
+  "theme_color": "#111111",
+  "icons": [
+    { "src": "icone.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

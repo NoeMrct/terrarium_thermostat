@@ -1,0 +1,26 @@
+# Artefacts de compilation du banc d'essai (voir sim/Makefile : `make clean`)
+sim/simulateur
+sim/test-anneau
+sim/test-format
+sim/san_*
+sim/run.csv
+
+# Sorties de la compilation ESP32
+build/
+sortie.txt
+*.bin
+*.elf
+*.map
+
+# Outils Node
+node_modules/
+package-lock.json
+npm-debug.log*
+
+# Étiquettes générées
+etiquette*.svg
+
+# Divers
+.DS_Store
+Thumbs.db
+*.swp

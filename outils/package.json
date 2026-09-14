@@ -1,0 +1,23 @@
+{
+  "name": "terrarium-outils",
+  "version": "3.2.0",
+  "private": true,
+  "description": "Socle simulé, tests de protocole, d'application et d'interface web, générateur d'étiquette QR.",
+  "license": "MIT",
+  "scripts": {
+    "socle": "node socle-simule.js",
+    "demo": "node construire-demo.js",
+    "test": "node construire-demo.js && node test-demo.js && node test-page-web.js",
+    "test:protocole": "node test-protocole.js",
+    "test:application": "node test-application.js",
+    "qr": "node qr-appairage.js"
+  },
+  "dependencies": {
+    "mqtt": "5.15.2",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.3"
+  },
+  "engines": { "node": ">=20" }
+}

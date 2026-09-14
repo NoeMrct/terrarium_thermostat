@@ -1,0 +1,27 @@
+# Table de partitions du thermostat — flash 4 Mo
+#
+# Pourquoi une table sur mesure plutôt qu'un schéma prédéfini :
+#   - « Default 4MB with spiffs » ne laisse que 1,28 Mo d'application. Le
+#     firmware en occupe ~1,41 Mo : il n'y rentre pas, et une mise à jour OTA
+#     ne passerait de toute façon plus.
+#   - « Minimal SPIFFS » offre 1,9 Mo d'application mais seulement 128 Ko de
+#     système de fichiers, soit environ trois jours d'historique.
+#
+# Ce compromis donne 1,5 Mo par image applicative (≈ 10 % de marge sur le
+# binaire actuel de 1 410 759 octets, OTA conservée) et 896 Ko de fichiers,
+# soit une dizaine de jours d'historique, le journal et la file d'alertes.
+#
+# La partition de fichiers s'appelle « spiffs » parce que c'est l'étiquette que
+# LittleFS.begin() cherche par défaut dans le cœur ESP32 ; son contenu est bien
+# du LittleFS. La nommer « littlefs » la rendait introuvable au montage.
+#
+# Utilisation : garder ce fichier dans le dossier du sketch et sélectionner
+# Outils > Partition Scheme > Custom.
+#
+# Name,     Type, SubType,  Offset,   Size,     Flags
+nvs,        data, nvs,      0x9000,   0x5000,
+otadata,    data, ota,      0xe000,   0x2000,
+app0,       app,  ota_0,    0x10000,  0x180000,
+app1,       app,  ota_1,    0x190000, 0x180000,
+spiffs,     data, spiffs,   0x310000, 0xE0000,
+coredump,   data, coredump, 0x3F0000, 0x10000,
