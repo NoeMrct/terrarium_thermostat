@@ -70,7 +70,22 @@ npx wrangler pages deploy app --project-name terrariums
 
 ### Netlify
 
-Glisser le dossier `app/` sur [app.netlify.com/drop](https://app.netlify.com/drop).
+Le plus simple, sans rien installer : glisser le dossier `app/` sur
+[app.netlify.com/drop](https://app.netlify.com/drop).
+
+Pour un déploiement automatique à chaque `git push`, importer le dépôt depuis
+GitHub (**Add new site → Import an existing project**). Le `netlify.toml` à la
+racine du dépôt fixe déjà le dossier à publier :
+
+```toml
+[build]
+  publish = "app"
+```
+
+Sans lui, Netlify publierait la racine du dépôt — qui ne contient aucun
+`index.html` — et le site répondrait « Page not found ». Si le site a été
+importé avant l'ajout de ce fichier, un nouveau déploiement suffit à le prendre
+en compte.
 
 ### GitHub Pages
 

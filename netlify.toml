@@ -1,0 +1,16 @@
+# Netlify — l'application est dans app/, et il n'y a rien à compiler.
+#
+# Sans ce fichier, un dépôt importé depuis GitHub publie la racine, qui ne
+# contient aucun index.html : Netlify répond « Page not found ». Le réglage
+# vaut aussi pour les aperçus de branche et les déploiements de pull request,
+# ce qu'un réglage saisi dans l'interface ne garantit pas.
+[build]
+  publish = "app"
+
+# L'agent de service décide seul quand l'application se met à jour. S'il est
+# lui-même servi depuis un cache, une version corrigée peut mettre des jours à
+# arriver sur un téléphone qui a déjà installé l'application.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
