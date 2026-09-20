@@ -10,6 +10,11 @@ namespace Reseau {
 void demarrer();
 void boucle(uint32_t maintenant);
 
+// Identifiant de cet appareil, derive de l'adresse MAC : « terraA1B2C3 ».
+// C'est la racine de ses sujets MQTT, et ce que l'application demande pour
+// l'appairer. Stable pour une carte donnee, y compris apres effacement.
+String identifiant();
+
 bool connecte();
 bool modePointAcces();
 String adresse();

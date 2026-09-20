@@ -69,7 +69,8 @@ void traiter(String cmd) {
       Stockage::regenererJeton();
       Serial.println(F("Nouveau code genere : les applications deja appairees devront etre reappairees."));
     }
-    Serial.printf("Code d'appairage : %s\n", Stockage::reseau().jeton);
+    Serial.printf("Appareil %s\nCode d'appairage : %s\n",
+                  Reseau::identifiant().c_str(), Stockage::reseau().jeton);
     Affichage::appairage(Stockage::reseau().jeton, 15);
     return;
   }
@@ -96,6 +97,9 @@ void traiter(String cmd) {
   if (v == "journal") { Serial.println(Stockage::journalQueue(4000)); return; }
   if (v == "reseau") {
     const ReglagesReseau &r = Stockage::reseau();
+    Serial.printf("Appareil %s  (racine des sujets MQTT : %s/%s)\n",
+                  Reseau::identifiant().c_str(), r.mqttPrefixe,
+                  Reseau::identifiant().c_str());
     Serial.printf("SSID '%s'  etat %s  adresse %s\n", r.ssid,
                   Reseau::modePointAcces() ? "point d'acces de config" :
                   (Reseau::connecte() ? "connecte" : "hors ligne"), Reseau::adresse().c_str());

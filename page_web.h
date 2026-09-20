@@ -190,8 +190,11 @@ function formulaires(){
    <label>Serveur NTP</label><input class="w" id="ntp">
    <button onclick="envoyerRes()">Enregistrer et redémarrer</button>
    <button class="s" onclick="effacerJetonAlerte()">Retirer le jeton d'alerte</button></div>
-   <div class="card"><div class="g">Code d'appairage de cet appareil — il vaut preuve de propriété,
-   ne le communique qu'à l'application à laquelle tu veux rattacher ce socle.</div>
+   <div class="card"><div class="g">Ce qu'il faut saisir dans l'application pour rattacher ce socle.
+   Le code d'appairage vaut preuve de propriété : ne le communique à personne d'autre.</div>
+   <label>Identifiant de l'appareil</label>
+   <div style="font-family:monospace;font-size:19px;letter-spacing:2px;margin:9px 0" id="app">…</div>
+   <label>Code d'appairage</label>
    <div style="font-family:monospace;font-size:19px;letter-spacing:2px;margin:9px 0;word-break:break-all"
         id="jet">…</div></div>
    <div class="card"><h3>Mise à jour du firmware</h3>
@@ -231,7 +234,8 @@ async function chargeRes(){const c=await(await fetch('/api/reseau')).json();
  document.getElementById('ha').value=c.decouverteHA?'1':'0';
  document.getElementById('mt').value=c.mqttTls?'1':'0';
  document.getElementById('vt').value=c.verifierTls?'1':'0';
- document.getElementById('jet').textContent=c.jeton||'—';}
+ document.getElementById('jet').textContent=c.jeton||'—';
+ document.getElementById('app').textContent=c.appareil||'—';}
 const H={'X-Terrarium':'1'};
 async function post(u){const r=await fetch(u,{method:'POST',headers:H});alert(await r.text());maj();}
 async function supprimer(u){const r=await fetch(u,{method:'DELETE',headers:H});alert(await r.text());maj();}

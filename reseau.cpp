@@ -668,6 +668,7 @@ void routeReseauGet() {
   j += ",\"mqttTls\":" + String(r.mqttTls ? "true" : "false");
   j += ",\"verifierTls\":" + String(r.verifierTls ? "true" : "false");
   j += ",\"jeton\":\"" + echapperJson(r.jeton) + "\"";
+  j += ",\"appareil\":\"" + g_id + "\"";
   // Le jeton d'alerte est un secret : on ne dit que s'il est renseigné.
   j += ",\"alerteJetonDefini\":" + String(r.alerteJeton[0] ? "true" : "false");
   j += ",\"otaProtegee\":" + String(r.otaMotDePasse[0] ? "true" : "false");
@@ -1347,6 +1348,8 @@ void lancerServices() {
 
 // ============================================================================
 namespace Reseau {
+
+String identifiant() { return g_id; }
 
 void demarrer() {
   uint8_t mac[6];
