@@ -67,6 +67,9 @@ const serveur = http.createServer((req, res) => {
     // Un broker qui n'est pas le serveur Terrariums répond 404 à /api/infos :
     // c'est la détection normale du serveur, pas une erreur de l'application.
     if (/Failed to load resource/.test(m.text()) && /api\/infos/.test(m.location().url || '')) return;
+    // Firefox ne connaît pas les Trusted Types et le dit en avertissement CSP :
+    // c'est la directive qui est ignorée, pas la politique.
+    if (MOTEUR !== 'chromium' && /Content.Security.Policy/i.test(m.text()) && /trusted.types|unknown directive|directive inconnue|ignor/i.test(m.text())) return;
     if (m.type() === 'error' || m.type() === 'warning') erreurs.push(m.type() + ': ' + m.text());
   });
   await page.goto(`http://localhost:${PORT}/`);

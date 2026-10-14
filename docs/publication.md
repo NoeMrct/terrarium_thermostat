@@ -38,8 +38,10 @@ renouvelle à chaque déploiement sans intervention ; l'utilisateur voit
 Le workflow compile avec `SOURCE_DATE_EPOCH` = date du commit et
 `-DFW_COMMIT="<sha court>"` : la date de compilation affichée (`FW_BUILD`) est
 celle du commit, pas celle de la machine, et deux compilations du même commit
-**au même chemin** donnent le même binaire (le chemin des sources entre dans
-le descripteur d'application ; la CI recompile et compare). La provenance est
+**au même chemin, avec le même cœur ESP32 déjà compilé** donnent le même
+binaire (le chemin des sources entre dans le descripteur d'application ; la CI
+recompile le sketch et compare — recompiler le cœur lui-même n'est pas
+déterministe, ce qui vient d'en amont). La provenance est
 attestée par `actions/attest-build-provenance` : quiconque peut vérifier
 qu'un binaire sort bien de ce dépôt et de ce commit :
 
@@ -72,6 +74,16 @@ le binaire n'y tient plus (95 %).
   par USB pour en changer. Recommandée avant toute vente.
 - `NETLIFY_BUILD_HOOK` : Netlify → Site configuration → Build hooks → nouvelle
   URL. Sans lui, le site ne montre le nouveau firmware qu'au prochain push.
+
+## Références visuelles
+
+La régression visuelle compare chaque écran à des captures de référence
+(`outils/references-visuelles/`) qui doivent venir de la machine qui compare :
+le rendu des polices diffère d'un poste à l'autre. Après un changement
+d'apparence voulu, lancer le workflow **Références visuelles** (Actions → Run
+workflow) : il régénère les images sur l'exécuteur GitHub et les commite ; le
+commit est la revue. En local, `node outils/test-visuel.js --mettre-a-jour`
+sert à inspecter, pas à produire les références du dépôt.
 
 ## Protection de la branche main (Settings → Branches)
 

@@ -283,18 +283,19 @@ jobs:
       - name: Garde-fou de taille (95 % de l'emplacement, anciens socles compris)
         run: node outils/verifier-taille-firmware.js build/terrarium_thermostat/build/esp32.esp32.esp32/terrarium_thermostat.ino.bin
 
-      - name: Compilation reproductible — tout refaire de zéro donne le même binaire
+      - name: Compilation reproductible — refaire le sketch donne le même binaire
         # Même chemin de sketch (les chemins entrent dans l'ELF, donc dans son
-        # empreinte embarquée), répertoire de compilation effacé entre les deux,
-        # cache d'arduino-cli vidé : seule une vraie non-déterminisme ferait
-        # différer les binaires. Un tiers refait la même chose au même chemin
-        # (/home/runner/work/<dépôt>/<dépôt>) pour vérifier une release.
+        # empreinte embarquée), mêmes options, répertoire de compilation effacé
+        # entre les deux. Le cache du cœur ESP32 est conservé : c'est le sketch
+        # et son édition de liens que l'on vérifie — recompiler le cœur lui-même
+        # ne donne pas un archive identique (non-déterminisme en amont), ce
+        # qu'un tiers reproduit donc avec le même cœur, à la même version.
         run: |
           export SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
           cp build/terrarium_thermostat/build/esp32.esp32.esp32/terrarium_thermostat.ino.bin premiere.bin
-          rm -rf build ~/.cache/arduino && mkdir -p build/terrarium_thermostat
+          rm -rf build && mkdir -p build/terrarium_thermostat
           cp *.ino *.h *.cpp partitions.csv build/terrarium_thermostat/
-          arduino-cli compile --fqbn esp32:esp32:esp32:PartitionScheme=custom \
+          arduino-cli compile --fqbn esp32:esp32:esp32:PartitionScheme=custom --warnings all \
             --build-property "compiler.cpp.extra_flags=-DFW_COMMIT=\"${GITHUB_SHA::7}\"" \
             --export-binaries build/terrarium_thermostat > /dev/null 2>&1
           A=$(sha256sum premiere.bin | cut -d' ' -f1)

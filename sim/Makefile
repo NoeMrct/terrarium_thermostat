@@ -91,7 +91,9 @@ sanitize: $(ARDUINOJSON_INC)/ArduinoJson.h
 fuzz: fuzz.cpp socle-factice.h ../format.cpp ../anneau.cpp ../qr.cpp ../controle.cpp ../protocole.cpp ../reglages.cpp $(ARDUINOJSON_INC)/ArduinoJson.h
 	$(CLANGXX) -std=c++11 -O1 -g -fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer $(INC) \
 	  -o fuzz fuzz.cpp ../format.cpp ../anneau.cpp ../qr.cpp ../controle.cpp ../protocole.cpp ../reglages.cpp -lm
-	mkdir -p corpus && ./fuzz corpus -max_total_time=$(DUREE) -max_len=600 -print_final_stats=1
+	mkdir -p corpus && ./fuzz corpus -max_total_time=$(DUREE) -max_len=600 -print_final_stats=1 > fuzz.log 2>&1 \
+	  || { tail -n 60 fuzz.log; exit 1; }
+	@tail -n 12 fuzz.log
 
 # Couverture de lignes des modules du firmware par les bancs (gcov). Chaque
 # module est compilé une fois en objet instrumenté, lié dans tous les bancs qui
@@ -120,13 +122,13 @@ couverture: $(ARDUINOJSON_INC)/ArduinoJson.h
 tidy: $(ARDUINOJSON_INC)/ArduinoJson.h
 	clang-tidy --quiet -checks='-*,bugprone-*,clang-analyzer-*,performance-*,-bugprone-easily-swappable-parameters,-bugprone-narrowing-conversions,-bugprone-implicit-widening-of-multiplication-result,-bugprone-branch-clone,-bugprone-signed-char-misuse,-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling' \
 	  -warnings-as-errors='*' -header-filter='.*/(controle|anneau|format|qr|protocole|reglages)\.h' \
-	  ../controle.cpp ../anneau.cpp ../format.cpp ../qr.cpp ../protocole.cpp ../reglages.cpp -- -std=c++11 $(INC)
+	  ../controle.cpp ../anneau.cpp ../format.cpp ../qr.cpp ../protocole.cpp ../reglages.cpp -- -std=c++11 -I.. -isystem $(ARDUINOJSON_INC)
 
 csv: simulateur
 	./simulateur --csv $(N) > run.csv
 	@echo "Trace ecrite dans run.csv (colonnes : t_s, temperature, consigne, demande, charge, tapis)"
 
 clean:
-	rm -rf $(BANCS) san_simulateur san_anneau san_format san_qr san_protocole san_migration fuzz corpus crash-* run.csv couverture
+	rm -rf $(BANCS) san_simulateur san_anneau san_format san_qr san_protocole san_migration fuzz fuzz.log corpus crash-* run.csv couverture
 
 .PHONY: all test regulation anneau format qr protocole migration sanitize fuzz couverture tidy csv clean

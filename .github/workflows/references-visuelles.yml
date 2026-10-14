@@ -1,0 +1,43 @@
+# Régénère les références de la régression visuelle sur l'exécuteur GitHub
+# lui-même, et les commite : le rendu d'un même écran varie d'une machine à
+# l'autre (lissage des polices, métriques), et la comparaison pixel à pixel
+# n'a de sens qu'entre captures faites au même endroit — la CI.
+#
+# À lancer à la main (onglet Actions → « Références visuelles » → Run
+# workflow) après un changement d'apparence voulu de l'application, puis
+# relire le commit « Références visuelles régénérées par la CI » : les images
+# sont la revue. En local, outils/test-visuel.js --mettre-a-jour sert à
+# inspecter, pas à produire les références du dépôt.
+name: Références visuelles
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  references:
+    name: Regénérer et commiter les références
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Dépendances (même Playwright que la vérification)
+        working-directory: outils
+        run: |
+          npm ci
+          npm install --no-save playwright@1.56.0
+          npx playwright install --with-deps chromium
+      - name: Captures de référence
+        working-directory: outils
+        run: node construire-demo.js && node test-visuel.js --mettre-a-jour
+      - name: Commit des références (seulement si elles changent)
+        run: |
+          git add outils/references-visuelles
+          if git diff --cached --quiet; then echo "Références inchangées"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Références visuelles régénérées par la CI (${GITHUB_SHA::7})"
+          git push

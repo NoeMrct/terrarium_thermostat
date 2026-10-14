@@ -8,6 +8,7 @@ sim/test-migration
 sim/san_*
 sim/run.csv
 sim/fuzz
+sim/fuzz.log
 sim/corpus/
 sim/crash-*
 sim/leak-*
