@@ -1,0 +1,47 @@
+#!/bin/sh
+# Garde-fous avant commit — les mêmes contrôles rapides que la CI, sur les
+# fichiers indexés seulement, pour ne pas découvrir à distance ce qui se voit
+# en deux secondes ici. Activation (une fois par clone) :
+#   cd outils && npm run hooks        (= git config core.hooksPath .githooks)
+# Passer outre, exceptionnellement : git commit --no-verify
+set -e
+racine=$(git rev-parse --show-toplevel)
+cd "$racine"
+fichiers=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$fichiers" ] && exit 0
+echec=0
+
+# C++ : mise en forme (la page embarquée et sa version compressée sont générées).
+cpp=$(printf '%s\n' "$fichiers" | grep -E '\.(cpp|h|ino)$' | grep -v 'page_web' || true)
+if [ -n "$cpp" ] && command -v clang-format >/dev/null 2>&1; then
+  if ! clang-format --dry-run --Werror $cpp >/dev/null 2>&1; then
+    echo "pre-commit : mise en forme C++ à corriger (clang-format -i $cpp)"; echec=1
+  fi
+fi
+
+# JavaScript : lint et types.
+js=$(printf '%s\n' "$fichiers" | grep -E '^(app|outils|serveur)/.*\.js$|^eslint\.config\.js$' | grep -v node_modules | grep -v installateur || true)
+if [ -n "$js" ] && [ -x outils/node_modules/.bin/eslint ]; then
+  outils/node_modules/.bin/eslint $js || echec=1
+fi
+if printf '%s\n' "$fichiers" | grep -qE '^app/.*\.js$' && [ -x outils/node_modules/.bin/tsc ]; then
+  outils/node_modules/.bin/tsc -p jsconfig.json || echec=1
+fi
+
+# Fichiers générés : page compressée, aide, démonstration.
+if printf '%s\n' "$fichiers" | grep -q '^page_web\.h$'; then
+  node outils/compresser-page.js --verifier || { echo "pre-commit : node outils/compresser-page.js puis indexer page_web_gz.h"; echec=1; }
+fi
+if printf '%s\n' "$fichiers" | grep -qE '^docs/manuel(\.en)?\.md$|^outils/construire-aide\.js$'; then
+  node outils/construire-aide.js --verifier || { echo "pre-commit : node outils/construire-aide.js puis indexer app/aide*.html"; echec=1; }
+fi
+if printf '%s\n' "$fichiers" | grep -qE '^app/(index\.html|app\.js|style\.css|mqtt\.js)$|^outils/construire-demo\.js$'; then
+  node outils/construire-demo.js >/dev/null && git diff --quiet -- app/demo.html || { echo "pre-commit : app/demo.html n'est plus à jour, l'indexer aussi"; echec=1; }
+fi
+
+# Rien de généré au déploiement ne doit entrer dans le dépôt.
+if printf '%s\n' "$fichiers" | grep -qE '^app/(version\.json|firmware/|.*\.map$)'; then
+  echo "pre-commit : version.json, firmware/ et *.map sont produits au déploiement, pas versionnés"; echec=1
+fi
+
+exit $echec

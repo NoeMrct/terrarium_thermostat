@@ -7,8 +7,9 @@
 
 namespace Console {
 void aide();
-void boucle();          // à appeler à chaque tour, non bloquant
-void etat();            // impression de l'état courant
-}
+void boucle();                   // à appeler à chaque tour, non bloquant
+void etat();                     // impression de l'état courant
+void testUsine(bool puissance);  // auto-test des organes ; true = impulsion sur chaque MOSFET
+}  // namespace Console
 
-#endif // CONSOLE_H
+#endif  // CONSOLE_H

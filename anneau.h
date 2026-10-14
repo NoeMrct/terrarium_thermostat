@@ -17,10 +17,10 @@
 #include <stddef.h>
 
 struct Anneau {
-  uint32_t capacite = 0;   // nombre d'emplacements du fichier
-  uint32_t index    = 0;   // prochaine position d'écriture
-  uint32_t remplis  = 0;   // enregistrements valides, au plus `capacite`
-  uint32_t seq      = 1;   // numéro de séquence du prochain enregistrement
+  uint32_t capacite = 0;  // nombre d'emplacements du fichier
+  uint32_t index = 0;     // prochaine position d'écriture
+  uint32_t remplis = 0;   // enregistrements valides, au plus `capacite`
+  uint32_t seq = 1;       // numéro de séquence du prochain enregistrement
 };
 
 // Lit le numéro de séquence d'un emplacement. Renvoie false s'il est illisible.
@@ -35,8 +35,7 @@ uint32_t anneauRupture(uint32_t capacite, LecteurSeq lire, void *contexte);
 
 // Reconstitue l'état complet. `enregistres` est le nombre d'emplacements
 // réellement présents dans le fichier, entête déduite.
-void anneauReconstruire(Anneau &a, uint32_t capacite, uint32_t enregistres,
-                        LecteurSeq lire, void *contexte);
+void anneauReconstruire(Anneau &a, uint32_t capacite, uint32_t enregistres, LecteurSeq lire, void *contexte);
 
 // Emplacement où écrire le prochain enregistrement.
 uint32_t anneauEmplacementEcriture(const Anneau &a);
@@ -50,4 +49,4 @@ bool anneauEmplacementDuRang(const Anneau &a, uint32_t rang, uint32_t &emplaceme
 // Remet l'anneau à vide, en conservant la capacité.
 void anneauVider(Anneau &a);
 
-#endif // ANNEAU_H
+#endif  // ANNEAU_H

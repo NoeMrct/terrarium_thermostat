@@ -101,7 +101,6 @@ function valider(z) {
 function consigne(z) {
   const m = new Date().getHours() * 60 + new Date().getMinutes();
   const depuisJour = (m - z.debutJour + 1440) % 1440;
-  const depuisNuit = (m - z.debutNuit + 1440) % 1440;
   const jour = depuisJour < ((z.debutNuit - z.debutJour + 1440) % 1440);
   return jour ? z.consigneJour : z.consigneNuit;
 }
@@ -150,7 +149,21 @@ client.on('connect', () => {
 
 client.on('error', e => { console.error('Erreur MQTT :', e.message); process.exit(1); });
 
+// Santé : ce qu'un firmware 3.4 publie sur <id>/sante et joint à « etat ».
+const VERSION_SIM = '3.4.0-simule';
+const PROTO_SIM = 3;
+// Dernière mise à jour tirée (action « maj ») : le vrai socle la garde en NVS.
+socle.maj = null;
+const sante = () => ({
+  proto: PROTO_SIM, version: VERSION_SIM, uptime: Math.floor((Date.now() - socle.demarre) / 1000),
+  rssi: -58 - Math.round(Math.random() * 6), heap: 171000, heapMin: 142000, blocMax: 98000,
+  reset: 'mise sous tension', otaEnAttente: false, signatureOta: false,
+  hote: `${ID}.local`, ip: '192.168.1.42',
+  ...(socle.maj ? { maj: socle.maj } : {})
+});
+
 function publier() {
+  client.publish(`${base}/sante`, JSON.stringify(sante()), { retain: true });
   socle.zones.forEach((z, i) => {
     client.publish(`${base}/zone${i + 1}/etat`, JSON.stringify({
       temp: +z.temp.toFixed(2),
@@ -197,7 +210,7 @@ client.on('message', (sujet, charge) => {
 
   switch (d.action) {
     case 'version':
-      return repondre(d.req, true, { version: '3.2.0-simule', compile: new Date().toISOString() });
+      return repondre(d.req, true, { version: VERSION_SIM, compile: new Date().toISOString(), proto: PROTO_SIM });
 
     case 'etat':
       return repondre(d.req, true, {
@@ -211,7 +224,8 @@ client.on('message', (sujet, charge) => {
         uptime: Math.floor((Date.now() - socle.demarre) / 1000),
         entretienS: Math.max(0, Math.floor((socle.entretienFin - Date.now()) / 1000)),
         heure: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        zonesSimultanees: zonesSimultanees(), saison: 0, alertesEnAttente: 0
+        zonesSimultanees: zonesSimultanees(), saison: 0, alertesEnAttente: 0,
+        proto: PROTO_SIM, sante: sante()
       });
 
     case 'zone': {
@@ -234,7 +248,7 @@ client.on('message', (sujet, charge) => {
     case 'stats': {
       const t = socle.zones.map(z => z.temp);
       return repondre(d.req, true, {
-        version: '3.2.0-simule', compile: new Date().toISOString(),
+        version: '3.3.0-simule', compile: new Date().toISOString(),
         zonesSimultanees: zonesSimultanees(), saison: 0, maintenanceRestanteS: 0,
         zones: socle.zones.map((z, i) => ({
           nom: z.nom, min: +(t[i] - 0.5).toFixed(2), max: +(t[i] + 0.5).toFixed(2),
@@ -335,6 +349,42 @@ client.on('message', (sujet, charge) => {
       repondre(d.req, true, {});
       setTimeout(() => { socle.demarre = Date.now(); console.log('Redémarrage simulé'); }, 200);
       return;
+
+    // Mise à jour tirée : mêmes refus que le firmware (version déjà installée,
+    // hôte hors liste, cible absente), puis une progression sur <id>/maj, un
+    // « redémarrage » et une santé qui raconte la validation. Une version
+    // « 0.0.0 » simule un téléchargement qui échoue.
+    case 'maj': {
+      const url = d.url || '', version = d.version || '';
+      if (!url && !version) return repondre(d.req, false, { erreur: 'url ou version attendue' });
+      if (version === VERSION_SIM.replace('-simule', '') && !d.forcer) return repondre(d.req, false, { erreur: `deja en ${version}` });
+      if (!url && !/^\d+\.\d+\.\d+$/.test(version)) return repondre(d.req, false, { erreur: 'version invalide' });
+      if (url && !/^https:\/\/(github\.com\/NoeMrct\/|objects\.githubusercontent\.com\/|release-assets\.githubusercontent\.com\/)/.test(url))
+        return repondre(d.req, false, { erreur: 'hote non autorise' });
+      repondre(d.req, true, { maj: 'telechargement' });
+      const cible = version || (url.match(/v(\d+\.\d+\.\d+)/) || [])[1] || '?';
+      socle.maj = { etape: 'en validation', version: cible, detail: 'telechargement en cours' };
+      let pct = 0;
+      const tic = setInterval(() => {
+        pct += 25;
+        if (version === '0.0.0' && pct >= 50) {
+          clearInterval(tic);
+          socle.maj = { etape: 'echec', version: cible, detail: 'HTTP 404' };
+          client.publish(`${base}/maj`, JSON.stringify({ etat: 'erreur', detail: 'HTTP 404', version: VERSION_SIM }));
+          publier();
+          return;
+        }
+        if (pct < 100) { client.publish(`${base}/maj`, JSON.stringify({ etat: 'telechargement', pct, version: VERSION_SIM })); return; }
+        clearInterval(tic);
+        client.publish(`${base}/maj`, JSON.stringify({ etat: 'redemarrage', pct: 100, version: VERSION_SIM }));
+        socle.demarre = Date.now();
+        socle.maj = { etape: 'en validation', version: cible, detail: 'demarree, validation dans 90 s' };
+        publier();
+        setTimeout(() => { socle.maj = { etape: 'validee', version: cible, detail: 'validee' }; publier(); }, 3000);
+        console.log(`Mise à jour simulée vers ${cible}`);
+      }, 150);
+      return;
+    }
 
     default:
       return repondre(d.req, false, { erreur: 'action inconnue' });

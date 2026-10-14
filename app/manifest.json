@@ -1,14 +1,29 @@
 {
+  "id": "./",
   "name": "Terrariums",
   "short_name": "Terrariums",
-  "description": "Pilotage a distance des socles chauffants",
+  "description": "Pilotage à distance des socles chauffants de terrarium : températures en direct, consignes, courbes, alertes.",
+  "lang": "fr",
+  "dir": "ltr",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#111111",
-  "theme_color": "#111111",
+  "orientation": "any",
+  "background_color": "#f3f5f7",
+  "theme_color": "#f3f5f7",
+  "categories": ["utilities", "lifestyle"],
   "icons": [
-    { "src": "icone.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    { "src": "icone.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icones/icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icones/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icones/icone-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "screenshots": [
+    { "src": "icones/capture-mobile.png", "sizes": "780x1688", "type": "image/png", "form_factor": "narrow", "label": "Liste des socles et températures en direct" },
+    { "src": "icones/capture-large.png", "sizes": "2560x1800", "type": "image/png", "form_factor": "wide", "label": "Vue détaillée d'un socle sur grand écran" }
+  ],
+  "shortcuts": [
+    { "name": "Scanner un socle", "short_name": "Scanner", "description": "Ajouter un socle en lisant son QR code", "url": "./index.html#scanner", "icons": [{ "src": "icones/icone-192.png", "sizes": "192x192" }] },
+    { "name": "Diagnostic", "short_name": "Diagnostic", "description": "Rapport à joindre à une demande d'aide", "url": "./index.html#diagnostic", "icons": [{ "src": "icones/icone-192.png", "sizes": "192x192" }] }
   ]
 }

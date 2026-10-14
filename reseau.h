@@ -18,6 +18,15 @@ String identifiant();
 bool connecte();
 bool modePointAcces();
 String adresse();
+String nomHote();            // « terraA1B2C3.local » : l'interface locale de CE socle
+String ssidConfiguration();  // SSID du point d'accès de configuration de ce socle
+// Mise à jour tirée depuis une URL https (ou une version X.Y.Z, résolue par
+// MAJ_URL_MODELE). Ne revient qu'en cas de refus, avec `erreur` renseignée :
+// sinon l'image est écrite et l'appareil redémarre.
+void mettreAJour(const String &cible, char *erreur, size_t taille);
+// Tentative de connexion bloquante à un réseau (Improv Wi-Fi, console) : true si
+// connecté dans le délai, les identifiants sont alors enregistrés.
+bool essayerWifi(const char *ssid, const char *motDePasse, uint32_t delaiMs);
 // L'OTA réseau ne démarre que si elle est protégée par un mot de passe.
 bool otaActive();
 
@@ -27,9 +36,15 @@ void alerter(TypeNotif type, uint8_t zone, const String &texte);
 
 void publierMqtt(bool forcer = false);
 
+// Santé de l'appareil (signal, mémoire, uptime, dernier redémarrage…), en JSON
+// sans accolades : la même chose que publie le sujet MQTT « sante ».
+String sante();
+// Efface le coredump en flash. false s'il n'y en avait pas ou si c'est impossible.
+bool effacerCoredump();
+
 // Empreinte SHA-256, utilisée pour ne jamais stocker de mot de passe en clair.
 String empreinte(const String &texte);
 
-} // namespace Reseau
+}  // namespace Reseau
 
-#endif // RESEAU_H
+#endif  // RESEAU_H

@@ -26,4 +26,4 @@ bool formatHHMM(uint16_t minutes, char *dst, size_t taille);
 // "08:05" -> 485. false si le format est invalide ou l'heure impossible.
 bool formatParseHHMM(const char *texte, uint16_t &minutes);
 
-#endif // FORMAT_H
+#endif  // FORMAT_H

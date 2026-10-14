@@ -10,6 +10,8 @@
                             --jeton SIMULATIONTESTJETON00001
    ============================================================================= */
 
+const fs = require('fs');
+const path = require('path');
 const mqtt = require('mqtt');
 
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i >= 0 ? process.argv[i + 1] : d; };
@@ -26,16 +28,39 @@ const verifier = (quoi, ok, detail = '') => {
 };
 const titre = t => console.log(`\n== ${t}`);
 
+// Le schéma du protocole (protocole.schema.json) est appliqué à TOUT ce que le
+// socle émet pendant le test : un message hors schéma est une rupture du
+// contrat, même si le test fonctionnel passe.
+const Ajv = require('ajv');
+const schema = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'protocole.schema.json'), 'utf8'));
+const ajv = new Ajv({ allErrors: true, strict: false });
+const valideurs = {
+  zoneEtat: ajv.compile({ ...schema.$defs.zoneEtat, $defs: schema.$defs }),
+  sante:    ajv.compile({ ...schema.$defs.sante,    $defs: schema.$defs }),
+  reponse:  ajv.compile({ ...schema.$defs.reponse,  $defs: schema.$defs }),
+  statut:   ajv.compile(schema.$defs.statut),
+  progressionMaj: ajv.compile(schema.$defs.progressionMaj)
+};
+const horsSchema = [];
+function controler(nom, donnees, sujet) {
+  if (!valideurs[nom](donnees))
+    horsSchema.push(`${sujet} (${nom}) : ${ajv.errorsText(valideurs[nom].errors, { separator: ' ; ' })}`);
+}
+
 const client = mqtt.connect(BROKER, { clientId: 'test-' + Math.random().toString(16).slice(2, 8) });
 const attentes = {};
-let statut = null, etatsRecus = 0;
+let statut = null, etatsRecus = 0, santeRecue = null;
+const progressions = [];
 
 client.on('message', (sujet, charge) => {
   const t = charge.toString();
-  if (sujet.endsWith('/statut')) { statut = t; return; }
-  if (sujet.endsWith('/etat'))   { etatsRecus++; return; }
+  if (sujet.endsWith('/statut')) { statut = t; controler('statut', t, sujet); return; }
+  if (sujet.endsWith('/sante'))  { try { santeRecue = JSON.parse(t); controler('sante', santeRecue, sujet); } catch (e) { horsSchema.push(sujet + ' : JSON invalide'); } return; }
+  if (sujet.endsWith('/maj'))    { try { const m = JSON.parse(t); progressions.push(m); controler('progressionMaj', m, sujet); } catch (e) { horsSchema.push(sujet + ' : JSON invalide'); } return; }
+  if (sujet.endsWith('/etat'))   { etatsRecus++; try { controler('zoneEtat', JSON.parse(t), sujet); } catch (e) { horsSchema.push(sujet + ' : JSON invalide'); } return; }
   if (!sujet.endsWith('/reponse')) return;
   let r; try { r = JSON.parse(t); } catch (e) { return; }
+  controler('reponse', r, sujet);
   const a = attentes[r.req];
   if (a) { clearTimeout(a.minuteur); delete attentes[r.req]; a.resoudre(r); }
 });
@@ -57,7 +82,7 @@ function commander(action, params = {}, avecJeton = true) {
 const attendre = ms => new Promise(r => setTimeout(r, ms));
 
 client.on('connect', async () => {
-  client.subscribe([`${base}/statut`, `${base}/+/etat`, `${base}/reponse`]);
+  client.subscribe([`${base}/statut`, `${base}/+/etat`, `${base}/reponse`, `${base}/sante`, `${base}/maj`]);
   await attendre(600);
 
   try {
@@ -194,6 +219,57 @@ client.on('connect', async () => {
     const inconnue = await commander('nimportequoi');
     verifier('action inconnue rejetée proprement', inconnue.ok === false, inconnue.erreur || '');
 
+    titre('13 bis. Santé et version de protocole');
+    {
+      const vs = await commander('version', {}, false);
+      verifier('la version annonce son numéro de protocole', typeof vs.proto === 'number' && vs.proto >= 2, `proto ${vs.proto}`);
+      const es = await commander('etat', {}, false);
+      verifier('la réponse « etat » joint la santé du socle', es.sante && typeof es.sante.rssi === 'number' && typeof es.sante.heap === 'number');
+      verifier('le sujet « sante » est publié et retenu', santeRecue !== null && typeof santeRecue.uptime === 'number');
+      // Une commande rejouée (même req) doit recevoir la même réponse sans être
+      // réexécutée : c'est ce qui rend le QoS 1 sûr.
+      const req = 'rejeu' + Math.random().toString(36).slice(2, 6);
+      const premiere = new Promise(res => { attentes[req] = { resoudre: res, minuteur: setTimeout(() => res(null), 8000) }; });
+      client.publish(`${base}/cmd`, JSON.stringify({ req, action: 'entretien', minutes: 0, jeton: JETON }));
+      const r1 = await premiere;
+      const seconde = new Promise(res => { attentes[req] = { resoudre: res, minuteur: setTimeout(() => res(null), 8000) }; });
+      client.publish(`${base}/cmd`, JSON.stringify({ req, action: 'entretien', minutes: 0, jeton: JETON }));
+      const r2 = await seconde;
+      verifier('une commande rejouée reçoit à nouveau sa réponse', !!r1 && !!r2 && r1.ok === r2.ok, r2 ? JSON.stringify(r2).slice(0, 40) : 'aucune');
+    }
+
+    titre('13 ter. Mise à jour tirée (protocole 3)');
+    {
+      verifier('la santé donne le nom mDNS et l\'adresse IP du socle', santeRecue && /^terra[0-9A-Za-z]{6}\.local$/.test(santeRecue.hote || '') && typeof santeRecue.ip === 'string', santeRecue ? santeRecue.hote : '');
+      const sansCible = await commander('maj');
+      verifier('maj sans cible refusée', sansCible.ok === false && /url ou version/.test(sansCible.erreur || ''));
+      const sansJeton = await commander('maj', { version: '3.9.9' }, false);
+      verifier('maj exige le jeton', sansJeton.ok === false);
+      const pirate = await commander('maj', { url: 'https://pirate.example/fw.bin' });
+      verifier('maj : hôte hors liste refusé', pirate.ok === false && /hote/.test(pirate.erreur || ''), pirate.erreur || '');
+      const deja = await commander('maj', { version: (santeRecue && santeRecue.version || '').replace('-simule', '') });
+      verifier('maj : version déjà installée refusée (sans forcer)', deja.ok === false && /deja/.test(deja.erreur || ''), deja.erreur || '');
+      const malformee = await commander('maj', { version: 'v3.9' });
+      verifier('maj : version malformée refusée', malformee.ok === false);
+      progressions.length = 0;
+      const ok = await commander('maj', { version: '3.9.9' });
+      verifier('maj acceptée : réponse immédiate « telechargement »', ok.ok === true && ok.maj === 'telechargement');
+      await attendre(4500);
+      verifier('la progression est publiée sur le sujet « maj » jusqu\'au redémarrage',
+               progressions.some(m => m.etat === 'telechargement' && typeof m.pct === 'number') && progressions.some(m => m.etat === 'redemarrage'),
+               `${progressions.length} message(s)`);
+      verifier('après redémarrage, « sante » annonce l\'image en validation puis validée',
+               santeRecue && santeRecue.maj && santeRecue.maj.version === '3.9.9' && ['en validation', 'validee'].includes(santeRecue.maj.etape),
+               santeRecue && santeRecue.maj ? santeRecue.maj.etape : 'absent');
+      progressions.length = 0;
+      const echec = await commander('maj', { version: '0.0.0' });
+      verifier('un téléchargement qui échoue est accepté puis signalé', echec.ok === true);
+      await attendre(2500);
+      verifier('…par un message « erreur » sur « maj » et une santé en « echec »',
+               progressions.some(m => m.etat === 'erreur') && santeRecue && santeRecue.maj && santeRecue.maj.etape === 'echec',
+               santeRecue && santeRecue.maj ? santeRecue.maj.detail : '');
+    }
+
     titre('14. Robustesse');
     client.publish(`${base}/cmd`, 'ceci n\'est pas du JSON');
     await attendre(500);
@@ -203,6 +279,10 @@ client.on('connect', async () => {
   } catch (err) {
     verifier('déroulement du test', false, err.message);
   }
+
+    titre('15. Conformité au schéma du protocole');
+    verifier('tout ce que le socle a émis respecte protocole.schema.json', horsSchema.length === 0,
+             horsSchema.slice(0, 2).join(' | ').slice(0, 90));
 
   console.log(`\n=== ${echecs ? 'DES TESTS ONT ECHOUE' : 'TOUS LES TESTS PASSENT'}` +
               ` (${reussites} reussite(s), ${echecs} echec(s)) ===`);

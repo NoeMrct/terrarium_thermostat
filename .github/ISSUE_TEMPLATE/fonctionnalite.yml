@@ -1,0 +1,24 @@
+name: Proposer une amélioration
+description: Une fonctionnalité, un réglage, une page de documentation qui manque.
+labels: ['amélioration']
+body:
+  - type: textarea
+    id: besoin
+    attributes:
+      label: Le besoin
+      description: La situation concrète dans laquelle ça aiderait, avant la solution.
+    validations:
+      required: true
+  - type: textarea
+    id: idee
+    attributes:
+      label: Une idée de solution
+  - type: checkboxes
+    id: perimetre
+    attributes:
+      label: Concerne
+      options:
+        - label: le firmware du socle
+        - label: l'application
+        - label: l'interface locale
+        - label: la documentation

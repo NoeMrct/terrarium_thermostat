@@ -51,8 +51,12 @@ function creerSocle(options = {}) {
     },
     status: {
       uptime: 7200, tapisActif: 0, alertesEnAttente: 0, histHeures: options.histHeures || 336,
-      version: '3.2.0', otaProtegee: options.otaProtegee !== false, maintenanceS: 0,
-      heure: '2026-09-10 19:00:00', zones: [zone(0), zone(1)]
+      version: '3.3.0', otaProtegee: options.otaProtegee !== false, maintenanceS: 0,
+      heure: '2026-09-10 19:00:00', zones: [zone(0), zone(1)],
+      sante: { proto: 3, version: '3.4.0', uptime: 7200, rssi: -63, heap: 171000, heapMin: 142000,
+               blocMax: 98000, reset: 'mise sous tension', otaEnAttente: !!options.otaEnAttente,
+               signatureOta: false, plantage: options.plantage || undefined,
+               hote: 'terraA1B2C3.local', ip: '192.168.1.42', maj: options.maj || undefined }
     },
     reseau: {
       ssid: 'maison', webUtilisateur: 'admin', urlAlertes: 'https://exemple.fr/alerte',
@@ -61,10 +65,11 @@ function creerSocle(options = {}) {
       mqttTls: true, verifierTls: true, jeton: 'K7M2QX4TBW9HRPFZ3NXCVJ8D',
       alerteJetonDefini: false, otaProtegee: options.otaProtegee !== false,
       otaActive: options.otaProtegee !== false,
-      fuseau: 'CET-1CEST,M3.5.0,M10.5.0/3', ntp: 'fr.pool.ntp.org'
+      fuseau: 'CET-1CEST,M3.5.0,M10.5.0/3', ntp: 'fr.pool.ntp.org',
+      formatAlertes: 1, signatureOta: false
     },
     stats: {
-      version: '3.2.0', compile: 'Sep 10 2026', zonesSimultanees: 1, saison: 0,
+      version: '3.3.0', compile: 'Sep 10 2026', zonesSimultanees: 1, saison: 0,
       maintenanceRestanteS: 0,
       zones: [0, 1].map(i => ({
         nom: 'Zone ' + (i + 1), min: 29.1, max: 33.2, moyenne: 31.4, horsPlagePct: 4,
@@ -97,8 +102,24 @@ function creerPage(socle) {
     const requete = String(u).split('?')[1] || '';
     socle.envois.push({ url: String(u), chemin, requete, methode: opts.method || 'GET',
                         entetes: opts.headers || {}, corps: opts.body || '' });
-    const rendre = d => Promise.resolve({ ok: true, status: 200,
+    const rendre = (d, status = 200) => Promise.resolve({ ok: status < 400, status,
       json: async () => d, text: async () => (typeof d === 'string' ? d : JSON.stringify(d)) });
+    // Authentification par défi : tant qu'aucune session n'est ouverte, les
+    // API répondent 401 ; /api/session ouvre la session si la preuve est la
+    // bonne (calculée ici avec le crypto de Node, pas celui de la page).
+    if (socle.auth) {
+      if (chemin === '/api/defi') { socle.auth.defi = 'd3f1' + Math.random().toString(16).slice(2, 10); return rendre({ libre: false, defi: socle.auth.defi, utilisateur: socle.auth.utilisateur }); }
+      if (chemin === '/api/session') {
+        const q = Object.fromEntries(new URLSearchParams(opts.body || ''));
+        const crypto = require('crypto');
+        const h = x => crypto.createHash('sha256').update(x, 'utf8').digest('hex');
+        const attendu = h(socle.auth.defi + ':' + h(socle.auth.utilisateur + ':' + socle.auth.motDePasse));
+        socle.auth.tentatives = (socle.auth.tentatives || 0) + 1;
+        if (q.defi === socle.auth.defi && q.preuve === attendu) { socle.auth.session = true; return rendre({ ok: true }); }
+        return rendre('Identifiants refuses', 401);
+      }
+      if (!socle.auth.session) return rendre('Authentification requise', 401);
+    }
     if (chemin === '/api/status')  return rendre(socle.status);
     if (chemin === '/api/reseau')  return opts.method === 'POST' ? rendre('Enregistre.') : rendre(socle.reseau);
     if (chemin === '/api/globaux') return opts.method === 'POST' ? rendre('Enregistre : 2 zone(s) simultanee(s).') : rendre(socle.globaux);
@@ -129,7 +150,7 @@ const dernier = (socle, chemin, methode) =>
   const p = creerPage(s1);
   await attendre(900);
 
-  v('l\'entête affiche l\'heure et la version', p.html('#entete').includes('3.2.0'), p.texte('#entete').slice(0, 46));
+  v('l\'entête affiche l\'heure et la version', p.html('#entete').includes('3.3.0'), p.texte('#entete').slice(0, 46));
   v('les deux zones sont affichées', (p.html('#zones').match(/class="card"/g) || []).length === 2);
   v('la température apparaît', p.html('#zones').includes('30.25'));
   v('la zone qui chauffe est signalée', p.html('#zones').includes('CHAUFFE'));
@@ -254,6 +275,58 @@ const dernier = (socle, chemin, methode) =>
     v('les sondes détectées sont listées', p.html('#sondes').includes('28FF641F8B2C0155'));
     await p.w.eval('charge()'); await attendre(300);
     v('le journal se charge', p.texte('#jtxt').includes('Demarrage'));
+  }
+
+  titre('10. Santé, format des alertes, plantage');
+  {
+    v('la santé du socle est affichée (signal, mémoire, redémarrage)',
+      p.html('#sante').includes('bon') && p.html('#sante').includes('-63 dBm') && p.html('#sante').includes('mise sous tension'));
+    v('le format des alertes est relu depuis le socle', p.$('#fa') && p.$('#fa').value === '1');
+    p.$('#fa').value = '0';
+    await p.w.eval('envoyerRes()'); await attendre(300);
+    const e = dernier(s1, '/api/reseau', 'POST');
+    v('le format des alertes est transmis à l\'enregistrement', e && /formatAlertes=0/.test(e.corps));
+    const s6 = creerSocle({ plantage: 'tache loopTask PC 0x400d1234 cause 28', otaEnAttente: true });
+    const q = creerPage(s6);
+    await attendre(900);
+    v('un plantage récent est signalé en avertissement', q.html('#avertissements').includes('plantage'));
+    await q.w.eval("onglet('sta',document.querySelector('.tabs button'))"); await attendre(300);
+    v('le résumé du plantage et le lien du coredump sont là',
+      q.html('#sante').includes('0x400d1234') && q.html('#sante').includes('/api/coredump'));
+    v('une mise à jour en attente de validation est dite', q.html('#sante').includes('validation'));
+  }
+
+  titre('11. Connexion par défi/réponse, nom d\'hôte, mise à jour tirée');
+  {
+    const s7 = creerSocle({ maj: { etape: 'validee', version: '3.4.0', detail: 'validee le 2026-10-13 22:00:00' } });
+    s7.auth = { utilisateur: 'admin', motDePasse: 'très secret ✓' };
+    const q = creerPage(s7);
+    await attendre(900);
+    v('sans session, le formulaire de connexion est affiché', !q.$('#connexion').hidden);
+    v('…et la page ne s\'est pas remplie', q.html('#zones') === '');
+    v('aucune requête ne porte Authorization (pas de Basic)', !s7.envois.some(e => e.entetes.Authorization));
+    v('chaque requête de la page porte X-Terrarium', s7.envois.every(e => e.entetes['X-Terrarium'] === '1'));
+    q.$('#cu').value = 'admin'; q.$('#cm').value = 'mauvais';
+    await q.w.eval("connecter({preventDefault(){}})"); await attendre(300);
+    v('mauvais mot de passe : refusé, formulaire toujours là', !s7.auth.session && !q.$('#connexion').hidden && q.texte('#cerr').includes('refus'));
+    q.$('#cm').value = 'très secret ✓';
+    await q.w.eval("connecter({preventDefault(){}})"); await attendre(900);
+    v('bon mot de passe : la preuve SHA-256 calculée par la page est acceptée', s7.auth.session === true);
+    v('le formulaire disparaît et la page se remplit', q.$('#connexion').hidden && q.html('#zones').includes('Point'));
+    v('le mot de passe n\'a jamais quitté le navigateur', !s7.envois.some(e => /secret/.test(e.corps) || /secret/.test(e.url)));
+    v('le champ mot de passe est vidé après connexion', q.$('#cm').value === '');
+    await q.w.eval("onglet('sta',document.querySelector('.tabs button'))"); await attendre(300);
+    v('le nom mDNS et l\'adresse IP du socle sont affichés', q.html('#sante').includes('terraA1B2C3.local') && q.html('#sante').includes('192.168.1.42'));
+    v('l\'état de la dernière mise à jour est affiché', q.html('#sante').includes('validee') && q.html('#sante').includes('3.4.0'));
+    await q.w.eval("onglet('res',document.querySelector('.tabs button'))"); await attendre(300);
+    q.$('#majCible').value = '3.4.1';
+    await q.w.eval('majDistante()'); await attendre(300);
+    const m = dernier(s7, '/api/maj-distante', 'POST');
+    v('« Télécharger et installer » envoie la version demandée au socle', m && /version=3\.4\.1/.test(m.corps));
+    q.$('#majCible').value = 'https://github.com/NoeMrct/terrarium_thermostat/releases/download/v3.4.1/terrarium-3.4.1-firmware.bin';
+    await q.w.eval('majDistante()'); await attendre(300);
+    const m2 = dernier(s7, '/api/maj-distante', 'POST');
+    v('…ou l\'URL complète', m2 && /^url=https%3A%2F%2Fgithub\.com/.test(m2.corps));
   }
 
   console.log(`\n=== ${ko ? 'DES TESTS ONT ECHOUE' : 'INTERFACE WEB EMBARQUEE OK'}` +

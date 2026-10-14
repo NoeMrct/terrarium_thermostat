@@ -1,0 +1,61 @@
+# Analyse de sécurité par CodeQL, à chaque modification et chaque semaine :
+#   - JavaScript : application, agent de service, outils, serveur ;
+#   - C++ : le firmware, en observant la compilation arduino-cli (xtensa-esp32-elf-g++
+#     est un GCC, que CodeQL sait suivre). Ce volet est non bloquant tant qu'un
+#     passage au vert n'a pas été constaté sur GitHub ; cppcheck, clang-tidy,
+#     les sanitizers et le fuzzing couvrent de toute façon les modules sans
+#     Arduino dans le workflow de vérification.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '27 6 * * 1'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  javascript:
+    name: JavaScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+          queries: security-and-quality
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: javascript
+
+  firmware:
+    name: C++ (firmware)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+        with: { version: '1.3.1' }
+      - name: Cœur ESP32 et bibliothèques épinglées
+        run: |
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32@3.3.11 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          sh outils/installer-bibliotheques.sh
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: c-cpp
+          build-mode: manual
+          queries: security-and-quality
+      - name: Compilation observée par CodeQL
+        run: |
+          mkdir -p build/terrarium_thermostat
+          cp *.ino *.h *.cpp partitions.csv build/terrarium_thermostat/
+          arduino-cli compile --fqbn esp32:esp32:esp32:PartitionScheme=custom build/terrarium_thermostat
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: firmware

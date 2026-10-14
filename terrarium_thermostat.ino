@@ -12,7 +12,9 @@
      reseau.h/.cpp     WiFi/AP, web authentifié, OTA, MQTT, alertes, métriques
      affichage.h/.cpp  écran OLED
      console.h/.cpp    commandes série
-     page_web.h        interface web embarquée
+     courant.h/.cpp    mesure de courant INA219 (facultative, voir config.h)
+     qr.h/.cpp         encodeur QR de l'écran d'appairage — sans Arduino, testable sur PC
+     page_web.h        interface web embarquée (page_web_gz.h : la même, compressée)
      sim/              bancs d'essai qui tournent sur PC (make test)
      outils/           socle simulé, tests de protocole, d'application et d'interface
 
@@ -49,37 +51,148 @@
 #include "reseau.h"
 #include "affichage.h"
 #include "console.h"
+#include "courant.h"
 
 #include <time.h>
 #include <sys/time.h>
 #include <stdarg.h>
 #include <esp_sntp.h>
+#include <esp_ota_ops.h>
+#if __has_include(<esp_core_dump.h>)
+#include <esp_core_dump.h>
+#define AVEC_COREDUMP 1
+#endif
 
 Controleur ctrl;
-bool       otaEnCours = false;
+bool otaEnCours = false;
 
 // Prototypes déclarés à la main : l'IDE Arduino en génère automatiquement pour
 // tout ce qu'il trouve dans un .ino, ce qui entre en conflit avec des fonctions
 // `static` ou placées dans un espace de noms anonyme.
-void        appliquerSorties(uint8_t masque);
-void        resynchroniserSorties();
+void appliquerSorties(uint8_t masque);
+void resynchroniserSorties();
 const char *raisonRedemarrage();
-void        surSynchroNtp(struct timeval *tv);
-void        restaurerHeure();
-void        traiterNotifications();
-void        enregistrerHistorique();
-void        journaliserEtat();
+void surSynchroNtp(struct timeval *tv);
+void restaurerHeure();
+void traiterNotifications();
+void enregistrerHistorique();
+void journaliserEtat();
+void couperChauffagePourMaj(bool actif);
 
-uint8_t  g_masqueAlimente = 0;       // état réel des broches de puissance
+uint8_t g_masqueAlimente = 0;  // état réel des broches de puissance
 StatsZone g_stats[NB_ZONES];
-uint32_t  g_secondesBase[NB_ZONES] = { 0, 0 };
-bool     g_heureFiable = false;      // une heure est disponible
-bool     g_heureApprox = false;      // ...mais restaurée depuis la flash, pas resynchronisée
-uint8_t  g_defautsPersistes[NB_ZONES] = { DEF_AUCUN, DEF_AUCUN };
-float    g_biaisPersistes[NB_ZONES] = { 0.0f, 0.0f };
+uint32_t g_secondesBase[NB_ZONES] = { 0, 0 };
+bool g_heureFiable = false;  // une heure est disponible
+bool g_heureApprox = false;  // ...mais restaurée depuis la flash, pas resynchronisée
+uint8_t g_defautsPersistes[NB_ZONES] = { DEF_AUCUN, DEF_AUCUN };
+float g_biaisPersistes[NB_ZONES] = { 0.0f, 0.0f };
 
 uint32_t tMesure = 0, tLog = 0, tHist = 0, tEpoch = 0, tAffichage = 0, tBiais = 0, tResync = 0;
-bool     conversionDemandee = false;
+bool conversionDemandee = false;
+bool g_otaEnAttente = false;  // image neuve, pas encore confirmée auprès du chargeur
+char g_plantage[160] = "";    // résumé du dernier coredump, lu au démarrage
+
+// ---------------------------------------------------------------------------
+// Retour arrière automatique après une mise à jour : le cœur ESP32 valide par
+// défaut l'image dès le premier démarrage. reseau.cpp lui dit de ne pas le
+// faire (verifyRollbackLater), et c'est la boucle ci-dessous qui valide, une
+// fois l'appareil resté vivant OTA_VALIDATION_MS. Une image qui démarre puis
+// plante n'est donc jamais confirmée : au redémarrage suivant, le chargeur
+// relance la version précédente, qui fonctionnait.
+bool otaEnAttenteValidation() { return g_otaEnAttente; }
+
+void verifierImageEnAttente() {
+  const esp_partition_t *courante = esp_ota_get_running_partition();
+  esp_ota_img_states_t etat;
+  g_otaEnAttente = courante && esp_ota_get_state_partition(courante, &etat) == ESP_OK &&
+                   etat == ESP_OTA_IMG_PENDING_VERIFY;
+  EtatMaj &m = Stockage::etatMaj();
+  if (g_otaEnAttente) {
+    journal("Image fraichement installee : validation dans %u s si tout va bien",
+            (unsigned)(OTA_VALIDATION_MS / 1000));
+    // Qu'elle vienne d'un telechargement, du navigateur ou du cable, l'image
+    // qui demarre est celle-ci : c'est elle qui est en validation.
+    m.etape = MAJ_EN_VALIDATION;
+    snprintf(m.version, sizeof m.version, "%s", FW_VERSION);
+    snprintf(m.detail, sizeof m.detail, "demarree, validation dans %u s",
+             (unsigned)(OTA_VALIDATION_MS / 1000));
+    Stockage::sauverEtatMaj();
+  } else if (m.etape == MAJ_EN_VALIDATION) {
+    // On avait note une image en validation, et ce n'est pas elle qui tourne :
+    // elle a plante avant d'etre confirmee, le chargeur a relance celle-ci.
+    if (strcmp(m.version, FW_VERSION) != 0) {
+      m.etape = MAJ_RETOUR_ARRIERE;
+      snprintf(m.detail, sizeof m.detail, "%s a plante avant validation, retour en " FW_VERSION, m.version);
+      journal("RETOUR ARRIERE : %s", m.detail);
+      Reseau::alerter(NOTIF_INFO, NB_ZONES, String("Mise a jour annulee : ") + m.detail);
+    } else {
+      m.etape = MAJ_VALIDEE;  // validee, mais la note n'avait pas ete ecrite
+      snprintf(m.detail, sizeof m.detail, "validee");
+    }
+    Stockage::sauverEtatMaj();
+  }
+}
+
+void validerImage() {
+  if (!g_otaEnAttente) return;
+  EtatMaj &m = Stockage::etatMaj();
+  if (esp_ota_mark_app_valid_cancel_rollback() == ESP_OK) {
+    journal("Mise a jour validee : retour arriere annule");
+    m.etape = MAJ_VALIDEE;
+    snprintf(m.version, sizeof m.version, "%s", FW_VERSION);
+    snprintf(m.detail, sizeof m.detail, "validee le %s", horodatage().c_str());
+  } else {
+    journal("Validation de l'image refusee par le chargeur");
+    m.etape = MAJ_ECHEC;
+    snprintf(m.detail, sizeof m.detail, "validation refusee par le chargeur");
+  }
+  Stockage::sauverEtatMaj();
+  g_otaEnAttente = false;
+}
+
+// Pendant qu'une image s'ecrit (telechargement ou envoi par le navigateur), la
+// boucle principale ne tourne plus : les sorties sont coupees ICI, tout de
+// suite, et non au prochain tour de boucle qui n'arrivera qu'apres le
+// redemarrage. Une mise a jour interrompue ne laisse ainsi jamais un tapis
+// alimente sans regulation derriere.
+void couperChauffagePourMaj(bool actif) {
+  otaEnCours = actif;
+  ctrl.suspendre(actif);
+  if (actif) appliquerSorties(0);
+}
+
+bool redemarrageAnormal() {
+  switch (esp_reset_reason()) {
+    case ESP_RST_PANIC:
+    case ESP_RST_INT_WDT:
+    case ESP_RST_TASK_WDT:
+    case ESP_RST_WDT:
+    case ESP_RST_BROWNOUT: return true;
+    default: return false;
+  }
+}
+
+const char *resumePlantage() { return g_plantage; }
+
+// Le coredump écrit en flash au moment d'une panique est résumé en une ligne
+// (tâche, compteur de programme, cause, haut de la pile) : c'est ce qui part
+// dans l'alerte et dans le rapport de diagnostic, sans avoir à brancher un
+// câble. Le fichier complet reste téléchargeable sur /api/coredump.
+void lirePlantage() {
+#if AVEC_COREDUMP
+  if (esp_core_dump_image_check() != ESP_OK) return;
+  esp_core_dump_summary_t *r = (esp_core_dump_summary_t *)malloc(sizeof(esp_core_dump_summary_t));
+  if (!r) return;
+  if (esp_core_dump_get_summary(r) == ESP_OK) {
+    int n = snprintf(g_plantage, sizeof g_plantage, "tache %.15s PC 0x%08x cause %u pile", r->exc_task,
+                     (unsigned)r->exc_pc, (unsigned)r->ex_info.exc_cause);
+    const uint32_t profondeur = r->exc_bt_info.depth < 6 ? r->exc_bt_info.depth : 6;
+    for (uint32_t i = 0; i < profondeur && n > 0 && (size_t)n < sizeof g_plantage - 12; i++)
+      n += snprintf(g_plantage + n, sizeof g_plantage - n, " 0x%08x", (unsigned)r->exc_bt_info.bt[i]);
+  }
+  free(r);
+#endif
+}
 
 // ---------------------------------------------------------------------------
 // UNIQUE fonction qui pilote les GPIO de puissance : elle éteint les sorties
@@ -93,8 +206,8 @@ bool     conversionDemandee = false;
 // ce qui l'échauffe pour rien et génère des parasites.
 void appliquerSorties(uint8_t masque) {
   if (otaEnCours) masque = 0;
-  for (uint8_t i = 0; i < NB_TAPIS; i++)                        // ceinture et bretelles
-    if (ctrl.zone[ZONE_DE_TAPIS[i]].defaut != DEF_AUCUN) masque &= (uint8_t)~(1u << i);
+  for (uint8_t i = 0; i < NB_TAPIS; i++)  // ceinture et bretelles
+    if (ctrl.zone[ZONE_DE_TAPIS[i]].defaut != DEF_AUCUN) masque &= (uint8_t) ~(1u << i);
 
   if (masque == g_masqueAlimente) return;
 
@@ -118,16 +231,16 @@ void resynchroniserSorties() {
 
 const char *raisonRedemarrage() {
   switch (esp_reset_reason()) {
-    case ESP_RST_POWERON:  return "mise sous tension";
-    case ESP_RST_SW:       return "redemarrage logiciel";
-    case ESP_RST_PANIC:    return "PANIQUE logicielle";
-    case ESP_RST_INT_WDT:  return "WATCHDOG d'interruption";
+    case ESP_RST_POWERON: return "mise sous tension";
+    case ESP_RST_SW: return "redemarrage logiciel";
+    case ESP_RST_PANIC: return "PANIQUE logicielle";
+    case ESP_RST_INT_WDT: return "WATCHDOG d'interruption";
     case ESP_RST_TASK_WDT: return "WATCHDOG de tache";
-    case ESP_RST_WDT:      return "WATCHDOG";
+    case ESP_RST_WDT: return "WATCHDOG";
     case ESP_RST_BROWNOUT: return "CHUTE D'ALIMENTATION";
-    case ESP_RST_DEEPSLEEP:return "sortie de veille";
-    case ESP_RST_EXT:      return "reset externe";
-    default:               return "cause inconnue";
+    case ESP_RST_DEEPSLEEP: return "sortie de veille";
+    case ESP_RST_EXT: return "reset externe";
+    default: return "cause inconnue";
   }
 }
 
@@ -140,7 +253,7 @@ void surSynchroNtp(struct timeval *tv) {
 
 void restaurerHeure() {
   const uint32_t e = Stockage::lireEpoch();
-  if (e < 1700000000UL) return;          // rien de crédible en mémoire
+  if (e < 1700000000UL) return;  // rien de crédible en mémoire
   struct timeval tv = { (time_t)e, 0 };
   settimeofday(&tv, nullptr);
   g_heureFiable = true;
@@ -163,8 +276,8 @@ void traiterNotifications() {
     if (!ctrl.zone[z].cfgModifie) continue;
     ctrl.zone[z].cfgModifie = false;
     Stockage::sauverZone(z, ctrl.cfg[z]);
-    journal("Gains de %s enregistres : bande %.2f C, ki %.5f",
-            ctrl.cfg[z].nom, ctrl.cfg[z].bande, ctrl.cfg[z].ki);
+    journal("Gains de %s enregistres : bande %.2f C, ki %.5f", ctrl.cfg[z].nom, ctrl.cfg[z].bande,
+            ctrl.cfg[z].ki);
   }
 
   // Les défauts doivent survivre à un redémarrage : sans cela, un reset
@@ -203,9 +316,9 @@ void enregistrerHistorique() {
 void journaliserEtat() {
   for (uint8_t z = 0; z < NB_ZONES; z++) {
     const ZoneEtat &s = ctrl.zone[z];
-    Serial.printf("  %-12s %6.2f C -> %5.2f C  demande %3d%%  charge %3.0f%%  %s\n",
-                  ctrl.cfg[z].nom, s.temperature, s.consigneEff,
-                  (int)lroundf(s.demande * 100), ctrl.duty(z), nomDefaut(s.defaut));
+    Serial.printf("  %-12s %6.2f C -> %5.2f C  demande %3d%%  charge %3.0f%%  %s\n", ctrl.cfg[z].nom,
+                  s.temperature, s.consigneEff, (int)lroundf(s.demande * 100), ctrl.duty(z),
+                  nomDefaut(s.defaut));
   }
 }
 
@@ -288,36 +401,50 @@ void setup() {
   Stockage::chargerStats(g_stats);
   for (uint8_t z = 0; z < NB_ZONES; z++) g_secondesBase[z] = g_stats[z].secondesChauffe;
   appliquerReglagesGlobaux();
-  journal("Firmware %s (%s) — %u zone(s) simultanee(s) pour %.1f A declares",
-          FW_VERSION, FW_BUILD, ctrl.limiteZones(), Stockage::globaux().courantAlimA);
+  journal("Firmware %s (%s) — %u zone(s) simultanee(s) pour %.1f A declares", FW_VERSION, FW_BUILD,
+          ctrl.limiteZones(), Stockage::globaux().courantAlimA);
 
   Stockage::chargerDefauts(g_defautsPersistes);
   ctrl.appliquerDefautsRestaures(g_defautsPersistes);
 
   Sondes::demarrer();
   Affichage::demarrer();
+  Courant::demarrer();
 
   // Premier démarrage de cet appareil : on tire son secret et on l'affiche, car
   // c'est la seule preuve de propriété permettant de le rattacher à un compte.
   const bool premierDemarrage = Stockage::assurerJeton();
-  if (premierDemarrage) {
-    journal("Premier demarrage : code d'appairage genere");
-    Serial.printf("\n=== CODE D'APPAIRAGE : %s ===\n"
-                  "A noter maintenant. Retrouvable ensuite par la commande `jeton`.\n\n",
-                  Stockage::reseau().jeton);
-    Affichage::appairage(Stockage::reseau().jeton, 20);
-  }
 
   Reseau::demarrer();
+
+  if (premierDemarrage) {
+    journal("Premier demarrage : code d'appairage genere");
+    Serial.printf(
+        "\n=== CODE D'APPAIRAGE : %s ===\n"
+        "A noter maintenant. Retrouvable ensuite par la commande `jeton`.\n\n",
+        Stockage::reseau().jeton);
+    Affichage::appairage(Reseau::identifiant().c_str(), Stockage::reseau().jeton, 30);
+  }
+
+  // Un redémarrage qui n'est ni une mise sous tension ni une demande explicite
+  // est une alerte à part entière : le chauffage a été coupé sans qu'on le
+  // sache, et la cause mérite d'être lue avant qu'elle ne se reproduise.
+  verifierImageEnAttente();
+  lirePlantage();
+  if (redemarrageAnormal()) {
+    String texte = String("Redemarrage anormal : ") + raisonRedemarrage();
+    if (g_plantage[0]) texte += String(" (") + g_plantage + ")";
+    if (g_otaEnAttente) texte += " — image fraichement installee, retour arriere possible";
+    journal("%s", texte.c_str());
+    Reseau::alerter(NOTIF_INFO, NB_ZONES, texte);
+  }
 
   // Watchdog : si loop() se fige, l'ESP32 redemarre, les GPIO repassent en
   // haute impedance et les pull-down de grille coupent les tapis.
 #if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3
-  esp_task_wdt_config_t wdt = {
-    .timeout_ms     = (uint32_t)WDT_SECONDES * 1000,
-    .idle_core_mask = 0,
-    .trigger_panic  = true
-  };
+  esp_task_wdt_config_t wdt = { .timeout_ms = (uint32_t)WDT_SECONDES * 1000,
+                                .idle_core_mask = 0,
+                                .trigger_panic = true };
   esp_task_wdt_reconfigure(&wdt);
 #else
   esp_task_wdt_init(WDT_SECONDES, true);
@@ -337,7 +464,7 @@ void loop() {
   const uint32_t maintenant = millis();
 
   Console::boucle();
-  Reseau::boucle(maintenant);   // jamais bloquant : la régulation tient sans réseau
+  Reseau::boucle(maintenant);  // jamais bloquant : la régulation tient sans réseau
 
   // --- mesures, en deux temps pour ne pas bloquer sur la conversion ---
   if (!conversionDemandee && maintenant - tMesure >= PERIODE_MESURE_MS) {
@@ -355,18 +482,25 @@ void loop() {
   // --- puissance ---
   ctrl.avancer(maintenant);
   appliquerSorties(ctrl.masqueTapis());
+  Courant::boucle(maintenant, g_masqueAlimente);
 
   traiterNotifications();
 
+  // --- validation d'une mise à jour fraîche : vivant depuis assez longtemps ---
+  if (g_otaEnAttente && maintenant >= OTA_VALIDATION_MS) validerImage();
+
   // --- persistances périodiques ---
-  if (maintenant - tHist >= PERIODE_HIST_MS)  { tHist = maintenant; enregistrerHistorique(); }
+  if (maintenant - tHist >= PERIODE_HIST_MS) {
+    tHist = maintenant;
+    enregistrerHistorique();
+  }
   if (maintenant - tEpoch >= PERIODE_EPOCH_MS) {
     tEpoch = maintenant;
     if (g_heureFiable) Stockage::sauverEpoch((uint32_t)time(nullptr));
   }
-  if (maintenant - tBiais >= 1800000UL) {      // point de fonctionnement appris
+  if (maintenant - tBiais >= 1800000UL) {  // point de fonctionnement appris
     tBiais = maintenant;
-    appliquerReglagesGlobaux();                // le décalage saisonnier évolue chaque jour
+    appliquerReglagesGlobaux();  // le décalage saisonnier évolue chaque jour
     for (uint8_t z = 0; z < NB_ZONES; z++) {
       g_stats[z].secondesChauffe = secondesChauffeTotales(z);
       for (uint8_t d = 0; d < 5; d++) g_stats[z].nbDefauts[d] = ctrl.zone[z].nbDefauts[d];
@@ -379,7 +513,16 @@ void loop() {
       }
   }
 
-  if (maintenant - tResync >= 5000)          { tResync = maintenant; resynchroniserSorties(); }
-  if (maintenant - tAffichage >= 1000)        { tAffichage = maintenant; Affichage::rafraichir(); }
-  if (maintenant - tLog >= PERIODE_LOG_MS)    { tLog = maintenant; journaliserEtat(); }
+  if (maintenant - tResync >= 5000) {
+    tResync = maintenant;
+    resynchroniserSorties();
+  }
+  if (maintenant - tAffichage >= 1000) {
+    tAffichage = maintenant;
+    Affichage::rafraichir();
+  }
+  if (maintenant - tLog >= PERIODE_LOG_MS) {
+    tLog = maintenant;
+    journaliserEtat();
+  }
 }

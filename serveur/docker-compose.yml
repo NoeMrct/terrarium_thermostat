@@ -1,0 +1,22 @@
+# docker compose -f serveur/docker-compose.yml up -d   (depuis la racine du dépôt)
+# Mettre un reverse proxy TLS devant (Caddy, Traefik, nginx) : l'application
+# exige wss:// hors localhost, et les notifications push exigent HTTPS.
+services:
+  terrarium:
+    build: { context: .., dockerfile: serveur/Dockerfile }
+    restart: unless-stopped
+    ports:
+      - "8080:8080"     # HTTP : API, application (SERVIR_APP=1) et MQTT sur WebSocket (/mqtt)
+      - "1883:1883"     # MQTT TCP pour les socles
+    environment:
+      ADMIN_JETON: "changez-moi"        # openssl rand -hex 24
+      CONTACT_VAPID: "mailto:vous@exemple.fr"
+      SERVIR_APP: "1"
+      # AMONT_URL: "mqtts://xxxx.s1.eu.hivemq.cloud:8883"   # socles restés sur HiveMQ
+      # AMONT_UTILISATEUR: "appli"
+      # AMONT_MOT_DE_PASSE: "secret"
+      # ORIGINES: "https://terrariums.exemple.fr"
+    volumes:
+      - donnees:/donnees
+volumes:
+  donnees:

@@ -1,23 +1,53 @@
 {
   "name": "terrarium-outils",
-  "version": "3.2.0",
+  "version": "3.4.0",
   "private": true,
-  "description": "Socle simulé, tests de protocole, d'application et d'interface web, générateur d'étiquette QR.",
+  "description": "Socle simulé, tests (protocole et schéma, client MQTT, application dans jsdom et Chromium, interface web, démonstration, accessibilité, QR), lint et types, page compressée, aide, icônes, captures, étiquette QR, signature du firmware, préparation de la publication (minification), régression visuelle, test de charge, couverture, provisionnement.",
   "license": "MIT",
   "scripts": {
-    "socle": "node socle-simule.js",
+    "socle": "node socle-simule.js --broker mqtt://localhost:1883 --id terraSIM001",
     "demo": "node construire-demo.js",
-    "test": "node construire-demo.js && node test-demo.js && node test-page-web.js",
-    "test:protocole": "node test-protocole.js",
-    "test:application": "node test-application.js",
-    "qr": "node qr-appairage.js"
+    "aide": "node construire-aide.js",
+    "lint": "cd .. && node outils/node_modules/.bin/eslint app outils serveur eslint.config.js",
+    "types": "cd .. && node outils/node_modules/.bin/tsc -p jsconfig.json",
+    "test": "node construire-demo.js && node test-demo.js && node test-page-web.js && node compresser-page.js --verifier && node construire-aide.js --verifier && node budget.js && node verifier-installateur.js && npm run lint && npm run types",
+    "test:protocole": "node test-protocole.js --broker mqtt://localhost:1883 --id terraSIM001 --jeton SIMULATIONTESTJETON00001",
+    "test:application": "node test-application.js --broker ws://localhost:9001/mqtt --id terraSIM001 --jeton SIMULATIONTESTJETON00001",
+    "test:mqtt": "node test-mqtt.js --broker ws://localhost:9001/mqtt --tcp mqtt://localhost:1883",
+    "test:navigateur": "node test-navigateur.js --broker ws://localhost:9001/mqtt --id terraSIM001 --jeton SIMULATIONTESTJETON00001",
+    "test:accessibilite": "node test-accessibilite.js",
+    "test:qr": "make -C ../sim test-qr && node test-qr.js",
+    "lighthouse": "cd .. && node outils/preparer-publication.js --sans-firmware && outils/node_modules/.bin/lhci autorun --config=.lighthouserc.json && git checkout -- app/sw.js",
+    "page:gz": "node compresser-page.js",
+    "icones": "node generer-icones.js",
+    "captures": "node captures.js",
+    "captures:manifest": "node captures.js --manifest",
+    "qr": "node qr-appairage.js",
+    "publication": "node preparer-publication.js",
+    "test:visuel": "node construire-demo.js && node test-visuel.js",
+    "test:charge": "node test-charge.js --broker mqtt://localhost:1883 --ws ws://localhost:9001/mqtt",
+    "test:navigateur:webkit": "node test-navigateur.js --navigateur webkit --broker ws://localhost:9001/mqtt --id terraSIM001 --jeton SIMULATIONTESTJETON00001",
+    "test:navigateur:firefox": "node test-navigateur.js --navigateur firefox --broker ws://localhost:9001/mqtt --id terraSIM001 --jeton SIMULATIONTESTJETON00001",
+    "couverture": "cd .. && outils/node_modules/.bin/c8 --reporter=text-summary --reporter=lcov --report-dir=outils/couverture --include=app/app.js --include=app/mqtt.js --check-coverage --lines 70 --functions 60 bash -c \"node outils/test-application.js --broker ws://localhost:9001/mqtt --id terraSIM001 --jeton SIMULATIONTESTJETON00001 && node outils/test-mqtt.js --broker ws://localhost:9001/mqtt --tcp mqtt://localhost:1883\"",
+    "hooks": "git -C .. config core.hooksPath .githooks && echo \"Hooks git actives (.githooks/pre-commit)\"",
+    "test:serveur": "node test-serveur.js",
+    "pdf": "node construire-pdf.js"
   },
   "dependencies": {
     "mqtt": "5.15.2",
-    "qrcode": "^1.5.4"
+    "qrcode": "^1.5.4",
+    "terser": "^5.51.2"
   },
   "devDependencies": {
-    "jsdom": "^24.1.3"
+    "ajv": "^8.20.0",
+    "c8": "^10.1.3",
+    "eslint": "^9.39.5",
+    "jsdom": "^24.1.3",
+    "jsqr": "^1.4.0",
+    "pngjs": "^7.0.0",
+    "typescript": "^5.9.3"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }

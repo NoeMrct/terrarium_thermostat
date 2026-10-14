@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Flasher un socle</title>
+<meta name="description" content="Installer le firmware du socle chauffant depuis le navigateur, par USB, sans IDE.">
+<link rel="icon" href="icone.svg">
+<meta name="theme-color" content="#f3f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; base-uri 'self'; form-action 'self'">
+<link rel="stylesheet" href="style.css">
+<script type="module" src="installer.js"></script>
+</head>
+<body data-vue="page">
+
+<header id="entete">
+  <h1>Flasher un socle</h1>
+  <a class="btn btn-fantome btn-petit" href="index.html">← Application</a>
+</header>
+
+<main class="page">
+
+<section class="carte">
+  <h2>Depuis le navigateur, par USB</h2>
+  <p class="aide">Cette page écrit le firmware officiel dans un socle neuf, ou met à jour un socle existant,
+    sans rien installer sur l'ordinateur. Il faut un navigateur qui sait parler au port série
+    (Chrome, Edge ou Opera, sur ordinateur) et un câble USB <em>de données</em> — beaucoup de câbles
+    de charge n'en sont pas.</p>
+  <ol class="etapes">
+    <li>Branche la carte ESP32 à l'ordinateur. Si c'est un socle monté, <b>débranche d'abord le 12 V</b> :
+      USB et 12 V ne sont jamais branchés ensemble.</li>
+    <li>Clique sur le bouton ci-dessous et choisis le port qui apparaît (« CP2102 », « USB Serial »…).</li>
+    <li>Sur un socle neuf, accepte l'effacement complet. Sur un socle déjà en service, refuse-le :
+      les réglages, les sondes liées et le code d'appairage sont conservés.</li>
+  </ol>
+  <div id="etat-firmware" class="aide mt">Recherche du firmware publié…</div>
+  <div class="boutons">
+    <esp-web-install-button manifest="firmware/manifest.json" id="bouton-flash" hidden>
+      <button class="btn" slot="activate">Installer le firmware</button>
+      <span slot="unsupported" class="aide">Ce navigateur ne sait pas parler au port série : ouvre cette page dans Chrome ou Edge, sur un ordinateur.</span>
+      <span slot="not-allowed" class="aide">Le port série n'est accessible qu'en HTTPS.</span>
+    </esp-web-install-button>
+  </div>
+</section>
+
+<section class="carte">
+  <h2>Et ensuite</h2>
+  <p class="aide">Au premier démarrage, le socle ouvre un réseau Wi-Fi <code>terrarium-config</code>
+    (mot de passe <code>terrarium1234</code>). Connecte-toi dessus, ouvre <code>http://192.168.4.1</code>,
+    renseigne ton Wi-Fi et, si tu veux le piloter de loin, ton broker MQTT. Le code d'appairage
+    s'affiche ensuite sur l'écran du socle, en toutes lettres et en QR code.</p>
+  <p class="aide">Si la carte n'est pas détectée : maintiens le bouton <b>BOOT</b> de la carte pendant que
+    tu cliques sur « Installer », puis relâche-le une fois l'écriture commencée. Sous Windows, un
+    pilote CP210x peut être nécessaire — la boîte de dialogue le propose.</p>
+  <p class="aide">Pour une installation complète, lis <a href="aide.html">l'aide</a>.</p>
+</section>
+
+<footer class="pied colonne">
+  <div class="pied-ligne liens">
+    <a href="index.html">Application</a>
+    <a href="aide.html">Aide</a>
+    <a href="mentions-legales.html">Mentions légales</a>
+    <a href="confidentialite.html">Confidentialité</a>
+  </div>
+</footer>
+
+</main>
+
+</body>
+</html>

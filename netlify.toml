@@ -6,6 +6,11 @@
 # ce qu'un réglage saisi dans l'interface ne garantit pas.
 [build]
   publish = "app"
+  # Écrit version.json, nomme le cache de l'agent de service d'après le commit,
+  # et récupère le firmware de la dernière release pour la page de flashage.
+  # (terser pour la minification est dans outils/package.json : on l'installe
+  # sans les dépendances de développement, puis on prépare.)
+  command = "npm ci --prefix outils --omit=dev && node outils/preparer-publication.js"
 
 # L'agent de service décide seul quand l'application se met à jour. S'il est
 # lui-même servi depuis un cache, une version corrigée peut mettre des jours à
@@ -14,3 +19,50 @@
   for = "/sw.js"
   [headers.values]
     Cache-Control = "no-cache"
+
+# En-têtes de sécurité pour toute l'application. La politique de sécurité du
+# contenu (CSP) est aussi déclarée dans index.html, pour les hébergeurs qui ne
+# permettent pas de régler les en-têtes ; ici elle ajoute frame-ancestors, qui
+# n'existe qu'en en-tête. connect-src autorise n'importe quel broker en wss://
+# et n'importe quel serveur Terrariums en https://, puisque c'est l'utilisateur
+# qui choisit les siens.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # require-trusted-types-for : tout HTML injecté passe par la politique
+    # « terrarium » d'app.js ; une autre écriture dans le DOM est refusée.
+    Content-Security-Policy = "default-src 'self'; connect-src 'self' wss: https:; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; worker-src 'self'; manifest-src 'self'; media-src 'self' blob:; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; require-trusted-types-for 'script'; trusted-types terrarium"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(self), microphone=(), geolocation=(), payment=(), serial=(self)"
+    X-Frame-Options = "DENY"
+    # HTTPS pour toujours : un an, sous-domaines compris. Netlify sert déjà le
+    # site en HTTPS ; l'en-tête empêche un premier accès en clair.
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+
+# La démonstration embarque ses scripts et son style dans la page : elle a
+# besoin d'une politique plus souple, et n'a aucun broker à joindre.
+[[headers]]
+  for = "/demo.html"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+
+# La page de flashage embarque ESP Web Tools, qui injecte ses propres styles,
+# et parle au port série : style en ligne autorisé, port série autorisé.
+[[headers]]
+  for = "/installer.html"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=(), serial=(self)"
+
+# version.json dit quelle version est en ligne : jamais mis en cache.
+[[headers]]
+  for = "/version.json"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+# Les icônes ne changent qu'avec un nouveau nom de fichier : cache d'une semaine.
+[[headers]]
+  for = "/icones/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"

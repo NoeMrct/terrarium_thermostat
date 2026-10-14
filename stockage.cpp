@@ -12,21 +12,22 @@ namespace {
 Preferences prefs;
 ReglagesReseau g_reseau;
 ReglagesGlobaux g_globaux;
+EtatMaj g_maj;
 bool g_fsPret = false;
 
-const char *CHEMIN_HIST    = "/hist.bin";
+const char *CHEMIN_HIST = "/hist.bin";
 const char *CHEMIN_JOURNAL = "/journal.log";
 const char *CHEMIN_JOURNAL_PREC = "/journal.1.log";
 const char *CHEMIN_ALERTES = "/alertes.txt";
 
-const uint32_t HIST_MAGIC = 0x54455231;   // "TER1"
+const uint32_t HIST_MAGIC = 0x54455231;  // "TER1"
 
 // Dimensionnement décidé au démarrage d'après la place réellement offerte par
 // la partition : un schéma « Minimal SPIFFS » n'expose que 128 Ko, la table sur
 // mesure fournie en offre 896 Ko. Figer une capacité en dur remplirait la flash
 // dans le premier cas et gaspillerait la place dans le seconde.
-uint32_t g_histCapacite = 1440;      // 1 jour, valeur de repli
-size_t   g_journalMax   = 16384;
+uint32_t g_histCapacite = 1440;  // 1 jour, valeur de repli
+size_t g_journalMax = 16384;
 
 // L'entête ne contient plus d'index mobile : il est écrit une seule fois, à la
 // création. La position de la tête est retrouvée au démarrage par recherche
@@ -43,7 +44,7 @@ struct EnTeteHist {
 const uint32_t HIST_VERSION = 2;
 
 Anneau g_anneau;
-bool   g_histPret = false;
+bool g_histPret = false;
 
 // Adaptateur entre le module d'anneau (qui ne connaît que des emplacements) et
 // le fichier réellement ouvert.
@@ -64,16 +65,17 @@ File histOuvrir() {
   bool valide = false;
   if (f && f.size() >= sizeof(EnTeteHist)) {
     f.seek(0);
-    valide = f.read((uint8_t *)&h, sizeof h) == sizeof h &&
-             h.magic == HIST_MAGIC && h.version == HIST_VERSION &&
-             h.capacite == g_histCapacite;
+    valide = f.read((uint8_t *)&h, sizeof h) == sizeof h && h.magic == HIST_MAGIC &&
+             h.version == HIST_VERSION && h.capacite == g_histCapacite;
   }
-  if (!valide) {                       // absent, corrompu, ou capacité changée
+  if (!valide) {  // absent, corrompu, ou capacité changée
     if (f) f.close();
     f = LittleFS.open(CHEMIN_HIST, "w+");
     if (!f) return f;
     memset(&h, 0, sizeof h);
-    h.magic = HIST_MAGIC; h.version = HIST_VERSION; h.capacite = g_histCapacite;
+    h.magic = HIST_MAGIC;
+    h.version = HIST_VERSION;
+    h.capacite = g_histCapacite;
     f.seek(0);
     f.write((const uint8_t *)&h, sizeof h);
     f.flush();
@@ -105,28 +107,19 @@ void reseauParDefaut(ReglagesReseau &r) {
   r.verifierTls = true;
 }
 
-// Relecture tolérante des structures de réglages. Règle du projet : ces
-// structures ne s'agrandissent QUE par la fin. Un firmware plus récent relit
-// alors sans peine une mémoire écrite par l'ancien — les champs ajoutés restent
-// à zéro, puis reçoivent leur valeur par défaut. Sans cela, la moindre
-// évolution de ReglagesReseau remettait toute la configuration à plat au
-// redémarrage : WiFi, mots de passe, et surtout le jeton d'appairage, qui
-// aurait été régénéré et aurait dépairé toutes les applications.
-// Renvoie le nombre d'octets réellement issus de la mémoire, 0 si rien d'utile.
+// Relecture tolérante (règle « on n'ajoute qu'en fin de structure », voir
+// reglages.h) : la lecture brute est faite ici, la logique est dans
+// Stockage::relireTolerant, exercée sur PC par sim/test-migration.cpp.
 size_t lireStructure(const char *cle, void *dest, size_t taille) {
   memset(dest, 0, taille);
   const size_t dispo = prefs.getBytesLength(cle);
   if (dispo == 0) return 0;
-  if (dispo <= taille) return prefs.getBytes(cle, dest, taille);
-
-  // Écrite par un firmware PLUS récent (retour en arrière) : on ne garde que le
-  // préfixe que cette version sait interpréter.
   uint8_t *tampon = (uint8_t *)malloc(dispo);
   if (!tampon) return 0;
   const size_t lu = prefs.getBytes(cle, tampon, dispo);
-  if (lu >= taille) memcpy(dest, tampon, taille);
+  const size_t utile = Stockage::relireTolerant(tampon, lu, dest, taille);
   free(tampon);
-  return (lu >= taille) ? taille : 0;
+  return utile;
 }
 
 // Un champ texte venu de la NVS peut être corrompu : on garantit au minimum
@@ -135,95 +128,16 @@ void assainirTexte(char *s, size_t taille) {
   s[taille - 1] = '\0';
   for (size_t i = 0; i < taille; i++) {
     if (s[i] == '\0') return;
-    if ((unsigned char)s[i] < 32 || (unsigned char)s[i] > 126) { s[i] = '\0'; return; }
+    if ((unsigned char)s[i] < 32 || (unsigned char)s[i] > 126) {
+      s[i] = '\0';
+      return;
+    }
   }
 }
 
-} // namespace
+}  // namespace
 
 namespace Stockage {
-
-void reglagesGlobauxParDefaut(ReglagesGlobaux &g) {
-  memset(&g, 0, sizeof g);
-  g.courantAlimA    = 3.0f;      // le petit adaptateur 12 V d'origine
-  g.puissanceTapisW = 20.0f;
-  g.tensionV        = 12.0f;
-  g.maintenanceMin  = 10;
-  g.ecranVeilleMin  = 10;
-  g.saisonActive    = false;
-  g.saisonDelta     = 5.0f;
-  g.saisonDescenteJ = 21;
-  g.saisonPlateauJ  = 60;
-  g.saisonRemonteeJ = 21;
-}
-
-bool globauxValides(const ReglagesGlobaux &g, char *erreur, size_t taille) {
-  #define ECHEC(msg) do { if (erreur) snprintf(erreur, taille, msg); return false; } while (0)
-  if (!(isfinite(g.courantAlimA) && g.courantAlimA >= 0.5f && g.courantAlimA <= 40.0f))
-    ECHEC("Amperage de l'alimentation hors 0.5-40 A");
-  if (!(isfinite(g.puissanceTapisW) && g.puissanceTapisW >= 1.0f && g.puissanceTapisW <= 200.0f))
-    ECHEC("Puissance d'un tapis hors 1-200 W");
-  if (!(isfinite(g.tensionV) && g.tensionV >= 3.0f && g.tensionV <= 60.0f))
-    ECHEC("Tension hors 3-60 V");
-  if (g.maintenanceMin == 0 || g.maintenanceMin > 240)
-    ECHEC("Duree d'entretien hors 1-240 min");
-  if (g.ecranVeilleMin > 1440)
-    ECHEC("Veille de l'ecran hors 0-1440 min");
-  if (!(isfinite(g.saisonDelta) && g.saisonDelta >= 0.0f && g.saisonDelta <= 15.0f))
-    ECHEC("Abaissement saisonnier hors 0-15 C");
-  if (g.saisonDescenteJ > 365 || g.saisonPlateauJ > 365 || g.saisonRemonteeJ > 365)
-    ECHEC("Duree de phase saisonniere hors 0-365 jours");
-  if (g.saisonActive && g.saisonDescenteJ + g.saisonPlateauJ + g.saisonRemonteeJ == 0)
-    ECHEC("Un cycle saisonnier doit durer au moins un jour");
-  #undef ECHEC
-  return true;
-}
-
-bool assainirGlobaux(ReglagesGlobaux &g) {
-  ReglagesGlobaux d; reglagesGlobauxParDefaut(d);
-  bool corrige = false;
-  #define REPARE(champ, cond) if (!(cond)) { g.champ = d.champ; corrige = true; }
-  REPARE(courantAlimA,    isfinite(g.courantAlimA)    && g.courantAlimA    >= 0.5f && g.courantAlimA    <= 40.0f)
-  REPARE(puissanceTapisW, isfinite(g.puissanceTapisW) && g.puissanceTapisW >= 1.0f && g.puissanceTapisW <= 200.0f)
-  REPARE(tensionV,        isfinite(g.tensionV)        && g.tensionV        >= 3.0f && g.tensionV        <= 60.0f)
-  REPARE(maintenanceMin,  g.maintenanceMin >= 1 && g.maintenanceMin <= 240)
-  REPARE(ecranVeilleMin,  g.ecranVeilleMin <= 1440)
-  REPARE(saisonDelta,     isfinite(g.saisonDelta) && g.saisonDelta >= 0.0f && g.saisonDelta <= 15.0f)
-  REPARE(saisonDescenteJ, g.saisonDescenteJ <= 365)
-  REPARE(saisonPlateauJ,  g.saisonPlateauJ  <= 365)
-  REPARE(saisonRemonteeJ, g.saisonRemonteeJ <= 365)
-  #undef REPARE
-  if (g.saisonActive && (g.saisonDebutEpoch < 1700000000UL ||
-                         g.saisonDescenteJ + g.saisonPlateauJ + g.saisonRemonteeJ == 0)) {
-    g.saisonActive = false;                 // cycle indatable : on ne l'applique pas
-    corrige = true;
-  }
-  return corrige;
-}
-
-// Combien de zones peuvent chauffer en même temps sans dépasser l'ampérage
-// déclaré. Un tapis de 20 W sous 12 V tire 1,7 A : une alimentation de 3 A n'en
-// supporte qu'un, une de 5 A en supporte deux.
-uint8_t zonesSimultanees(const ReglagesGlobaux &g) {
-  const float parTapis = (g.tensionV > 1.0f) ? g.puissanceTapisW / g.tensionV : 1.7f;
-  if (parTapis <= 0.01f) return 1;
-  // Marge de 20 % : une alimentation annoncée pour 5 A ne les tient pas
-  // forcément en continu, et l'électronique consomme aussi.
-  int n = (int)((g.courantAlimA * 0.8f) / parTapis);
-  if (n < 1) n = 1;
-  if (n > NB_ZONES) n = NB_ZONES;
-  return (uint8_t)n;
-}
-
-float decalageSaisonnier(const ReglagesGlobaux &g, uint32_t maintenantEpoch) {
-  if (!g.saisonActive || g.saisonDebutEpoch == 0 || maintenantEpoch < g.saisonDebutEpoch) return 0.0f;
-  const uint32_t jours = (maintenantEpoch - g.saisonDebutEpoch) / 86400UL;
-  const uint32_t d = g.saisonDescenteJ, p = g.saisonPlateauJ, r = g.saisonRemonteeJ;
-  if (d > 0 && jours < d)          return -g.saisonDelta * ((float)jours / d);
-  if (jours < d + p)               return -g.saisonDelta;
-  if (r > 0 && jours < d + p + r)  return -g.saisonDelta * (1.0f - (float)(jours - d - p) / r);
-  return 0.0f;                     // cycle terminé
-}
 
 ReglagesGlobaux &globaux() { return g_globaux; }
 
@@ -231,8 +145,7 @@ ReglagesGlobaux &globaux() { return g_globaux; }
 // être imprévisible, car il vaut preuve de propriété de l'appareil.
 void regenererJeton() {
   static const char alphabet[] = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";  // sans I, O, 0, 1
-  for (uint8_t i = 0; i < 24; i++)
-    g_reseau.jeton[i] = alphabet[esp_random() % (sizeof(alphabet) - 1)];
+  for (uint8_t i = 0; i < 24; i++) g_reseau.jeton[i] = alphabet[esp_random() % (sizeof(alphabet) - 1)];
   g_reseau.jeton[24] = '\0';
   sauverReseau();
 }
@@ -254,7 +167,7 @@ void sauverGlobaux() {
 
 void chargerStats(StatsZone s[NB_ZONES]) {
   prefs.begin("thermo", true);
-  lireStructure("stats", s, sizeof(StatsZone) * NB_ZONES);   // remet a zero si absent
+  lireStructure("stats", s, sizeof(StatsZone) * NB_ZONES);  // remet a zero si absent
   prefs.end();
 }
 
@@ -265,25 +178,29 @@ void sauverStats(const StatsZone s[NB_ZONES]) {
 }
 
 void demarrer() {
-  g_fsPret = LittleFS.begin(true);   // true = formate si le montage échoue
+  g_fsPret = LittleFS.begin(true);  // true = formate si le montage échoue
 
   if (g_fsPret) {
     const size_t total = LittleFS.totalBytes();
     // 65 % pour l'historique, 12 % pour le journal, le reste en marge pour la
     // file d'alertes et les métadonnées du système de fichiers.
     g_journalMax = total / 8;
-    if (g_journalMax < 8192)  g_journalMax = 8192;
+    if (g_journalMax < 8192) g_journalMax = 8192;
     if (g_journalMax > 65536) g_journalMax = 65536;
     uint32_t cap = (uint32_t)((total * 65 / 100) / sizeof(Echantillon));
-    if (cap < 720)   cap = 720;      // 12 h minimum
-    if (cap > 20160) cap = 20160;    // 14 jours suffisent largement
+    if (cap < 720) cap = 720;      // 12 h minimum
+    if (cap > 20160) cap = 20160;  // 14 jours suffisent largement
     g_histCapacite = cap;
   }
 
   prefs.begin("thermo", true);
-  const size_t lu  = lireStructure("reseau",  &g_reseau,  sizeof g_reseau);
+  const size_t lu = lireStructure("reseau", &g_reseau, sizeof g_reseau);
   const size_t luG = lireStructure("globaux", &g_globaux, sizeof g_globaux);
+  lireStructure("maj", &g_maj, sizeof g_maj);
   prefs.end();
+  if (g_maj.etape > MAJ_ECHEC) g_maj.etape = MAJ_AUCUNE;
+  assainirTexte(g_maj.version, sizeof g_maj.version);
+  assainirTexte(g_maj.detail, sizeof g_maj.detail);
 
   if (luG == 0) reglagesGlobauxParDefaut(g_globaux);
   // Mêmes précautions que pour les zones : une valeur aberrante venue d'une
@@ -314,33 +231,59 @@ void demarrer() {
     assainirTexte(g_reseau.fuseau, sizeof g_reseau.fuseau);
     assainirTexte(g_reseau.ntp, sizeof g_reseau.ntp);
     assainirTexte(g_reseau.alerteJeton, sizeof g_reseau.alerteJeton);
+    if (g_reseau.formatAlertes > ALERTES_TEXTE) g_reseau.formatAlertes = ALERTES_JSON;
     if (g_reseau.mqttPort == 0) g_reseau.mqttPort = 1883;
     if (g_reseau.heartbeatMinutes == 0 || g_reseau.heartbeatMinutes > 1440) g_reseau.heartbeatMinutes = 5;
-    if (g_reseau.mqttPrefixe[0] == '\0') snprintf(g_reseau.mqttPrefixe, sizeof g_reseau.mqttPrefixe, "terrarium");
-    if (g_reseau.fuseau[0] == '\0') snprintf(g_reseau.fuseau, sizeof g_reseau.fuseau, "CET-1CEST,M3.5.0,M10.5.0/3");
+    if (g_reseau.mqttPrefixe[0] == '\0')
+      snprintf(g_reseau.mqttPrefixe, sizeof g_reseau.mqttPrefixe, "terrarium");
+    if (g_reseau.fuseau[0] == '\0')
+      snprintf(g_reseau.fuseau, sizeof g_reseau.fuseau, "CET-1CEST,M3.5.0,M10.5.0/3");
     if (g_reseau.ntp[0] == '\0') snprintf(g_reseau.ntp, sizeof g_reseau.ntp, "fr.pool.ntp.org");
     // Relecture partielle (mémoire écrite par une version antérieure) : les
     // champs apparus depuis sont à zéro, on leur donne leur valeur d'usine.
     if (lu < sizeof g_reseau) {
-      ReglagesReseau d; reseauParDefaut(d);
+      ReglagesReseau d;
+      reseauParDefaut(d);
       if (lu < offsetof(ReglagesReseau, verifierTls) + sizeof(d.verifierTls))
         g_reseau.verifierTls = d.verifierTls;
       if (lu < offsetof(ReglagesReseau, alerteJeton))
         memcpy(g_reseau.alerteJeton, d.alerteJeton, sizeof d.alerteJeton);
-      journal("Reglages reseau relus depuis une version anterieure (%u octets sur %u) : "
-              "configuration conservee, champs nouveaux mis aux valeurs d'usine",
-              (unsigned)lu, (unsigned)sizeof g_reseau);
+      journal(
+          "Reglages reseau relus depuis une version anterieure (%u octets sur %u) : "
+          "configuration conservee, champs nouveaux mis aux valeurs d'usine",
+          (unsigned)lu, (unsigned)sizeof g_reseau);
     }
   }
 }
 
 bool systemeFichiersPret() { return g_fsPret; }
+size_t espaceLibreFichiers() { return g_fsPret ? (size_t)(LittleFS.totalBytes() - LittleFS.usedBytes()) : 0; }
+
+// Test usine : une écriture puis une relecture dans la NVS, sans rien laisser.
+bool testNvs() {
+  const uint32_t v = esp_random() | 1u;
+  prefs.begin("thermo", false);
+  prefs.putUInt("testusine", v);
+  const uint32_t r = prefs.getUInt("testusine", 0);
+  prefs.remove("testusine");
+  prefs.end();
+  return r == v;
+}
 
 ReglagesReseau &reseau() { return g_reseau; }
 
 void sauverReseau() {
   prefs.begin("thermo", false);
   prefs.putBytes("reseau", &g_reseau, sizeof g_reseau);
+  prefs.end();
+}
+
+// --- dernière mise à jour ---------------------------------------------------
+EtatMaj &etatMaj() { return g_maj; }
+
+void sauverEtatMaj() {
+  prefs.begin("thermo", false);
+  prefs.putBytes("maj", &g_maj, sizeof g_maj);
   prefs.end();
 }
 
@@ -369,7 +312,8 @@ void chargerZones(ReglagesZone cfg[NB_ZONES], String &rapport) {
 
   // Réécrire la version assainie : sinon la valeur aberrante reste en mémoire
   // non volatile et se fait re-corriger, re-journaliser, à chaque démarrage.
-  for (uint8_t z = 0; z < NB_ZONES; z++) if (aReecrire[z]) sauverZone(z, cfg[z]);
+  for (uint8_t z = 0; z < NB_ZONES; z++)
+    if (aReecrire[z]) sauverZone(z, cfg[z]);
 }
 
 void sauverZone(uint8_t z, const ReglagesZone &r) {
@@ -387,7 +331,8 @@ void chargerDefauts(uint8_t d[NB_ZONES]) {
   if (prefs.getBytes("defauts", d, NB_ZONES) != NB_ZONES)
     for (uint8_t z = 0; z < NB_ZONES; z++) d[z] = DEF_AUCUN;
   prefs.end();
-  for (uint8_t z = 0; z < NB_ZONES; z++) if (d[z] > DEF_INEFFICACE) d[z] = DEF_AUCUN;
+  for (uint8_t z = 0; z < NB_ZONES; z++)
+    if (d[z] > DEF_INEFFICACE) d[z] = DEF_AUCUN;
 }
 
 void sauverDefauts(const uint8_t d[NB_ZONES]) {
@@ -398,7 +343,8 @@ void sauverDefauts(const uint8_t d[NB_ZONES]) {
 
 // --- biais appris ----------------------------------------------------------
 float lireBiais(uint8_t z) {
-  char cle[8]; snprintf(cle, sizeof cle, "bi%u", z);
+  char cle[8];
+  snprintf(cle, sizeof cle, "bi%u", z);
   prefs.begin("thermo", true);
   const float v = prefs.getFloat(cle, 0.0f);
   prefs.end();
@@ -407,7 +353,8 @@ float lireBiais(uint8_t z) {
 
 void sauverBiais(uint8_t z, float b) {
   if (!isfinite(b)) return;
-  char cle[8]; snprintf(cle, sizeof cle, "bi%u", z);
+  char cle[8];
+  snprintf(cle, sizeof cle, "bi%u", z);
   prefs.begin("thermo", false);
   prefs.putFloat(cle, b);
   prefs.end();
@@ -441,7 +388,10 @@ void histAjouter(const Echantillon &e) {
 
 uint32_t histNombre() {
   if (!g_fsPret) return 0;
-  if (!g_histPret) { File f = histOuvrir(); if (f) f.close(); }
+  if (!g_histPret) {
+    File f = histOuvrir();
+    if (f) f.close();
+  }
   return g_anneau.remplis;
 }
 
@@ -475,7 +425,7 @@ void journalAjouter(const String &ligne) {
   if (!g_fsPret) return;
   File f = LittleFS.open(CHEMIN_JOURNAL, "a");
   if (!f) return;
-  if (f.size() > g_journalMax) {         // rotation : on garde une génération
+  if (f.size() > g_journalMax) {  // rotation : on garde une génération
     f.close();
     LittleFS.remove(CHEMIN_JOURNAL_PREC);
     LittleFS.rename(CHEMIN_JOURNAL, CHEMIN_JOURNAL_PREC);
@@ -512,7 +462,7 @@ void alerteEmpiler(const String &texte) {
   if (!g_fsPret) return;
   File f = LittleFS.open(CHEMIN_ALERTES, "a");
   if (!f) return;
-  if (f.size() < 8192) {              // garde-fou : on ne remplit pas la flash
+  if (f.size() < 8192) {  // garde-fou : on ne remplit pas la flash
     String l = texte;
     l.replace('\n', ' ');
     f.println(l);
@@ -539,7 +489,10 @@ void alerteDefiler() {
   reste.reserve(f.available() + 1);
   while (f.available()) reste += (char)f.read();
   f.close();
-  if (reste.length() == 0) { LittleFS.remove(CHEMIN_ALERTES); return; }
+  if (reste.length() == 0) {
+    LittleFS.remove(CHEMIN_ALERTES);
+    return;
+  }
   File g = LittleFS.open(CHEMIN_ALERTES, "w");
   if (!g) return;
   g.print(reste);
@@ -551,9 +504,10 @@ uint16_t alertesEnAttente() {
   File f = LittleFS.open(CHEMIN_ALERTES, "r");
   if (!f) return 0;
   uint16_t n = 0;
-  while (f.available()) if (f.read() == '\n') n++;
+  while (f.available())
+    if (f.read() == '\n') n++;
   f.close();
   return n;
 }
 
-} // namespace Stockage
+}  // namespace Stockage

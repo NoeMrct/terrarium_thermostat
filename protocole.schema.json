@@ -1,0 +1,631 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/NoeMrct/terrarium_thermostat/protocole.schema.json",
+  "title": "Protocole de pilotage du socle chauffant — version 2",
+  "description": "Ce que le socle publie et ce qu'il accepte, sujet par sujet. PROTOCOLE.md explique ; ce fichier est ce que vérifient outils/test-protocole.js (sur le socle simulé) et la CI. Un champ absent de ce schéma mais présent dans un message est toléré (additionalProperties) : une application plus ancienne ignore ce qu'elle ne connaît pas. Version 3 du protocole (firmware 3.4) : action « maj », sujet « maj », champs hote, ip et maj dans « sante ».",
+  "$defs": {
+    "drapeau": {
+      "description": "Booléen tel que l'exposent les sujets « etat » (pour Home Assistant) : chaîne \"0\"/\"1\", ou vrai booléen.",
+      "enum": [
+        "0",
+        "1",
+        true,
+        false,
+        0,
+        1
+      ]
+    },
+    "temperature": {
+      "type": "number",
+      "minimum": -60,
+      "maximum": 130
+    },
+    "zoneEtat": {
+      "description": "Message retenu publié sur <prefixe>/<id>/zone<n>/etat, à chaque changement et au plus tard toutes les 60 s.",
+      "type": "object",
+      "required": [
+        "temp",
+        "consigne",
+        "demande",
+        "chauffe",
+        "defaut",
+        "jour",
+        "nuit"
+      ],
+      "properties": {
+        "temp": {
+          "$ref": "#/$defs/temperature"
+        },
+        "consigne": {
+          "$ref": "#/$defs/temperature"
+        },
+        "demande": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "charge": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "chauffe": {
+          "$ref": "#/$defs/drapeau"
+        },
+        "defaut": {
+          "$ref": "#/$defs/drapeau"
+        },
+        "defaut_libelle": {
+          "type": "string"
+        },
+        "jour": {
+          "$ref": "#/$defs/temperature"
+        },
+        "nuit": {
+          "$ref": "#/$defs/temperature"
+        }
+      },
+      "additionalProperties": true
+    },
+    "sante": {
+      "description": "Message retenu publié sur <prefixe>/<id>/sante toutes les 60 s, et joint à la réponse « etat ».",
+      "type": "object",
+      "required": [
+        "proto",
+        "version",
+        "uptime",
+        "rssi",
+        "heap",
+        "reset"
+      ],
+      "properties": {
+        "proto": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+"
+        },
+        "uptime": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rssi": {
+          "type": "integer",
+          "minimum": -120,
+          "maximum": 0
+        },
+        "heap": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "heapMin": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocMax": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reset": {
+          "type": "string"
+        },
+        "otaEnAttente": {
+          "type": "boolean"
+        },
+        "signatureOta": {
+          "type": "boolean"
+        },
+        "plantage": {
+          "type": "string"
+        },
+        "courantA": {
+          "type": "number"
+        },
+        "tensionV": {
+          "type": "number"
+        },
+        "energieWh": {
+          "type": "number"
+        },
+        "anomalieCourant": {
+          "type": "string"
+        },
+        "hote": {
+          "type": "string",
+          "pattern": "^terra[0-9A-Za-z]{6}\\.local$",
+          "description": "Nom mDNS de l'interface locale de ce socle."
+        },
+        "ip": {
+          "type": "string",
+          "description": "Adresse IP actuelle, vide hors ligne."
+        },
+        "maj": {
+          "$ref": "#/$defs/maj"
+        }
+      },
+      "additionalProperties": true
+    },
+    "zoneComplete": {
+      "description": "Une zone dans la réponse « etat » : mesures et réglages de référence.",
+      "type": "object",
+      "required": [
+        "nom",
+        "temp",
+        "consigne",
+        "demande",
+        "chauffe",
+        "autotune",
+        "defaut",
+        "jour",
+        "nuit",
+        "bande",
+        "max",
+        "offset",
+        "rampe",
+        "debutJour",
+        "debutNuit"
+      ],
+      "properties": {
+        "nom": {
+          "type": "string",
+          "maxLength": 24
+        },
+        "temp": {
+          "$ref": "#/$defs/temperature"
+        },
+        "consigne": {
+          "$ref": "#/$defs/temperature"
+        },
+        "demande": {
+          "type": "integer"
+        },
+        "charge": {
+          "type": "integer"
+        },
+        "chauffe": {
+          "type": "boolean"
+        },
+        "autotune": {
+          "type": "boolean"
+        },
+        "derive": {
+          "type": "boolean"
+        },
+        "defaut": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "jour": {
+          "$ref": "#/$defs/temperature"
+        },
+        "nuit": {
+          "$ref": "#/$defs/temperature"
+        },
+        "bande": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max": {
+          "$ref": "#/$defs/temperature"
+        },
+        "offset": {
+          "type": "number"
+        },
+        "rampe": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "debutJour": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1439
+        },
+        "debutNuit": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1439
+        }
+      },
+      "additionalProperties": true
+    },
+    "commande": {
+      "description": "Requête publiée sur <prefixe>/<id>/cmd (en QoS 1 par l'application).",
+      "type": "object",
+      "required": [
+        "req",
+        "action"
+      ],
+      "properties": {
+        "req": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 23
+        },
+        "action": {
+          "enum": [
+            "version",
+            "etat",
+            "stats",
+            "historique",
+            "zone",
+            "globaux",
+            "alim",
+            "reset",
+            "entretien",
+            "autotune",
+            "stop-autotune",
+            "effacer-historique",
+            "redemarrer",
+            "maj"
+          ]
+        },
+        "jeton": {
+          "type": "string",
+          "pattern": "^[A-Z0-9]{24}$"
+        },
+        "z": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "heures": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 400
+        },
+        "max": {
+          "type": "number"
+        },
+        "minutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 240
+        },
+        "amperes": {
+          "type": "number"
+        },
+        "watts": {
+          "type": "number"
+        },
+        "volts": {
+          "type": "number"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "description": "Pour « maj » : version à tirer de la release GitHub (MAJ_URL_MODELE)."
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https://",
+          "maxLength": 200,
+          "description": "Pour « maj » : URL explicite, limitée aux releases du dépôt (MAJ_ORIGINES_AUTORISEES) ; les redirections ne sont suivies que vers MAJ_HOTES_AUTORISES."
+        },
+        "forcer": {
+          "type": "boolean",
+          "description": "Pour « maj » : réinstaller même si la version est déjà celle qui tourne."
+        }
+      },
+      "additionalProperties": true
+    },
+    "reponse": {
+      "description": "Réponse publiée sur <prefixe>/<id>/reponse : l'identifiant de la requête, ok, et selon l'action le corps ci-dessous ou « erreur ».",
+      "type": "object",
+      "required": [
+        "req",
+        "ok"
+      ],
+      "properties": {
+        "req": {
+          "type": "string"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "erreur": {
+          "type": "string"
+        },
+        "proto": {
+          "type": "integer"
+        },
+        "version": {
+          "type": "string"
+        },
+        "compile": {
+          "type": "string"
+        },
+        "zones": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2
+        },
+        "uptime": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "entretienS": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "heure": {
+          "type": "string"
+        },
+        "zonesSimultanees": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2
+        },
+        "saison": {
+          "type": "number"
+        },
+        "alertesEnAttente": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sante": {
+          "$ref": "#/$defs/sante"
+        },
+        "format": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unite": {
+          "type": "string"
+        },
+        "pas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "heures": {
+          "type": "integer"
+        },
+        "n": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "minItems": 5,
+            "maxItems": 5,
+            "items": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          }
+        },
+        "maj": {
+          "enum": [
+            "telechargement"
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "ok": {
+                "const": false
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "erreur"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "zones"
+            ],
+            "properties": {
+              "zones": {
+                "items": {
+                  "required": [
+                    "temp"
+                  ]
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "zones": {
+                "items": {
+                  "$ref": "#/$defs/zoneComplete"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "zones"
+            ],
+            "properties": {
+              "zones": {
+                "items": {
+                  "required": [
+                    "kWh"
+                  ]
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "zones": {
+                "items": {
+                  "$ref": "#/$defs/zoneStats"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "statut": {
+      "description": "Message retenu sur <prefixe>/<id>/statut, avec testament : « hors ligne » quand le socle disparaît.",
+      "enum": [
+        "en ligne",
+        "hors ligne"
+      ]
+    },
+    "zoneStats": {
+      "description": "Une zone dans la réponse « stats » : sur 24 h, min, max, moyenne, part du temps hors plage, puis cumuls.",
+      "type": "object",
+      "required": [
+        "nom",
+        "heuresChauffe",
+        "kWh",
+        "defauts"
+      ],
+      "properties": {
+        "nom": {
+          "type": "string"
+        },
+        "min": {
+          "$ref": "#/$defs/temperature"
+        },
+        "max": {
+          "$ref": "#/$defs/temperature"
+        },
+        "moyenne": {
+          "$ref": "#/$defs/temperature"
+        },
+        "horsPlagePct": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "points": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "heuresChauffe": {
+          "type": "number",
+          "minimum": 0
+        },
+        "kWh": {
+          "type": "number",
+          "minimum": 0
+        },
+        "defauts": {
+          "type": "object",
+          "required": [
+            "sonde",
+            "surchauffe",
+            "figee"
+          ],
+          "properties": {
+            "sonde": {
+              "type": "integer"
+            },
+            "surchauffe": {
+              "type": "integer"
+            },
+            "figee": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "maj": {
+      "description": "Dernière mise à jour tirée (action « maj »), telle que le socle s'en souvient d'un redémarrage à l'autre.",
+      "type": "object",
+      "required": [
+        "etape",
+        "version",
+        "detail"
+      ],
+      "properties": {
+        "etape": {
+          "enum": [
+            "aucune",
+            "en validation",
+            "validee",
+            "retour arriere",
+            "echec"
+          ]
+        },
+        "version": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string",
+          "maxLength": 79
+        }
+      },
+      "additionalProperties": false
+    },
+    "progressionMaj": {
+      "description": "Message (non retenu) publié sur <prefixe>/<id>/maj pendant une mise à jour tirée.",
+      "type": "object",
+      "required": [
+        "etat",
+        "version"
+      ],
+      "properties": {
+        "etat": {
+          "enum": [
+            "telechargement",
+            "redemarrage",
+            "erreur"
+          ]
+        },
+        "pct": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "detail": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string",
+          "description": "Version qui tourne pendant le téléchargement."
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "type": "object",
+  "properties": {
+    "zoneEtat": {
+      "$ref": "#/$defs/zoneEtat"
+    },
+    "sante": {
+      "$ref": "#/$defs/sante"
+    },
+    "commande": {
+      "$ref": "#/$defs/commande"
+    },
+    "reponse": {
+      "$ref": "#/$defs/reponse"
+    },
+    "statut": {
+      "$ref": "#/$defs/statut"
+    },
+    "progressionMaj": {
+      "$ref": "#/$defs/progressionMaj"
+    },
+    "maj": {
+      "$ref": "#/$defs/maj"
+    }
+  }
+}

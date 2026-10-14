@@ -21,36 +21,39 @@ uint32_t anneauRupture(uint32_t capacite, LecteurSeq lire, void *contexte) {
     const uint32_t mid = lo + (hi - lo) / 2;
     uint32_t s = 0;
     if (!lire(mid, s, contexte)) return 0;
-    if (s > borne) lo = mid + 1;
-    else           hi = mid;
+    if (s > borne)
+      lo = mid + 1;
+    else
+      hi = mid;
   }
   return lo;
 }
 
-void anneauReconstruire(Anneau &a, uint32_t capacite, uint32_t enregistres,
-                        LecteurSeq lire, void *contexte) {
+void anneauReconstruire(Anneau &a, uint32_t capacite, uint32_t enregistres, LecteurSeq lire, void *contexte) {
   a.capacite = capacite;
-  if (capacite == 0) { a.index = 0; a.remplis = 0; a.seq = 1; return; }
+  if (capacite == 0) {
+    a.index = 0;
+    a.remplis = 0;
+    a.seq = 1;
+    return;
+  }
   if (enregistres > capacite) enregistres = capacite;
 
   if (enregistres < capacite) {
     // Anneau pas encore rempli : l'écriture est restée linéaire.
-    a.index   = enregistres;
+    a.index = enregistres;
     a.remplis = enregistres;
   } else {
-    a.index   = anneauRupture(capacite, lire, contexte);
+    a.index = anneauRupture(capacite, lire, contexte);
     a.remplis = capacite;
   }
 
   uint32_t derniere = 0;
-  if (a.remplis > 0 && lire)
-    lire((a.index + capacite - 1) % capacite, derniere, contexte);
+  if (a.remplis > 0 && lire) lire((a.index + capacite - 1) % capacite, derniere, contexte);
   a.seq = derniere + 1;
 }
 
-uint32_t anneauEmplacementEcriture(const Anneau &a) {
-  return (a.capacite == 0) ? 0 : (a.index % a.capacite);
-}
+uint32_t anneauEmplacementEcriture(const Anneau &a) { return (a.capacite == 0) ? 0 : (a.index % a.capacite); }
 
 void anneauAvancer(Anneau &a) {
   if (a.capacite == 0) return;

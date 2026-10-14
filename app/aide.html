@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Manuel du socle chauffant</title>
+<meta name="description" content="Manuel du socle chauffant : installation, réglages, alertes, entretien, dépannage.">
+<link rel="icon" href="icone.svg">
+<meta name="theme-color" content="#f3f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'none'; base-uri 'self'">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-vue="page">
+<header id="entete">
+  <h1>Aide</h1>
+  <a class="btn btn-fantome btn-petit" href="index.html">← Application</a>
+</header>
+<main class="page">
+<article class="carte prose">
+<h1>Manuel du socle chauffant</h1>
+<ol class="sommaire"><li><a href="#1-ce-que-fait-le-socle">1. Ce que fait le socle</a></li><li><a href="#2-ce-qu-il-faut">2. Ce qu'il faut</a></li><li><a href="#3-installer-le-firmware">3. Installer le firmware</a></li><li><a href="#4-premier-demarrage">4. Premier démarrage</a></li><li><a href="#5-lier-les-sondes-aux-zones">5. Lier les sondes aux zones</a></li><li><a href="#6-appairer-dans-l-application">6. Appairer dans l'application</a></li><li><a href="#7-regler">7. Régler</a></li><li><a href="#8-lire-l-etat">8. Lire l'état</a></li><li><a href="#9-courbes-et-statistiques">9. Courbes et statistiques</a></li><li><a href="#10-etre-prevenu">10. Être prévenu</a></li><li><a href="#11-entretenir">11. Entretenir</a></li><li><a href="#12-mettre-a-jour">12. Mettre à jour</a></li><li><a href="#13-securite">13. Sécurité</a></li><li><a href="#14-depanner">14. Dépanner</a></li><li><a href="#15-diagnostic-et-aide">15. Diagnostic et aide</a></li></ol>
+<p>Ce manuel couvre tout le parcours : déballer, flasher, brancher, régler, surveiller, dépanner. Il s'adresse à quelqu'un qui n'a jamais ouvert un IDE. Les termes techniques sont expliqués au passage ; les sections « pour aller plus loin » du README du dépôt restent la référence complète.</p>
+<h2 id="1-ce-que-fait-le-socle">1. Ce que fait le socle</h2>
+<p>Le socle régule la température de <b>deux zones</b> d'un terrarium, chacune avec sa sonde et son tapis chauffant 12 V. Il ne chauffe <b>jamais deux tapis en même temps</b> avec une petite alimentation : c'est structurel, pas un réglage. Il coupe le chauffage de lui-même et le dit haut et fort quand quelque chose cloche : sonde absente ou figée, température qui dépasse la coupure maximale, chute brutale, chauffe sans effet.</p>
+<p>Il fonctionne seul, sans réseau. Le réseau ajoute : l'interface web locale, l'application à distance, les alertes sur le téléphone, la domotique.</p>
+<h2 id="2-ce-qu-il-faut">2. Ce qu'il faut</h2>
+<ul><li>Le socle monté selon le schéma du dépôt (ESP32, deux MOSFET, deux bilames, convertisseur 5 V).</li><li>Une alimentation <b>12 V, 3 A</b> pour les tapis. Déclarer plus d'ampères qu'elle n'en a est le seul moyen de la surcharger : l'appareil s'y fie.</li><li>Un câble USB <b>de données</b> (les câbles de charge n'en sont pas tous) pour le premier flashage.</li><li>Un téléphone ou un ordinateur pour la configuration.</li><li>Pour le pilotage à distance : un broker MQTT en WebSocket sécurisé (HiveMQ Cloud propose une offre gratuite suffisante).</li></ul>
+<blockquote><p>Règle d'or de l'atelier : <b>USB et 12 V ne sont jamais branchés en même temps.</b> Le 12 V alimente la carte par le convertisseur 5 V ; l'USB aussi. Les deux ensemble se disputent la carte.</p></blockquote>
+<h2 id="3-installer-le-firmware">3. Installer le firmware</h2>
+<p>Le plus simple : la page <b>Flasher un socle</b> du site, dans Chrome ou Edge, sur un ordinateur. Branche la carte en USB, clique, choisis le port. Sur une carte neuve, accepte l'effacement complet ; sur un socle déjà en service, refuse-le pour garder les réglages et le code d'appairage. Juste après le flashage, la même page propose de <b>configurer le Wi-Fi</b> par le câble (protocole Improv) : choisis ton réseau dans la liste, entre le mot de passe, c'est fait.</p>
+<p>Sans Chrome : l'IDE Arduino, avec les réglages de carte décrits dans <code>INSTALLATION.md</code> du dépôt (carte « ESP32 Dev Module », schéma de partition « Custom », flash 4 Mo).</p>
+<h2 id="4-premier-demarrage">4. Premier démarrage</h2>
+<ol><li>Débranche l'USB, branche le 12 V. L'écran affiche « Thermostat terrarium » puis l'état.</li><li>Si le Wi-Fi n'a pas été donné au flashage, le socle ouvre un réseau <b>terrarium-config-XXXXXX</b> (les six derniers caractères de son identifiant ; mot de passe <code>terrarium1234</code>). Connecte ton téléphone dessus : la page de configuration s'ouvre d'elle-même (sinon <code>http://192.168.4.1</code>).</li><li>Onglet <b>Réseau</b> : ton Wi-Fi, un utilisateur et un mot de passe pour l'interface, un mot de passe OTA si tu veux mettre à jour sans câble, et, pour le pilotage à distance, le serveur MQTT. Enregistre : le socle redémarre sur ton réseau.</li><li>Il est ensuite joignable sur <code>http://terraXXXXXX.local</code> (son identifiant, affiché sur l'écran et dans l'application) ou sur son adresse IP. L'interface demande l'utilisateur et le mot de passe choisis ; le mot de passe ne quitte jamais le navigateur (connexion par défi).</li></ol>
+<p>Au tout premier démarrage, l'écran montre le <b>code d'appairage</b> pendant vingt secondes, en lettres et en QR code. Il se retrouve ensuite dans l'onglet Réseau et avec la commande série <code>jeton</code>.</p>
+<h2 id="5-lier-les-sondes-aux-zones">5. Lier les sondes aux zones</h2>
+<p>Les sondes DS18B20 ont chacune une adresse unique. Onglet <b>Réglages → Sondes 1-Wire détectées → Scanner</b>, puis « vers zone 1 » / « vers zone 2 ». Si une seule sonde apparaît, c'est le câblage (voir le dépannage), pas le logiciel.</p>
+<p>La sonde va <b>au point chaud, sous le substrat, contre le tapis</b> — jamais dans l'air. Vérifie au thermomètre infrarouge avant d'installer un animal.</p>
+<h2 id="6-appairer-dans-l-application">6. Appairer dans l'application</h2>
+<p>Ouvre l'application, saisis l'adresse du broker (<code>wss://…:8884/mqtt</code>), l'identifiant et le mot de passe fournis par ton broker. <b>Tester la connexion</b> dit tout de suite si c'est bon. Puis <b>Ajouter un socle</b> : scanne le QR (écran du socle ou étiquette), ou tape l'identifiant (<code>terraXXXXXX</code>) et le code d'appairage. Le socle apparaît avec ses deux zones.</p>
+<p>L'application peut s'installer comme une vraie application (bouton « Installer l'application », ou Partager → Sur l'écran d'accueil sur iPhone). Elle fonctionne alors hors ligne pour sa partie interface, et se met à jour toute seule en proposant « Recharger ».</p>
+<p><b>Code de verrouillage</b> (bas de la liste des socles) : avec un code, le mot de passe du broker et les codes d'appairage sont chiffrés sur le téléphone, et l'application se verrouille après le délai choisi. Qui prend le téléphone ne peut plus chauffer un animal. Le code ne se retrouve pas : en cas d'oubli, « Tout effacer » et réappairer (les codes sont sur les socles).</p>
+<p><b>Avec le serveur Terrariums</b> (<code>serveur/</code> du dépôt, auto-hébergé) à la place d'un broker nu, chaque socle est rattaché à ton compte par la preuve de son code d'appairage, l'historique est gardé même application fermée, et le téléphone est prévenu par notification push. L'application le détecte toute seule à la connexion.</p>
+<h2 id="7-regler">7. Régler</h2>
+<p>Dans la vue d'un socle, onglet <b>État</b> : les consignes de jour et de nuit, directement. Onglet <b>Réglages</b> : tout le reste.</p>
+<table><thead><tr><th>Réglage</th><th>Ce que c'est</th><th>Valeur de départ</th></tr></thead><tbody><tr><td>Consigne jour / nuit</td><td>Température visée, au point chaud</td><td>selon l'espèce</td></tr><tr><td>Début du jour / de la nuit</td><td>Heures de basculement</td><td>08:00 / 20:00</td></tr><tr><td>Rampe</td><td>Passage progressif d'une consigne à l'autre, en minutes</td><td>45</td></tr><tr><td>Bande</td><td>Largeur de la zone de modulation autour de la consigne</td><td>2 °C</td></tr><tr><td>Coupure max</td><td>Au-dessus, la zone se verrouille en défaut. Sécurité absolue.</td><td>40 °C</td></tr><tr><td>Calibration</td><td>Décalage ajouté à la mesure, si la sonde lit faux</td><td>0</td></tr></tbody></table>
+<p>L'<b>autotune</b> règle lui-même la bande et le gain : lance-le une fois le terrarium en place et stable, il fait osciller la zone pendant environ une heure, puis enregistre ce qu'il a appris.</p>
+<p>Onglet <b>Appareil</b> : l'alimentation (ampères disponibles, puissance d'un tapis), le cyclage saisonnier, les statistiques, la santé du socle, les sauvegardes de réglages.</p>
+<h2 id="8-lire-l-etat">8. Lire l'état</h2>
+<ul><li><b>en ligne</b> : le socle publie. <b>silencieux</b> : il est annoncé en ligne mais n'a rien publié depuis plus de deux minutes — vérifie son Wi-Fi. <b>hors ligne</b> : le broker ne le voit plus. Dans tous les cas, le socle continue de réguler tout seul.</li><li><b>chauffe</b> : le tapis de cette zone est alimenté en ce moment. <b>demande</b> : ce que la régulation réclame, de 0 à 100 %.</li><li><b>dérive</b> : la température s'éloigne de la consigne depuis un moment sans qu'un défaut soit déclaré. Souvent : couvercle ouvert, pièce froide, tapis vieillissant.</li><li><b>DÉFAUT</b> : le chauffage de la zone est coupé et verrouillé. Le libellé dit pourquoi (SONDE, SURCHAUFFE, FIGEE…). Une fois la cause corrigée, <b>Lever les défauts</b>.</li></ul>
+<h2 id="9-courbes-et-statistiques">9. Courbes et statistiques</h2>
+<p>Les courbes sur 6 h et 24 h viennent du socle, précises à la minute. Sur 7 et 30 jours, l'application ajoute les points qu'elle a notés en passant : ouvrir l'application de temps en temps suffit à remplir ces courbes. Molette ou pincement pour zoomer, glisser pour se déplacer, double-clic pour revenir. <b>Exporter en CSV</b> donne le fichier pour un tableur.</p>
+<p>Les statistiques sur 24 h (min, max, moyenne, part du temps hors plage, heures de chauffe, kWh) disent si un terrarium <b>tient</b> ses valeurs, pas seulement s'il les atteint.</p>
+<h2 id="10-etre-prevenu">10. Être prévenu</h2>
+<ul><li><b>Notifications du navigateur</b> : un défaut ou une dérive affiche une notification tant que l'application est ouverte (même en arrière-plan). Onglet Appareil → Notifications.</li><li><b>Sur le téléphone, application fermée</b> : le socle appelle lui-même une adresse web à chaque alerte. Avec <a href="https://ntfy.sh" rel="noopener">ntfy</a>, c'est gratuit et sans compte : crée un sujet, mets son adresse dans « URL d'alerte » de l'onglet Réseau, choisis le format « texte », installe ntfy sur le téléphone. Détails dans <code>docs/alertes-telephone.md</code>. Avec le serveur Terrariums : « Activer les notifications du serveur » dans l'onglet Appareil, et c'est le serveur qui pousse les alertes.</li><li><b>Savoir qu'il est vivant</b> : l'URL de heartbeat appelée toutes les cinq minutes ; avec <a href="https://healthchecks.io" rel="noopener">healthchecks.io</a>, tu es prévenu quand le socle se tait.</li><li><b>Domotique</b> : la découverte Home Assistant est activable dans l'onglet Réseau ; <code>/metrics</code> expose les mesures pour Prometheus.</li></ul>
+<h2 id="11-entretenir">11. Entretenir</h2>
+<ul><li><b>Entretien</b> (onglet État → Actions) : coupe le chauffage le temps de nettoyer, puis reprend tout seul à l'heure dite.</li><li><b>Sauvegarde des réglages</b> (onglet Appareil) : un fichier JSON avec consignes, horaires et réglages de l'appareil, à réimporter sur un socle de rechange.</li><li><b>Exporter la configuration</b> (bas de la liste) : l'application entière — broker et socles — pour changer de téléphone. Le fichier contient les codes d'appairage : garde-le pour toi.</li><li><b>Redémarrer</b>, <b>Effacer l'historique</b> : onglet Appareil. L'historique local de l'application est effacé en même temps.</li></ul>
+<h2 id="12-mettre-a-jour">12. Mettre à jour</h2>
+<ul><li><b>L'application</b> se met à jour seule : un message « Nouvelle version disponible — Recharger » apparaît. Rien n'est forcé au milieu d'un réglage.</li><li><b>Le firmware</b> : dans l'application, onglet Appareil, la carte <b>Mise à jour du firmware</b> dit si une version plus récente est publiée et un bouton la fait <b>télécharger et installer par le socle lui-même</b> (signature vérifiée si le socle l'exige). Sinon : page Flasher un socle (USB), onglet Réseau de l'interface locale (envoi du fichier <code>.bin</code>, ou « Mise à jour depuis GitHub »), ou OTA depuis l'IDE si un mot de passe OTA est défini. Pendant l'écriture, le chauffage est coupé ; au redémarrage, la nouvelle version doit se déclarer saine dans la minute et demie, sinon le socle revient de lui-même à la version précédente — et l'application affiche « retour arrière ».</li></ul>
+<h2 id="13-securite">13. Sécurité</h2>
+<ul><li>Un bilame 70 °C sur chaque plaque, en série avec le tapis, et un fusible sur le 12 V : ce sont les protections qui ne dépendent pas du logiciel. Le README (section « Ce qui protège le matériel ») détaille le reste.</li><li>Ne laisse pas un animal sur un socle dont les sondes ne sont pas vérifiées au thermomètre indépendant.</li><li>Une coupure maximale réglée trop haut n'est pas une sécurité. Garde-la quelques degrés au-dessus de la consigne de jour, jamais plus.</li><li>Le socle refuse les réglages hors bornes ; s'il affiche un défaut, c'est qu'il a de bonnes raisons. Ne « lève » un défaut qu'après avoir compris sa cause.</li></ul>
+<h2 id="14-depanner">14. Dépanner</h2>
+<p>L'arbre de décision complet est dans <code>docs/depannage.md</code>. Les trois cas les plus fréquents :</p>
+<ul><li><b>Aucune sonde détectée</b> : résistance de 4,7 kΩ entre data et 3,3 V, masse commune, bornier mesuré à l'ohmmètre, sonde sur GPIO4.</li><li><b>hors ligne dans l'application</b> : le socle n'a pas de Wi-Fi ou pas de broker. Son écran affiche « AP » s'il n'a pas pu se connecter : il a rouvert le réseau de configuration. Sur place, la commande série <code>wifi &lt;ssid&gt; &lt;mot de passe&gt;</code> essaie le réseau tout de suite et dit s'il répond.</li><li><b>Port USB « accès refusé »</b> sous Windows : pilote CP210x manquant.</li></ul>
+<h2 id="15-diagnostic-et-aide">15. Diagnostic et aide</h2>
+<p>Le bouton <b>Diagnostic</b> (en bas de la liste des socles) assemble un rapport : version de l'application, navigateur, état du broker, pour chaque socle sa version, son signal Wi-Fi, sa mémoire, son dernier redémarrage, et les erreurs récentes. Il ne contient ni mot de passe ni code d'appairage. <b>Copier le rapport</b> et le joindre à une demande d'aide fait gagner un aller-retour ; avec le serveur Terrariums, <b>Envoyer au serveur</b> le dépose directement.</p>
+<p>Sur le socle, la commande série <code>test usine</code> vérifie l'écran, les sondes, la mémoire, les partitions et le Wi-Fi en une fois (<code>test usine oui</code> actionne aussi chaque MOSFET une fraction de seconde : jamais avec un animal dessus).</p>
+<p class="discret">Généré depuis docs/manuel.md — ne pas modifier ce fichier à la main.</p>
+</article>
+<footer class="pied colonne">
+  <div class="pied-ligne liens">
+    <a href="index.html">Application</a>
+    <a href="installer.html">Flasher un socle</a>
+    <a href="mentions-legales.html">Mentions légales</a>
+    <a href="confidentialite.html">Confidentialité</a>
+    <a href="demarrage-rapide.html">Fiche à imprimer</a>
+    <a href="aide.en.html" lang="en">English</a>
+  </div>
+</footer>
+</main>
+</body>
+</html>

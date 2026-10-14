@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Confidentialité</title>
+<meta name="description" content="Ce que l'application Terrariums fait, et ne fait pas, de vos données.">
+<link rel="icon" href="icone.svg">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'none'; base-uri 'self'">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-vue="page">
+<header id="entete">
+  <h1>Confidentialité</h1>
+  <a class="btn btn-fantome btn-petit" href="index.html">← Application</a>
+</header>
+<main class="page">
+<article class="carte prose">
+  <p>L'application Terrariums est conçue pour fonctionner <b>sans compte et sans serveur à nous</b>. Cette page décrit
+    précisément où vont les données, pour que vous puissiez vérifier ce qui suit dans le code source, publié sur
+    <a href="https://github.com/NoeMrct/terrarium_thermostat">GitHub</a>. <a href="confidentialite.en.html" lang="en">Read this page in English.</a></p>
+
+  <h2>Ce que l'application enregistre, et où</h2>
+  <ul>
+    <li><b>Sur votre appareil uniquement</b> (stockage local du navigateur) : l'adresse de votre broker MQTT, l'identifiant et le mot de passe
+      que vous y avez saisis, la liste de vos socles avec leur code d'appairage, votre choix de langue, et les températures reçues
+      au fil du temps pour tracer les courbes sur plusieurs jours. Rien de tout cela ne quitte votre appareil, sinon vers le broker que vous
+      avez choisi. Désinstaller l'application ou effacer les données du site les supprime. Si vous définissez un <b>code de
+      verrouillage</b>, le mot de passe du broker et les codes d'appairage sont chiffrés avec ce code (AES-256) ; le code lui-même
+      n'est enregistré nulle part.</li>
+    <li><b>Chez votre fournisseur de broker MQTT</b> (par exemple HiveMQ Cloud, si c'est celui que vous avez choisi) : les messages
+      échangés entre vos socles et l'application transitent par ce service, selon ses propres conditions et sa propre politique de
+      confidentialité. Ils contiennent les températures, les consignes, les commandes et l'identifiant de chaque socle. Le code
+      d'appairage est transmis dans chaque commande, sur une liaison chiffrée (TLS) — c'est pourquoi l'application refuse les adresses
+      non chiffrées.</li>
+    <li><b>Chez l'hébergeur du site</b> (Netlify) : les journaux techniques habituels d'un serveur web (adresse IP, page demandée, date),
+      conservés par l'hébergeur pour la sécurité du service. Le site ne pose aucun cookie et n'embarque aucun outil de mesure d'audience.</li>
+  </ul>
+
+  <h2>Ce que l'application ne fait pas</h2>
+  <ul>
+    <li>Aucune création de compte, aucune adresse électronique demandée.</li>
+    <li>Aucun cookie, aucun traceur, aucune publicité, aucun script tiers.</li>
+    <li>Aucune donnée n'est envoyée à l'éditeur de l'application. Le rapport de diagnostic n'est produit que si vous cliquez sur
+      « Copier le rapport », et c'est vous qui décidez à qui l'envoyer ; il ne contient ni mot de passe ni code d'appairage.</li>
+  </ul>
+
+  <h2>Si vous utilisez un serveur Terrariums (option)</h2>
+  <p>Le dépôt fournit un serveur à héberger soi-même (<code>serveur/</code>) qui remplace le broker nu. <b>Il n'est pas exploité par
+    l'éditeur de l'application</b> : celui qui l'installe en devient le responsable. Un tel serveur enregistre, sur sa propre machine :
+    les comptes (adresse électronique et empreinte du mot de passe), la liste des socles rattachés à chaque compte, l'historique de
+    températures des socles (durée de conservation réglable), les abonnements aux notifications push (adresses techniques fournies
+    par le navigateur, jamais le contenu des autres notifications du téléphone) et les rapports de diagnostic envoyés volontairement.
+    Son administrateur doit publier sa propre politique de confidentialité ; le fichier <code>serveur/README.md</code> indique où et
+    combien de temps chaque donnée est gardée, et comment l'effacer.</p>
+
+  <h2>Le socle lui-même</h2>
+  <p>Le socle enregistre son historique de températures et son journal dans sa propre mémoire. S'il est configuré pour envoyer des
+    alertes ou un signal de vie vers une adresse web (<em>webhook</em>, ntfy, healthchecks…), ces messages partent vers le service que
+    vous avez indiqué et contiennent l'identifiant du socle, les températures et le texte de l'alerte. Lors d'une mise à jour « depuis
+    GitHub », le socle télécharge le binaire sur les serveurs de GitHub, qui voient son adresse IP.</p>
+
+  <h2>Vos droits</h2>
+  <p>Comme l'éditeur ne détient aucune donnée vous concernant, il n'y a rien à demander, rectifier ou effacer de son côté : tout est
+    sur votre appareil et chez les services que vous avez choisis. Pour toute question : <span class="a-completer">à compléter</span>
+    (adresse de contact).</p>
+
+  <p class="discret">Dernière mise à jour : octobre 2026.</p>
+</article>
+<footer class="pied colonne">
+  <div class="pied-ligne liens">
+    <a href="index.html">Application</a>
+    <a href="aide.html">Aide</a>
+    <a href="mentions-legales.html">Mentions légales</a>
+  </div>
+</footer>
+</main>
+</body>
+</html>

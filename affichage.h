@@ -9,12 +9,15 @@ void demarrer();
 bool present();
 void rafraichir();
 void message(const String &ligne1, const String &ligne2);
-void reveiller();          // sort l'écran de veille (activité, défaut, commande)
-// Affiche le code d'appairage pendant `secondes`. NE BLOQUE PAS : l'écran est
-// rendu par rafraichir(), la régulation, le réseau et la console continuent de
-// tourner pendant ce temps.
-void appairage(const char *jeton, uint32_t secondes);
+void reveiller();  // sort l'écran de veille (activité, défaut, commande)
+// Affiche le code d'appairage pendant `secondes` : en QR code à gauche (lisible
+// par l'application, caméra du téléphone) et en toutes lettres à droite.
+// NE BLOQUE PAS : l'écran est rendu par rafraichir(), la régulation, le réseau
+// et la console continuent de tourner pendant ce temps.
+void appairage(const char *identifiant, const char *jeton, uint32_t secondes);
 bool appairageEnCours();
-}
+// Mire de test (plein, puis damier) pendant `ms` ; false sans écran.
+bool mire(uint32_t ms);
+}  // namespace Affichage
 
-#endif // AFFICHAGE_H
+#endif  // AFFICHAGE_H

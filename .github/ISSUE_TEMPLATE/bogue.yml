@@ -1,0 +1,32 @@
+name: Signaler un problème
+description: Quelque chose ne fait pas ce que la documentation annonce.
+labels: ['bogue']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Merci. Le rapport de diagnostic (bouton **Diagnostic** en bas de la liste des socles, puis **Copier le rapport**) contient tout ce qu'il faut : versions, navigateur, état des socles, erreurs récentes. Il ne contient ni mot de passe ni code d'appairage.
+  - type: textarea
+    id: observe
+    attributes:
+      label: Ce qui se passe
+      description: Ce que vous avez fait, ce que vous attendiez, ce qui s'est produit.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostic
+    attributes:
+      label: Rapport de diagnostic
+      render: text
+  - type: dropdown
+    id: ou
+    attributes:
+      label: Où
+      options: [Application (site ou installée), Interface locale du socle, Firmware / écran / régulation, Installation, Documentation]
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Version du firmware
+      placeholder: 3.3.0 (commande série `version`, ou onglet Appareil)

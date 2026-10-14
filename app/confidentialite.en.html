@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Privacy</title>
+<meta name="description" content="What the Terrariums app does, and does not do, with your data.">
+<link rel="icon" href="icone.svg">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'none'; base-uri 'self'">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-vue="page">
+<header id="entete">
+  <h1>Privacy</h1>
+  <a class="btn btn-fantome btn-petit" href="index.html">← App</a>
+</header>
+<main class="page">
+<article class="carte prose">
+  <p>The Terrariums app is designed to work <b>without an account and without any server of ours</b>. This page describes
+    precisely where the data goes, so that you can check what follows in the source code, published on
+    <a href="https://github.com/NoeMrct/terrarium_thermostat">GitHub</a>. The French version
+    (<a href="confidentialite.html" lang="fr">Confidentialité</a>) is the authoritative text.</p>
+
+  <h2>What the app records, and where</h2>
+  <ul>
+    <li><b>On your device only</b> (browser local storage): the address of your MQTT broker, the username and password
+      you typed there, the list of your bases with their pairing code, your language choice, and the temperatures received
+      over time to draw the charts over several days. None of this leaves your device, except towards the broker you
+      chose. Uninstalling the app or clearing the site data deletes it. If you set a <b>lock code</b>, the broker
+      password and the pairing codes are encrypted with that code (AES-256); the code itself is stored nowhere.</li>
+    <li><b>At your MQTT broker provider</b> (for example HiveMQ Cloud, if that is the one you chose): the messages
+      exchanged between your bases and the app go through that service, under its own terms and its own privacy
+      policy. They contain the temperatures, the setpoints, the commands and each base's identifier. The pairing
+      code is sent in every command, over an encrypted link (TLS) — which is why the app refuses unencrypted addresses.</li>
+    <li><b>At the site's host</b> (Netlify): the usual technical logs of a web server (IP address, requested page, date),
+      kept by the host for the security of the service. The site sets no cookie and embeds no audience measurement tool.</li>
+  </ul>
+
+  <h2>What the app does not do</h2>
+  <ul>
+    <li>No account creation, no e-mail address requested.</li>
+    <li>No cookie, no tracker, no advertising, no third-party script.</li>
+    <li>No data is sent to the app's publisher. The diagnostics report is only produced if you click
+      "Copy the report", and you decide whom to send it to; it contains no password and no pairing code.</li>
+  </ul>
+
+  <h2>If you use a Terrariums server (optional)</h2>
+  <p>The repository provides a self-hosted server (<code>serveur/</code>) that replaces the bare broker. <b>It is not operated by
+    the app's publisher</b>: whoever installs it becomes responsible for it. Such a server records, on its own machine:
+    the accounts (e-mail address and password hash), the list of bases attached to each account, the bases' temperature
+    history (adjustable retention), the push notification subscriptions (technical addresses provided by the browser, never
+    the content of the phone's other notifications) and the diagnostics reports sent voluntarily. Its administrator must
+    publish their own privacy policy; the <code>serveur/README.md</code> file says where and for how long each piece of data
+    is kept, and how to erase it.</p>
+
+  <h2>The base itself</h2>
+  <p>The base records its temperature history and its log in its own memory. If it is configured to send alerts or a
+    heartbeat to a web address (<em>webhook</em>, ntfy, healthchecks…), these messages go to the service you specified and
+    contain the base's identifier, the temperatures and the alert text. During an update "from GitHub", the base downloads
+    the binary from GitHub's servers, which see its IP address.</p>
+
+  <h2>Your rights</h2>
+  <p>As the publisher holds no data about you, there is nothing to request, correct or erase on their side: everything is
+    on your device and at the services you chose. For any question: <span class="a-completer">to be completed</span>
+    (contact address).</p>
+
+  <p class="discret">Last updated: October 2026.</p>
+</article>
+<footer class="pied colonne">
+  <div class="pied-ligne liens">
+    <a href="index.html">App</a>
+    <a href="aide.en.html">Help</a>
+    <a href="mentions-legales.en.html">Legal notice</a>
+    <a href="confidentialite.html" lang="fr">Français</a>
+  </div>
+</footer>
+</main>
+</body>
+</html>

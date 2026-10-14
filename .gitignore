@@ -2,8 +2,18 @@
 sim/simulateur
 sim/test-anneau
 sim/test-format
+sim/test-qr
+sim/test-protocole
+sim/test-migration
 sim/san_*
 sim/run.csv
+sim/fuzz
+sim/corpus/
+sim/crash-*
+sim/leak-*
+sim/timeout-*
+sim/couverture/
+sim/tiers/
 
 # Sorties de la compilation ESP32
 build/
@@ -14,13 +24,34 @@ sortie.txt
 
 # Outils Node
 node_modules/
-package-lock.json
 npm-debug.log*
 
-# Étiquettes générées
+# Étiquettes et captures générées (les références visuelles, elles, sont versionnées)
 etiquette*.svg
+outils/captures/
+# PDF imprimés à la publication (construire-pdf.js), joints à la release
+outils/pdf/
+outils/couverture/
+# Répertoire temporaire de c8 (couverture de l'application)
+coverage/
+
+# Serveur auto-hébergé : données et configuration locales
+serveur/donnees/
+serveur/.env
+
+# Produits au déploiement par outils/preparer-publication.js
+app/version.json
+app/firmware/
+app/*.map
+
+# Clés de signature du firmware : jamais dans le dépôt
+*.pem
+
+# Rapports Lighthouse
+.lighthouseci/
 
 # Divers
 .DS_Store
 Thumbs.db
 *.swp
+outils/provisionnement/

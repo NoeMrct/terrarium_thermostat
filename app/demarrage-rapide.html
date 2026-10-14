@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Démarrage rapide</title>
+<meta name="description" content="Fiche de démarrage rapide du socle chauffant, à imprimer et à glisser dans la boîte (français et anglais).">
+<link rel="icon" href="icone.svg">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'none'; base-uri 'self'">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-vue="page" class="impression">
+<header id="entete" class="sans-impression">
+  <h1>Démarrage rapide</h1>
+  <a class="btn btn-fantome btn-petit" href="index.html">← Application</a>
+</header>
+<main class="page">
+<p class="aide sans-impression">Cette fiche tient sur une feuille recto verso (français au recto, anglais au verso) : Ctrl+P ou ⌘P pour l'imprimer, sans marges supplémentaires. Le manuel complet est dans <a href="aide.html">l'aide</a>.</p>
+
+<section class="carte prose fiche" lang="fr">
+  <h1>Socle chauffant — démarrage rapide</h1>
+  <p class="fiche-sous-titre">Deux zones régulées, un seul tapis chauffé à la fois, coupure automatique sur défaut. Le socle fonctionne seul ; le réseau ajoute l'application et les alertes.</p>
+
+  <div class="fiche-colonnes">
+    <div>
+      <h2>1. Brancher</h2>
+      <ol>
+        <li>Sonde de chaque zone <b>au point chaud, sous le substrat, contre le tapis</b>, jamais dans l'air.</li>
+        <li>Tapis 12 V sur les borniers Z1 et Z2 ; bilame 70 °C en série sur chaque plaque.</li>
+        <li>Alimentation <b>12 V, 3 A</b> marquée CE. Déclarer plus d'ampères qu'elle n'en a est le seul moyen de la surcharger.</li>
+        <li class="important"><b>Jamais USB et 12 V en même temps.</b></li>
+      </ol>
+
+      <h2>2. Configurer le Wi-Fi</h2>
+      <ol>
+        <li>Au premier démarrage, le socle ouvre le réseau <b>terrarium-config-XXXXXX</b> (mot de passe <code>terrarium1234</code>).</li>
+        <li>Connecter le téléphone dessus : la page de configuration s'ouvre d'elle-même (sinon <code>http://192.168.4.1</code>).</li>
+        <li>Onglet <b>Réseau</b> : Wi-Fi, utilisateur et mot de passe de l'interface, serveur MQTT si pilotage à distance. Enregistrer.</li>
+        <li>Le socle est ensuite sur <code>http://terraXXXXXX.local</code> (identifiant affiché sur l'écran).</li>
+      </ol>
+    </div>
+    <div>
+      <h2>3. Appairer dans l'application</h2>
+      <ol>
+        <li>Ouvrir l'application, saisir l'adresse du broker (<code>wss://…:8884/mqtt</code>), l'identifiant et le mot de passe. <b>Tester la connexion.</b></li>
+        <li><b>Ajouter un socle</b> : scanner le QR affiché à l'écran au premier démarrage (vingt secondes) ou taper l'identifiant et le code d'appairage (commande série <code>jeton</code>).</li>
+        <li>Onglet <b>Réglages → Sondes → Scanner</b>, puis « vers zone 1 » / « vers zone 2 ».</li>
+      </ol>
+
+      <h2>4. Régler et vérifier</h2>
+      <ol>
+        <li>Consignes jour et nuit selon l'espèce ; coupure max quelques degrés au-dessus de la consigne de jour, jamais plus.</li>
+        <li>Vérifier la température au <b>thermomètre indépendant</b> avant d'installer un animal.</li>
+        <li>Lancer l'<b>autotune</b> une fois le terrarium stable (environ une heure).</li>
+      </ol>
+    </div>
+  </div>
+
+  <table class="fiche-etats">
+    <thead><tr><th>Affiché</th><th>Ce que ça veut dire</th><th>Que faire</th></tr></thead>
+    <tbody>
+      <tr><td>chauffe / demande</td><td>le tapis est alimenté / ce que la régulation réclame (0-100 %)</td><td>rien</td></tr>
+      <tr><td>dérive</td><td>la température s'éloigne de la consigne sans défaut</td><td>couvercle, pièce froide, tapis vieillissant</td></tr>
+      <tr><td><b>DÉFAUT</b> SONDE / SURCHAUFFE / FIGEE</td><td>chauffage coupé et verrouillé</td><td>corriger la cause, puis « Lever les défauts »</td></tr>
+      <tr><td>silencieux / hors ligne</td><td>le socle ne publie plus / le broker ne le voit plus</td><td>Wi-Fi ; il continue de réguler seul</td></tr>
+      <tr><td>écran « AP »</td><td>Wi-Fi introuvable : réseau de configuration rouvert</td><td>se reconnecter sur terrarium-config-XXXXXX</td></tr>
+    </tbody>
+  </table>
+
+  <p class="fiche-pied">Manuel complet, dépannage et mises à jour : <b>l'aide de l'application</b> · code source : github.com/NoeMrct/terrarium_thermostat · Ne jamais laisser un animal sur un socle dont les sondes n'ont pas été vérifiées.</p>
+</section>
+
+<section class="carte prose fiche" lang="en">
+  <h1>Heating base — quick start</h1>
+  <p class="fiche-sous-titre">Two regulated zones, only one mat heated at a time, automatic cut-off on fault. The base works on its own; the network adds the app and the alerts.</p>
+
+  <div class="fiche-colonnes">
+    <div>
+      <h2>1. Wiring</h2>
+      <ol>
+        <li>Each zone's probe <b>at the hot spot, under the substrate, against the mat</b>, never in the air.</li>
+        <li>12 V mats on the Z1 and Z2 terminals; 70 °C bimetal thermostat in series on each plate.</li>
+        <li>CE-marked <b>12 V, 3 A</b> power supply. Declaring more amps than it has is the only way to overload it.</li>
+        <li class="important"><b>Never USB and 12 V at the same time.</b></li>
+      </ol>
+
+      <h2>2. Wi-Fi setup</h2>
+      <ol>
+        <li>At first boot, the base opens the <b>terrarium-config-XXXXXX</b> network (password <code>terrarium1234</code>).</li>
+        <li>Connect the phone to it: the configuration page opens by itself (otherwise <code>http://192.168.4.1</code>).</li>
+        <li><b>Network</b> tab: Wi-Fi, interface username and password, MQTT server for remote control. Save.</li>
+        <li>The base is then at <code>http://terraXXXXXX.local</code> (identifier shown on the screen).</li>
+      </ol>
+    </div>
+    <div>
+      <h2>3. Pairing in the app</h2>
+      <ol>
+        <li>Open the app, enter the broker address (<code>wss://…:8884/mqtt</code>), the username and the password. <b>Test the connection.</b></li>
+        <li><b>Add a base</b>: scan the QR shown on the screen at first boot (twenty seconds) or type the identifier and the pairing code (serial command <code>jeton</code>).</li>
+        <li><b>Settings → Probes → Scan</b> tab, then "to zone 1" / "to zone 2".</li>
+      </ol>
+
+      <h2>4. Settings and checks</h2>
+      <ol>
+        <li>Day and night setpoints according to the species; max cut-off a few degrees above the day setpoint, never more.</li>
+        <li>Check the temperature with an <b>independent thermometer</b> before putting an animal in.</li>
+        <li>Run <b>autotune</b> once the terrarium is stable (about one hour).</li>
+      </ol>
+    </div>
+  </div>
+
+  <table class="fiche-etats">
+    <thead><tr><th>Shown</th><th>What it means</th><th>What to do</th></tr></thead>
+    <tbody>
+      <tr><td>heating / demand</td><td>the mat is powered / what the regulation asks for (0-100 %)</td><td>nothing</td></tr>
+      <tr><td>drift</td><td>the temperature moves away from the setpoint without a fault</td><td>lid, cold room, ageing mat</td></tr>
+      <tr><td><b>FAULT</b> PROBE / OVERHEAT / FROZEN</td><td>heating cut and locked</td><td>fix the cause, then "Clear faults"</td></tr>
+      <tr><td>silent / offline</td><td>the base no longer publishes / the broker no longer sees it</td><td>Wi-Fi; it keeps regulating on its own</td></tr>
+      <tr><td>screen "AP"</td><td>Wi-Fi not found: configuration network reopened</td><td>reconnect to terrarium-config-XXXXXX</td></tr>
+    </tbody>
+  </table>
+
+  <p class="fiche-pied">Full manual, troubleshooting and updates: <b>the app's help</b> · source code: github.com/NoeMrct/terrarium_thermostat · Never leave an animal on a base whose probes have not been checked.</p>
+</section>
+
+<footer class="pied colonne sans-impression">
+  <div class="pied-ligne liens">
+    <a href="index.html">Application</a>
+    <a href="aide.html">Aide</a>
+    <a href="aide.en.html" lang="en">Help</a>
+    <a href="mentions-legales.html">Mentions légales</a>
+    <a href="confidentialite.html">Confidentialité</a>
+  </div>
+</footer>
+</main>
+</body>
+</html>

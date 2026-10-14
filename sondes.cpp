@@ -9,19 +9,19 @@ OneWire oneWire(PIN_ONEWIRE);
 DallasTemperature bus(&oneWire);
 
 DeviceAddress g_liee[NB_ZONES];
-bool     g_liaisonValide[NB_ZONES] = { false, false };
+bool g_liaisonValide[NB_ZONES] = { false, false };
 uint32_t g_debutConversion = 0;
-bool     g_enCours = false;
+bool g_enCours = false;
 
 bool romNonNulle(const uint8_t *r) {
-  for (uint8_t i = 0; i < 8; i++) if (r[i]) return true;
+  for (uint8_t i = 0; i < 8; i++)
+    if (r[i]) return true;
   return false;
 }
 
 String romTexte(const uint8_t *r) {
   char b[20];
-  snprintf(b, sizeof b, "%02X%02X%02X%02X%02X%02X%02X%02X",
-           r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]);
+  snprintf(b, sizeof b, "%02X%02X%02X%02X%02X%02X%02X%02X", r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]);
   return String(b);
 }
 
@@ -31,7 +31,7 @@ int8_t zoneDeRom(const uint8_t *rom) {
   return -1;
 }
 
-} // namespace
+}  // namespace
 
 namespace Sondes {
 
@@ -57,7 +57,8 @@ void demarrer() {
   // n'est stable qu'une fois figé de cette façon — sans quoi les zones
   // pourraient s'inverser au redémarrage suivant.
   bool aucuneLiaison = true;
-  for (uint8_t z = 0; z < NB_ZONES; z++) if (g_liaisonValide[z]) aucuneLiaison = false;
+  for (uint8_t z = 0; z < NB_ZONES; z++)
+    if (g_liaisonValide[z]) aucuneLiaison = false;
   if (aucuneLiaison && n >= NB_ZONES) {
     ReglagesReseau &r = Stockage::reseau();
     for (uint8_t z = 0; z < NB_ZONES; z++) {
@@ -90,7 +91,7 @@ float lire(uint8_t zone) {
   // relirait les neuf octets du scratchpad pour rien, soit ~14 ms de bus
   // gaspillées par cycle de mesure.
   if (g_liaisonValide[zone]) return bus.getTempC(g_liee[zone]);
-  return bus.getTempCByIndex(zone);   // repli tant qu'aucune liaison n'est figée
+  return bus.getTempCByIndex(zone);  // repli tant qu'aucune liaison n'est figée
 }
 
 uint8_t nombreDetecte() { return bus.getDeviceCount(); }
@@ -137,4 +138,4 @@ bool lierParIndex(uint8_t indexBus, uint8_t zone) {
   return true;
 }
 
-} // namespace Sondes
+}  // namespace Sondes

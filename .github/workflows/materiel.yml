@@ -1,0 +1,61 @@
+# Banc matériel : le firmware fraîchement compilé est flashé sur une vraie
+# carte, qui doit démarrer, répondre sur la console, passer son auto-test usine
+# et tenir trente secondes sans redémarrer — puis, en option, accepter une mise
+# à jour par /api/maj et la valider. C'est le seul moyen de ne pas livrer un
+# firmware « jamais exécuté sur matériel ».
+#
+# Il faut un exécuteur auto-hébergé (Settings → Actions → Runners) sur la
+# machine où la carte est branchée, avec les étiquettes « self-hosted » et
+# « socle », Node 22, Python et esptool (pip install esptool). Variables du
+# dépôt : PORT_SERIE (/dev/ttyUSB0 ou COM7) et, pour l'OTA, SOCLE_URL
+# (http://terraXXXXXX.local), SOCLE_UTILISATEUR / secret SOCLE_MOT_DE_PASSE.
+#
+# Déclenché à la main, ou après chaque vérification réussie sur main : si
+# aucun exécuteur n'est en ligne, le job attend puis échoue — c'est voulu.
+name: Banc matériel
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Vérification"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  carte:
+    name: Flasher et tester la carte
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: [self-hosted, socle]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+        with: { version: '1.3.1' }
+      - name: Cœur ESP32 et bibliothèques épinglées
+        run: |
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32@3.3.11 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          sh outils/installer-bibliotheques.sh
+      - name: Compiler
+        run: |
+          export SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
+          mkdir -p build/terrarium_thermostat
+          cp *.ino *.h *.cpp partitions.csv build/terrarium_thermostat/
+          arduino-cli compile --fqbn esp32:esp32:esp32:PartitionScheme=custom \
+            --build-property "compiler.cpp.extra_flags=-DFW_COMMIT=\"${GITHUB_SHA::7}\"" \
+            --export-binaries build/terrarium_thermostat
+      - name: Flasher, démarrer, auto-test, repos, mise à jour
+        env:
+          PORT_SERIE: ${{ vars.PORT_SERIE }}
+          SOCLE_URL: ${{ vars.SOCLE_URL }}
+          SOCLE_UTILISATEUR: ${{ vars.SOCLE_UTILISATEUR }}
+          SOCLE_MOT_DE_PASSE: ${{ secrets.SOCLE_MOT_DE_PASSE }}
+        run: |
+          VERSION=$(sed -n 's/#define FW_VERSION "\(.*\)"/\1/p' config.h)
+          node outils/test-materiel.js --port "$PORT_SERIE" --version "$VERSION" \
+            --flasher build/terrarium_thermostat/build/esp32.esp32.esp32 \
+            ${SOCLE_URL:+--ota "$SOCLE_URL" --utilisateur "$SOCLE_UTILISATEUR" --mot-de-passe "$SOCLE_MOT_DE_PASSE"}

@@ -7,7 +7,7 @@
    qu'aucun test de syntaxe ne peut voir : le modèle d'état, l'analyse des
    sujets, le rendu, et le comportement quand le socle ne répond pas.
 
-     npm install jsdom mqtt
+     npm install jsdom
      node test-application.js --broker ws://localhost:9001/mqtt --id terraSIM001
    ============================================================================= */
 
@@ -45,17 +45,23 @@ async function jusqua(condition, limiteMs = 12000, pas = 150) {
 // localhost, il faut donc pouvoir simuler une publication ailleurs.
 function creerApp(adressePage) {
   // jsdom ne charge pas les scripts externes en mode « outside-only » : on
-  // retire la balise et on injecte la bibliothèque directement.
+  // retire les balises et on injecte les scripts directement.
   const html = fs.readFileSync(path.join(DOSSIER, 'index.html'), 'utf8')
-                 .replace(/<script src="(?:https:|vendor\/)[^"]*"><\/script>/, '');
+                 .replace(/<script src="[^"]*"[^>]*><\/script>\s*/g, '');
   const dom = new JSDOM(html, {
     runScripts: 'outside-only',
     url: adressePage,
     pretendToBeVisual: true
   });
   const w = dom.window;
-  w.mqtt = require('mqtt');
-  w.confirm = () => true;                 // les confirmations sont acceptées
+  // Le client MQTT de l'application lui-même, sur le WebSocket de jsdom : c'est
+  // lui qui est éprouvé ici, pas une bibliothèque de substitution.
+  // sourceURL : c8 (couverture V8) attribue alors le code évalué au fichier.
+  w.eval(fs.readFileSync(path.join(DOSSIER, 'mqtt.js'), 'utf8') + '\n//# sourceURL=file://' + path.join(DOSSIER, 'mqtt.js'));
+  if (typeof w.mqtt !== 'object') throw new Error('app/mqtt.js ne définit pas window.mqtt');
+  // L'application suit la langue du navigateur ; jsdom se déclare anglophone,
+  // et ces tests lisent les textes français.
+  w.localStorage.setItem('terrarium.langue', 'fr');
   // jsdom ne dessine pas : un contexte 2D inerte suffit pour que le code de
   // tracé s'exécute réellement au lieu de renoncer à la première ligne.
   w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, {
@@ -72,7 +78,7 @@ function creerApp(adressePage) {
   // un eval, cette liaison reste locale : on récupère donc la valeur depuis la
   // même évaluation plutôt qu'en la relisant après coup.
   const source = fs.readFileSync(path.join(DOSSIER, 'app.js'), 'utf8');
-  const App = w.eval(source + '\n;App');
+  const App = w.eval(source + '\n;App\n//# sourceURL=file://' + path.join(DOSSIER, 'app.js'));
   w.dispatchEvent(new w.Event('load'));
   return { w, App, $: sel => w.document.querySelector(sel),
            texte: sel => (w.document.querySelector(sel) || {}).textContent || '' };
@@ -251,6 +257,46 @@ function creerApp(adressePage) {
   const apres = JSON.parse(w.localStorage.getItem('terrarium.config.v1'));
   verifier('le socle disparaît de la configuration', apres.socles.length === 1);
   verifier('la liste ne l\'affiche plus', !$('#socles').innerHTML.includes('Socle absent'));
+
+  titre('15. Injection : un nom de zone hostile venu du socle reste du texte');
+  {
+    App.ouvrir(ID);
+    await attendre(300);
+    const hostile = '<img src=x onerror="window.__xss=1"><b>gras</b>';
+    await App.action('zone', { z: 1, nom: hostile });
+    await attendre(1500);
+    const d = w.document;
+    verifier('aucun élément injecté dans la page', !d.querySelector('img[src="x"]') && !d.querySelector('#detail b'));
+    verifier('le nom s\'affiche tel quel, échappé', (d.querySelector('#detail') || {}).textContent.includes('<img src=x'));
+    verifier('aucun script n\'a tourné', w.__xss === undefined);
+    await App.action('zone', { z: 1, nom: 'Zone fraîche' });
+    await attendre(500);
+  }
+
+  titre('16. Mise à jour du firmware depuis l\'application');
+  {
+    App.ouvrir(ID);
+    App.panneau('general');
+    await attendre(600);
+    verifier('sans version publiée connue, la carte le dit', texte('#detail').includes('Mise à jour du firmware') && texte('#detail').includes('publiée'));
+    // Une version publiée plus récente que celle du socle : le bouton apparaît.
+    App._versionPubliee({ version: '9.9.9', firmware: { version: '9.9.9', date: '2026-10-13' } });
+    await attendre(600);
+    const bouton = $('[data-action="mettreAJour"]');
+    verifier('une version plus récente fait apparaître « Mettre à jour vers 9.9.9 »', !!bouton && bouton.textContent.includes('9.9.9'));
+    bouton.click();
+    await attendre(300);
+    const oui = $('#dlg-confirm [data-dlg="oui"]');
+    verifier('la mise à jour demande confirmation', !!oui && oui.textContent.includes('Mettre à jour'));
+    oui.click();
+    await attendre(350);
+    verifier('la commande est acceptée et la progression s\'affiche',
+             texte('#detail').includes('Téléchargement en cours') || texte('#detail').includes('redémarre') || texte('#message').includes('Téléchargement'),
+             texte('#message').slice(0, 40));
+    await attendre(6000);
+    verifier('le socle redémarre et sa santé annonce l\'image en validation ou validée',
+             texte('#detail').includes('validation') || texte('#detail').includes('validée'));
+  }
 
   console.log(`\n=== ${echecs ? 'DES TESTS ONT ECHOUE' : 'TOUS LES TESTS PASSENT'}` +
               ` (${reussites} reussite(s), ${echecs} echec(s)) ===`);

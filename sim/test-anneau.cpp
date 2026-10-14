@@ -31,9 +31,9 @@ static void titre(const char *t) { printf("\n== %s\n", t); }
 // bien dichotomique.
 struct Support {
   std::vector<uint32_t> seq;
-  std::vector<bool>     ecrit;
-  mutable int           lu = 0;
-  bool                  panne = false;   // simule un fichier illisible
+  std::vector<bool> ecrit;
+  mutable int lu = 0;
+  bool panne = false;  // simule un fichier illisible
 };
 
 static bool lireSupport(uint32_t emplacement, uint32_t &seq, void *ctx) {
@@ -73,8 +73,8 @@ static void scenarioExhaustif() {
       anneauReconstruire(a, cap, presents, lireSupport, &s);
 
       const uint32_t attenduRemplis = presents;
-      const uint32_t attenduIndex   = ecrits % cap;
-      const uint32_t attenduSeq     = ecrits + 1;
+      const uint32_t attenduIndex = ecrits % cap;
+      const uint32_t attenduSeq = ecrits + 1;
 
       if (a.remplis != attenduRemplis || a.index != attenduIndex || a.seq != attenduSeq) {
         snprintf(premierEcart, sizeof premierEcart,
@@ -88,11 +88,13 @@ static void scenarioExhaustif() {
       uint32_t precedente = 0;
       for (uint32_t rang = 0; rang < a.remplis; rang++) {
         uint32_t emplacement = 0;
-        if (!anneauEmplacementDuRang(a, rang, emplacement)) { toutBon = false; break; }
+        if (!anneauEmplacementDuRang(a, rang, emplacement)) {
+          toutBon = false;
+          break;
+        }
         const uint32_t seq = s.seq[emplacement];
         if (rang > 0 && seq != precedente + 1) {
-          snprintf(premierEcart, sizeof premierEcart,
-                   "cap=%u ecrits=%u : rang %u donne la seq %u apres %u",
+          snprintf(premierEcart, sizeof premierEcart, "cap=%u ecrits=%u : rang %u donne la seq %u apres %u",
                    cap, ecrits, rang, seq, precedente);
           toutBon = false;
           break;
@@ -118,7 +120,7 @@ static void scenarioGrandeCapacite() {
   titre("2. Capacite reelle (20 160 points, soit 14 jours)");
   const uint32_t cap = 20160;
   Support s;
-  remplir(s, cap, cap + 7777);          // largement replie
+  remplir(s, cap, cap + 7777);  // largement replie
   s.lu = 0;
 
   Anneau a;
@@ -135,9 +137,12 @@ static void scenarioGrandeCapacite() {
 static void scenarioEcriture() {
   titre("3. Ecriture : la tete avance et le plus ancien est ecrase");
   const uint32_t cap = 5;
-  Anneau a; a.capacite = cap; anneauVider(a);
+  Anneau a;
+  a.capacite = cap;
+  anneauVider(a);
 
-  Support s; remplir(s, cap, 0);
+  Support s;
+  remplir(s, cap, 0);
   for (uint32_t i = 0; i < 12; i++) {
     const uint32_t ou = anneauEmplacementEcriture(a);
     s.seq[ou] = a.seq;
@@ -149,7 +154,8 @@ static void scenarioEcriture() {
 
   uint32_t e = 0;
   anneauEmplacementDuRang(a, 0, e);
-  char d[64]; snprintf(d, sizeof d, "plus ancien = seq %u", s.seq[e]);
+  char d[64];
+  snprintf(d, sizeof d, "plus ancien = seq %u", s.seq[e]);
   verifier("le plus ancien est bien le 8e ecrit (12 - 5 + 1)", s.seq[e] == 8, d);
   anneauEmplacementDuRang(a, cap - 1, e);
   verifier("le plus recent est le 12e", s.seq[e] == 12);
@@ -158,7 +164,8 @@ static void scenarioEcriture() {
 static void scenarioCasLimites() {
   titre("4. Cas limites et lectures en echec");
   Anneau a;
-  Support s; remplir(s, 1, 1);
+  Support s;
+  remplir(s, 1, 1);
   anneauReconstruire(a, 1, 1, lireSupport, &s);
   verifier("capacite 1 : un seul point, toujours le plus recent",
            a.remplis == 1 && a.index == 0 && a.seq == 2);
@@ -169,7 +176,9 @@ static void scenarioCasLimites() {
   verifier("capacite nulle ne fait rien exploser",
            vide.remplis == 0 && vide.seq == 1 && !anneauEmplacementDuRang(vide, 0, e));
 
-  Support ko; remplir(ko, 32, 64); ko.panne = true;
+  Support ko;
+  remplir(ko, 32, 64);
+  ko.panne = true;
   Anneau b;
   anneauReconstruire(b, 32, 32, lireSupport, &ko);
   verifier("fichier illisible : repli sur le debut, sans boucle infinie",
@@ -177,8 +186,11 @@ static void scenarioCasLimites() {
 
   // Sequences trafiquees (memoire abimee) : on n'exige pas le bon resultat,
   // seulement de rester dans les bornes et de rendre la main.
-  Support fou; remplir(fou, 16, 40);
-  fou.seq[3] = 0xFFFFFFFFu; fou.seq[9] = 1; fou.seq[12] = 7;
+  Support fou;
+  remplir(fou, 16, 40);
+  fou.seq[3] = 0xFFFFFFFFu;
+  fou.seq[9] = 1;
+  fou.seq[12] = 7;
   Anneau c;
   anneauReconstruire(c, 16, 16, lireSupport, &fou);
   verifier("sequences incoherentes : index reste dans les bornes", c.index < 16);

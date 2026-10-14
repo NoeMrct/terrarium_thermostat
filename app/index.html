@@ -3,77 +3,149 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
 <title>Terrariums</title>
+<meta name="description" content="Pilotage à distance des socles chauffants de terrarium">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icone.svg">
-<meta name="theme-color" content="#111111">
+<meta name="theme-color" content="#f3f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' wss: https: ws://localhost:* ws://127.0.0.1:* http://localhost:* http://127.0.0.1:*; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; worker-src 'self'; manifest-src 'self'; media-src 'self' blob:; base-uri 'self'; form-action 'self'; require-trusted-types-for 'script'; trusted-types terrarium">
+<link rel="apple-touch-icon" href="icones/apple-touch-icon.png">
 <link rel="stylesheet" href="style.css">
+<script src="mqtt.js" defer></script>
+<script src="app.js" defer></script>
 </head>
 <body>
 
+<svg hidden aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-retour" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></symbol>
+  <symbol id="i-cadenas" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="i-maj" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10M8 10l4 4 4-4M5 19h14"/></symbol>
+  <symbol id="i-etat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.8V5a2 2 0 1 0-4 0v9.8a4 4 0 1 0 4 0z"/></symbol>
+  <symbol id="i-reglages" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h8M16 7h4M4 17h4M12 17h8"/><circle cx="14" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></symbol>
+  <symbol id="i-courbes" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h16M4 15l4-5 4 3 4-6 4 4"/></symbol>
+  <symbol id="i-appareil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></symbol>
+  <symbol id="i-flamme" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5c.6 3.2 3.8 5 4.6 8.4.9 3.8-1.4 7.1-4.6 7.1s-5.5-3.3-4.6-7.1c.3-1.2.9-2.1 1.5-2.9.4 1.2 1.1 2 1.8 2.3-.2-2.8.3-5.6 1.3-7.8z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-qr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2v2h-2zM14 18h2v2h-2zM18 18h2v2h-2z"/></symbol>
+  <symbol id="i-cloche" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16v-5a6 6 0 1 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0"/></symbol>
+  <symbol id="i-power" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 3v9M6.3 7.3a8 8 0 1 0 11.4 0"/></symbol>
+  <symbol id="i-corbeille" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M8 5v14M16 5v14"/></symbol>
+  <symbol id="i-ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></symbol>
+  <symbol id="i-cible" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-aide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .8-1 1.5M12 17h.01"/></symbol>
+  <symbol id="i-outil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5a4 4 0 0 0-5.3 5.3L4 16l-1 3 3-1 5.2-5.2a4 4 0 0 0 5.3-5.3L14 9.5l-2-2 2.5-2z"/></symbol>
+  <symbol id="i-telecharger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 19h14"/></symbol>
+</svg>
+
 <header id="entete">
   <h1>Terrariums</h1>
-  <div id="lien" class="etat">connexion…</div>
+  <div id="lien" class="etat attente" role="status">connexion…</div>
 </header>
 
-<!-- Première utilisation : configuration du broker -->
-<section id="vue-broker" class="vue">
-  <div class="carte">
-    <h2>Connexion</h2>
-    <p class="aide">
-      Ces informations viennent de ton fournisseur MQTT. Elles restent sur cet
-      appareil et ne sont envoyées à personne d'autre qu'au broker.
-    </p>
-    <label>Adresse du broker (WebSocket sécurisé)</label>
-    <input id="b-url" placeholder="wss://xxxx.hivemq.cloud:8884/mqtt" autocomplete="off">
-    <label>Utilisateur</label>
-    <input id="b-user" autocomplete="username">
-    <label>Mot de passe</label>
+<main>
+
+<section id="vue-verrou" class="vue" aria-label="Application verrouillée">
+  <form class="carte verrou" data-form="verrou" novalidate>
+    <svg class="ico grande" aria-hidden="true"><use href="#i-cadenas"/></svg>
+    <h2 data-i18n="verrou-titre">Application verrouillée</h2>
+    <p class="aide" data-i18n="verrou-aide">Les codes d'appairage et le mot de passe du broker sont chiffrés sur cet appareil. Entre ton code pour continuer.</p>
+    <label for="code-verrou" data-i18n="verrou-code">Code</label>
+    <input id="code-verrou" type="password" inputmode="numeric" autocomplete="current-password" autofocus>
+    <p class="aide erreur-code" id="verrou-erreur" aria-live="polite"></p>
+    <button class="btn btn-plein" type="submit" data-i18n="deverrouiller">Déverrouiller</button>
+    <button class="btn btn-fantome btn-petit mt" type="button" data-action="effacerTout" data-i18n="code-oublie">Code oublié ? Tout effacer et recommencer</button>
+  </form>
+</section>
+
+<section id="vue-broker" class="vue" aria-label="Connexion au broker">
+  <form class="carte" data-form="broker" novalidate>
+    <h2 data-i18n="connexion-titre">Connexion</h2>
+    <p class="aide" data-i18n="connexion-aide">Ces informations viennent de ton fournisseur MQTT. Elles restent sur cet
+      appareil et ne sont envoyées à personne d'autre qu'au broker.</p>
+    <label for="b-url" data-i18n="b-url">Adresse du broker (WebSocket sécurisé)</label>
+    <input id="b-url" type="url" inputmode="url" placeholder="wss://xxxx.hivemq.cloud:8884/mqtt" autocomplete="url" spellcheck="false">
+    <label for="b-user" data-i18n="b-user">Utilisateur</label>
+    <input id="b-user" autocomplete="username" autocapitalize="off" spellcheck="false">
+    <label for="b-pass" data-i18n="b-pass">Mot de passe</label>
     <input id="b-pass" type="password" autocomplete="current-password">
-    <label>Préfixe des sujets</label>
-    <input id="b-prefixe" value="terrarium" autocomplete="off">
-    <button onclick="App.enregistrerBroker()">Se connecter</button>
-  </div>
-</section>
-
-<!-- Liste des socles -->
-<section id="vue-liste" class="vue">
-  <div id="socles"></div>
-  <div class="carte">
-    <h2>Ajouter un socle</h2>
-    <p class="aide">
-      L'identifiant et le code d'appairage sont affichés à l'écran du socle au
-      premier démarrage, et retrouvables par la commande <code>jeton</code>.
-    </p>
-    <label>Identifiant</label>
-    <input id="a-id" placeholder="terraA1B2C3" autocomplete="off">
-    <label>Code d'appairage</label>
-    <input id="a-jeton" placeholder="24 caractères" autocomplete="off">
-    <label>Nom (pour t'y retrouver)</label>
-    <input id="a-nom" placeholder="Terrarium du salon" autocomplete="off">
-    <div class="rangee">
-      <button onclick="App.ajouterSocle()">Ajouter</button>
-      <button class="secondaire" id="btn-scan" onclick="App.scanner()">Scanner un QR</button>
+    <label for="b-prefixe" data-i18n="b-prefixe">Préfixe des sujets</label>
+    <input id="b-prefixe" value="terrarium" autocapitalize="off" spellcheck="false">
+    <div class="boutons">
+      <button class="btn" type="submit" data-i18n="se-connecter">Se connecter</button>
+      <button class="btn btn-secondaire" type="button" data-action="testerBroker" data-i18n="tester">Tester la connexion</button>
     </div>
-  </div>
-  <div class="carte">
-    <button class="secondaire" onclick="App.oublierBroker()">Changer de broker</button>
-  </div>
+  </form>
+  <footer class="pied colonne">
+    <div class="pied-ligne">
+      <label class="inline" for="langue"><span data-i18n="langue">Langue</span>
+        <select id="langue"><option value="fr">Français</option><option value="en">English</option></select></label>
+      <button class="btn btn-fantome btn-petit" type="button" data-action="installer" hidden><svg class="ico" aria-hidden="true"><use href="#i-telecharger"/></svg><span data-i18n="installer">Installer l'application</span></button>
+      <button class="btn btn-fantome btn-petit" type="button" data-action="diagnostic"><svg class="ico" aria-hidden="true"><use href="#i-outil"/></svg><span data-i18n="diagnostic">Diagnostic</span></button>
+      <a class="btn btn-fantome btn-petit" href="aide.html"><svg class="ico" aria-hidden="true"><use href="#i-aide"/></svg><span data-i18n="aide">Aide</span></a>
+    </div>
+    <div class="pied-ligne liens">
+      <span class="discret" id="version-app">Terrariums</span>
+      <a href="installer.html" data-i18n="installateur">Flasher un socle</a>
+      <a href="mentions-legales.html" data-i18n="mentions">Mentions légales</a>
+      <a href="confidentialite.html" data-i18n="confidentialite">Confidentialité</a>
+    </div>
+  </footer>
 </section>
 
-<!-- Détail d'un socle -->
-<section id="vue-socle" class="vue">
-  <button class="retour" onclick="App.montrer('liste')">← Tous les socles</button>
+<section id="vue-liste" class="vue" aria-label="Mes socles">
+  <div id="socles"></div>
+  <form class="carte" data-form="socle" novalidate>
+    <h2 data-i18n="ajouter-titre">Ajouter un socle</h2>
+    <p class="aide" data-i18n="ajouter-aide">L'identifiant et le code d'appairage s'affichent à l'écran du socle au premier
+      démarrage, et se retrouvent avec la commande <code>jeton</code>.</p>
+    <div class="rangee">
+      <div><label for="a-id" data-i18n="a-id">Identifiant</label><input id="a-id" placeholder="terraA1B2C3" autocapitalize="off" spellcheck="false"></div>
+      <div><label for="a-jeton" data-i18n="a-jeton">Code d'appairage</label><input id="a-jeton" placeholder="24 caractères" data-i18n-ph="a-jeton-ph" autocapitalize="characters" spellcheck="false"></div>
+    </div>
+    <label for="a-nom" data-i18n="a-nom">Nom (pour t'y retrouver)</label>
+    <input id="a-nom" placeholder="Terrarium du salon" data-i18n-ph="a-nom-ph">
+    <div class="boutons">
+      <button class="btn" type="submit"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg><span data-i18n="ajouter">Ajouter</span></button>
+      <button class="btn btn-secondaire" type="button" id="btn-scan" data-action="scanner"><svg class="ico" aria-hidden="true"><use href="#i-qr"/></svg><span data-i18n="scanner">Scanner un QR</span></button>
+    </div>
+  </form>
+  <footer class="pied colonne">
+    <div class="pied-ligne">
+      <span class="discret" id="broker-hote"></span>
+      <button class="btn btn-fantome btn-petit" type="button" data-action="oublierBroker" data-i18n="changer-broker">Changer de broker</button>
+    </div>
+    <div class="pied-ligne">
+      <button class="btn btn-fantome btn-petit" type="button" data-action="installer" hidden><svg class="ico" aria-hidden="true"><use href="#i-telecharger"/></svg><span data-i18n="installer">Installer l'application</span></button>
+      <button class="btn btn-fantome btn-petit" type="button" data-action="diagnostic"><svg class="ico" aria-hidden="true"><use href="#i-outil"/></svg><span data-i18n="diagnostic">Diagnostic</span></button>
+      <a class="btn btn-fantome btn-petit" href="aide.html"><svg class="ico" aria-hidden="true"><use href="#i-aide"/></svg><span data-i18n="aide">Aide</span></a>
+      <button class="btn btn-fantome btn-petit" type="button" data-action="exporterConfig" data-i18n="exporter-config">Exporter la configuration</button>
+      <button class="btn btn-fantome btn-petit" type="button" data-action="importerConfig" data-i18n="importer-config">Importer une configuration</button>
+      <input type="file" id="fichier-config" accept="application/json,.json" hidden>
+      <button class="btn btn-fantome btn-petit" type="button" id="btn-definir-code" data-action="definirCode" hidden><svg class="ico" aria-hidden="true"><use href="#i-cadenas"/></svg><span data-i18n="definir-code">Code de verrouillage</span></button>
+      <button class="btn btn-fantome btn-petit" type="button" id="btn-verrouiller" data-action="verrouiller" hidden><svg class="ico" aria-hidden="true"><use href="#i-cadenas"/></svg><span data-i18n="verrouiller">Verrouiller</span></button>
+      <button class="btn btn-fantome btn-petit" type="button" id="btn-retirer-code" data-action="retirerCode" hidden><span data-i18n="retirer-code">Retirer le code</span></button>
+      <label class="inline" for="verrou-min" hidden><span data-i18n="verrou-auto">Verrouiller après</span>
+        <select id="verrou-min" hidden><option value="0" data-i18n="verrou-jamais">jamais (au lancement)</option><option value="1">1 min</option><option value="5">5 min</option><option value="15">15 min</option><option value="60">1 h</option></select></label>
+      <label class="inline" for="langue-liste"><span data-i18n="langue">Langue</span>
+        <select id="langue-liste"><option value="fr">Français</option><option value="en">English</option></select></label>
+    </div>
+  </footer>
+</section>
+
+<section id="vue-socle" class="vue" aria-label="Détail du socle">
+  <button class="btn btn-fantome btn-petit retour" type="button" data-action="montrer" data-vue="liste"><svg class="ico" aria-hidden="true"><use href="#i-retour"/></svg><span data-i18n="tous-les-socles">Tous les socles</span></button>
   <div id="detail"></div>
 </section>
 
-<div id="message"></div>
+</main>
 
-<!-- Bibliotheque MQTT embarquee et non chargee d'un CDN : l'agent de service ne
-     met en cache que les fichiers de la meme origine, et l'application doit
-     pouvoir s'ouvrir hors ligne. Voir vendor/LISEZMOI.md. -->
-<script src="vendor/mqtt.min.js"></script>
-<script src="app.js"></script>
+<div id="message" role="status" aria-live="polite"></div>
+
 </body>
 </html>

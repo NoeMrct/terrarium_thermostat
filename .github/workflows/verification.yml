@@ -1,12 +1,28 @@
 # Vérification automatique à chaque modification : les bancs d'essai tournent en
 # quelques secondes, la compilation ESP32 en quelques minutes. Une régression est
 # ainsi signalée avant d'arriver sur la carte.
+#
+# Jobs indépendants :
+#   banc-dessai  bancs C++ (régulation, anneau, formatage, QR, canal de commande,
+#                migration), sanitizers, fuzzing court, cppcheck + clang-tidy,
+#                couverture gcov, clang-format sur tout le C++
+#   reseau       lint et types de l'application, protocole (schéma compris),
+#                client MQTT, application dans jsdom puis dans un vrai Chromium,
+#                couverture c8, démonstration, page embarquée, accessibilité,
+#                régression visuelle, charge, Lighthouse, budgets
+#   navigateurs  l'application dans WebKit et Firefox (Safari iPhone est la cible)
+#   serveur      le serveur auto-hébergeable (comptes, historique, push)
+#   firmware     compilation ESP32 reproductible sans avertissement, taille
+#   installateur intégrité de la copie d'ESP Web Tools
 name: Vérification
 
 on:
   push:
   pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   banc-dessai:
@@ -15,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Régulation, anneau d'historique, formatage
+      - name: Régulation, anneau d'historique, formatage, encodeur QR
         working-directory: sim
         run: make test
 
@@ -23,14 +39,34 @@ jobs:
         working-directory: sim
         run: make sanitize
 
-      - name: Analyse statique
+      - name: Fuzzing (libFuzzer, 90 s)
+        working-directory: sim
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq cppcheck
+          sudo apt-get update -qq && sudo apt-get install -y -qq clang libclang-rt-dev
+          make fuzz DUREE=90
+
+      - name: Analyse statique (cppcheck et clang-tidy sur les modules compilables sur PC)
+        run: |
+          sudo apt-get install -y -qq cppcheck clang-tidy
           cppcheck --enable=all --inconclusive --std=c++11 --error-exitcode=1 \
                    --suppress=missingIncludeSystem --suppress=unusedFunction \
                    --suppress=checkersReport --suppress=memsetClassFloat \
                    --suppress=unmatchedSuppression \
-                   --quiet controle.cpp anneau.cpp format.cpp
+                   --quiet controle.cpp anneau.cpp format.cpp qr.cpp protocole.cpp
+          make -C sim tidy
+
+      - name: Couverture des bancs C++ (gcov), seuil dans sim/Makefile
+        working-directory: sim
+        run: make couverture
+
+      - name: Test de migration des réglages (structure 3.2 relue par le firmware courant)
+        working-directory: sim
+        run: make migration
+
+      - name: Mise en forme (clang-format sur tout le C++)
+        run: |
+          sudo apt-get install -y -qq clang-format
+          clang-format --dry-run --Werror *.cpp *.h *.ino sim/*.cpp
 
   reseau:
     name: Protocole, application et interface web
@@ -39,23 +75,46 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
-        with: { node-version: '20' }
+        with: { node-version: '22' }
 
       - name: Broker MQTT local
+        # Anonyme autorisé, plus un fichier de comptes : un client qui présente
+        # un nom inconnu est refusé, ce que le test du client MQTT vérifie.
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq mosquitto
+          sudo apt-get update -qq && sudo apt-get install -y -qq mosquitto mosquitto-clients
           sudo systemctl stop mosquitto || true
-          printf 'listener 1883 127.0.0.1\nprotocol mqtt\nlistener 9001 127.0.0.1\nprotocol websockets\nallow_anonymous true\n' > mosquitto.conf
+          mosquitto_passwd -b -c comptes.txt appli secret
+          printf 'listener 1883 127.0.0.1\nprotocol mqtt\nlistener 9001 127.0.0.1\nprotocol websockets\nallow_anonymous true\npassword_file %s\n' "$PWD/comptes.txt" > mosquitto.conf
           mosquitto -c mosquitto.conf -d
           sleep 2
 
-      - name: Dépendances
+      - name: Dépendances (Playwright épinglé : les références visuelles en dépendent)
         working-directory: outils
-        run: npm install --no-save
+        run: |
+          npm ci
+          npm install --no-save playwright@1.56.0 axe-core @lhci/cli
+          npx playwright install --with-deps chromium
+
+      - name: Lint (ESLint) et types (tsc --checkJs)
+        working-directory: outils
+        run: npm run lint && npm run types
 
       - name: Interface web embarquée
         working-directory: outils
         run: node test-page-web.js
+
+      - name: Les fichiers générés sont à jour (page compressée, aide)
+        run: |
+          node outils/compresser-page.js --verifier
+          node outils/construire-aide.js --verifier
+
+      - name: Client MQTT de l'application
+        working-directory: outils
+        run: node test-mqtt.js --broker ws://localhost:9001/mqtt --tcp mqtt://localhost:1883
+
+      - name: Budget de poids de l'application
+        working-directory: outils
+        run: node budget.js
 
       - name: Démonstration autonome
         working-directory: outils
@@ -67,13 +126,50 @@ jobs:
           nohup node socle-simule.js --broker mqtt://localhost:1883 --id terraSIM001 &
           sleep 3
 
-      - name: Test du protocole
+      - name: Protocole (dont conformité au schéma JSON)
         working-directory: outils
         run: node test-protocole.js --broker mqtt://localhost:1883 --id terraSIM001 --jeton SIMULATIONTESTJETON00001
 
-      - name: Test de l'application
+      - name: Application dans jsdom, avec couverture (seuils dans package.json)
         working-directory: outils
-        run: node test-application.js --broker ws://localhost:9001/mqtt --id terraSIM001 --jeton SIMULATIONTESTJETON00001
+        run: npm run couverture
+
+      - name: Application dans un vrai Chromium (CSP, agent de service, dialogues, export)
+        working-directory: outils
+        run: node test-navigateur.js --broker ws://localhost:9001/mqtt --id terraSIM001 --jeton SIMULATIONTESTJETON00001
+
+      - name: Accessibilité (axe-core)
+        working-directory: outils
+        run: node test-accessibilite.js
+
+      - name: Régression visuelle (références dans outils/references-visuelles)
+        working-directory: outils
+        run: node test-visuel.js
+
+      - name: Images de différence en cas d'écart visuel
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecarts-visuels-${{ github.sha }}
+          path: outils/captures/
+          if-no-files-found: ignore
+
+      - name: Charge — 100 socles, 10 applications, interface à 20 socles
+        working-directory: outils
+        run: node test-charge.js --broker mqtt://localhost:1883 --ws ws://localhost:9001/mqtt --duree 15
+
+      - name: Captures d'écran sans erreur console
+        working-directory: outils
+        run: node captures.js
+
+      - name: QR de l'écran d'appairage relu par un décodeur indépendant
+        run: make -C sim test-qr && node outils/test-qr.js
+
+      - name: Lighthouse (performance, accessibilité, bonnes pratiques, SEO)
+        run: |
+          node outils/preparer-publication.js --sans-firmware
+          outils/node_modules/.bin/lhci autorun --config=.lighthouserc.json
+          git checkout -- app/sw.js
 
       - name: La démonstration reste synchronisée avec l'application
         run: |
@@ -81,12 +177,69 @@ jobs:
           git diff --exit-code -- app/demo.html \
             || { echo "::error::app/demo.html n'est pas à jour : lance 'node outils/construire-demo.js' et valide le résultat"; exit 1; }
 
-      - name: La bibliothèque MQTT embarquée correspond bien à la version déclarée
+  navigateurs:
+    name: Application dans ${{ matrix.moteur }}
+    runs-on: ubuntu-latest
+    # Non bloquant tant qu'un passage au vert n'a pas été constaté sur ces
+    # moteurs (ils ne peuvent pas être lancés depuis l'environnement où cette
+    # chaîne a été écrite) ; à rendre bloquant ensuite en retirant cette ligne.
+    continue-on-error: true
+    strategy:
+      matrix:
+        moteur: [webkit, firefox]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Broker MQTT local
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq mosquitto
+          sudo systemctl stop mosquitto || true
+          printf 'listener 1883 127.0.0.1\nprotocol mqtt\nlistener 9001 127.0.0.1\nprotocol websockets\nallow_anonymous true\n' > mosquitto.conf
+          mosquitto -c mosquitto.conf -d
+          sleep 2
+      - name: Dépendances
         working-directory: outils
         run: |
-          npm install --no-save mqtt@$(node -p "require('./package.json').dependencies.mqtt")
-          cmp node_modules/mqtt/dist/mqtt.min.js ../app/vendor/mqtt.min.js \
-            || { echo "::error::app/vendor/mqtt.min.js diverge de la version declaree dans outils/package.json"; exit 1; }
+          npm ci
+          npm install --no-save playwright@1.56.0
+          npx playwright install --with-deps ${{ matrix.moteur }}
+      - name: Socle simulé
+        working-directory: outils
+        run: |
+          nohup node socle-simule.js --broker mqtt://localhost:1883 --id terraSIM001 &
+          sleep 3
+      - name: Application dans ${{ matrix.moteur }}
+        working-directory: outils
+        run: node test-navigateur.js --navigateur ${{ matrix.moteur }} --broker ws://localhost:9001/mqtt --id terraSIM001 --jeton SIMULATIONTESTJETON00001
+
+  serveur:
+    name: Serveur auto-hébergeable
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Dépendances
+        working-directory: serveur
+        run: npm ci
+      - name: Lint
+        run: outils/node_modules/.bin/eslint serveur || (cd outils && npm ci && cd .. && outils/node_modules/.bin/eslint serveur)
+      - name: Tests (broker, comptes, droits, historique, push, API, pont)
+        working-directory: serveur
+        run: npm test
+
+      - name: L'application réelle face au serveur réel
+        run: cd outils && npm ci && node test-serveur.js
+
+  installateur:
+    name: Intégrité de l'installateur web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: node outils/verifier-installateur.js
 
   firmware:
     name: Compilation ESP32
@@ -95,26 +248,60 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: arduino/setup-arduino-cli@v2
+        with: { version: '1.3.1' }
 
       - name: Installer le cœur ESP32
         run: |
           arduino-cli core update-index \
             --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
-          arduino-cli core install esp32:esp32 \
+          arduino-cli core install esp32:esp32@3.3.11 \
             --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
 
-      - name: Installer les bibliothèques
-        run: |
-          arduino-cli lib install "OneWire" "DallasTemperature" \
-            "Adafruit GFX Library" "Adafruit SSD1306" "PubSubClient" "ArduinoJson"
+      - name: Installer les bibliothèques (versions épinglées dans outils/bibliotheques.txt)
+        run: sh outils/installer-bibliotheques.sh
 
       - name: Compiler, avertissements traités comme des erreurs de relecture
+        # SOURCE_DATE_EPOCH fige __DATE__/__TIME__ à la date du commit et
+        # FW_COMMIT l'identifie : la compilation est reproductible (voir le job
+        # suivant), et le socle affiche de quel commit il tourne.
         run: |
+          export SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
           mkdir -p build/terrarium_thermostat
           cp *.ino *.h *.cpp partitions.csv build/terrarium_thermostat/
           arduino-cli compile --fqbn esp32:esp32:esp32:PartitionScheme=custom \
-            --warnings all build/terrarium_thermostat 2>&1 | tee sortie.txt
+            --build-property "compiler.cpp.extra_flags=-DFW_COMMIT=\"${GITHUB_SHA::7}\"" \
+            --warnings all --export-binaries build/terrarium_thermostat 2>&1 | tee sortie.txt
           if grep -q "terrarium_thermostat/.*warning:" sortie.txt; then
             echo "::error::Des avertissements de compilation subsistent"
             exit 1
           fi
+
+      - name: Garde-fou de taille (95 % de l'emplacement, anciens socles compris)
+        run: node outils/verifier-taille-firmware.js build/terrarium_thermostat/build/esp32.esp32.esp32/terrarium_thermostat.ino.bin
+
+      - name: Compilation reproductible — tout refaire de zéro donne le même binaire
+        # Même chemin de sketch (les chemins entrent dans l'ELF, donc dans son
+        # empreinte embarquée), répertoire de compilation effacé entre les deux,
+        # cache d'arduino-cli vidé : seule une vraie non-déterminisme ferait
+        # différer les binaires. Un tiers refait la même chose au même chemin
+        # (/home/runner/work/<dépôt>/<dépôt>) pour vérifier une release.
+        run: |
+          export SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
+          cp build/terrarium_thermostat/build/esp32.esp32.esp32/terrarium_thermostat.ino.bin premiere.bin
+          rm -rf build ~/.cache/arduino && mkdir -p build/terrarium_thermostat
+          cp *.ino *.h *.cpp partitions.csv build/terrarium_thermostat/
+          arduino-cli compile --fqbn esp32:esp32:esp32:PartitionScheme=custom \
+            --build-property "compiler.cpp.extra_flags=-DFW_COMMIT=\"${GITHUB_SHA::7}\"" \
+            --export-binaries build/terrarium_thermostat > /dev/null 2>&1
+          A=$(sha256sum premiere.bin | cut -d' ' -f1)
+          B=$(sha256sum build/terrarium_thermostat/build/esp32.esp32.esp32/terrarium_thermostat.ino.bin | cut -d' ' -f1)
+          echo "première : $A" ; echo "seconde  : $B"
+          [ "$A" = "$B" ] || { echo "::error::Compilation non reproductible"; exit 1; }
+          echo "sha256 $A" > build/terrarium_thermostat/build/esp32.esp32.esp32/SHA256.txt
+
+      - name: Conserver le binaire de cette compilation
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ github.sha }}
+          path: build/terrarium_thermostat/build/esp32.esp32.esp32/*.bin
+          retention-days: 14

@@ -117,16 +117,32 @@ Ajoute ensuite le socle `terraSIM001` avec le code affiché par le simulateur.
 
 ```
 cd outils
-node test-protocole.js   --broker mqtt://localhost:1883 --id terraSIM001 --jeton <code>
-node test-application.js --broker ws://localhost:9001/mqtt --id terraSIM001 --jeton <code>
-node construire-demo.js && node test-demo.js
+npm test                 # démonstration, page embarquée, aide, budget, lint, types — sans broker
+npm run test:protocole   # face au broker et au socle simulé (conformité au schéma comprise)
+npm run test:application # l'application dans jsdom
+npm run test:mqtt        # le client MQTT de l'application
+npm run test:navigateur  # l'application dans un vrai Chromium (Playwright)
+npm run test:accessibilite
+npm run test:visuel      # régression visuelle pixel à pixel (références versionnées)
+npm run test:charge      # 100 socles, 10 applications sur le broker local
+npm run test:serveur     # le serveur Terrariums de bout en bout (comptes, droits, push)
+npm run couverture       # couverture de l'application (c8)
+npm run hooks            # active le hook de pré-commit (.githooks)
 ```
 
-Et le banc d'essai du régulateur, qui compile le vrai code embarqué :
+Et le banc d'essai du code embarqué compilé pour PC (régulation, anneau,
+formatage, QR, protocole, migration des réglages), avec les sanitizers, la
+couverture, clang-tidy et le fuzzing en prime si clang est installé :
 
 ```
-cd sim && make test
+cd sim && make test && make sanitize && make couverture && make tidy && make fuzz DUREE=60
 ```
+
+Le banc du protocole a besoin d'ArduinoJson : `make` le clone dans `sim/tiers/`
+(ignoré par git) à la première exécution.
+
+`outils/README.md` détaille chaque script ; `.github/workflows/verification.yml`
+montre tout ce que la CI enchaîne.
 
 ---
 
@@ -161,6 +177,15 @@ rater :
 3. **La sonde va au point chaud, sous le substrat, contre le tapis.** Jamais
    dans l'air.
 
+## Flasher sans rien installer
+
+La page **« Flasher un socle »** du site (`installer.html`) écrit le firmware
+de la dernière release par USB, depuis Chrome ou Edge sur un ordinateur, sans
+IDE. Pour une carte neuve, c'est le chemin le plus court : brancher, cliquer,
+choisir le port, accepter l'effacement — puis, sur la même page, **configurer
+le Wi-Fi par le câble** (Improv) : choisir le réseau, taper le mot de passe. Le
+reste de cette section sert à compiler soi-même.
+
 ## L'environnement de développement
 
 1. Installer l'**IDE Arduino** — [arduino.cc/en/software](https://www.arduino.cc/en/software)
@@ -187,9 +212,11 @@ Ouvrir `terrarium_thermostat.ino` — les autres fichiers apparaissent en onglet
 | Flash Size | 4MB |
 
 Le choix « Custom » utilise le `partitions.csv` fourni. Il n'est pas
-facultatif : le firmware occupe 1,41 Mo, et le découpage par défaut n'offre que
+facultatif : le firmware occupe 1,44 Mo, et le découpage par défaut n'offre que
 1,28 Mo — il ne tiendrait pas, et les mises à jour sans fil seraient
-impossibles.
+impossibles. La table de la 3.4.0 donne 1,69 Mo par emplacement ; un socle
+flashé avant garde ses emplacements de 1,5 Mo tant qu'il n'est pas reflashé
+par USB avec effacement complet (`docs/decisions/0010-repartitionnement.md`).
 
 ## Téléverser et configurer
 
@@ -199,13 +226,18 @@ impossibles.
    l'écran pendant vingt secondes et sur le port série. **Note-le** — il est
    retrouvable ensuite par la commande `jeton`.
 4. Aucun réseau n'est configuré : l'ESP32 ouvre un point d'accès
-   `terrarium-config`, mot de passe `terrarium1234`. S'y connecter et ouvrir
-   `http://192.168.4.1`, ou passer par le série :
+   `terrarium-config-XXXXXX` (les six derniers caractères de son identifiant),
+   mot de passe `terrarium1234`. S'y connecter avec un téléphone : la page de
+   configuration s'ouvre d'elle-même (portail captif ; sinon
+   `http://192.168.4.1`). Ou passer par le série, qui essaie le réseau tout de
+   suite et dit s'il répond :
    ```
    wifi MonReseau MonMotDePasse
-   redemarrer
    ```
-5. L'interface locale est alors sur `http://terrarium.local`.
+5. L'interface locale est alors sur `http://terraXXXXXX.local` (l'identifiant
+   complet est affiché à l'écran et par `jeton`), ou sur l'adresse IP affichée.
+   Avec un mot de passe web, la page demande à se connecter ; le mot de passe
+   ne quitte pas le navigateur (défi/réponse) et la session dure 24 h.
 
 ## Sécuriser
 
@@ -226,7 +258,9 @@ Réseau de l'interface web permet quand même de téléverser un firmware, prot�
 par le mot de passe de l'interface.
 
 Vérifie avec `reseau` : la ligne « OTA reseau » doit dire « active et
-protegee ».
+protegee ». Enfin, `test usine` passe en revue l'écran, les sondes, la mémoire,
+les partitions et le Wi-Fi en une fois ; `test usine oui` actionne aussi
+chaque MOSFET une fraction de seconde (jamais avec un animal sur le socle).
 
 ## Lier les sondes aux zones
 
@@ -297,6 +331,13 @@ frais. Créer un cluster en région européenne, puis **un compte par socle**, a
 des droits limités à `terrarium/<son-id>/#`. Sans ce cloisonnement, un socle
 compromis pourrait écouter et commander tous les autres.
 
+Ou le **serveur Terrariums** du dépôt (`serveur/`, un processus Node ou un
+conteneur Docker, derrière un reverse proxy TLS) : il fait broker, applique
+les droits par socle tout seul, garde l'historique application fermée et
+envoie des notifications push sur le téléphone. `serveur/README.md` pour le
+démarrer ; `outils/provisionner.js` crée le compte d'un socle et le configure
+en une commande.
+
 ## 2. Configurer le socle
 
 ```
@@ -339,7 +380,9 @@ node qr-appairage.js --id terraA1B2C3 --jeton <code> > etiquette.svg
 | Un tapis chauffe au démarrage | Résistance de 10 kΩ manquante sur la grille |
 | « Chauffe sans effet » et plaque brûlante | Le bilame a ouvert : la sonde n'est plus sur la plaque |
 | L'ESP32 redémarre quand un tapis s'allume | Retour des tapis par la masse de la carte : refaire le point d'étoile |
-| `terrarium.local` inaccessible | Le réseau bloque le mDNS : utiliser l'adresse IP affichée à l'écran |
+| `terraXXXXXX.local` inaccessible | Le réseau bloque le mDNS : utiliser l'adresse IP affichée à l'écran |
+| Écran « AP » | Le Wi-Fi n'a pas répondu : le réseau `terrarium-config-XXXXXX` est rouvert ; `wifi <ssid> <mdp>` au série |
+| La page locale redemande le mot de passe sans cesse | Cookies bloqués pour les adresses `http://` locales : les autoriser, ou utiliser l'adresse IP plutôt que `.local` |
 | La compilation manque de place | Partition Scheme mal réglé : choisir **Custom** |
 | L'application ne voit rien | Port WebSocket du broker, ou le service mosquitto du système qui occupe le port |
 | Deux socles se déconnectent en boucle | Ils partagent le même identifiant MQTT |
@@ -356,3 +399,10 @@ node qr-appairage.js --id terraA1B2C3 --jeton <code> > etiquette.svg
 - **`app/README.md`** — l'application : déploiement, choix de conception,
   limites.
 - **`outils/README.md`** — socle simulé, tests, étiquettes d'appairage.
+- **`docs/manuel.md`** (et `manuel.en.md`) — le manuel d'utilisation ;
+  **`docs/depannage.md`** — l'arbre de décision ; **`docs/alertes-telephone.md`**
+  — ntfy, healthchecks et le push du serveur ; **`docs/publication.md`** —
+  sortir une version ; **`docs/securite.md`** — ce qui protège l'animal et
+  l'accès ; **`docs/conformite.md`** — avant de vendre ; **`docs/decisions/`**
+  — pourquoi le projet est fait ainsi.
+- **`serveur/README.md`** — le serveur auto-hébergé facultatif.

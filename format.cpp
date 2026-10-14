@@ -4,7 +4,10 @@
 size_t formatEchapperJson(const char *src, char *dst, size_t taille) {
   if (!dst || taille == 0) return 0;
   size_t n = 0;
-  if (!src) { dst[0] = '\0'; return 0; }
+  if (!src) {
+    dst[0] = '\0';
+    return 0;
+  }
 
   for (const unsigned char *p = reinterpret_cast<const unsigned char *>(src); *p; p++) {
     if (*p == '"' || *p == '\\') {
@@ -35,14 +38,20 @@ bool formatParseHHMM(const char *texte, uint16_t &minutes) {
   int h = 0, m = 0, chiffres = 0;
   const char *p = texte;
   while (*p == ' ') p++;
-  for (; *p >= '0' && *p <= '9'; p++) { h = h * 10 + (*p - '0'); if (++chiffres > 2) return false; }
+  for (; *p >= '0' && *p <= '9'; p++) {
+    h = h * 10 + (*p - '0');
+    if (++chiffres > 2) return false;
+  }
   if (chiffres == 0 || *p != ':') return false;
   p++;
   chiffres = 0;
-  for (; *p >= '0' && *p <= '9'; p++) { m = m * 10 + (*p - '0'); if (++chiffres > 2) return false; }
+  for (; *p >= '0' && *p <= '9'; p++) {
+    m = m * 10 + (*p - '0');
+    if (++chiffres > 2) return false;
+  }
   if (chiffres == 0) return false;
   while (*p == ' ') p++;
-  if (*p != '\0') return false;                 // « 08:00abc » n'est pas une heure
+  if (*p != '\0') return false;  // « 08:00abc » n'est pas une heure
 
   if (h > 23 || m > 59) return false;
   minutes = (uint16_t)(h * 60 + m);

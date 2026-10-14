@@ -138,8 +138,17 @@ const FAUX_MQTT = `
     if (s.historique.length > 2000) s.historique.shift();
   }
 
+  // Santé du socle : ce que publie un firmware 3.4 sur <id>/sante.
+  const majs = {};
+  const sante = id => ({ proto: 3, version: '3.4.0-demo', uptime: 128400 + Math.floor((Date.now() - debut) / 1000),
+    rssi: id === 'terraDEMO001' ? -58 : -76, heap: 171000, heapMin: 142000, blocMax: 98000,
+    reset: 'mise sous tension', otaEnAttente: false, hote: id + '.local', ip: id === 'terraDEMO001' ? '192.168.1.41' : '192.168.1.42',
+    ...(majs[id] ? { maj: majs[id] } : {}) });
+  const debut = Date.now();
+
   function publierEtat(id) {
     const s = socles[id];
+    publier(\`terrarium/\${id}/sante\`, JSON.stringify(sante(id)), true);
     s.zones.forEach((z, i) => {
       publier(\`terrarium/\${id}/zone\${i + 1}/etat\`, JSON.stringify({
         temp: +z.temp.toFixed(2), consigne: +consigne(z).toFixed(2),
@@ -162,7 +171,7 @@ const FAUX_MQTT = `
     if (!lecture && d.jeton !== 'DEMONSTRATION0000000001') return rep(false, { erreur: 'jeton invalide' });
 
     switch (d.action) {
-      case 'version': return rep(true, { version: '3.2.0-demo', compile: 'demonstration' });
+      case 'version': return rep(true, { version: '3.4.0-demo', compile: 'demonstration', proto: 3 });
       case 'etat': return rep(true, {
         zones: s.zones.map(z => ({
           nom: z.nom, temp: +z.temp.toFixed(2), consigne: +consigne(z).toFixed(2),
@@ -173,10 +182,11 @@ const FAUX_MQTT = `
         })),
         uptime: 128400,
         entretienS: Math.max(0, Math.floor((s.entretienFin - Date.now()) / 1000)),
-        zonesSimultanees: zonesSimultanees(s), saison: 0, alertesEnAttente: 0
+        zonesSimultanees: zonesSimultanees(s), saison: 0, alertesEnAttente: 0,
+        proto: 3, sante: sante(id)
       });
       case 'stats': return rep(true, {
-        version: '3.2.0-demo', compile: 'demonstration',
+        version: '3.4.0-demo', compile: 'demonstration',
         zonesSimultanees: zonesSimultanees(s), saison: 0, maintenanceRestanteS: 0,
         zones: s.zones.map(z => ({
           nom: z.nom, min: +(z.temp - 1.4).toFixed(2), max: +(z.temp + 1.1).toFixed(2),
@@ -229,6 +239,25 @@ const FAUX_MQTT = `
         return rep(true, {});
       case 'redemarrer':
         return rep(true, {});
+      case 'maj': {
+        // Mise à jour tirée, simulée : progression puis « redémarrage » et santé.
+        const cible = d.version || ((d.url || '').match(/v([0-9]+[.][0-9]+[.][0-9]+)/) || [])[1] || '?';
+        if (!d.url && !d.version) return rep(false, { erreur: 'url ou version attendue' });
+        if (d.version === '3.4.0' && !d.forcer) return rep(false, { erreur: 'deja en 3.4.0' });
+        rep(true, { maj: 'telechargement' });
+        majs[id] = { etape: 'en validation', version: cible, detail: 'telechargement en cours' };
+        let pct = 0;
+        const tic = setInterval(() => {
+          pct += 20;
+          if (pct < 100) { publier(\`terrarium/\${id}/maj\`, JSON.stringify({ etat: 'telechargement', pct, version: '3.4.0-demo' })); return; }
+          clearInterval(tic);
+          publier(\`terrarium/\${id}/maj\`, JSON.stringify({ etat: 'redemarrage', pct: 100, version: '3.4.0-demo' }));
+          majs[id] = { etape: 'en validation', version: cible, detail: 'demarree, validation dans 90 s' };
+          publierEtat(id);
+          setTimeout(() => { majs[id] = { etape: 'validee', version: cible, detail: 'validee' }; publierEtat(id); }, 4000);
+        }, 400);
+        return;
+      }
       case 'zone': {
         const z = s.zones[d.z];
         if (!z) return rep(false, { erreur: 'zone invalide' });
@@ -282,9 +311,11 @@ const FAUX_MQTT = `
           });
           return client;
         },
-        publish(sujet, charge) {
+        publish(sujet, charge, opts, cb) {
+          if (typeof opts === 'function') { cb = opts; opts = {}; }
           const m = /^terrarium\\/([^/]+)\\/cmd$/.exec(sujet);
           if (m && socles[m[1]]) setTimeout(() => traiter(m[1], charge), 250);
+          if (cb) setTimeout(() => cb(null), 0);
           return client;
         },
         end() { client.connected = false; return client; }
@@ -301,34 +332,37 @@ const FAUX_MQTT = `
     }
   };
 
+  // Test de charge de l'interface : demo.html?socles=20 crée autant de socles
+  // supplémentaires, copies du premier, chacun avec sa propre évolution.
+  const supplementaires = Math.min(200, parseInt((new URLSearchParams(location.search)).get('socles') || '0', 10) || 0);
+  for (let i = 3; i <= supplementaires; i++) {
+    const id = 'terraDEMO' + String(i).padStart(3, '0');
+    socles[id] = JSON.parse(JSON.stringify(socles.terraDEMO001));
+    socles[id].nom = 'Terrarium ' + i;
+    socles[id].zones.forEach(z => { z.temp += (i % 7) * 0.3; });
+  }
+
   Object.keys(socles).forEach(amorcerHistorique);
   setInterval(() => Object.keys(socles).forEach(id => {
     pas(id); enregistrerPoint(id); publierEtat(id);
   }), 2000);
 
   // Bandeau de démonstration, et configuration pré-remplie pour ouvrir
-  // directement sur la liste plutôt que sur l'écran de connexion.
+  // directement sur la liste plutôt que sur l'écran de connexion. La langue est
+  // forcée en français : la démonstration est rédigée dans cette langue.
+  localStorage.setItem('terrarium.langue', 'fr');
   localStorage.setItem('terrarium.config.v1', JSON.stringify({
     broker: { url: 'wss://demonstration', user: '', pass: '', prefixe: 'terrarium' },
-    socles: [
-      { id: 'terraDEMO001', jeton: 'DEMONSTRATION0000000001', nom: 'Terrarium du salon' },
-      { id: 'terraDEMO002', jeton: 'DEMONSTRATION0000000001', nom: 'Terrarium du bureau' }
-    ]
+    socles: Object.keys(socles).map(id => ({ id, jeton: 'DEMONSTRATION0000000001', nom: socles[id].nom }))
   }));
 })();
 `;
 
 const BANDEAU = `
-<div id="bandeau-demo">
+<div id="bandeau-demo" role="complementary" aria-label="Démonstration">
   Démonstration — socle simulé dans la page, aucun matériel ni broker.
   Les températures évoluent, les commandes fonctionnent.
 </div>
-<style>
-#bandeau-demo{
-  background:#2a2a1a; color:#eda; border:1px solid #554; border-radius:11px;
-  padding:10px 13px; margin-bottom:12px; font-size:12.5px; line-height:1.45;
-}
-</style>
 `;
 
 // ------------------------------------------------------------------ assemblage
@@ -336,15 +370,21 @@ let html = lire('index.html');
 
 // Tout est mis en ligne dans le fichier : ouvert en file://, aucune requête ne
 // pourrait aboutir de toute façon.
+// La politique de sécurité (CSP) de la vraie page interdit les scripts en ligne,
+// ce qui est précisément ce que ce fichier contient : elle est retirée ici.
 html = html
   .replace('<link rel="stylesheet" href="style.css">', `<style>\n${lire('style.css')}\n</style>`)
   .replace('<link rel="manifest" href="manifest.json">', '')
   .replace('<link rel="icon" href="icone.svg">', '')
-  .replace(/<!--[\s\S]*?-->\s*/, '')                       // commentaire sur la bibliotheque embarquee
-  .replace('<script src="vendor/mqtt.min.js"></script>', `<script>${FAUX_MQTT}</script>`)
-  .replace('<script src="app.js"></script>', `<script>\n${lire('app.js')}\n</script>`)
+  .replace(/<link rel="apple-touch-icon"[^>]*>\s*/, '')
+  .replace(/<meta http-equiv="Content-Security-Policy"[^>]*>\s*/, '')
+  .replace('<script src="mqtt.js" defer></script>', `<script>${FAUX_MQTT}</script>`)
+  .replace('<script src="app.js" defer></script>', `<script>\n${lire('app.js')}\n</script>`)
   .replace('<header id="entete">', `${BANDEAU}\n<header id="entete">`)
   .replace('<title>Terrariums</title>', '<title>Terrariums — démonstration</title>');
 
+['<script src="mqtt.js"', '<script src="app.js"', 'Content-Security-Policy'].forEach(m => {
+  if (html.includes(m)) { console.error(`Remplacement manqué : « ${m} » subsiste dans demo.html`); process.exit(1); }
+});
 fs.writeFileSync(path.join(APP, 'demo.html'), html);
 console.log(`app/demo.html écrit (${(html.length / 1024).toFixed(1)} Ko)`);

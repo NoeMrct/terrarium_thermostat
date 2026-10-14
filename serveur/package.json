@@ -1,0 +1,25 @@
+{
+  "name": "terrarium-serveur",
+  "version": "3.4.0",
+  "private": true,
+  "description": "Serveur auto-hébergeable des socles chauffants : broker MQTT avec comptes et droits par socle, pont vers un broker amont, historique continu des mesures, notifications push, API et état de la flotte.",
+  "license": "MIT",
+  "main": "serveur.js",
+  "bin": {
+    "terrarium-serveur": "serveur.js"
+  },
+  "scripts": {
+    "start": "node serveur.js",
+    "test": "node --test test/*.test.js",
+    "lint": "cd .. && outils/node_modules/.bin/eslint serveur"
+  },
+  "dependencies": {
+    "aedes": "^1.2.0",
+    "mqtt": "5.15.2",
+    "web-push": "^3.6.7",
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

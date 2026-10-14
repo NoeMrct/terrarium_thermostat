@@ -13,7 +13,9 @@ sait dire quand quelque chose ne va pas.
 
 **Pour voir l'interface tout de suite** : ouvre `app/demo.html` d'un
 double-clic. Aucun serveur, aucun matériel — l'application réelle avec un socle
-simulé dans la page. Le guide complet est dans `INSTALLATION.md`.
+simulé dans la page. Le guide complet est dans `INSTALLATION.md` ; le manuel
+d'utilisation, dans `docs/manuel.md` (servi par l'application sous « Aide »).
+Pour flasher une carte sans IDE : la page « Flasher un socle » du site.
 
 ---
 
@@ -122,9 +124,12 @@ automatiquement en onglets.
 | Flash Size | 4MB | Standard sur les DevKitC |
 
 Le choix « Custom » est important. Les schémas prêts à l'emploi ne conviennent
-pas ici : le firmware occupe 1,41 Mo, et le schéma par défaut n'offre que
+pas ici : le firmware occupe 1,44 Mo, et le schéma par défaut n'offre que
 1,28 Mo — il ne rentrerait même pas. Le fichier `partitions.csv` fourni donne
-1,5 Mo pour le programme (avec 160 Ko de marge) et 896 Ko pour les données.
+1,69 Mo pour le programme (deux emplacements, pour la mise à jour sans fil) et
+512 Ko pour les données. Un socle flashé avant la 3.4.0 garde ses anciens
+emplacements de 1,5 Mo tant qu'il n'est pas reflashé par USB
+(`docs/decisions/0010-repartitionnement.md`).
 
 ## Étape 4 — Téléverser
 
@@ -133,22 +138,21 @@ moniteur série à **115200 bauds** : le thermostat parle.
 
 ## Étape 5 — Première configuration
 
-Aucun réseau n'est configuré au départ. L'ESP32 ouvre donc son propre point
-d'accès WiFi :
+Aucun réseau n'est configuré au départ. Trois façons de le donner :
 
-- **Réseau** : `terrarium-config`
-- **Mot de passe** : `terrarium1234`
-- **Adresse** : http://192.168.4.1
+- **Par le câble, juste après le flashage** : la page « Flasher un socle » du
+  site propose de configurer le Wi-Fi (protocole Improv) ; c'est le plus court.
+- **Par le point d'accès** que l'ESP32 ouvre tant qu'il n'a pas de réseau :
+  **`terrarium-config-XXXXXX`** (les six derniers caractères de son
+  identifiant), mot de passe `terrarium1234`. Connecte-toi avec ton téléphone :
+  la page de configuration s'ouvre d'elle-même (portail captif ; sinon
+  http://192.168.4.1), onglet Réseau.
+- **Au moniteur série** : `wifi MonReseau MonMotDePasse` essaie le réseau tout
+  de suite, dit s'il répond, et l'enregistre.
 
-Connecte-toi avec ton téléphone et renseigne ton WiFi dans l'onglet Réseau. Ou,
-au moniteur série :
-
-```
-wifi MonReseau MonMotDePasse
-redemarrer
-```
-
-Le thermostat est ensuite accessible sur **http://terrarium.local**.
+Le thermostat est ensuite accessible sur **http://terraXXXXXX.local** — son
+identifiant, affiché sur l'écran et par les commandes `jeton` et `reseau` — ou
+sur son adresse IP.
 
 ## Étape 6 — Sécuriser l'accès
 
@@ -160,6 +164,12 @@ motdepasse web MonMotDePasse
 motdepasse ota UnAutreMotDePasse
 motdepasse ap EncoreUnAutre
 ```
+
+Avec un mot de passe web, la page demande à se connecter : le navigateur
+répond à un défi (SHA-256), le mot de passe ne circule jamais, et une session
+de 24 h est posée dans un cookie `HttpOnly`. Les outils en ligne de commande
+peuvent toujours passer en Basic (`curl -u utilisateur:motdepasse`). Cinq
+échecs mettent la connexion en pause une minute.
 
 ## Étape 7 — Associer les sondes aux zones
 
@@ -216,7 +226,7 @@ passe réellement.
 
 ## La page web
 
-`http://terrarium.local` — quatre onglets :
+`http://terraXXXXXX.local` — quatre onglets :
 
 - **Vue** : températures en direct, état de chauffe, courbes sur 6 h à 14 jours,
   export CSV.
@@ -330,10 +340,13 @@ ou le bouton dans l'interface), et il survit à un redémarrage.
 
 ## Alertes et surveillance à distance
 
-- **Alertes** : à chaque défaut ou retour à la normale, un POST JSON part vers
-  une URL de ton choix (ntfy.sh, un webhook Discord, Home Assistant, n8n…). La
-  charge identifie l'appareil, la zone et la nature de l'événement, ce qui
-  permet de trier sans analyser une phrase :
+- **Alertes** : à chaque défaut ou retour à la normale, un message part vers
+  une URL de ton choix. Deux formats (onglet Réseau) : **JSON** pour un serveur,
+  Home Assistant ou n8n, dont la charge identifie l'appareil, la zone et la
+  nature de l'événement sans analyser une phrase ; **texte lisible**, avec un
+  titre et une priorité, pour ntfy et les services de notification — c'est le
+  chemin le plus court vers une alerte sur le téléphone, application fermée
+  (`docs/alertes-telephone.md`) :
 
   ```json
   { "appareil": "terraA1B2C3", "version": "3.1.0",
@@ -383,7 +396,21 @@ rebrancher de câble. Deux chemins, voir la section 6 dédiée :
 - depuis l'IDE Arduino ou `espota.py`, **à condition qu'un mot de passe OTA soit
   défini** — sans lui, ArduinoOTA n'est pas démarrée du tout ;
 - depuis l'onglet Réseau de l'interface web, en envoyant le fichier `.bin`, ce
-  qui ne demande rien d'autre que le mot de passe de l'interface.
+  qui ne demande rien d'autre que le mot de passe de l'interface — et, si une
+  clé publique est compilée (`OTA_CLE_PUBLIQUE`), une image **signée** par
+  `outils/signer-firmware.js`.
+
+Et un troisième, le plus simple : **le socle télécharge lui-même** le binaire
+d'une release GitHub, sur ordre de l'application (carte « Mise à jour du
+firmware »), de la commande série `maj 3.4.0`, ou de l'onglet Réseau (« Mise à
+jour depuis GitHub »). HTTPS, origine limitée aux releases du dépôt, signature
+vérifiée si le socle l'exige, progression publiée sur MQTT.
+
+Dans tous les cas, l'image installée n'est **validée qu'après 90 s** de
+fonctionnement normal : une mise à jour qui plante est annulée au redémarrage
+suivant, le socle revient à la version précédente et le dit (journal, alerte,
+interface, application). Au premier flashage sans câble ni IDE : la page
+« Flasher un socle » du site, par USB depuis Chrome.
 
 ## Écran qui se met en veille
 
@@ -558,7 +585,20 @@ compteur remis à zéro périodiquement, qui ferait chuter l'affichage d'un coup
 # 6. Mettre à jour à distance
 
 Une fois le WiFi configuré, **oui, le firmware se met à jour comme une
-application, sans toucher à la carte**. Il y a trois façons de faire.
+application, sans toucher à la carte**. Il y a quatre façons de faire.
+
+## Depuis l'application, ou « Mise à jour depuis GitHub » (le socle télécharge)
+
+L'application compare la version du socle à la dernière release publiée
+(`version.json` du site) et propose un bouton : le socle télécharge alors
+`terrarium-X.Y.Z-firmware.bin` (ou `.signe.bin` s'il exige des images signées)
+sur GitHub, en HTTPS avec vérification du certificat, l'écrit, redémarre, et
+publie sa progression sur le sujet MQTT `maj`. Même chose depuis l'onglet
+Réseau de l'interface locale, la commande série `maj 3.4.0` (ou `maj
+https://github.com/NoeMrct/terrarium_thermostat/releases/download/…`), ou
+`POST /api/maj-distante?version=3.4.0`. Seules les releases du dépôt sont
+acceptées comme origine (`MAJ_ORIGINES_AUTORISEES` dans `config.h`) : un code
+d'appairage volé ne permet pas de faire charger un binaire hébergé ailleurs.
 
 ## Depuis l'onglet Réseau de l'interface web (rien à installer)
 
@@ -611,8 +651,12 @@ le transfert complet et vérifié. Une coupure de courant en plein téléverseme
 laisse donc l'ancienne version intacte, et l'appareil redémarre dessus.
 
 C'est précisément pour garder ces deux emplacements que le projet fournit sa
-propre table de partitions : le firmware occupe 1,41 Mo, et les découpages
-prêts à l'emploi n'en offrent que 1,28 Mo.
+propre table de partitions : le firmware occupe 1,44 Mo, et les découpages
+prêts à l'emploi n'en offrent que 1,28 Mo. Et si la nouvelle image démarre mais
+plante, elle n'est jamais validée : au redémarrage suivant, le chargeur relance
+l'ancienne (`docs/decisions/0007-retour-arriere-ota.md`). L'état de la dernière
+mise à jour (en validation, validée, retour arrière, échec) est gardé en
+mémoire et affiché partout.
 
 ## Ce qu'il faut vérifier après coup
 
@@ -625,8 +669,9 @@ sont dans des zones de mémoire que le téléversement ne touche pas.
 
 ## Précautions
 
-- Ne mets jamais à jour à distance quand tu n'es pas chez toi : si le nouveau
-  firmware a un problème, il faut un câble USB pour en sortir.
+- Une mise à jour à distance est rattrapée par le retour arrière automatique
+  si la nouvelle image plante ; elle ne l'est pas si l'image démarre mais se
+  comporte mal. Mets à jour quand tu peux surveiller le terrarium.
 - **L'OTA réseau ne démarre que si un mot de passe OTA est défini.** Sans lui,
   n'importe quel appareil du réseau local — un invité, une caméra compromise —
   pourrait réécrire le programme d'un montage dont dépend un animal vivant. Le
@@ -642,7 +687,10 @@ sont dans des zones de mémoire que le téléversement ne touche pas.
 |---|---|
 | `help` | La liste des commandes |
 | `status` | État courant des deux zones |
-| `version` | Version du firmware et date de compilation |
+| `version` | Version du firmware, date de compilation, version du protocole |
+| `sante` | Signal Wi-Fi, mémoire, uptime, dernier redémarrage, plantage éventuel |
+| `coredump [effacer]` | Résumé du dernier plantage, ou effacement |
+| `appairage` | Affiche le QR et le code d'appairage sur l'écran pendant 60 s |
 | `jeton [nouveau]` | Code d'appairage de l'appareil |
 | `mqtt tls <on\|off>` | Chiffrer la liaison MQTT |
 | `stats` | Statistiques, énergie, compteurs de défauts |
@@ -669,7 +717,9 @@ sont dans des zones de mémoire que le téléversement ne touche pas.
 | `autotune 1` | Lancer la calibration automatique |
 | `stop-autotune 1` | L'interrompre |
 | `lier 0 1` | Associer la sonde n°0 à la zone 1 |
-| `wifi SSID motdepasse` | Identifiants réseau |
+| `wifi SSID motdepasse` | Identifiants réseau — essayés tout de suite, enregistrés si le réseau répond |
+| `maj [version\|url]` | Faire télécharger et installer une release par le socle lui-même |
+| `test usine [oui]` | Auto-test : écran, sondes, mémoire, partitions, Wi-Fi, heure ; `oui` actionne aussi chaque MOSFET une fraction de seconde |
 | `motdepasse web <mdp>` | Protéger l'interface web |
 | `motdepasse ota <mdp>` | Protéger les mises à jour sans fil |
 | `motdepasse ap <mdp>` | Protéger le point d'accès de secours |
@@ -702,6 +752,9 @@ sont dans des zones de mémoire que le téléversement ne touche pas.
 | `/api/maintenance?minutes=10` | POST | Coupure temporaire |
 | `/api/redemarrer` | POST | Redémarrer l'appareil |
 | `/api/maj` | POST | Téléverser un firmware (`multipart/form-data`) |
+| `/api/maj-distante?version=3.4.0` (ou `url=`) | POST | Faire télécharger une release par le socle |
+| `/api/defi`, `/api/session`, `/api/deconnexion` | GET / POST | Connexion par défi/réponse de la page (cookie de session 24 h) |
+| `/api/coredump` | GET / DELETE | Dernier rapport de plantage |
 | `/metrics` | GET | Format Prometheus |
 | `/manifest.json`, `/icone.svg`, `/sw.js` | GET | Application installable |
 
@@ -710,7 +763,7 @@ navigateur ne l'ajoute pas sur une requête venue d'un autre site, ce qui écart
 les requêtes forgées par une page malveillante :
 
 ```
-curl -X POST -H 'X-Terrarium: 1' http://terrarium.local/api/reset
+curl -u admin:motdepasse -X POST -H 'X-Terrarium: 1' http://terraA1B2C3.local/api/reset
 ```
 
 ---
@@ -720,7 +773,8 @@ curl -X POST -H 'X-Terrarium: 1' http://terrarium.local/api/reset
 | Donnée | Support | Détail |
 |---|---|---|
 | Réglages des zones, réseau, défauts | NVS | Vérifiés et corrigés à chaque chargement |
-| Historique | Fichiers (LittleFS) | 14 jours avec la table fournie |
+| Historique | Fichiers (LittleFS) | ≈ 11 jours avec la table 3.4 (14 avec l'ancienne) |
+| État de la dernière mise à jour | NVS | En validation, validée, retour arrière ou échec, avec la version visée |
 | Journal d'événements | Fichiers | Rotation automatique, jusqu'à 64 Ko |
 | Alertes en attente d'envoi | Fichiers | Survivent à une coupure réseau |
 | Heure de secours | NVS | Sauvegardée toutes les 10 minutes |
@@ -733,17 +787,25 @@ réécrite — pas seulement corrigée en RAM.
 
 # 10. Le banc d'essai
 
-Trois modules ne dépendent pas d'Arduino — le cœur de la régulation
-(`controle`), l'index de l'anneau d'historique (`anneau`) et le formatage
-partagé (`format`). Le dossier `sim/` les compile pour PC et les exerce :
+Six modules ne dépendent pas d'Arduino — le cœur de la régulation
+(`controle`), l'index de l'anneau d'historique (`anneau`), le formatage partagé
+(`format`), l'encodeur QR (`qr`), le canal de commandes (`protocole`) et les
+structures de réglages (`reglages`). Le dossier `sim/` les compile pour PC et
+les exerce :
 
 ```
 cd sim
-make test              les trois bancs d'essai
-make regulation        19 scénarios de régulation sur un modèle thermique
+make test              les six bancs d'essai
+make regulation        scénarios de régulation sur un modèle thermique
 make anneau            l'anneau d'historique, toutes combinaisons capacité × remplissage
 make format            échappement JSON et horaires, cas piégeux compris
+make qr                l'encodeur QR, relu par un décodeur indépendant
+make protocole         chaque action du canal de commandes, ses refus, le rejeu
+make migration         relecture des réglages d'une version à l'autre
 make sanitize          rejoue tout sous AddressSanitizer et UndefinedBehaviorSanitizer
+make fuzz              libFuzzer sur le JSON, le protocole, les réglages
+make couverture        couverture gcov par module (80 % exigés)
+make tidy              clang-tidy (bugprone, clang-analyzer, performance)
 make csv N=2           trace détaillée d'un scénario dans run.csv
 ```
 
@@ -773,16 +835,23 @@ le bruit de la sonde.
 
 Il ne couvre en revanche **rien de ce qui touche au matériel** (sondes réelles,
 WiFi, écran, système de fichiers) : ces parties sont compilées, relues, mais
-n'ont jamais tourné sur une carte.
+n'ont pas tourné sur une carte dans ce dépôt. `outils/test-materiel.js` est là
+pour ça : branché à une vraie carte par le port série, il flashe, vérifie le
+démarrage, la console, la santé, l'auto-test usine, l'absence de redémarrage
+spontané et, en option, une mise à jour par `/api/maj` suivie de sa validation
+(`.github/workflows/materiel.yml`, sur un exécuteur auto-hébergé).
 
 ## Ce qui a été vérifié
 
 - Compilation avec le cœur ESP32 3.3.11 (chaîne xtensa-esp-elf 14.2.0),
   aucun avertissement dans les fichiers du projet avec `--warnings all`. La
-  version 3.2.0 occupe **1 410 759 octets**, soit 90 % de l'emplacement
-  applicatif de 1,5 Mo, et 60 048 octets de RAM statique (18 %). C'est cette
-  compilation qui a révélé que la partition de fichiers, nommée `littlefs`,
-  était introuvable par `LittleFS.begin()` — corrigé en la nommant `spiffs`.
+  version 3.4.0 occupe **1 439 840 octets**, soit 81 % de l'emplacement
+  applicatif de 1,69 Mo (91,5 % des anciens emplacements de 1,5 Mo), et
+  78 800 octets de RAM statique (24 %). La compilation est reproductible : deux
+  compilations du même commit, au même chemin, donnent le même binaire
+  (`docs/publication.md`). C'est cette compilation qui a révélé, en 3.2, que la
+  partition de fichiers nommée `littlefs` était introuvable par
+  `LittleFS.begin()` — corrigé en la nommant `spiffs`.
 - Analyse statique cppcheck, exécution sous AddressSanitizer et
   UndefinedBehaviorSanitizer.
 - Comportement identique de part et d'autre du repliement du compteur de temps
@@ -794,7 +863,13 @@ n'ont jamais tourné sur une carte.
   contenant guillemets, antislashs et caractères de contrôle.
 - Interface web embarquée : rendu, formulaires, requêtes réellement émises,
   graphique, dans un DOM sans navigateur.
-- Protocole MQTT : chacune des actions documentées, avec ses refus.
+- Protocole MQTT : chacune des actions documentées, avec ses refus — sur PC
+  (`sim/test-protocole.cpp`, fuzzé), contre un socle simulé, et contre le
+  schéma JSON.
+- Migration des réglages : les structures ont leurs décalages figés par
+  `static_assert`, et la relecture tolérante entre versions est testée.
+- Application : jsdom, Chromium réel (et WebKit/Firefox en CI, sans blocage),
+  axe-core, régression visuelle pixel à pixel, test de charge à 100 socles.
 
 Restent **non couverts** : le matériel (sondes, écran, GPIO), la pile WiFi, et
 l'écriture réelle en flash. Ces parties sont relues et compilées, pas exercées.
@@ -831,7 +906,9 @@ l'écriture réelle en flash. Ces parties sont relues et compilées, pas exercé
 | Alerte de chute brutale trop fréquente | Seuil trop bas pour ce terrarium : `chute <z> <degC> [s]`, ou l'onglet Réglages |
 | Une zone n'atteint jamais sa consigne | Charge à 100 % : passer à une alimentation plus grosse et relever `alim` |
 | Défaut « SONDE » à répétition | Mauvais contact, fil trop long, ou alimentation parasite |
-| `terrarium.local` inaccessible | Certains réseaux bloquent le mDNS : utiliser l'adresse IP affichée à l'écran |
+| `terraXXXXXX.local` inaccessible | Certains réseaux bloquent le mDNS : utiliser l'adresse IP affichée à l'écran |
+| Écran « AP », socle hors ligne dans l'application | Le Wi-Fi n'a pas répondu : le réseau `terrarium-config-XXXXXX` est rouvert ; `wifi <ssid> <mdp>` au série essaie tout de suite |
+| « hote non autorise » à la mise à jour | Seules les releases du dépôt sont acceptées (`MAJ_ORIGINES_AUTORISEES`) ; un fork adapte `config.h` |
 | L'appareil redémarre tout seul | Consulter le journal : la cause du redémarrage y est écrite |
 | Les alertes n'arrivent pas | Vérifier l'URL ; le journal indique les abandons après 8 tentatives |
 | L'autotune échoue | Terrarium pas encore stabilisé, ou tapis trop faible pour faire osciller |
@@ -889,19 +966,35 @@ défaut.
 | `controle.h` / `.cpp` | Le cerveau : régulation, ordonnanceur, diagnostics, autotune. Sans dépendance Arduino |
 | `anneau.h` / `.cpp` | Index du journal circulaire d'historique. Sans dépendance Arduino, donc testable sur PC |
 | `format.h` / `.cpp` | Échappement JSON et horaires, partagés par le web, la console et MQTT. Idem |
-| `stockage.h` / `.cpp` | Réglages, historique, journal, file d'alertes |
+| `reglages.h` / `.cpp` | Les structures de réglages et leur validation, sans dépendance Arduino : décalages figés, relecture tolérante d'une version à l'autre |
+| `protocole.h` / `.cpp` | Le canal de commandes MQTT (actions, rejeu, réponses), sans dépendance Arduino — le socle réel l'implémente dans `reseau.cpp`, le banc PC avec un socle factice |
+| `stockage.h` / `.cpp` | Réglages en NVS, historique, journal, file d'alertes, état de la dernière mise à jour |
 | `sondes.h` / `.cpp` | Bus des DS18B20, association sonde ↔ zone |
-| `reseau.h` / `.cpp` | WiFi, serveur web, OTA, MQTT, alertes, métriques |
-| `affichage.h` / `.cpp` | Écran OLED |
-| `console.h` / `.cpp` | Commandes série |
-| `page_web.h` | L'interface web, embarquée dans le programme |
-| `config.h` | Brochage et cadences |
+| `reseau.h` / `.cpp` | WiFi, point d'accès et portail captif, mDNS, serveur web et sessions, OTA (reçue et tirée), MQTT, alertes, métriques |
+| `affichage.h` / `.cpp` | Écran OLED, dont l'écran d'appairage avec son QR code |
+| `qr.h` / `.cpp` | Encodeur QR (version 2, alphanumérique) de l'écran d'appairage. Sans dépendance Arduino, testé sur PC et relu par un décodeur indépendant |
+| `courant.h` / `.cpp` | Mesure de courant INA219 facultative (`INA219_ACTIF`) : tapis coupé, MOSFET passant, kWh réels |
+| `console.h` / `.cpp` | Commandes série, Improv Wi-Fi, auto-test usine |
+| `page_web.h` | L'interface web embarquée, lisible et testée — la source |
+| `page_web_gz.h` | La même, compressée pour la flash — **fichier généré**, voir `outils/compresser-page.js` |
+| `config.h` | Brochage, cadences, version du firmware et du protocole, clé publique OTA, origine des mises à jour tirées |
+| `NOTICE.md` | Licences des composants embarqués, distribués ou installés |
 | `partitions.csv` | Découpage de la mémoire flash |
 | `PROTOCOLE.md` | Pilotage à distance : sujets MQTT, commandes, sécurité |
+| `protocole.schema.json` | Le protocole en JSON Schema, vérifié par les tests sur tout ce que le socle émet |
+| `CHANGELOG.md` | Journal des versions ; la section du tag devient les notes de la release |
+| `SECURITY.md`, `CONTRIBUTING.md` | Signaler une faille ; règles du dépôt et procédure de publication |
+| `docs/` | Manuel (fr, en), fiche sécurité, dépannage en arbre, alertes sur le téléphone, publication, sécurisation série, checklist produit, conformité réglementaire, décisions d'architecture |
 | `app/` | Application web installable pour piloter les socles de loin |
-| `app/vendor/` | Bibliothèque MQTT embarquée (version figée, pour marcher hors ligne) |
+| `app/mqtt.js` | Client MQTT sur WebSocket, écrit pour l'application : quelques kilo-octets au lieu d'une bibliothèque |
+| `app/icones/` | Icônes PNG de l'application installée — **fichiers générés**, voir `outils/generer-icones.js` |
 | `app/demo.html` | Démonstration autonome, ouvrable d'un double-clic — **fichier généré**, voir `outils/construire-demo.js` |
+| `app/aide.html`, `app/aide.en.html` | Le manuel en français et en anglais, servi par l'application — **fichiers générés** depuis `docs/manuel.md` et `docs/manuel.en.md`, voir `outils/construire-aide.js` |
+| `app/demarrage-rapide.html` | Fiche de démarrage rapide imprimable (recto français, verso anglais), aussi en PDF dans chaque release |
+| `app/installer.html`, `app/installateur/` | Flashage d'un socle depuis le navigateur (ESP Web Tools, copie vérifiée par somme) |
+| `app/mentions-legales.html`, `app/confidentialite.html` (+ `.en.html`), `app/404.html` | Pages du site |
+| `serveur/` | Serveur auto-hébergé facultatif : broker MQTT avec comptes et droits par socle, historique, notifications push, administration (`serveur/README.md`) |
 | `INSTALLATION.md` | Guide d'installation, des trois niveaux à la mise en service |
-| `outils/` | Socle simulé, test du protocole, générateur d'étiquette QR |
-| `.github/workflows/` | Vérification automatique à chaque modification |
+| `outils/` | Socle simulé, tests (protocole et schéma, client MQTT, application dans jsdom et dans Chromium/WebKit/Firefox, interface web, démonstration, accessibilité, régression visuelle, charge, serveur, QR, matériel par port série), lint et types, couverture, compression de la page, aide et PDF, icônes, captures, étiquette QR, provisionnement, signature du firmware, préparation de la publication |
+| `.github/workflows/` | Vérification automatique à chaque modification, publication par étiquette (binaires reproductibles et attestés, PDF), CodeQL (JavaScript et C++), banc matériel |
 | `sim/` | Le banc d'essai pour PC |

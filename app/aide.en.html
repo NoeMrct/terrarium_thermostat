@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Heating base manual</title>
+<meta name="description" content="Heating base manual: installation, settings, alerts, maintenance, troubleshooting.">
+<link rel="icon" href="icone.svg">
+<meta name="theme-color" content="#f3f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'none'; base-uri 'self'">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-vue="page">
+<header id="entete">
+  <h1>Help</h1>
+  <a class="btn btn-fantome btn-petit" href="index.html">← App</a>
+</header>
+<main class="page">
+<article class="carte prose">
+<h1>Heating base manual</h1>
+<ol class="sommaire"><li><a href="#1-what-the-base-does">1. What the base does</a></li><li><a href="#2-what-you-need">2. What you need</a></li><li><a href="#3-installing-the-firmware">3. Installing the firmware</a></li><li><a href="#4-first-boot">4. First boot</a></li><li><a href="#5-linking-probes-to-zones">5. Linking probes to zones</a></li><li><a href="#6-pairing-in-the-app">6. Pairing in the app</a></li><li><a href="#7-settings">7. Settings</a></li><li><a href="#8-reading-the-status">8. Reading the status</a></li><li><a href="#9-charts-and-statistics">9. Charts and statistics</a></li><li><a href="#10-being-warned">10. Being warned</a></li><li><a href="#11-maintenance">11. Maintenance</a></li><li><a href="#12-updating">12. Updating</a></li><li><a href="#13-safety">13. Safety</a></li><li><a href="#14-troubleshooting">14. Troubleshooting</a></li><li><a href="#15-diagnostics-and-help">15. Diagnostics and help</a></li></ol>
+<p>This manual covers the whole journey: unboxing, flashing, wiring, settings, monitoring, troubleshooting. It is written for someone who has never opened an IDE. Technical terms are explained as they come; the &quot;going further&quot; sections of the repository README remain the complete reference. The French version (<code>docs/manuel.md</code>) is the reference text.</p>
+<h2 id="1-what-the-base-does">1. What the base does</h2>
+<p>The base regulates the temperature of <b>two zones</b> of a terrarium, each with its own probe and its own 12 V heat mat. It <b>never heats two mats at the same time</b> on a small power supply: that is structural, not a setting. It cuts the heating by itself and says so loudly when something is wrong: probe missing or frozen, temperature above the maximum cut-off, sudden drop, heating without effect.</p>
+<p>It works on its own, without any network. The network adds: the local web interface, the remote app, alerts on your phone, home automation.</p>
+<h2 id="2-what-you-need">2. What you need</h2>
+<ul><li>The base assembled according to the repository schematic (ESP32, two MOSFETs, two bimetal thermostats, 5 V converter).</li><li>A <b>12 V, 3 A</b> power supply for the mats. Declaring more amps than it really has is the only way to overload it: the device trusts that figure.</li><li>A USB <b>data</b> cable (not every charging cable is one) for the first flashing.</li><li>A phone or a computer for the configuration.</li><li>For remote control: an MQTT broker over secure WebSocket (HiveMQ Cloud has a free tier that is enough).</li></ul>
+<blockquote><p>Workshop golden rule: <b>USB and 12 V are never plugged in at the same time.</b> The 12 V feeds the board through the 5 V converter; so does USB. Both together fight over the board.</p></blockquote>
+<h2 id="3-installing-the-firmware">3. Installing the firmware</h2>
+<p>The simplest way: the <b>Flash a base</b> page of the site, in Chrome or Edge, on a computer. Plug the board in over USB, click, pick the port. On a new board, accept the full erase; on a base already in service, refuse it to keep the settings and the pairing code. Right after flashing, the same page offers to <b>configure Wi-Fi</b> over the cable (Improv protocol): pick your network in the list, type the password, done.</p>
+<p>Without Chrome: the Arduino IDE, with the board settings described in the repository's <code>INSTALLATION.md</code> (board &quot;ESP32 Dev Module&quot;, partition scheme &quot;Custom&quot;, 4 MB flash).</p>
+<h2 id="4-first-boot">4. First boot</h2>
+<ol><li>Unplug USB, plug in the 12 V. The screen shows &quot;Thermostat terrarium&quot; then the status.</li><li>If Wi-Fi was not given at flashing time, the base opens a <b>terrarium-config-XXXXXX</b> network (the last six characters of its identifier; password <code>terrarium1234</code>). Connect your phone to it: the configuration page opens by itself (otherwise <code>http://192.168.4.1</code>).</li><li><b>Network</b> tab: your Wi-Fi, a username and a password for the interface, an OTA password if you want to update without a cable, and, for remote control, the MQTT server. Save: the base restarts on your network.</li><li>It is then reachable at <code>http://terraXXXXXX.local</code> (its identifier, shown on the screen and in the app) or at its IP address. The interface asks for the username and password you chose; the password never leaves the browser (challenge login).</li></ol>
+<p>At the very first boot, the screen shows the <b>pairing code</b> for twenty seconds, as letters and as a QR code. It can be found again in the Network tab and with the <code>jeton</code> serial command.</p>
+<h2 id="5-linking-probes-to-zones">5. Linking probes to zones</h2>
+<p>Each DS18B20 probe has a unique address. <b>Settings → Detected 1-Wire probes → Scan</b>, then &quot;to zone 1&quot; / &quot;to zone 2&quot;. If only one probe shows up, it is the wiring (see troubleshooting), not the software.</p>
+<p>The probe goes <b>at the hot spot, under the substrate, against the mat</b> — never in the air. Check with an infrared thermometer before putting an animal in.</p>
+<h2 id="6-pairing-in-the-app">6. Pairing in the app</h2>
+<p>Open the app, enter the broker address (<code>wss://…:8884/mqtt</code>), the username and the password your broker gave you. <b>Test the connection</b> tells you right away whether it works. Then <b>Add a base</b>: scan the QR (base screen or label), or type the identifier (<code>terraXXXXXX</code>) and the pairing code. The base appears with its two zones.</p>
+<p>The app can be installed like a real application (&quot;Install the app&quot; button, or Share → Add to Home Screen on iPhone). It then works offline for its interface part, and updates itself by offering &quot;Reload&quot;.</p>
+<p><b>Lock code</b> (bottom of the base list): with a code, the broker password and the pairing codes are encrypted on the phone, and the app locks itself after the chosen delay. Whoever takes the phone can no longer heat an animal. The code cannot be recovered: if forgotten, &quot;Erase everything&quot; and pair again (the codes are on the bases).</p>
+<p><b>With the Terrariums server</b> (<code>serveur/</code> in the repository, self-hosted) instead of a bare broker, each base is attached to your account by proving its pairing code, history is kept even with the app closed, and the phone is warned by push notification. The app detects it by itself when connecting.</p>
+<h2 id="7-settings">7. Settings</h2>
+<p>In a base's view, <b>Status</b> tab: the day and night setpoints, directly. <b>Settings</b> tab: everything else.</p>
+<table><thead><tr><th>Setting</th><th>What it is</th><th>Starting value</th></tr></thead><tbody><tr><td>Day / night setpoint</td><td>Target temperature, at the hot spot</td><td>depends on the species</td></tr><tr><td>Day / night start</td><td>Switch-over times</td><td>08:00 / 20:00</td></tr><tr><td>Ramp</td><td>Gradual transition from one setpoint to the other, in minutes</td><td>45</td></tr><tr><td>Band</td><td>Width of the modulation zone around the setpoint</td><td>2 °C</td></tr><tr><td>Max cut-off</td><td>Above it, the zone locks into a fault. Absolute safety.</td><td>40 °C</td></tr><tr><td>Calibration</td><td>Offset added to the reading, if the probe reads wrong</td><td>0</td></tr></tbody></table>
+<p><b>Autotune</b> sets the band and the gain by itself: run it once the terrarium is in place and stable, it makes the zone oscillate for about an hour, then saves what it learned.</p>
+<p><b>Device</b> tab: the power supply (available amps, power of one mat), seasonal cycling, statistics, the base's health, settings backups.</p>
+<h2 id="8-reading-the-status">8. Reading the status</h2>
+<ul><li><b>online</b>: the base is publishing. <b>silent</b>: it is announced online but has published nothing for more than two minutes — check its Wi-Fi. <b>offline</b>: the broker no longer sees it. In every case, the base keeps regulating on its own.</li><li><b>heating</b>: this zone's mat is powered right now. <b>demand</b>: what the regulation is asking for, from 0 to 100 %.</li><li><b>drift</b>: the temperature has been moving away from the setpoint for a while without a fault being declared. Often: lid open, cold room, ageing mat.</li><li><b>FAULT</b>: the zone's heating is cut and locked. The label says why (PROBE, OVERHEAT, FROZEN…). Once the cause is fixed, <b>Clear faults</b>.</li></ul>
+<h2 id="9-charts-and-statistics">9. Charts and statistics</h2>
+<p>The 6 h and 24 h charts come from the base, accurate to the minute. Over 7 and 30 days, the app adds the points it noted in passing: opening the app from time to time is enough to fill these charts. Wheel or pinch to zoom, drag to move, double-click to come back. <b>Export as CSV</b> gives the file for a spreadsheet.</p>
+<p>The 24 h statistics (min, max, average, share of time out of range, heating hours, kWh) tell whether a terrarium <b>holds</b> its values, not only whether it reaches them.</p>
+<h2 id="10-being-warned">10. Being warned</h2>
+<ul><li><b>Browser notifications</b>: a fault or a drift shows a notification as long as the app is open (even in the background). Device tab → Notifications.</li><li><b>On the phone, app closed</b>: the base itself calls a web address at every alert. With <a href="https://ntfy.sh" rel="noopener">ntfy</a>, it is free and needs no account: create a topic, put its address in &quot;Alert URL&quot; in the Network tab, choose the &quot;text&quot; format, install ntfy on the phone. Details in <code>docs/alertes-telephone.md</code>. With the Terrariums server: &quot;Enable server notifications&quot; in the Device tab, and the server pushes the alerts.</li><li><b>Knowing it is alive</b>: the heartbeat URL called every five minutes; with <a href="https://healthchecks.io" rel="noopener">healthchecks.io</a>, you are warned when the base goes quiet.</li><li><b>Home automation</b>: Home Assistant discovery can be enabled in the Network tab; <code>/metrics</code> exposes the readings for Prometheus.</li></ul>
+<h2 id="11-maintenance">11. Maintenance</h2>
+<ul><li><b>Maintenance</b> (Status tab → Actions): cuts the heating while you clean, then resumes by itself at the given time.</li><li><b>Settings backup</b> (Device tab): a JSON file with setpoints, schedules and device settings, to import again on a spare base.</li><li><b>Export configuration</b> (bottom of the list): the whole app — broker and bases — to change phones. The file contains the pairing codes: keep it to yourself.</li><li><b>Restart</b>, <b>Erase history</b>: Device tab. The app's local history is erased at the same time.</li></ul>
+<h2 id="12-updating">12. Updating</h2>
+<ul><li><b>The app</b> updates itself: a &quot;New version available — Reload&quot; message appears. Nothing is forced in the middle of a setting.</li><li><b>The firmware</b>: in the app, Device tab, the <b>Firmware update</b> card says whether a newer version is published and a button makes the base <b>download and install it by itself</b> (signature checked if the base requires it). Otherwise: the Flash a base page (USB), the Network tab of the local interface (upload of the <code>.bin</code> file, or &quot;Update from GitHub&quot;), or OTA from the IDE if an OTA password is set. While writing, the heating is cut; at restart, the new version must declare itself healthy within a minute and a half, otherwise the base goes back to the previous version by itself — and the app shows &quot;rolled back&quot;.</li></ul>
+<h2 id="13-safety">13. Safety</h2>
+<ul><li>A 70 °C bimetal thermostat on each plate, in series with the mat, and a fuse on the 12 V: these are the protections that do not depend on the software. The README (&quot;What protects the hardware&quot; section) details the rest.</li><li>Do not leave an animal on a base whose probes have not been checked with an independent thermometer.</li><li>A maximum cut-off set too high is not a safety. Keep it a few degrees above the day setpoint, never more.</li><li>The base refuses out-of-range settings; if it shows a fault, it has good reasons. Only &quot;clear&quot; a fault after understanding its cause.</li></ul>
+<h2 id="14-troubleshooting">14. Troubleshooting</h2>
+<p>The full decision tree is in <code>docs/depannage.md</code>. The three most frequent cases:</p>
+<ul><li><b>No probe detected</b>: 4.7 kΩ resistor between data and 3.3 V, common ground, terminal block checked with an ohmmeter, probe on GPIO4.</li><li><b>offline in the app</b>: the base has no Wi-Fi or no broker. Its screen shows &quot;AP&quot; if it could not connect: it has reopened the configuration network. On site, the serial command <code>wifi &lt;ssid&gt; &lt;password&gt;</code> tries the network right away and says whether it answers.</li><li><b>USB port &quot;access denied&quot;</b> on Windows: CP210x driver missing.</li></ul>
+<h2 id="15-diagnostics-and-help">15. Diagnostics and help</h2>
+<p>The <b>Diagnostics</b> button (at the bottom of the base list) assembles a report: app version, browser, broker state, and for each base its version, its Wi-Fi signal, its memory, its last restart, and the recent errors. It contains no password and no pairing code. <b>Copy the report</b> and attach it to a support request saves a round trip; with the Terrariums server, <b>Send to the server</b> files it directly.</p>
+<p>On the base, the serial command <code>test usine</code> checks the screen, the probes, the memory, the partitions and Wi-Fi in one go (<code>test usine oui</code> also drives each MOSFET for a fraction of a second: never with an animal on it).</p>
+<p class="discret">Generated from docs/manuel.en.md — do not edit this file by hand.</p>
+</article>
+<footer class="pied colonne">
+  <div class="pied-ligne liens">
+    <a href="index.html">App</a>
+    <a href="installer.html">Flash a base</a>
+    <a href="mentions-legales.en.html">Legal notice</a>
+    <a href="confidentialite.en.html">Privacy</a>
+    <a href="demarrage-rapide.html">Printable sheet</a>
+    <a href="aide.html" lang="fr">Français</a>
+  </div>
+</footer>
+</main>
+</body>
+</html>

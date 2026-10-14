@@ -1,4 +1,4 @@
-# Table de partitions du thermostat — flash 4 Mo
+# Table de partitions du thermostat — flash 4 Mo (révision 3.4.0)
 #
 # Pourquoi une table sur mesure plutôt qu'un schéma prédéfini :
 #   - « Default 4MB with spiffs » ne laisse que 1,28 Mo d'application. Le
@@ -7,9 +7,16 @@
 #   - « Minimal SPIFFS » offre 1,9 Mo d'application mais seulement 128 Ko de
 #     système de fichiers, soit environ trois jours d'historique.
 #
-# Ce compromis donne 1,5 Mo par image applicative (≈ 10 % de marge sur le
-# binaire actuel de 1 410 759 octets, OTA conservée) et 896 Ko de fichiers,
-# soit une dizaine de jours d'historique, le journal et la file d'alertes.
+# Jusqu'en 3.3 : 2 × 1,5 Mo d'application et 896 Ko de fichiers. Le binaire
+# frôlait les 90 % de son emplacement ; au-delà de 95 %, plus rien ne rentre
+# et la mise à jour OTA se bloque. Depuis 3.4 : 2 × 1,69 Mo d'application
+# (≈ 80 % occupés) et 512 Ko de fichiers, ce qui garde ≈ 11 jours d'historique
+# (65 % de la partition, 20 octets par point et par minute), le journal et la
+# file d'alertes. Voir docs/decisions/0010-repartitionnement.md.
+#
+# Un socle flashé avec l'ancienne table garde ses emplacements de 1,5 Mo tant
+# qu'il n'est pas reflashé par USB : outils/verifier-taille-firmware.js tient
+# compte des deux tailles.
 #
 # La partition de fichiers s'appelle « spiffs » parce que c'est l'étiquette que
 # LittleFS.begin() cherche par défaut dans le cœur ESP32 ; son contenu est bien
@@ -21,7 +28,7 @@
 # Name,     Type, SubType,  Offset,   Size,     Flags
 nvs,        data, nvs,      0x9000,   0x5000,
 otadata,    data, ota,      0xe000,   0x2000,
-app0,       app,  ota_0,    0x10000,  0x180000,
-app1,       app,  ota_1,    0x190000, 0x180000,
-spiffs,     data, spiffs,   0x310000, 0xE0000,
+app0,       app,  ota_0,    0x10000,  0x1B0000,
+app1,       app,  ota_1,    0x1C0000, 0x1B0000,
+spiffs,     data, spiffs,   0x370000, 0x80000,
 coredump,   data, coredump, 0x3F0000, 0x10000,

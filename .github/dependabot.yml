@@ -1,0 +1,19 @@
+# Mises à jour automatiques, groupées pour ne pas noyer les revues : les
+# dépendances de développement des outils (jsdom, ESLint, ajv…) une fois par
+# semaine, et les actions GitHub des workflows une fois par mois.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /outils
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      outils:
+        patterns: ['*']
+    labels: ['dépendances']
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels: ['dépendances']

@@ -1,0 +1,33 @@
+# Style du firmware : celui du code existant, mis en règles. 2 espaces, accolades
+# attachées, lignes jusqu'à 110 colonnes, commentaires de fin de ligne alignés,
+# ordre des includes conservé (config.h doit venir en premier).
+BasedOnStyle: Google
+IndentWidth: 2
+ColumnLimit: 110
+AccessModifierOffset: -2
+AllowShortFunctionsOnASingleLine: All
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLoopsOnASingleLine: true
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortBlocksOnASingleLine: Always
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignTrailingComments: true
+AlignOperands: Align
+BreakBeforeBraces: Attach
+SortIncludes: Never
+IncludeBlocks: Preserve
+DerivePointerAlignment: false
+PointerAlignment: Right
+SpacesBeforeTrailingComments: 2
+ReflowComments: false
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+BinPackArguments: true
+BinPackParameters: true
+PenaltyBreakAssignment: 40
+PenaltyReturnTypeOnItsOwnLine: 1000
+Cpp11BracedListStyle: false
+SpaceAfterCStyleCast: false
+FixNamespaceComments: true
+NamespaceIndentation: None

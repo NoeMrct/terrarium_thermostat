@@ -1,0 +1,119 @@
+# Publication d'une version : à chaque étiquette « vX.Y.Z », le firmware est
+# compilé, signé si la clé est configurée, et attaché à une release GitHub avec
+# la section correspondante du CHANGELOG. Le site Netlify, au déploiement
+# suivant, récupère ces binaires pour la page « Flasher un socle ».
+#
+#   git tag v3.3.0 && git push --tags
+#
+# Secrets facultatifs :
+#   CLE_SIGNATURE_FIRMWARE   clé privée PEM (outils/signer-firmware.js --generer-cles) ;
+#                            la clé publique correspondante doit être dans config.h
+#   NETLIFY_BUILD_HOOK       URL du hook de build Netlify, pour redéployer le site
+#                            avec le nouveau firmware sans attendre un commit
+name: Publication
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+  id-token: write        # attestation de provenance des binaires
+  attestations: write
+
+jobs:
+  release:
+    name: Compiler, signer, publier
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+
+      - name: La version du tag est celle du firmware et du changelog
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          grep -q "#define FW_VERSION \"$TAG\"" config.h || { echo "::error::config.h n'est pas en $TAG"; exit 1; }
+          grep -q "^## \[$TAG\]" CHANGELOG.md || { echo "::error::CHANGELOG.md n'a pas de section [$TAG]"; exit 1; }
+
+      - uses: arduino/setup-arduino-cli@v2
+        with: { version: '1.3.1' }
+
+      - name: Installer le cœur ESP32 et les bibliothèques (versions épinglées)
+        run: |
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32@3.3.11 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          sh outils/installer-bibliotheques.sh
+
+      - name: Compiler (reproductible : date du commit, commit dans le binaire)
+        run: |
+          export SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
+          mkdir -p build/terrarium_thermostat
+          cp *.ino *.h *.cpp partitions.csv build/terrarium_thermostat/
+          arduino-cli compile --fqbn esp32:esp32:esp32:PartitionScheme=custom --warnings all \
+            --build-property "compiler.cpp.extra_flags=-DFW_COMMIT=\"${GITHUB_SHA::7}\"" \
+            --export-binaries build/terrarium_thermostat 2>&1 | tee sortie.txt
+          grep -q "terrarium_thermostat/.*warning:" sortie.txt && exit 1 || true
+          node outils/verifier-taille-firmware.js build/terrarium_thermostat/build/esp32.esp32.esp32/terrarium_thermostat.ino.bin
+
+      - name: Rassembler les binaires
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          SRC=build/terrarium_thermostat/build/esp32.esp32.esp32
+          mkdir -p sortie
+          cp "$SRC/terrarium_thermostat.ino.bin"            "sortie/terrarium-$TAG-firmware.bin"
+          cp "$SRC/terrarium_thermostat.ino.bootloader.bin" "sortie/terrarium-$TAG-bootloader.bin"
+          cp "$SRC/terrarium_thermostat.ino.partitions.bin" "sortie/terrarium-$TAG-partitions.bin"
+          cp "$SRC/terrarium_thermostat.ino.merged.bin"     "sortie/terrarium-$TAG-merged.bin"
+          cp "$(arduino-cli config get directories.data)"/packages/esp32/hardware/esp32/*/tools/partitions/boot_app0.bin "sortie/terrarium-$TAG-boot_app0.bin"
+          (cd sortie && sha256sum * > "terrarium-$TAG-SHA256SUMS.txt")
+
+      - name: Signer l'image pour /api/maj (si la clé est configurée)
+        if: ${{ secrets.CLE_SIGNATURE_FIRMWARE != '' }}
+        env:
+          CLE: ${{ secrets.CLE_SIGNATURE_FIRMWARE }}
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          printf '%s' "$CLE" > cle-privee.pem
+          node outils/signer-firmware.js --cle cle-privee.pem \
+            --entree "sortie/terrarium-$TAG-firmware.bin" --sortie "sortie/terrarium-$TAG-firmware.signe.bin"
+          rm -f cle-privee.pem
+          (cd sortie && sha256sum "terrarium-$TAG-firmware.signe.bin" >> "terrarium-$TAG-SHA256SUMS.txt")
+
+      - name: Documentation imprimable (fiche de démarrage rapide, manuels) en PDF
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          (cd outils && npm ci && npm install --no-save playwright@1.56.0 && npx playwright install --with-deps chromium)
+          node outils/construire-aide.js --verifier
+          node outils/construire-pdf.js --sortie pdf
+          cp pdf/demarrage-rapide.pdf "sortie/terrarium-$TAG-demarrage-rapide.pdf"
+          cp pdf/manuel.pdf            "sortie/terrarium-$TAG-manuel.pdf"
+          cp pdf/manual.en.pdf         "sortie/terrarium-$TAG-manual-en.pdf"
+          (cd sortie && sha256sum *.pdf >> "terrarium-$TAG-SHA256SUMS.txt")
+
+      - name: Attestation de provenance (qui a compilé quoi, depuis quel commit)
+        # Vérifiable par quiconque : gh attestation verify terrarium-X.Y.Z-firmware.bin --repo NoeMrct/terrarium_thermostat
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: sortie/*.bin
+
+      - name: Notes de version depuis le CHANGELOG
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          awk -v v="$TAG" '/^## \[/{p = index($0, "[" v "]") > 0; next} p' CHANGELOG.md > notes.md
+          echo "" >> notes.md
+          echo "Installation sans IDE : page « Flasher un socle » du site. Mise à jour d'un socle en service : depuis l'application (bouton « Mettre à jour » du socle, qui télécharge \`terrarium-$TAG-firmware.bin\` ici même), ou onglet Réseau de son interface locale avec ce fichier (ou \`.signe.bin\` si le socle exige des images signées). Compilation reproductible : \`SOURCE_DATE_EPOCH\` = date du commit, voir docs/publication.md ; provenance vérifiable avec \`gh attestation verify\`." >> notes.md
+
+      - name: Release GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Socle chauffant ${{ github.ref_name }}
+          body_path: notes.md
+          files: sortie/*
+
+      - name: Redéployer le site (page de flashage)
+        if: ${{ secrets.NETLIFY_BUILD_HOOK != '' }}
+        env:
+          HOOK: ${{ secrets.NETLIFY_BUILD_HOOK }}
+        run: curl -fsS -X POST -d '{}' "$HOOK"

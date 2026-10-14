@@ -61,8 +61,10 @@ mqtt tls on
 redemarrer
 ```
 
-Vérifier ensuite avec `reseau`. Le socle publie son état toutes les vingt
-secondes et se reconnecte tout seul.
+Vérifier ensuite avec `reseau`. Le socle publie son état dès qu'il change (au
+plus toutes les 2 s, au moins toutes les 60 s) et se reconnecte tout seul. Avec
+le serveur Terrariums (`serveur/`), `outils/provisionner.js` crée le compte du
+socle et passe cette commande à sa place.
 
 Tout cela se règle aussi depuis l'onglet Réseau de l'interface web.
 
@@ -75,14 +77,32 @@ Avec un préfixe `terrarium` et un identifiant d'appareil `terraA1B2C3` :
 | Sujet | Sens | Contenu |
 |---|---|---|
 | `terrarium/terraA1B2C3/statut` | socle → app | `en ligne` / `hors ligne` (persistant) |
-| `terrarium/terraA1B2C3/zone1/etat` | socle → app | JSON d'état, toutes les 20 s |
+| `terrarium/terraA1B2C3/zone1/etat` | socle → app | JSON d'état (persistant), **dès que quelque chose change** — au plus toutes les 2 s — et de toute façon toutes les 60 s |
 | `terrarium/terraA1B2C3/zone2/etat` | socle → app | idem |
-| `terrarium/terraA1B2C3/cmd` | app → socle | requête JSON |
+| `terrarium/terraA1B2C3/sante` | socle → app | JSON de santé (persistant), toutes les 60 s : `proto`, `version`, `uptime`, `rssi`, `heap`, `heapMin`, `blocMax`, `reset`, `otaEnAttente`, `signatureOta`, `hote` (`terraA1B2C3.local`), `ip`, `maj` (dernière mise à jour tirée : `etape`, `version`, `detail` — absent si aucune), `plantage` (si un coredump existe), `courantA`/`energieWh` (avec INA219) |
+| `terrarium/terraA1B2C3/maj` | socle → app | progression d'une mise à jour tirée (non persistant) : `etat` (`telechargement`, `redemarrage`, `erreur`), `pct`, `detail`, `version` |
+| `terrarium/terraA1B2C3/cmd` | app → socle | requête JSON (l'application l'envoie en QoS 1) |
 | `terrarium/terraA1B2C3/reponse` | socle → app | réponse JSON |
+| `terrarium/serveur` | serveur → app | **serveur Terrariums seulement** : annonce retenue `{"serveur":"terrariums","version":…,"push":…}`, lisible par tout compte, que lui seul écrit. Un socle n'y touche jamais ; un broker nu n'a pas ce sujet, et l'application n'y attend rien |
 
 Le sujet `statut` utilise le **testament** MQTT : si le socle disparaît
 brutalement (coupure de courant, WiFi perdu), le broker publie lui-même
 `hors ligne`. L'application le sait en quelques secondes, sans rien interroger.
+Un socle `en ligne` qui n'a rien publié depuis plus de deux minutes est montré
+**silencieux** par l'application : le testament ne distingue pas un socle vivant
+d'un socle coincé.
+
+### Version du protocole
+
+Le socle annonce `proto` (dans `sante`, dans la réponse `etat` et `version`).
+Cette page décrit la **version 3** (firmware 3.4) : elle ajoute l'action `maj`,
+le sujet `maj` et les champs `hote`, `ip`, `maj` de la santé. La version 2
+(3.3) n'avait pas de mise à jour tirée ; la version 1 (3.0 à 3.2) n'avait ni
+`sante`, ni `proto`, ni le rejeu des commandes. Un changement que
+l'application ne saurait pas interpréter incrémente ce numéro ; l'application
+affiche « mets à jour l'application » ou « firmware à mettre à jour » selon le
+cas. `protocole.schema.json` (JSON Schema) décrit formellement chaque message,
+et `outils/test-protocole.js` vérifie que tout ce que le socle émet s'y conforme.
 
 ---
 
@@ -97,7 +117,11 @@ de l'interface web locale.
 { "req": "42", "action": "zone", "jeton": "K7M2QX...", "z": 0, "jour": 32.5 }
 ```
 
-- `req` : identifiant libre, recopié dans la réponse pour l'apparier.
+- `req` : identifiant libre (23 caractères au plus), recopié dans la réponse pour
+  l'apparier. **Une requête déjà traitée reçoit à nouveau sa réponse sans être
+  rejouée** : le socle garde ses huit dernières réponses courtes. C'est ce qui
+  permet d'envoyer les commandes en QoS 1 (livraison garantie, doublons
+  possibles) sans qu'un `redemarrer` redémarre deux fois.
 - `action` : voir le tableau ci-dessous.
 - `jeton` : **obligatoire pour toute action modifiante**. Les actions de lecture
   s'en passent.
@@ -113,8 +137,8 @@ de l'interface web locale.
 
 | Action | Jeton | Paramètres | Effet |
 |---|---|---|---|
-| `etat` | non | — | Températures, consignes du moment **et de référence**, demande, charge, défauts, autotune, dérive, horaires, temps de fonctionnement |
-| `version` | non | — | Version du firmware et date de compilation |
+| `etat` | non | — | Températures, consignes du moment **et de référence**, demande, charge, défauts, autotune, dérive, horaires, temps de fonctionnement, `proto` et `sante` |
+| `version` | non | — | Version du firmware, date de compilation, `proto` |
 | `stats` | non | — | Min / max / moyenne sur 24 h, temps hors plage, énergie, compteurs de défauts |
 | `historique` | non | `heures` (1-400, défaut 24), `max` (1-200, défaut 120) | Points de courbe, échantillonnés |
 | `zone` | **oui** | `z`, et `nom`, `jour`, `nuit`, `bande`, `ki`, `max`, `offset`, `rampe`, `debutJour`, `debutNuit`, `deriveSeuil`, `deriveMin`, `inefficaceMin`, `inefficaceDelta`, `chuteSeuil`, `chuteSecondes` | Modifie une zone |
@@ -126,6 +150,7 @@ de l'interface web locale.
 | `effacer-historique` | **oui** | — | Vide les courbes |
 | `alim` | **oui** | `amperes`, `watts` | Raccourci historique de `globaux` |
 | `redemarrer` | **oui** | — | Redémarre le socle |
+| `maj` | **oui** | `version` (`X.Y.Z`, release GitHub) ou `url` (`https://`, releases du dépôt seulement), `forcer` | Le socle télécharge et installe l'image, publie sa progression sur `maj`, redémarre ; la réponse `{"ok":true,"maj":"telechargement"}` part avant le téléchargement. Refus : `deja en X.Y.Z` (sans `forcer`), `hote non autorise`, `hors ligne` |
 
 Les horaires (`debutJour`, `debutNuit`) sont en minutes depuis minuit :
 `8:00` s'écrit `480`.
@@ -232,6 +257,11 @@ et l'application doit le présenter comme tel plutôt que de rester bloquée.
 | Jeton exigé pour les actions modifiantes | Un broker mal cloisonné ne suffit pas à piloter un socle |
 | Validation dans le cœur de régulation | Aucune commande ne peut créer un réglage dangereux |
 | OTA réseau désactivée sans mot de passe | Personne sur le réseau local ne réécrit le firmware |
+| Images signées (ECDSA P-256) exigées par `/api/maj` et par la mise à jour tirée quand une clé publique est compilée | Même avec le mot de passe de l'interface ou le jeton, pas de firmware étranger |
+| Mise à jour tirée limitée aux releases du dépôt (HTTPS, certificat vérifié, redirections bornées aux serveurs de GitHub) | Un jeton volé ne fait pas charger un binaire hébergé ailleurs |
+| Interface locale : connexion par défi/réponse, session `HttpOnly` 24 h, pause après cinq échecs | Le mot de passe ne circule pas, et ne se devine pas en boucle |
+| Retour arrière automatique après une mise à jour | Une image qui plante ne prive pas le terrarium de régulation |
+| Commandes rejouées sans effet | Un doublon livré par le broker (QoS 1) n'agit pas deux fois |
 
 **À faire côté broker** : un compte par appareil, avec des droits limités à ses
 propres sujets. Sans ce cloisonnement, un appareil compromis pourrait écouter et
