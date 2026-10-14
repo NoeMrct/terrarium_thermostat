@@ -109,7 +109,7 @@ jobs:
           echo "Installation sans IDE : page « Flasher un socle » du site. Mise à jour d'un socle en service : depuis l'application (bouton « Mettre à jour » du socle, qui télécharge \`terrarium-$TAG-firmware.bin\` ici même), ou onglet Réseau de son interface locale avec ce fichier (ou \`.signe.bin\` si le socle exige des images signées). Compilation reproductible : \`SOURCE_DATE_EPOCH\` = date du commit, voir docs/publication.md ; provenance vérifiable avec \`gh attestation verify\`." >> notes.md
 
       - name: Release GitHub
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: Socle chauffant ${{ github.ref_name }}
           body_path: notes.md
