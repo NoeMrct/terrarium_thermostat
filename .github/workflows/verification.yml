@@ -148,7 +148,7 @@ jobs:
 
       - name: Images de différence en cas d'écart visuel
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ecarts-visuels-${{ github.sha }}
           path: outils/captures/
@@ -304,7 +304,7 @@ jobs:
           echo "sha256 $A" > build/terrarium_thermostat/build/esp32.esp32.esp32/SHA256.txt
 
       - name: Conserver le binaire de cette compilation
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: firmware-${{ github.sha }}
           path: build/terrarium_thermostat/build/esp32.esp32.esp32/*.bin
