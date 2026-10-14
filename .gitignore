@@ -46,6 +46,7 @@ app/*.map
 
 # Clés de signature du firmware : jamais dans le dépôt
 *.pem
+cles/
 
 # Rapports Lighthouse
 .lighthouseci/

@@ -64,7 +64,7 @@ const { ouvrirSerie } = require('./serie');
   if (VERSION) v(`la version attendue tourne (${VERSION})`, !!version && version[1] === VERSION, version ? version[1] : '');
 
   const sante = await serie.commande('sante', /Sante : \{([^\n]*)\}/);
-  let heap = null;
+  let heap;
   try { heap = sante ? JSON.parse('{' + sante[1] + '}') : null; } catch (e) { heap = null; }
   v('« sante » renvoie un JSON', !!heap, heap ? `heap ${heap.heap} rssi ${heap.rssi} reset ${heap.reset}` : '');
   v('mémoire libre > 100 Ko', !!heap && heap.heap > 100000, heap ? `${heap.heap} octets` : '');
@@ -92,7 +92,7 @@ const { ouvrirSerie } = require('./serie');
     const entetes = { 'X-Terrarium': '1' };
     if (UTILISATEUR) entetes.Authorization = 'Basic ' + Buffer.from(`${UTILISATEUR}:${MDP}`).toString('base64');
     depuis = serie.position();
-    let r = null;
+    let r;
     try { r = await fetch(`${OTA}/api/maj`, { method: 'POST', headers: entetes, body: form }); } catch (e) { r = null; }
     v('le socle accepte l\'image', !!r && r.status === 200, r ? `HTTP ${r.status}` : 'injoignable');
     const valide = await serie.attendre(/Mise a jour validee : retour arriere annule/, 150000, depuis);

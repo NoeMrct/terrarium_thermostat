@@ -75,6 +75,10 @@ un socle », effacement complet accepté) installe la nouvelle table.
 - Action `alim` validée par les mêmes bornes que les réglages globaux.
 - Workflow de publication : bibliothèques épinglées, binaires reproductibles,
   PDF de documentation, notes de version mentionnant la mise à jour tirée.
+- Outils de développement : ESLint 10 (avec `@eslint/js` et ses nouvelles
+  règles), TypeScript 7, c8 12, mqtt.js 5.16 ; jsdom reste en 24 (la 30 casse
+  le client WebSocket des bancs). Dependabot ne propose plus de montée de
+  version majeure : chacune se fait à la main, suites de test à l'appui.
 
 ### Corrigé
 - `strcat` sans borne dans la composition des libellés de défaut remplacé par un

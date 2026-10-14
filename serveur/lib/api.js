@@ -41,7 +41,7 @@ class Api {
   async lireJson(req) {
     const t = await this.lireCorps(req);
     if (!t) return {};
-    try { return JSON.parse(t); } catch (e) { throw new Error('JSON invalide'); }
+    try { return JSON.parse(t); } catch (e) { throw new Error('JSON invalide', { cause: e }); }
   }
 
   utilisateurDe(req) {

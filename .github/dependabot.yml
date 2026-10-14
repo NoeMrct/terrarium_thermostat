@@ -1,6 +1,13 @@
 # Mises à jour automatiques, groupées pour ne pas noyer les revues : les
-# dépendances de développement des outils (jsdom, ESLint, ajv…) une fois par
-# semaine, et les actions GitHub des workflows une fois par mois.
+# dépendances des outils et du serveur une fois par semaine, les actions
+# GitHub des workflows une fois par mois.
+#
+# Les changements de version majeure sont exclus : chacun se fait à la main,
+# avec les suites de test (la première proposition groupée a montré que
+# jsdom 30 casse le client WebSocket des bancs et qu'ESLint 10 exige
+# @eslint/js et de nouvelles règles — ce qui a été fait ensuite, en connaissance
+# de cause). Pas d'étiquette : elle devrait exister dans le dépôt pour que
+# Dependabot puisse l'apposer.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -11,9 +18,21 @@ updates:
     groups:
       outils:
         patterns: ['*']
-    labels: ['dépendances']
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+  - package-ecosystem: npm
+    directory: /serveur
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      serveur:
+        patterns: ['*']
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
-    labels: ['dépendances']
