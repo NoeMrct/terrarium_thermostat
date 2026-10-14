@@ -25,11 +25,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: github/codeql-action/init@v3
+      - uses: github/codeql-action/init@v4
         with:
           languages: javascript
           queries: security-and-quality
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@v4
         with:
           category: javascript
 
@@ -46,7 +46,7 @@ jobs:
           arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
           arduino-cli core install esp32:esp32@3.3.11 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
           sh outils/installer-bibliotheques.sh
-      - uses: github/codeql-action/init@v3
+      - uses: github/codeql-action/init@v4
         with:
           languages: c-cpp
           build-mode: manual
@@ -56,6 +56,6 @@ jobs:
           mkdir -p build/terrarium_thermostat
           cp *.ino *.h *.cpp partitions.csv build/terrarium_thermostat/
           arduino-cli compile --fqbn esp32:esp32:esp32:PartitionScheme=custom build/terrarium_thermostat
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@v4
         with:
           category: firmware
