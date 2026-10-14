@@ -29,7 +29,7 @@ jobs:
     name: Bancs d'essai (PC)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Régulation, anneau d'historique, formatage, encodeur QR
         working-directory: sim
@@ -72,7 +72,7 @@ jobs:
     name: Protocole, application et interface web
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
@@ -192,7 +192,7 @@ jobs:
       matrix:
         moteur: [webkit, firefox]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
       - name: Broker MQTT local
@@ -221,7 +221,7 @@ jobs:
     name: Serveur auto-hébergeable
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
       - name: Dépendances
@@ -240,7 +240,7 @@ jobs:
     name: Intégrité de l'installateur web
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
       - run: node outils/verifier-installateur.js
@@ -249,7 +249,7 @@ jobs:
     name: Compilation ESP32
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: arduino/setup-arduino-cli@v2
         with: { version: '1.3.1' }
