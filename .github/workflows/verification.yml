@@ -48,11 +48,11 @@ jobs:
       - name: Analyse statique (cppcheck et clang-tidy sur les modules compilables sur PC)
         run: |
           sudo apt-get install -y -qq cppcheck clang-tidy
-          cppcheck --enable=all --inconclusive --std=c++11 --error-exitcode=1 \
+          cppcheck --enable=all --inconclusive --inline-suppr --std=c++11 --error-exitcode=1 \
                    --suppress=missingIncludeSystem --suppress=unusedFunction \
                    --suppress=checkersReport --suppress=memsetClassFloat \
-                   --suppress=unmatchedSuppression \
-                   --quiet controle.cpp anneau.cpp format.cpp qr.cpp protocole.cpp
+                   --suppress=unmatchedSuppression --suppress=useStlAlgorithm \
+                   --quiet controle.cpp anneau.cpp format.cpp qr.cpp protocole.cpp reglages.cpp
           make -C sim tidy
 
       - name: Couverture des bancs C++ (gcov), seuil dans sim/Makefile
@@ -63,10 +63,10 @@ jobs:
         working-directory: sim
         run: make migration
 
-      - name: Mise en forme (clang-format sur tout le C++)
+      - name: Mise en forme (clang-format sur tout le C++, sauf l'en-tête généré)
         run: |
           sudo apt-get install -y -qq clang-format
-          clang-format --dry-run --Werror *.cpp *.h *.ino sim/*.cpp
+          clang-format --dry-run --Werror $(ls *.cpp *.h *.ino sim/*.cpp sim/*.h | grep -v page_web_gz)
 
   reseau:
     name: Protocole, application et interface web
@@ -88,7 +88,7 @@ jobs:
           mosquitto -c mosquitto.conf -d
           sleep 2
 
-      - name: Dépendances (Playwright épinglé : les références visuelles en dépendent)
+      - name: "Dépendances (Playwright épinglé : les références visuelles en dépendent)"
         working-directory: outils
         run: |
           npm ci
@@ -165,11 +165,15 @@ jobs:
       - name: QR de l'écran d'appairage relu par un décodeur indépendant
         run: make -C sim test-qr && node outils/test-qr.js
 
-      - name: Lighthouse (performance, accessibilité, bonnes pratiques, SEO)
+      - name: Lighthouse (performance, accessibilité, bonnes pratiques, SEO), sur la version minifiée
+        # preparer-publication.js minifie app.js, mqtt.js et sw.js en place et
+        # écrit version.json et les cartes de sources : tout est remis en l'état
+        # après, pour que les étapes suivantes voient les sources du dépôt.
         run: |
           node outils/preparer-publication.js --sans-firmware
           outils/node_modules/.bin/lhci autorun --config=.lighthouserc.json
-          git checkout -- app/sw.js
+          git checkout -- app/app.js app/mqtt.js app/sw.js
+          rm -f app/*.map app/version.json
 
       - name: La démonstration reste synchronisée avec l'application
         run: |

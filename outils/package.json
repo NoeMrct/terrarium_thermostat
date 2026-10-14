@@ -17,7 +17,7 @@
     "test:navigateur": "node test-navigateur.js --broker ws://localhost:9001/mqtt --id terraSIM001 --jeton SIMULATIONTESTJETON00001",
     "test:accessibilite": "node test-accessibilite.js",
     "test:qr": "make -C ../sim test-qr && node test-qr.js",
-    "lighthouse": "cd .. && node outils/preparer-publication.js --sans-firmware && outils/node_modules/.bin/lhci autorun --config=.lighthouserc.json && git checkout -- app/sw.js",
+    "lighthouse": "cd .. && node outils/preparer-publication.js --sans-firmware && outils/node_modules/.bin/lhci autorun --config=.lighthouserc.json ; git checkout -- app/app.js app/mqtt.js app/sw.js && rm -f app/*.map app/version.json",
     "page:gz": "node compresser-page.js",
     "icones": "node generer-icones.js",
     "captures": "node captures.js",

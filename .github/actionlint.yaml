@@ -1,0 +1,4 @@
+# Étiquettes des exécuteurs auto-hébergés (banc matériel), pour actionlint.
+self-hosted-runner:
+  labels:
+    - socle

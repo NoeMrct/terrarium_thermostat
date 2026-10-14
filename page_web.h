@@ -451,4 +451,4 @@ let PTS=null,GX=null,GY=null,GLO=0,GHI=0,ZA=null,ZB=null;
 maj();trace();setInterval(maj,10000);setInterval(()=>{if(!ZB)trace();},60000);
 </script></body></html>)HTML";
 
-#endif // PAGE_WEB_H
+#endif  // PAGE_WEB_H

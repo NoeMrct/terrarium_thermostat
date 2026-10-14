@@ -25,6 +25,11 @@ jobs:
   release:
     name: Compiler, signer, publier
     runs-on: ubuntu-latest
+    # Les secrets ne sont pas lisibles dans un « if » d'étape : ils passent par
+    # l'environnement du job, et les étapes testent la variable.
+    env:
+      CLE_SIGNATURE: ${{ secrets.CLE_SIGNATURE_FIRMWARE }}
+      HOOK_NETLIFY: ${{ secrets.NETLIFY_BUILD_HOOK }}
     steps:
       - uses: actions/checkout@v4
 
@@ -46,7 +51,7 @@ jobs:
           arduino-cli core install esp32:esp32@3.3.11 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
           sh outils/installer-bibliotheques.sh
 
-      - name: Compiler (reproductible : date du commit, commit dans le binaire)
+      - name: "Compiler (reproductible : date du commit, commit dans le binaire)"
         run: |
           export SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
           mkdir -p build/terrarium_thermostat
@@ -70,12 +75,10 @@ jobs:
           (cd sortie && sha256sum * > "terrarium-$TAG-SHA256SUMS.txt")
 
       - name: Signer l'image pour /api/maj (si la clé est configurée)
-        if: ${{ secrets.CLE_SIGNATURE_FIRMWARE != '' }}
-        env:
-          CLE: ${{ secrets.CLE_SIGNATURE_FIRMWARE }}
+        if: ${{ env.CLE_SIGNATURE != '' }}
         run: |
           TAG="${GITHUB_REF_NAME#v}"
-          printf '%s' "$CLE" > cle-privee.pem
+          printf '%s' "$CLE_SIGNATURE" > cle-privee.pem
           node outils/signer-firmware.js --cle cle-privee.pem \
             --entree "sortie/terrarium-$TAG-firmware.bin" --sortie "sortie/terrarium-$TAG-firmware.signe.bin"
           rm -f cle-privee.pem
@@ -113,7 +116,5 @@ jobs:
           files: sortie/*
 
       - name: Redéployer le site (page de flashage)
-        if: ${{ secrets.NETLIFY_BUILD_HOOK != '' }}
-        env:
-          HOOK: ${{ secrets.NETLIFY_BUILD_HOOK }}
-        run: curl -fsS -X POST -d '{}' "$HOOK"
+        if: ${{ env.HOOK_NETLIFY != '' }}
+        run: curl -fsS -X POST -d '{}' "$HOOK_NETLIFY"

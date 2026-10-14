@@ -317,7 +317,7 @@ void traiterCommande(Socle &socle, const char *charge, size_t taille) {
   if (strcmp(action, "maj") == 0) {
     const char *url = doc["url"] | "";
     const char *version = doc["version"] | "";
-    const bool forcer = doc["forcer"] | false;
+    const bool forcer = doc["forcer"].as<bool>();  // absent : false
     if (!url[0] && !version[0]) {
       erreur(socle, req, "url ou version attendue");
       return;

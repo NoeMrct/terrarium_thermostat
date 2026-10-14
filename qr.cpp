@@ -225,6 +225,7 @@ bool qrEncoder(const char *texte, uint8_t modules[QR_MODULES * QR_MODULES]) {
         const int x = droite - j;
         const bool montee = ((droite + 1) & 2) == 0;
         const int y = montee ? N - 1 - v : v;
+        // cppcheck-suppress negativeIndex ; v < N, donc y est dans [0, N[
         if (g.f[y][x]) continue;
         if (bit < MOTS_TOTAL * 8) {
           g.m[y][x] = (octets[bit >> 3] >> (7 - (bit & 7))) & 1;
