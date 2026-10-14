@@ -97,7 +97,7 @@ jobs:
 
       - name: Attestation de provenance (qui a compilé quoi, depuis quel commit)
         # Vérifiable par quiconque : gh attestation verify terrarium-X.Y.Z-firmware.bin --repo NoeMrct/terrarium_thermostat
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: sortie/*.bin
 
