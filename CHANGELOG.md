@@ -7,6 +7,18 @@ affiche le commit dont elle est issue.
 
 ## [Non publié]
 
+### Corrigé
+
+- Un échec de connexion MQTT n'apparaissait nulle part : le socle restait
+  « hors ligne » dans l'application sans dire pourquoi. Le journal donne
+  désormais la raison (identifiant ou mot de passe refusé, droits, erreur
+  TLS, adresse introuvable), une fois par changement, ainsi que les
+  coupures ; la commande `reseau` affiche l'état de la connexion.
+- Avec le cœur ESP32 3.x, `setTimeout()` ne bornait plus la connexion MQTT
+  chiffrée : un broker muet pouvait bloquer la boucle jusqu'à 120 s, bien
+  au-delà du watchdog. Connexion et négociation TLS sont de nouveau
+  limitées à 5 s chacune.
+
 ## [3.4.0] — 2026-10-14
 
 Un socle en 3.3 passe en 3.4 par `/api/maj` ou depuis l'application ; il garde

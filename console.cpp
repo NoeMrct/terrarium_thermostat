@@ -335,10 +335,14 @@ void traiter(String cmd) {
                   Reseau::modePointAcces() ? "point d'acces de config"
                                            : (Reseau::connecte() ? "connecte" : "hors ligne"),
                   Reseau::adresse().c_str());
-    Serial.printf("Web %s  OTA reseau %s  MQTT %s\n", r.webUtilisateur[0] ? "protege" : "libre",
+    Serial.printf("Web %s  OTA reseau %s\n", r.webUtilisateur[0] ? "protege" : "libre",
                   Reseau::otaActive() ? "active et protegee"
-                                      : "DESACTIVEE (aucun mot de passe : `motdepasse ota <mdp>`)",
-                  r.mqttActif ? r.mqttHote : "desactive");
+                                      : "DESACTIVEE (aucun mot de passe : `motdepasse ota <mdp>`)");
+    if (r.mqttActif)
+      Serial.printf("MQTT %s:%u%s  utilisateur '%s'  %s\n", r.mqttHote, (unsigned)r.mqttPort,
+                    r.mqttTls ? " (TLS)" : "", r.mqttUtilisateur, Reseau::etatMqtt().c_str());
+    else
+      Serial.println(F("MQTT desactive"));
     Serial.printf("Alertes %s%s  heartbeat %s (%u min)\n", r.urlAlertes[0] ? r.urlAlertes : "desactivees",
                   r.alerteJeton[0] ? " [jeton]" : "", r.urlHeartbeat[0] ? r.urlHeartbeat : "desactive",
                   r.heartbeatMinutes);

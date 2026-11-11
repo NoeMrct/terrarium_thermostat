@@ -51,6 +51,10 @@ uint8_t g_echecsAuth = 0;
 uint32_t g_blocageAuth = 0;
 uint32_t g_dernierEssai = 0, g_debutConnexion = 0, g_dernierHeartbeat = 0;
 uint32_t g_dernierMqtt = 0, g_dernierEssaiMqtt = 0;
+// Raison du dernier échec de connexion MQTT (vide après un succès) : elle
+// n'est journalisée que lorsqu'elle change, pas à chaque essai.
+String g_echecMqtt;
+bool g_mqttEtaitConnecte = false;
 String g_id;
 
 // Anti-répétition des alertes : une même nature d'alerte sur une même zone
@@ -1705,11 +1709,41 @@ void publierDecouverteHA() {
   g_haPublie = true;
 }
 
+// Raison d'un échec de connexion MQTT, en clair. Sans elle, un mot de passe
+// refusé ou un certificat rejeté ne se voyait nulle part : l'application
+// montrait seulement le socle « hors ligne ».
+String raisonMqtt(int etat, bool tls) {
+  switch (etat) {
+    case MQTT_CONNECT_BAD_PROTOCOL: return "version de protocole refusee par le broker";
+    case MQTT_CONNECT_BAD_CLIENT_ID: return "identifiant client refuse par le broker";
+    case MQTT_CONNECT_UNAVAILABLE: return "broker indisponible";
+    case MQTT_CONNECT_BAD_CREDENTIALS: return "identifiant ou mot de passe refuse par le broker";
+    case MQTT_CONNECT_UNAUTHORIZED: return "acces refuse par le broker (identifiant, mot de passe ou droits)";
+    case MQTT_CONNECTION_TIMEOUT: return "le broker ne repond pas";
+    case MQTT_CONNECTION_LOST: return "connexion perdue";
+    case MQTT_CONNECT_FAILED: break;
+    default: return "etat " + String(etat);
+  }
+  // La connexion elle-même a échoué : négociation TLS (certificat…) ou,
+  // avant elle, l'adresse, le port ou le réseau (code -1 : socket).
+  if (tls) {
+    char texte[100] = "";
+    const int e = clientMqttTls.lastError(texte, sizeof texte);
+    if (e < -1) return "echec TLS -0x" + String(-e, HEX) + " (" + texte + ")";
+  }
+  return "connexion impossible (adresse introuvable, port ferme ou reseau)";
+}
+
 void gererMqtt(uint32_t maintenant) {
   ReglagesReseau &r = Stockage::reseau();
   if (!r.mqttActif || r.mqttHote[0] == '\0' || !g_connecte || g_ap) return;
 
   if (!mqtt.connected()) {
+    if (g_mqttEtaitConnecte) {
+      g_mqttEtaitConnecte = false;
+      g_echecMqtt = raisonMqtt(mqtt.state(), r.mqttTls);
+      journal("MQTT deconnecte de %s : %s", r.mqttHote, g_echecMqtt.c_str());
+    }
     if (maintenant - g_dernierEssaiMqtt < 15000) return;
     g_dernierEssaiMqtt = maintenant;
     // Vers un serveur distant, le trafic MQTT doit être chiffré : il transporte
@@ -1720,7 +1754,12 @@ void gererMqtt(uint32_t maintenant) {
                                       (size_t)(rootca_crt_bundle_end - rootca_crt_bundle_start));
       else
         clientMqttTls.setInsecure();
-      clientMqttTls.setTimeout(6);
+      // Sous le watchdog (WDT_SECONDES). Avec le cœur ESP32 3.x, setTimeout()
+      // ne règle plus que les lectures de Stream, en millisecondes : la
+      // connexion TCP (30 s) et la négociation TLS (120 s) gardaient leurs
+      // délais par défaut.
+      clientMqttTls.setConnectionTimeout(5000);
+      clientMqttTls.setHandshakeTimeout(5);
       mqtt.setClient(clientMqttTls);
     } else {
       mqtt.setClient(clientMqttClair);
@@ -1738,10 +1777,19 @@ void gererMqtt(uint32_t maintenant) {
     const bool ok = r.mqttUtilisateur[0] ? mqtt.connect(g_id.c_str(), r.mqttUtilisateur, r.mqttMotDePasse,
                                                         statut.c_str(), 0, true, "hors ligne")
                                          : mqtt.connect(g_id.c_str(), statut.c_str(), 0, true, "hors ligne");
-    if (!ok) return;
+    if (!ok) {
+      // Un essai toutes les 15 s : la même raison n'est écrite qu'une fois.
+      const String raison = raisonMqtt(mqtt.state(), r.mqttTls);
+      if (raison != g_echecMqtt)
+        journal("MQTT : echec vers %s:%u : %s", r.mqttHote, (unsigned)r.mqttPort, raison.c_str());
+      g_echecMqtt = raison;
+      return;
+    }
     mqtt.publish(statut.c_str(), "en ligne", true);
     mqtt.subscribe((sujetBase() + "/cmd").c_str());
     g_haPublie = false;
+    g_echecMqtt = "";
+    g_mqttEtaitConnecte = true;
     journal("MQTT connecte a %s", r.mqttHote);
   }
   mqtt.loop();
@@ -2088,6 +2136,14 @@ void boucle(uint32_t maintenant) {
 }
 
 bool connecte() { return g_connecte && !g_ap; }
+
+String etatMqtt() {
+  const ReglagesReseau &r = Stockage::reseau();
+  if (!r.mqttActif || r.mqttHote[0] == '\0') return "desactive";
+  if (mqtt.connected()) return "connecte";
+  if (g_echecMqtt.length()) return String("NON CONNECTE : ") + g_echecMqtt;
+  return "pas encore connecte";
+}
 bool modePointAcces() { return g_ap; }
 bool otaActive() { return g_otaLancee; }
 

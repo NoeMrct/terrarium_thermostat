@@ -16,6 +16,9 @@ void boucle(uint32_t maintenant);
 String identifiant();
 
 bool connecte();
+// Connexion MQTT, en clair pour la console : « connecte », « desactive »,
+// ou la raison du dernier échec (mot de passe refusé, TLS…).
+String etatMqtt();
 bool modePointAcces();
 String adresse();
 String nomHote();            // « terraA1B2C3.local » : l'interface locale de CE socle
