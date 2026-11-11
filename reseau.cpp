@@ -7,6 +7,7 @@
 #include "protocole.h"
 
 #include <WiFi.h>
+#include <esp_mac.h>
 #include <WiFiClientSecure.h>
 #include <WebServer.h>
 #include <HTTPClient.h>
@@ -2076,8 +2077,11 @@ namespace Reseau {
 String identifiant() { return g_id; }
 
 void demarrer() {
-  uint8_t mac[6];
-  WiFi.macAddress(mac);
+  // Lue dans l'eFuse : avec le cœur ESP32 3.x, WiFi.macAddress() ne renvoie
+  // rien tant que l'interface Wi-Fi n'est pas démarrée, et le tableau restait
+  // non initialisé — l'identifiant changeait d'une compilation à l'autre.
+  uint8_t mac[6] = { 0 };
+  esp_read_mac(mac, ESP_MAC_WIFI_STA);
   char b[16];
   snprintf(b, sizeof b, "terra%02X%02X%02X", mac[3], mac[4], mac[5]);
   g_id = String(b);

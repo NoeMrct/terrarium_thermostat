@@ -9,6 +9,13 @@ affiche le commit dont elle est issue.
 
 ### Corrigé
 
+- L'identifiant du socle (`terraXXXXXX` : sujets MQTT, nom mDNS, point
+  d'accès, appairage) était lu avant le démarrage du Wi-Fi. Avec le cœur
+  ESP32 3.x, `WiFi.macAddress()` ne renvoie alors rien : l'identifiant venait
+  de mémoire non initialisée et changeait d'une compilation à l'autre, si
+  bien que l'application perdait le socle après une mise à jour. Il est
+  désormais lu dans l'eFuse (`esp_read_mac`) : les trois derniers octets de
+  l'adresse MAC Wi-Fi.
 - Un échec de connexion MQTT n'apparaissait nulle part : le socle restait
   « hors ligne » dans l'application sans dire pourquoi. Le journal donne
   désormais la raison (identifiant ou mot de passe refusé, droits, erreur
