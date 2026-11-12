@@ -85,6 +85,14 @@ jour.
 
 ### Corrigé
 
+- Application : ouvrir l'onglet Appareil effaçait de l'écran un défaut, la
+  chauffe et le temps de service jusqu'à la publication suivante du socle
+  (jusqu'à 60 s) : la réponse « stats », qui a aussi un tableau `zones`, était
+  prise pour un état. Seule la réponse « etat » met désormais l'état à jour.
+- Application : l'autotune et la dérive disparaissaient à chaque publication
+  d'une zone. Un drapeau absent garde sa valeur, et le sujet `etat` de chaque
+  zone porte désormais `autotune`, `derive` et `trop_chaud`. Ces deux défauts
+  rendaient aussi la régression visuelle de la CI instable.
 - L'identifiant du socle (`terraXXXXXX` : sujets MQTT, nom mDNS, point
   d'accès, appairage) était lu avant le démarrage du Wi-Fi. Avec le cœur
   ESP32 3.x, `WiFi.macAddress()` ne renvoie alors rien : l'identifiant venait

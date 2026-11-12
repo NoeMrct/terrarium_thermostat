@@ -565,10 +565,15 @@ const App = (() => {
     else if (z.defaut_libelle && z.defaut_libelle !== 'OK') n.defaut = z.defaut_libelle;
     else if (typeof d === 'string' && d !== '1') n.defaut = d;
     else n.defaut = 'DÉFAUT';
+    // Un drapeau absent garde sa valeur : avant la 3.5, le sujet « etat » de
+    // chaque zone ne portait ni l'autotune ni la dérive, et les remettre à faux
+    // à chaque publication les faisait disparaître de l'écran.
     const vrai = v => v === true || v === 1 || v === '1';
-    n.chauffe = vrai(z.chauffe);
-    n.autotune = vrai(z.autotune);
-    n.derive = vrai(z.derive);
+    if (z.chauffe !== undefined) n.chauffe = vrai(z.chauffe);
+    if (z.autotune !== undefined) n.autotune = vrai(z.autotune);
+    if (z.derive !== undefined) n.derive = vrai(z.derive);
+    const tropChaud = z.tropChaud !== undefined ? z.tropChaud : z.trop_chaud;
+    if (tropChaud !== undefined) n.tropChaud = vrai(tropChaud);
     return n;
   }
 
@@ -609,8 +614,12 @@ const App = (() => {
         delete attentes[r.req];
         r.ok ? a.resoudre(r) : a.rejeter(new Error(r.erreur || t('refuse')));
       }
-      // Une réponse « etat » porte les mêmes données qu'une publication.
-      if (r.ok && r.zones) {
+      // Une réponse « etat » porte les mêmes données qu'une publication. Celle
+      // de « stats » a aussi un tableau « zones », mais de statistiques : prise
+      // pour un état, elle effaçait défauts, chauffe et temps de service jusqu'à
+      // la publication suivante (ouvrir l'onglet Appareil suffisait).
+      const estEtat = a ? a.action === 'etat' : r.uptime !== undefined;
+      if (r.ok && r.zones && estEtat) {
         e.zones = r.zones.map((z, i) => normaliser(z, e.zones[i]));
         e.uptime = r.uptime; e.entretienS = r.entretienS; e.enLigne = true;
         e.derniereMaj = Date.now();
@@ -645,7 +654,7 @@ const App = (() => {
       if (!s) { rejeter(new Error(t('socleInconnu'))); return; }
       const req = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       attentes[req] = {
-        resoudre, rejeter,
+        action, resoudre, rejeter,
         minuteur: setTimeout(() => {
           delete attentes[req];
           rejeter(new Error(t('pasDeReponse')));

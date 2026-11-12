@@ -63,6 +63,18 @@
         },
         "nuit": {
           "$ref": "#/$defs/temperature"
+        },
+        "autotune": {
+          "$ref": "#/$defs/drapeau",
+          "description": "Autotune en cours (firmware 3.5, facultatif)."
+        },
+        "derive": {
+          "$ref": "#/$defs/drapeau",
+          "description": "Dérive signalée (firmware 3.5, facultatif)."
+        },
+        "trop_chaud": {
+          "$ref": "#/$defs/drapeau",
+          "description": "Plus chaud que la consigne sans chauffer (firmware 3.5, facultatif)."
         }
       },
       "additionalProperties": true

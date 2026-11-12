@@ -2440,7 +2440,7 @@ void publierMqtt(bool forcer) {
     melanger((uint32_t)lroundf(s.demande * 50));
     melanger((uint32_t)lroundf(ctrl.duty(z) / 5));
     melanger((uint32_t)(chauffe ? 1 : 0) | ((uint32_t)s.defaut << 1) | ((uint32_t)s.autotune << 5) |
-             ((uint32_t)(s.deriveActive ? 1 : 0) << 8));
+             ((uint32_t)(s.deriveActive ? 1 : 0) << 8) | ((uint32_t)(s.tropChaudActif ? 1 : 0) << 9));
     melanger((uint32_t)lroundf(ctrl.cfg[z].consigneJour * 10) ^
              ((uint32_t)lroundf(ctrl.cfg[z].consigneNuit * 10) << 16));
     const bool change = e != empreintes[z];
@@ -2457,6 +2457,12 @@ void publierMqtt(bool forcer) {
     j += ",\"chauffe\":\"" + String(chauffe ? "1" : "0") + "\"";
     j += ",\"defaut\":\"" + String(s.defaut != DEF_AUCUN ? "1" : "0") + "\"";
     j += ",\"defaut_libelle\":\"" + String(nomDefaut(s.defaut)) + "\"";
+    // Sans ces trois drapeaux, l'application ne les apprenait que par la
+    // réponse « etat » et les perdait à la publication suivante.
+    j += ",\"autotune\":\"" + String((s.autotune == AT_ATTENTE || s.autotune == AT_OSCILLE) ? "1" : "0") +
+         "\"";
+    j += ",\"derive\":\"" + String(s.deriveActive ? "1" : "0") + "\"";
+    j += ",\"trop_chaud\":\"" + String(s.tropChaudActif ? "1" : "0") + "\"";
     j += ",\"jour\":" + String(ctrl.cfg[z].consigneJour, 1);
     j += ",\"nuit\":" + String(ctrl.cfg[z].consigneNuit, 1) + "}";
     mqtt.publish((base + "/zone" + String(z + 1) + "/etat").c_str(), j.c_str(), true);

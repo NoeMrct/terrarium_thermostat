@@ -155,6 +155,7 @@ const FAUX_MQTT = `
         demande: Math.round(z.demande * 100), charge: Math.round(z.demande * 100),
         chauffe: z.chauffe ? '1' : '0', defaut: z.defaut ? '1' : '0',
         defaut_libelle: z.defaut || 'OK',
+        autotune: z.autotune ? '1' : '0', derive: '0', trop_chaud: '0',
         jour: z.consigneJour, nuit: z.consigneNuit
       }), true);
     });

@@ -243,6 +243,41 @@ function creerApp(adressePage) {
            texte('#message').toLowerCase().includes('amperage') ||
            texte('#message').toLowerCase().includes('ampérage'), texte('#message'));
 
+  titre('12 bis. Une réponse « stats » ne passe pas pour un état');
+  {
+    // Les statistiques portent aussi un tableau « zones ». Prises pour un état,
+    // elles effaçaient le défaut, la chauffe et le temps de service affichés
+    // jusqu'à la publication suivante. Une réponse étrangère (requête d'un autre
+    // client) le montre sans dépendre des minuteries du socle simulé.
+    const mqtt = require('mqtt');
+    const espion = mqtt.connect(BROKER, { clientId: 'test-stats-' + Date.now() });
+    await new Promise((ok, ko) => { espion.once('connect', ok); espion.once('error', ko); });
+    App.ouvrir(ID);
+    App.panneau('etat');
+    // La réponse à l'« etat » demandé à l'ouverture d'abord : elle remettrait
+    // les noms en place et masquerait l'erreur.
+    await attendre(1500);
+    espion.publish(`terrarium/${ID}/reponse`, JSON.stringify({
+      req: 'requete-d-un-autre-client', ok: true, version: '3.5.0',
+      zones: [{ nom: 'STATISTIQUES', min: 20, max: 30, moyenne: 25, points: 10, heuresChauffe: 1, kWh: 0.02,
+                defauts: { sonde: 0, surchauffe: 0, figee: 0, inefficace: 0 } }]
+    }));
+    await attendre(800);
+    verifier('l\'état des zones n\'est pas remplacé par des statistiques', !texte('#detail').includes('STATISTIQUES'));
+    // Un sujet « etat » au format d'avant la 3.5, sans autotune, ne doit pas
+    // effacer l'autotune appris par la réponse « etat ».
+    await App.action('autotune', { z: 0 });
+    const enCours = await jusqua(() => texte('#detail').includes('Arrêter l\'autotune'), 8000);
+    espion.publish(`terrarium/${ID}/zone1/etat`, JSON.stringify({
+      temp: 25, consigne: 32, demande: 50, charge: 50, chauffe: '1', defaut: '0', defaut_libelle: 'OK', jour: 32, nuit: 26
+    }));
+    await attendre(600);
+    verifier('un sujet « etat » sans autotune ne l\'efface pas', enCours && texte('#detail').includes('Arrêter l\'autotune'));
+    await App.action('stop-autotune', { z: 0 });
+    await jusqua(() => !texte('#detail').includes('Arrêter l\'autotune'), 8000);
+    espion.end(true);
+  }
+
   titre('13. Persistance');
   const config = JSON.parse(w.localStorage.getItem('terrarium.config.v1'));
   verifier('les socles sont enregistrés', config.socles.length === 2);
