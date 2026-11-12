@@ -32,7 +32,7 @@ jobs:
     name: Bancs d'essai (PC)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Régulation, anneau d'historique, formatage, encodeur QR
         working-directory: sim
@@ -75,9 +75,9 @@ jobs:
     name: Protocole, application et interface web
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: '22' }
 
       - name: Broker MQTT local
@@ -181,7 +181,7 @@ jobs:
 
       - name: Images de différence en cas d'écart visuel
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ecarts-visuels-${{ github.sha }}
           path: outils/captures/
@@ -194,8 +194,8 @@ jobs:
       matrix:
         moteur: [webkit, firefox]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: '22' }
       - name: Broker MQTT local
         run: |
@@ -223,8 +223,8 @@ jobs:
     name: Serveur auto-hébergeable
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: '22' }
       - name: Dépendances
         working-directory: serveur
@@ -242,8 +242,8 @@ jobs:
     name: Intégrité de l'installateur web
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: '22' }
       - run: node outils/verifier-installateur.js
 
@@ -251,7 +251,7 @@ jobs:
     name: Compilation ESP32
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: arduino/setup-arduino-cli@v2
         with: { version: '1.3.1' }
@@ -307,7 +307,7 @@ jobs:
           echo "sha256 $A" > build/terrarium_thermostat/build/esp32.esp32.esp32/SHA256.txt
 
       - name: Conserver le binaire de cette compilation
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: firmware-${{ github.sha }}
           path: build/terrarium_thermostat/build/esp32.esp32.esp32/*.bin

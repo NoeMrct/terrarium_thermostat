@@ -31,9 +31,9 @@ jobs:
       CLE_SIGNATURE: ${{ secrets.CLE_SIGNATURE_FIRMWARE }}
       HOOK_NETLIFY: ${{ secrets.NETLIFY_BUILD_HOOK }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: '22' }
 
       - name: La version du tag est celle du firmware et du changelog
@@ -97,7 +97,7 @@ jobs:
 
       - name: Attestation de provenance (qui a compilé quoi, depuis quel commit)
         # Vérifiable par quiconque : gh attestation verify terrarium-X.Y.Z-firmware.bin --repo NoeMrct/terrarium_thermostat
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: sortie/*.bin
 
@@ -109,7 +109,7 @@ jobs:
           echo "Installation sans IDE : page « Flasher un socle » du site. Mise à jour d'un socle en service : depuis l'application (bouton « Mettre à jour » du socle, qui télécharge \`terrarium-$TAG-firmware.bin\` ici même), ou onglet Réseau de son interface locale avec ce fichier (ou \`.signe.bin\` si le socle exige des images signées). Compilation reproductible : \`SOURCE_DATE_EPOCH\` = date du commit, voir docs/publication.md ; provenance vérifiable avec \`gh attestation verify\`." >> notes.md
 
       - name: Release GitHub
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: Socle chauffant ${{ github.ref_name }}
           body_path: notes.md
