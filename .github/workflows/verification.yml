@@ -17,7 +17,10 @@
 name: Vérification
 
 on:
+  # Sur main, et sur les propositions de fusion : une branche qui a une
+  # proposition ouverte n'est plus vérifiée deux fois à chaque poussée.
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 

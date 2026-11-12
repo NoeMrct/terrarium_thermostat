@@ -1,20 +1,24 @@
-# Mises à jour automatiques, groupées pour ne pas noyer les revues : les
-# dépendances des outils et du serveur une fois par semaine, les actions
-# GitHub des workflows une fois par mois.
+# Mises à jour automatiques, une fois par trimestre et en une seule
+# proposition par écosystème (outils, serveur, actions GitHub) : chaque
+# proposition relance la vérification complète, il n'en faut pas plus.
 #
-# Les changements de version majeure sont exclus : chacun se fait à la main,
-# avec les suites de test (la première proposition groupée a montré que
-# jsdom 30 casse le client WebSocket des bancs et qu'ESLint 10 exige
-# @eslint/js et de nouvelles règles — ce qui a été fait ensuite, en connaissance
-# de cause). Pas d'étiquette : elle devrait exister dans le dépôt pour que
-# Dependabot puisse l'apposer.
+# Pas de rebasage automatique : une proposition dépassée par main attend qu'on
+# la reprenne (commentaire « @dependabot rebase ») au lieu de relancer toute
+# la CI à chaque modification de main.
+#
+# Les changements de version majeure des paquets npm sont exclus : chacun se
+# fait à la main, avec les suites de test (la première proposition groupée a
+# montré que jsdom 30 casse le client WebSocket des bancs et qu'ESLint 10
+# exige @eslint/js et de nouvelles règles — ce qui a été fait ensuite, en
+# connaissance de cause). Pas d'étiquette : elle devrait exister dans le dépôt
+# pour que Dependabot puisse l'apposer.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /outils
     schedule:
-      interval: weekly
-      day: monday
+      interval: quarterly
+    rebase-strategy: disabled
     groups:
       outils:
         patterns: ['*']
@@ -24,8 +28,8 @@ updates:
   - package-ecosystem: npm
     directory: /serveur
     schedule:
-      interval: weekly
-      day: monday
+      interval: quarterly
+    rebase-strategy: disabled
     groups:
       serveur:
         patterns: ['*']
@@ -35,4 +39,8 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: monthly
+      interval: quarterly
+    rebase-strategy: disabled
+    groups:
+      actions:
+        patterns: ['*']

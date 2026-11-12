@@ -82,6 +82,10 @@ jour.
 - `npm run lint` et `npm run types` fonctionnent aussi sous Windows.
 - L'avertissement d'export de l'application mentionne le mot de passe du broker,
   que le fichier contient.
+- Dependabot passe une fois par trimestre, en une seule proposition par
+  écosystème (outils, serveur, actions GitHub) et sans rebasage automatique ;
+  la vérification ne tourne plus deux fois sur une branche qui a une
+  proposition de fusion ouverte.
 
 ### Corrigé
 
