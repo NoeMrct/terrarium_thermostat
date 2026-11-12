@@ -11,9 +11,11 @@ SHELL := /bin/bash
 #   make qr         lance seulement l'encodeur QR de l'ecran d'appairage
 #   make protocole  lance seulement le canal de commande (vrai code du firmware)
 #   make migration  relecture d'une memoire NVS ecrite par un firmware plus ancien
+#   make liaisons   regles de liaison sonde <-> zone et assistant d'identification
+#   make soleil     lever et coucher du soleil (cycle jour/nuit cale sur le soleil)
 #   make csv N=2    trace detaillee du scenario N de la regulation dans run.csv
 #   make sanitize   rejoue tout sous AddressSanitizer et UndefinedBehaviorSanitizer
-#   make fuzz       libFuzzer (clang) sur format, anneau, QR, protocole et régulation
+#   make fuzz       libFuzzer (clang) sur format, anneau, QR, protocole, régulation, liaisons et soleil
 #   make couverture lignes couvertes par les bancs (gcov), echoue sous SEUIL_COUVERTURE %
 #   make tidy       clang-tidy sur les modules compilables ici
 
@@ -30,7 +32,7 @@ ARDUINOJSON_VERSION = 7.4.2
 ARDUINOJSON_INC ?= tiers/arduinojson/src
 INC = -I.. -I$(ARDUINOJSON_INC)
 
-BANCS = simulateur test-anneau test-format test-qr test-protocole test-migration
+BANCS = simulateur test-anneau test-format test-qr test-protocole test-migration test-liaisons test-soleil
 SRC_PROTOCOLE = ../protocole.cpp ../format.cpp ../controle.cpp ../reglages.cpp
 
 all: $(BANCS)
@@ -57,7 +59,13 @@ test-protocole: test-protocole.cpp socle-factice.h $(SRC_PROTOCOLE) ../protocole
 test-migration: test-migration.cpp ../reglages.cpp ../reglages.h ../controle.cpp
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test-migration.cpp ../reglages.cpp ../controle.cpp -lm
 
-test: regulation anneau format qr protocole migration
+test-liaisons: test-liaisons.cpp ../liaisons.cpp ../liaisons.h
+	$(CXX) $(CXXFLAGS) $(INC) -o $@ test-liaisons.cpp ../liaisons.cpp -lm
+
+test-soleil: test-soleil.cpp ../soleil.cpp ../soleil.h
+	$(CXX) $(CXXFLAGS) $(INC) -o $@ test-soleil.cpp ../soleil.cpp -lm
+
+test: regulation anneau format qr protocole migration liaisons soleil
 
 regulation: simulateur
 	./simulateur
@@ -77,6 +85,12 @@ protocole: test-protocole
 migration: test-migration
 	./test-migration
 
+liaisons: test-liaisons
+	./test-liaisons
+
+soleil: test-soleil
+	./test-soleil
+
 sanitize: $(ARDUINOJSON_INC)/ArduinoJson.h
 	$(CXX) $(SANFLAGS) -o san_simulateur simulateur.cpp ../controle.cpp -lm && ./san_simulateur
 	$(CXX) $(SANFLAGS) -o san_anneau     test-anneau.cpp ../anneau.cpp     && ./san_anneau
@@ -84,13 +98,15 @@ sanitize: $(ARDUINOJSON_INC)/ArduinoJson.h
 	$(CXX) $(SANFLAGS) -o san_qr         test-qr.cpp ../qr.cpp             && ./san_qr
 	$(CXX) $(SANFLAGS) $(INC) -o san_protocole test-protocole.cpp $(SRC_PROTOCOLE) -lm && ./san_protocole
 	$(CXX) $(SANFLAGS) $(INC) -o san_migration test-migration.cpp ../reglages.cpp ../controle.cpp -lm && ./san_migration
+	$(CXX) $(SANFLAGS) $(INC) -o san_liaisons test-liaisons.cpp ../liaisons.cpp -lm && ./san_liaisons
+	$(CXX) $(SANFLAGS) $(INC) -o san_soleil test-soleil.cpp ../soleil.cpp -lm && ./san_soleil
 
 # Fuzzing : clang et sa bibliothèque libFuzzer (paquet libclang-rt-<n>-dev).
 # Le corpus de départ est engendré par le harnais lui-même ; -max_len borne la
 # taille des entrées, ce qui suffit à ces analyseurs de petites chaînes.
-fuzz: fuzz.cpp socle-factice.h ../format.cpp ../anneau.cpp ../qr.cpp ../controle.cpp ../protocole.cpp ../reglages.cpp $(ARDUINOJSON_INC)/ArduinoJson.h
+fuzz: fuzz.cpp socle-factice.h ../format.cpp ../anneau.cpp ../qr.cpp ../controle.cpp ../protocole.cpp ../reglages.cpp ../liaisons.cpp ../soleil.cpp $(ARDUINOJSON_INC)/ArduinoJson.h
 	$(CLANGXX) -std=c++11 -O1 -g -fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer $(INC) \
-	  -o fuzz fuzz.cpp ../format.cpp ../anneau.cpp ../qr.cpp ../controle.cpp ../protocole.cpp ../reglages.cpp -lm
+	  -o fuzz fuzz.cpp ../format.cpp ../anneau.cpp ../qr.cpp ../controle.cpp ../protocole.cpp ../reglages.cpp ../liaisons.cpp ../soleil.cpp -lm
 	mkdir -p corpus && ./fuzz corpus -max_total_time=$(DUREE) -max_len=600 -print_final_stats=1 > fuzz.log 2>&1 \
 	  || { tail -n 60 fuzz.log; exit 1; }
 	@tail -n 12 fuzz.log
@@ -99,7 +115,7 @@ fuzz: fuzz.cpp socle-factice.h ../format.cpp ../anneau.cpp ../qr.cpp ../controle
 # module est compilé une fois en objet instrumenté, lié dans tous les bancs qui
 # l'utilisent : les exécutions s'additionnent dans un seul compteur par fichier.
 # Le seuil porte sur chaque fichier du firmware, pas sur les bancs eux-mêmes.
-MODULES = controle anneau format qr protocole reglages
+MODULES = controle anneau format qr protocole reglages liaisons soleil
 COVFLAGS = -std=c++11 -O0 --coverage $(INC)
 couverture: $(ARDUINOJSON_INC)/ArduinoJson.h
 	rm -rf couverture && mkdir -p couverture
@@ -110,6 +126,8 @@ couverture: $(ARDUINOJSON_INC)/ArduinoJson.h
 	$(CXX) $(COVFLAGS) -o couverture/qr test-qr.cpp couverture/qr.o && ./couverture/qr > /dev/null
 	$(CXX) $(COVFLAGS) -o couverture/protocole test-protocole.cpp couverture/protocole.o couverture/format.o couverture/controle.o couverture/reglages.o -lm && ./couverture/protocole > /dev/null
 	$(CXX) $(COVFLAGS) -o couverture/migration test-migration.cpp couverture/reglages.o couverture/controle.o -lm && ./couverture/migration > /dev/null
+	$(CXX) $(COVFLAGS) -o couverture/liaisons test-liaisons.cpp couverture/liaisons.o -lm && ./couverture/liaisons > /dev/null
+	$(CXX) $(COVFLAGS) -o couverture/soleil test-soleil.cpp couverture/soleil.o -lm && ./couverture/soleil > /dev/null
 	cd couverture && for m in $(MODULES); do gcov -o . ../../$$m.cpp > /dev/null 2>&1; done; \
 	  for m in $(MODULES); do \
 	    p=$$(grep -h "Lines executed" <(gcov -n -o . ../../$$m.cpp 2>/dev/null | grep -A1 "File '.*/$$m.cpp'") | sed 's/.*executed://;s/%.*//'); \
@@ -121,14 +139,14 @@ couverture: $(ARDUINOJSON_INC)/ArduinoJson.h
 # clang-tidy sur ce qui se compile ici (les modules Arduino ne le peuvent pas).
 tidy: $(ARDUINOJSON_INC)/ArduinoJson.h
 	clang-tidy --quiet -checks='-*,bugprone-*,clang-analyzer-*,performance-*,-bugprone-easily-swappable-parameters,-bugprone-narrowing-conversions,-bugprone-implicit-widening-of-multiplication-result,-bugprone-branch-clone,-bugprone-signed-char-misuse,-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling' \
-	  -warnings-as-errors='*' -header-filter='.*/(controle|anneau|format|qr|protocole|reglages)\.h' \
-	  ../controle.cpp ../anneau.cpp ../format.cpp ../qr.cpp ../protocole.cpp ../reglages.cpp -- -std=c++11 -I.. -isystem $(ARDUINOJSON_INC)
+	  -warnings-as-errors='*' -header-filter='.*/(controle|anneau|format|qr|protocole|reglages|liaisons|soleil)\.h' \
+	  ../controle.cpp ../anneau.cpp ../format.cpp ../qr.cpp ../protocole.cpp ../reglages.cpp ../liaisons.cpp ../soleil.cpp -- -std=c++11 -I.. -isystem $(ARDUINOJSON_INC)
 
 csv: simulateur
 	./simulateur --csv $(N) > run.csv
 	@echo "Trace ecrite dans run.csv (colonnes : t_s, temperature, consigne, demande, charge, tapis)"
 
 clean:
-	rm -rf $(BANCS) san_simulateur san_anneau san_format san_qr san_protocole san_migration fuzz fuzz.log corpus crash-* run.csv couverture
+	rm -rf $(BANCS) san_simulateur san_anneau san_format san_qr san_protocole san_migration san_liaisons san_soleil fuzz fuzz.log corpus crash-* run.csv couverture
 
-.PHONY: all test regulation anneau format qr protocole migration sanitize fuzz couverture tidy csv clean
+.PHONY: all test regulation anneau format qr protocole migration liaisons soleil sanitize fuzz couverture tidy csv clean

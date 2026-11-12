@@ -306,8 +306,10 @@ autotune 1
 
 Terrarium vide, dans cet ordre :
 
-1. `scan` renvoie deux sondes avec des températures plausibles.
-2. Au multimètre, vérifier qu'un seul MOSFET conduit à la fois.
+1. `scan` renvoie deux sondes avec des températures plausibles ; `identifier 1`
+   puis `identifier 2` (sonde serrée dans la main) les lient à leur zone.
+2. Au multimètre, vérifier qu'un seul MOSFET conduit à la fois, puis `essai 1`
+   et `essai 2` : chaque zone chauffe seule, le socle confirme la bonne sonde.
 3. Une nuit de relevés comparés à un thermomètre indépendant, puis `offset`.
 4. Débrancher volontairement une sonde : défaut en moins de 10 secondes,
    chauffage coupé.
@@ -376,7 +378,7 @@ node qr-appairage.js --id terraA1B2C3 --jeton <code> > etiquette.svg
 | Symptôme | Cause probable |
 |---|---|
 | `scan` ne trouve aucune sonde | Résistance de 4,7 kΩ absente, ou mauvaise broche |
-| Les zones semblent inversées | Association non figée : `scan` puis `lier` |
+| Les zones semblent inversées, ou « CHAUFFE SANS EFFET » sur les deux zones | Sondes inversées : `identifier 1`, `identifier 2`, puis `reset` |
 | Un tapis chauffe au démarrage | Résistance de 10 kΩ manquante sur la grille |
 | « Chauffe sans effet » et plaque brûlante | Le bilame a ouvert : la sonde n'est plus sur la plaque |
 | L'ESP32 redémarre quand un tapis s'allume | Retour des tapis par la masse de la carte : refaire le point d'étoile |

@@ -44,16 +44,16 @@ async function jusqua(condition, limiteMs = 12000, pas = 150) {
 // page compte : l'application n'accepte une liaison non chiffrée que sur
 // localhost, il faut donc pouvoir simuler une publication ailleurs.
 function creerApp(adressePage) {
-  // jsdom ne charge pas les scripts externes en mode « outside-only » : on
-  // retire les balises et on injecte les scripts directement.
-  const html = fs.readFileSync(path.join(DOSSIER, 'index.html'), 'utf8')
-                 .replace(/<script src="[^"]*"[^>]*><\/script>\s*/g, '');
+  const html = fs.readFileSync(path.join(DOSSIER, 'index.html'), 'utf8');
   const dom = new JSDOM(html, {
     runScripts: 'outside-only',
     url: adressePage,
     pretendToBeVisual: true
   });
   const w = dom.window;
+  // jsdom ne charge pas les scripts externes en mode « outside-only » : on
+  // retire les balises et on injecte les scripts directement.
+  for (const s of w.document.querySelectorAll('script[src]')) s.remove();
   // Le client MQTT de l'application lui-même, sur le WebSocket de jsdom : c'est
   // lui qui est éprouvé ici, pas une bibliothèque de substitution.
   // sourceURL : c8 (couverture V8) attribue alors le code évalué au fichier.

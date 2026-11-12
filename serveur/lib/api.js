@@ -18,7 +18,7 @@ class Api {
   constructor({ comptes, broker, historique, notifications, options }) {
     this.comptes = comptes; this.broker = broker; this.historique = historique; this.notifications = notifications;
     this.o = options;
-    this.tentatives = {};           // ip -> [instants] des connexions ratées
+    this.tentatives = new Map();    // ip -> [instants] des connexions ratées
     this.dossierRapports = path.join(options.donnees, 'rapports');
   }
 
@@ -44,14 +44,22 @@ class Api {
     try { return JSON.parse(t); } catch (e) { throw new Error('JSON invalide', { cause: e }); }
   }
 
+  // Le jeton d'un en-tête « Authorization: Bearer <jeton> », sans expression
+  // régulière : l'en-tête vient du réseau, et un motif à retours arrière y
+  // serait une porte à déni de service.
+  static jetonDe(req) {
+    const entete = String(req.headers.authorization || '');
+    if (entete.slice(0, 7).toLowerCase() !== 'bearer ') return null;
+    const jeton = entete.slice(7).trim();
+    return jeton || null;
+  }
   utilisateurDe(req) {
-    const m = /^Bearer\s+(.+)$/i.exec(req.headers.authorization || '');
-    if (!m) return null;
-    return this.comptes.utilisateurDeSession(m[1].trim());
+    const jeton = Api.jetonDe(req);
+    return jeton ? this.comptes.utilisateurDeSession(jeton) : null;
   }
   estAdmin(req) {
-    const m = /^Bearer\s+(.+)$/i.exec(req.headers.authorization || '');
-    if (m && this.o.adminJeton && m[1].trim() === this.o.adminJeton) return true;
+    const jeton = Api.jetonDe(req);
+    if (jeton && this.o.adminJeton && jeton === this.o.adminJeton) return true;
     const u = this.utilisateurDe(req);
     return !!(u && u.admin);
   }
@@ -59,9 +67,13 @@ class Api {
   // Dix échecs par adresse et par quart d'heure sur l'ouverture de session.
   tropDEssais(ip) {
     const maintenant = Date.now();
-    const l = (this.tentatives[ip] || []).filter(t => maintenant - t < 900000);
-    this.tentatives[ip] = l;
+    const l = (this.tentatives.get(ip) || []).filter(t => maintenant - t < 900000);
+    if (l.length) this.tentatives.set(ip, l); else this.tentatives.delete(ip);
     return l.length >= 10;
+  }
+  noterEchec(ip) {
+    if (!this.tentatives.has(ip)) this.tentatives.set(ip, []);
+    this.tentatives.get(ip).push(Date.now());
   }
 
   cors(req, res) {
@@ -105,13 +117,13 @@ class Api {
         if (this.tropDEssais(ip)) return this.erreur(res, 429, 'trop de tentatives, réessayer dans un quart d\'heure');
         const d = await this.lireJson(req);
         const u = this.comptes.authentifierUtilisateur(d.login, d.motDePasse);
-        if (!u) { (this.tentatives[ip] = this.tentatives[ip] || []).push(Date.now()); return this.erreur(res, 401, 'identifiants refusés'); }
+        if (!u) { this.noterEchec(ip); return this.erreur(res, 401, 'identifiants refusés'); }
         const jeton = this.comptes.ouvrirSession(u.login);
         return this.json(res, 200, { jeton, login: u.login, socles: u.socles, admin: !!u.admin });
       }
       if (methode === 'DELETE') {
-        const m = /^Bearer\s+(.+)$/i.exec(req.headers.authorization || '');
-        if (m) this.comptes.fermerSession(m[1].trim());
+        const jeton = Api.jetonDe(req);
+        if (jeton) this.comptes.fermerSession(jeton);
         return this.json(res, 200, { ok: true });
       }
     }

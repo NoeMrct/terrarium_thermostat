@@ -40,6 +40,11 @@ simulé et aux tests : l'application, elle, a son propre client (`app/mqtt.js`).
 | `node provisionner.js --port … [--serveur … --admin …]` | Fin de ligne : lit l'identifiant et le code sur la console, lance `test usine`, crée le compte sur le serveur et configure le socle, écrit l'étiquette QR et une fiche (dans `provisionnement/`, ignoré par git) |
 | `node test-materiel.js --port … [--flasher dossier] [--ota http://socle]` | Test de fumée sur une vraie carte par le port série, sans dépendance native : flashage par esptool, démarrage, console, santé, auto-test usine, 30 s sans redémarrage, mise à jour par `/api/maj` et validation (`.github/workflows/materiel.yml`) |
 | `sh installer-bibliotheques.sh` | Installe les bibliothèques Arduino aux versions de `bibliotheques.txt` (celles de la CI et de `NOTICE.md`) |
+| `node compiler-pour-codeql.js build/codeql/compile_commands.json` | Rejoue sur les fichiers du dépôt les commandes préparées par `arduino-cli --only-compilation-database`, pour que CodeQL analyse les vraies sources et non leurs copies (`.github/workflows/codeql.yml`) |
+
+`servir-app.js` est le petit serveur HTTP partagé par les bancs qui ouvrent
+l'application dans un navigateur (`test-navigateur`, `test-accessibilite`,
+`construire-pdf`) : il ne sert que `app/`, et refuse tout chemin qui en sort.
 
 `navigateur`, `accessibilite`, `visuel`, `charge` (pour l'interface),
 `lighthouse`, `icones`, `captures` et `pdf` ont besoin de Playwright (et

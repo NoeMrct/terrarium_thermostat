@@ -17,7 +17,7 @@
 /* global App, axe, localStorage, document */
 const path = require('path');
 const fs = require('fs');
-const http = require('http');
+const { servirApp } = require('./servir-app');
 let chromium;
 try { ({ chromium } = require('playwright')); }
 catch (e) { console.error('Playwright est nécessaire : npm install --no-save playwright && npx playwright install chromium'); process.exit(2); }
@@ -40,15 +40,7 @@ const STATIQUES = ['aide.html', 'aide.en.html', 'mentions-legales.html', 'mentio
 // Les pages statiques sont servies en HTTP : 404.html référence /style.css en
 // absolu (elle peut être servie à n'importe quelle adresse), ce que file:// ne
 // résoudrait pas.
-const APP = path.resolve(__dirname, '..', 'app');
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json' };
-const serveur = http.createServer((req, res) => {
-  fs.readFile(path.join(APP, decodeURIComponent(req.url.split('?')[0])), (e, d) => {
-    if (e) { res.statusCode = 404; res.end('absent'); return; }
-    res.setHeader('Content-Type', TYPES[path.extname(req.url.split('?')[0])] || 'application/octet-stream');
-    res.end(d);
-  });
-}).listen(0);
+const serveur = servirApp();
 
 let violationsGraves = 0, total = 0;
 (async () => {

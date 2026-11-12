@@ -5,6 +5,8 @@ sim/test-format
 sim/test-qr
 sim/test-protocole
 sim/test-migration
+sim/test-liaisons
+sim/test-soleil
 sim/san_*
 sim/run.csv
 sim/fuzz
@@ -57,3 +59,6 @@ cles/
 Thumbs.db
 *.swp
 outils/provisionnement/
+
+# Fichiers livrés par Claude (Cowork) : copies de travail, pas des sources
+Claude outputs/

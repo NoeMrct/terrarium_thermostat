@@ -18,6 +18,11 @@ void appairage(const char *identifiant, const char *jeton, uint32_t secondes);
 bool appairageEnCours();
 // Mire de test (plein, puis damier) pendant `ms` ; false sans écran.
 bool mire(uint32_t ms);
+// Bouton BOOT : page suivante (zones, courbes des 6 dernières heures, réseau,
+// sondes, système). Retour aux zones tout seul après 30 s sans appui.
+void pageSuivante();
+// Avis de quelques secondes, par-dessus les pages (bouton tenu, action faite).
+void avis(const String &ligne1, const String &ligne2, uint32_t ms);
 }  // namespace Affichage
 
 #endif  // AFFICHAGE_H

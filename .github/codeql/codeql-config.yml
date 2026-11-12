@@ -1,0 +1,10 @@
+# Périmètre de l'analyse CodeQL (référencé par .github/workflows/codeql.yml).
+# Ce qui est exclu n'est pas du code du projet : le bundle d'ESP Web Tools
+# livré tel quel pour la page « Flasher un socle » (son intégrité est
+# vérifiée par outils/verifier-installateur.js), les rapports de couverture
+# et les dépendances installées.
+name: Socle chauffant
+paths-ignore:
+  - app/installateur
+  - outils/couverture
+  - '**/node_modules'

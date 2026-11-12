@@ -8,7 +8,7 @@
 
 // Version du firmware. Affichée partout : après quelques mises à jour sans fil,
 // c'est le seul moyen de savoir ce qui tourne réellement sur la carte.
-#define FW_VERSION "3.4.0"
+#define FW_VERSION "3.5.0"
 // Identifiant de compilation. La CI passe le commit (-DFW_COMMIT="abc1234") et
 // fige la date par SOURCE_DATE_EPOCH : deux compilations du même commit donnent
 // alors le même binaire, octet pour octet, ce qui prouve qu'une release
@@ -58,6 +58,11 @@ static const uint8_t PIN_TAPIS[NB_TAPIS] = { 16, 17 };
 #define PIN_ONEWIRE 4
 #define PIN_SDA 21
 #define PIN_SCL 22
+// Ce qui est déjà sur la carte DevKit : le bouton BOOT (GPIO0, lu seulement
+// après le démarrage) et la LED bleue (GPIO2, pilotée seulement après lui).
+// Voir facade.h.
+#define PIN_BOUTON 0
+#define PIN_LED 2
 #define OLED_ADDR 0x3C
 #define OLED_L 128
 #define OLED_H 64
@@ -101,8 +106,21 @@ struct Echantillon {
   int16_t t[NB_ZONES];  // température en centièmes de °C, -32768 = inconnue
   int16_t c[NB_ZONES];  // consigne en centièmes de °C
   uint8_t d[NB_ZONES];  // demande en %
-  uint8_t defauts;      // 2 bits par zone
+  uint8_t defauts;      // 4 bits par zone
   uint8_t reserve;
+};
+
+// Résumé d'une journée, gardé un an (/jours.bin) : au-delà des 14 jours de
+// l'historique minute par minute, il reste de quoi voir les saisons, l'énergie
+// et le coût. Les compteurs sont des cumuls depuis toujours : l'écart avec la
+// veille donne la journée, sans base à mémoriser à part.
+struct ResumeJour {
+  uint32_t epoch;          // fin de la journée résumée
+  int16_t mini[NB_ZONES];  // centièmes de °C, -32768 = inconnu
+  int16_t maxi[NB_ZONES];
+  int16_t moyenne[NB_ZONES];
+  uint32_t secondesChauffe[NB_ZONES];  // cumul depuis toujours
+  uint16_t defauts[NB_ZONES];          // cumul depuis toujours, tous défauts
 };
 
 // ------------------------ Services partagés ---------------------------------

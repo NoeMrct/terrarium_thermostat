@@ -5,6 +5,10 @@
 #include "format.h"
 #include "courant.h"
 #include "protocole.h"
+#include "taches.h"
+#include "essai.h"
+#include "liaisons.h"
+#include "sauvegarde.h"
 
 #include <WiFi.h>
 #include <esp_mac.h>
@@ -51,11 +55,18 @@ bool g_otaLancee = false;
 uint8_t g_echecsAuth = 0;
 uint32_t g_blocageAuth = 0;
 uint32_t g_dernierEssai = 0, g_debutConnexion = 0, g_dernierHeartbeat = 0;
+bool g_essaiSecours = false;  // dernier essai Wi-Fi fait sur le réseau de secours
 uint32_t g_dernierMqtt = 0, g_dernierEssaiMqtt = 0;
+// Délai avant le prochain essai MQTT : 15 s, doublé à chaque refus jusqu'à
+// 5 min. Un broker qui refuse un mot de passe n'a pas à être sollicité toutes
+// les 15 s pendant des jours (certains finissent par bloquer l'adresse).
+uint32_t g_delaiMqtt = 15000;
 // Raison du dernier échec de connexion MQTT (vide après un succès) : elle
 // n'est journalisée que lorsqu'elle change, pas à chaque essai.
 String g_echecMqtt;
 bool g_mqttEtaitConnecte = false;
+int g_etatMqtt = 0;  // dernier code PubSubClient d'un échec
+bool g_echecTls = false;
 String g_id;
 
 // Anti-répétition des alertes : une même nature d'alerte sur une même zone
@@ -64,7 +75,7 @@ String g_id;
 // retombait sur la case de NOTIF_DEFAUT — les messages d'entretien étaient
 // étouffés pendant 30 min après un défaut, et ils repoussaient au passage
 // l'horodatage de ce dernier.
-const uint8_t NB_TYPES_NOTIF = (uint8_t)NOTIF_INFO + 1;
+const uint8_t NB_TYPES_NOTIF = (uint8_t)NOTIF_TROP_CHAUD + 1;
 uint32_t g_derniereAlerte[NB_ZONES + 1][NB_TYPES_NOTIF] = { { 0 } };
 
 // Temporisation des envois : sans elle, un serveur d'alertes injoignable était
@@ -377,6 +388,10 @@ String corpsSante() {
   // l'adresse IP sert quand le réseau bloque le mDNS.
   j += ",\"hote\":\"" + g_id + ".local\"";
   j += ",\"ip\":\"" + (g_connecte ? (g_ap ? WiFi.softAPIP() : WiFi.localIP()).toString() : String("")) + "\"";
+  // Raison d'un échec MQTT (lisible sur la page locale quand le broker refuse)
+  // et page locale sans mot de passe : deux choses à corriger d'un coup d'œil.
+  j += ",\"mqtt\":\"" + echapperJson(Reseau::etatMqtt().c_str()) + "\"";
+  j += ",\"webProtege\":" + String(Stockage::reseau().webUtilisateur[0] ? "true" : "false");
   const EtatMaj &m = Stockage::etatMaj();
   if (m.etape != MAJ_AUCUNE) {
     j += ",\"maj\":{\"etape\":\"" + String(nomEtapeMaj(m.etape)) + "\",\"version\":\"" +
@@ -425,6 +440,7 @@ void routeStatus() {
     j += ",\"chauffe\":" +
          String((ctrl.tapisActif() >= 0 && ZONE_DE_TAPIS[ctrl.tapisActif()] == z) ? "true" : "false");
     j += ",\"derive\":" + String(s.deriveActive ? "true" : "false");
+    j += ",\"tropChaud\":" + String(s.tropChaudActif ? "true" : "false");
     j += ",\"autotune\":" + String((s.autotune == AT_ATTENTE || s.autotune == AT_OSCILLE) ? "true" : "false");
     j += ",\"defaut\":" +
          (s.defaut == DEF_AUCUN ? String("null") : "\"" + String(nomDefaut(s.defaut)) + "\"");
@@ -537,34 +553,12 @@ void routeHistoryCsv() {
 // Statistiques sur 24 h, calculées à la volée depuis l'historique : min, max,
 // moyenne et temps passé hors de la plage visée. C'est ce qui permet de juger
 // si un terrarium tient réellement ses valeurs, plutôt qu'un instantané.
-struct Stats24 {
-  float mini[NB_ZONES], maxi[NB_ZONES], somme[NB_ZONES];
-  uint32_t n[NB_ZONES], horsPlage[NB_ZONES];
-};
-
-bool visiteStats(const Echantillon &e, void *ctx) {
-  Stats24 *s = (Stats24 *)ctx;
-  for (uint8_t z = 0; z < NB_ZONES; z++) {
-    if (e.t[z] == -32768) continue;
-    const float t = e.t[z] / 100.0f;
-    if (s->n[z] == 0 || t < s->mini[z]) s->mini[z] = t;
-    if (s->n[z] == 0 || t > s->maxi[z]) s->maxi[z] = t;
-    s->somme[z] += t;
-    s->n[z]++;
-    if (e.c[z] != -32768 && fabsf(t - e.c[z] / 100.0f) > 1.0f) s->horsPlage[z]++;
-  }
-  return true;
-}
-
 // Le même corps sert l'interface web et le canal de commande : une application
 // distante doit voir exactement les mêmes chiffres que la page locale, sinon
 // c'est un deuxième calcul à maintenir — et à faire diverger.
 String corpsStats() {
-  Stats24 st;
-  memset(&st, 0, sizeof st);
-  const uint32_t total = Stockage::histNombre();
-  const uint32_t debut = (total > 1440) ? total - 1440 : 0;
-  Stockage::histParcourir(debut, 1, visiteStats, &st);
+  Taches::Stats st;
+  Taches::statistiques(1440, st);
 
   const ReglagesGlobaux &g = Stockage::globaux();
   String j;
@@ -577,7 +571,7 @@ String corpsStats() {
   for (uint8_t z = 0; z < NB_ZONES; z++) {
     if (z) j += ",";
     const uint32_t sec = secondesChauffeTotales(z);
-    const float kwh = sec / 3600.0f * g.puissanceTapisW / 1000.0f;
+    const float kwh = Taches::kwh(sec);
     j += "{\"nom\":\"" + echapperJson(ctrl.cfg[z].nom) + "\"";
     if (st.n[z]) {
       j += ",\"min\":" + String(st.mini[z], 2) + ",\"max\":" + String(st.maxi[z], 2);
@@ -589,9 +583,11 @@ String corpsStats() {
     }
     j += ",\"heuresChauffe\":" + String(sec / 3600.0f, 1);
     j += ",\"kWh\":" + String(kwh, 3);
+    if (g.prixKwh > 0.0f) j += ",\"euros\":" + String(Taches::euros(sec), 2);
     j += ",\"defauts\":{\"sonde\":" + String(ctrl.zone[z].nbDefauts[DEF_SONDE]) +
          ",\"surchauffe\":" + String(ctrl.zone[z].nbDefauts[DEF_SURCHAUFFE]) +
-         ",\"figee\":" + String(ctrl.zone[z].nbDefauts[DEF_FIGE]) + "}}";
+         ",\"figee\":" + String(ctrl.zone[z].nbDefauts[DEF_FIGE]) +
+         ",\"inefficace\":" + String(ctrl.zone[z].nbDefauts[DEF_INEFFICACE]) + "}}";
   }
   j += "]";
   return j;
@@ -648,6 +644,18 @@ void routeGlobauxGet() {
   j += ",\"saisonRemonteeJ\":" + String(g.saisonRemonteeJ);
   j += ",\"saisonDebutEpoch\":" + String(g.saisonDebutEpoch);
   j += ",\"decalageActuel\":" + String(ctrl.decalageSaison(), 2);
+  j += ",\"rapportActif\":" + String(g.rapportActif ? "true" : "false");
+  j += ",\"rapportMinutes\":" + String(g.rapportMinutes);
+  j += ",\"prixKwh\":" + String(g.prixKwh, 4);
+  j += ",\"ledEteinte\":" + String(g.ledEteinte ? "true" : "false");
+  j += ",\"ecranNuit\":" + String(g.ecranNuit);
+  j += ",\"soleilActif\":" + String(g.soleilActif ? "true" : "false");
+  j += ",\"soleilDecalageMin\":" + String(g.soleilDecalageMin);
+  j += ",\"latitude\":" + String(g.latitude, 4);
+  j += ",\"longitude\":" + String(g.longitude, 4);
+  j += ",\"zonePrioritaire\":" + String(g.zonePrioritaire);
+  if (ctrl.soleilActif())
+    j += ",\"soleilJour\":" + String(ctrl.debutJour(0)) + ",\"soleilNuit\":" + String(ctrl.debutNuit(0));
   j += ",\"heureFiable\":" + String(heureFiable() ? "true" : "false") + "}";
   serveur.send(200, "application/json", j);
 }
@@ -668,6 +676,24 @@ void routeGlobauxPost() {
   if (serveur.hasArg("saisonDescenteJ")) n.saisonDescenteJ = (uint16_t)serveur.arg("saisonDescenteJ").toInt();
   if (serveur.hasArg("saisonPlateauJ")) n.saisonPlateauJ = (uint16_t)serveur.arg("saisonPlateauJ").toInt();
   if (serveur.hasArg("saisonRemonteeJ")) n.saisonRemonteeJ = (uint16_t)serveur.arg("saisonRemonteeJ").toInt();
+  if (serveur.hasArg("rapportActif")) n.rapportActif = serveur.arg("rapportActif").toInt() != 0;
+  if (serveur.hasArg("rapportHeure")) {
+    uint16_t m = 0;
+    if (!parseHHMM(serveur.arg("rapportHeure"), m)) {
+      serveur.send(400, "text/plain", "Heure du rapport invalide (HH:MM)");
+      return;
+    }
+    n.rapportMinutes = m;
+  }
+  if (serveur.hasArg("prixKwh")) n.prixKwh = serveur.arg("prixKwh").toFloat();
+  if (serveur.hasArg("ledEteinte")) n.ledEteinte = serveur.arg("ledEteinte").toInt() != 0;
+  if (serveur.hasArg("ecranNuit")) n.ecranNuit = (uint8_t)serveur.arg("ecranNuit").toInt();
+  if (serveur.hasArg("soleilActif")) n.soleilActif = serveur.arg("soleilActif").toInt() != 0;
+  if (serveur.hasArg("soleilDecalageMin"))
+    n.soleilDecalageMin = (int16_t)serveur.arg("soleilDecalageMin").toInt();
+  if (serveur.hasArg("latitude")) n.latitude = serveur.arg("latitude").toFloat();
+  if (serveur.hasArg("longitude")) n.longitude = serveur.arg("longitude").toFloat();
+  if (serveur.hasArg("zonePrioritaire")) n.zonePrioritaire = (uint8_t)serveur.arg("zonePrioritaire").toInt();
 
   char erreur[100];
   if (!Stockage::globauxValides(n, erreur, sizeof erreur)) {
@@ -1031,6 +1057,9 @@ void routeAutotuneStop() {
 
 void routeSondesGet() {
   if (!autorise()) return;
+  // « Scanner » relit vraiment le bus : une sonde branchée depuis le démarrage
+  // n'apparaissait pas avant un redémarrage.
+  if (serveur.hasArg("relire")) Sondes::rescanner();
   serveur.send(200, "application/json", Sondes::inventaireJson());
 }
 
@@ -1043,11 +1072,100 @@ void routeSondesPost() {
     serveur.send(400, "text/plain", "Parametres invalides");
     return;
   }
-  memcpy(Stockage::reseau().sondeRom[z], rom, 8);
-  Stockage::sauverReseau();
-  Sondes::rechargerLiaisons();
-  journal("Sonde %s liee a la zone %d", serveur.arg("rom").c_str(), z + 1);
-  serveur.send(200, "text/plain", "Sonde liee a la zone");
+  // Une sonde n'est jamais liée à deux zones, et seulement si elle est là.
+  char message[140];
+  const bool ok = Sondes::lierRom(rom, (uint8_t)z, message, sizeof message);
+  serveur.send(ok ? 200 : 409, "text/plain", message);
+}
+
+void routeIdentifierPost() {
+  if (!autorise()) return;
+  if (!origineSure()) return;
+  const int z = serveur.arg("z").toInt();
+  char message[140];
+  if (z < 0 || z >= (int)NB_ZONES) {
+    serveur.send(400, "text/plain", "Zone invalide");
+    return;
+  }
+  const bool ok = Sondes::lancerIdentification((uint8_t)z, message, sizeof message);
+  serveur.send(ok ? 200 : 409, "text/plain", message);
+}
+
+void routeRapportGet() {
+  if (!autorise()) return;
+  serveur.send(200, "text/plain; charset=utf-8", Taches::rapport());
+}
+
+void routeRapportPost() {
+  if (!autorise()) return;
+  if (!origineSure()) return;
+  Taches::envoyerRapport();
+  serveur.send(200, "text/plain", "Rapport envoye vers les alertes (et le sujet MQTT « rapport »)");
+}
+
+void routeJoursGet() {
+  if (!autorise()) return;
+  const uint16_t n = serveur.hasArg("n") ? (uint16_t)serveur.arg("n").toInt() : 31;
+  serveur.send(200, "application/json", Taches::joursJson(n > Stockage::JOURS_MAX ? Stockage::JOURS_MAX : n));
+}
+
+void routeEssaiPost() {
+  if (!autorise()) return;
+  if (!origineSure()) return;
+  const int z = serveur.arg("z").toInt();
+  char message[160];
+  if (z < 0 || z >= (int)NB_ZONES) {
+    serveur.send(400, "text/plain", "Zone invalide");
+    return;
+  }
+  const bool ok = Essai::lancer((uint8_t)z, message, sizeof message);
+  serveur.send(ok ? 200 : 409, "text/plain", message);
+}
+
+void routeEssaiGet() {
+  if (!autorise()) return;
+  String j = "{\"zone\":" + String(Essai::zoneEnCours() + 1) + ",\"restantS\":" + String(Essai::restantS());
+  char echappe[400];
+  formatEchapperJson(Essai::dernierResultat(), echappe, sizeof echappe);
+  j += ",\"resultat\":\"" + String(echappe) + "\"}";
+  serveur.send(200, "application/json", j);
+}
+
+void routeEssaiDelete() {
+  if (!autorise()) return;
+  if (!origineSure()) return;
+  Essai::annuler();
+  serveur.send(200, "text/plain", "Essai arrete");
+}
+
+void routeCalibrerPost() {
+  if (!autorise()) return;
+  if (!origineSure()) return;
+  char message[160];
+  const bool ok = Essai::calibrer(message, sizeof message);
+  serveur.send(ok ? 200 : 409, "text/plain", message);
+}
+
+void routeSauvegardeGet() {
+  if (!autorise()) return;
+  serveur.sendHeader("Content-Disposition", "attachment; filename=\"" + g_id + "-sauvegarde.json\"");
+  serveur.send(200, "application/json", Sauvegarde::json());
+}
+
+void routeSauvegardePost() {
+  if (!autorise()) return;
+  if (!origineSure()) return;
+  const String corps = serveur.arg("plain");
+  char message[200];
+  const bool ok = Sauvegarde::restaurer(corps.c_str(), corps.length(), message, sizeof message);
+  serveur.send(ok ? 200 : 400, "text/plain", message);
+}
+
+void routeIdentifierDelete() {
+  if (!autorise()) return;
+  if (!origineSure()) return;
+  Sondes::annulerIdentification();
+  serveur.send(200, "text/plain", "Identification annulee");
 }
 
 void routeReseauGet() {
@@ -1055,6 +1173,7 @@ void routeReseauGet() {
   const ReglagesReseau &r = Stockage::reseau();
   String j = "{";
   j += "\"ssid\":\"" + echapperJson(r.ssid) + "\"";
+  j += ",\"ssid2\":\"" + echapperJson(r.ssid2) + "\"";
   j += ",\"webUtilisateur\":\"" + echapperJson(r.webUtilisateur) + "\"";
   j += ",\"urlAlertes\":\"" + echapperJson(r.urlAlertes) + "\"";
   j += ",\"urlHeartbeat\":\"" + echapperJson(r.urlHeartbeat) + "\"";
@@ -1097,6 +1216,9 @@ void routeReseauPost() {
   snprintf(r.champ, sizeof r.champ, "%s", serveur.arg(cle).c_str())
   TXT("ssid", ssid);
   SECRET("wifiPass", motDePasse);
+  TXT("ssid2", ssid2);
+  SECRET("wifiPass2", motDePasse2);
+  if (serveur.hasArg("ssid2") && serveur.arg("ssid2").length() == 0) r.motDePasse2[0] = '\0';
   TXT("webUser", webUtilisateur);
   if (serveur.hasArg("webPass") && serveur.arg("webPass").length() > 0) {
     const String u = serveur.hasArg("webUser") && serveur.arg("webUser").length() ? serveur.arg("webUser")
@@ -1279,9 +1401,11 @@ bool majDepuisUrl(const String &url, char *erreur, size_t taille) {
                              (size_t)(rootca_crt_bundle_end - rootca_crt_bundle_start));
   else
     securise.setInsecure();
-  securise.setTimeout(10);
+  // Connexion et négociation TLS bornées sous le watchdog (WDT_SECONDES) : la
+  // négociation attendait jusqu'à 120 s par défaut avec le cœur 3.x.
+  securise.setHandshakeTimeout(6);
   HTTPClient http;
-  http.setConnectTimeout(8000);
+  http.setConnectTimeout(6000);
   http.setTimeout(10000);
   // Les redirections sont suivies à la main : HTTPClient irait n'importe où,
   // alors que seuls les serveurs d'objets de GitHub sont admis.
@@ -1477,6 +1601,7 @@ public:
            String((ctrl.zone[z].autotune == AT_ATTENTE || ctrl.zone[z].autotune == AT_OSCILLE) ? "true"
                                                                                                : "false");
       d += ",\"derive\":" + String(ctrl.zone[z].deriveActive ? "true" : "false");
+      d += ",\"tropChaud\":" + String(ctrl.zone[z].tropChaudActif ? "true" : "false");
       // Consignes de référence : sans elles, une application distante ne peut
       // que réafficher la consigne du moment (rampe et saison comprises), et
       // l'enregistrer telle quelle écraserait le vrai réglage.
@@ -1745,7 +1870,7 @@ void gererMqtt(uint32_t maintenant) {
       g_echecMqtt = raisonMqtt(mqtt.state(), r.mqttTls);
       journal("MQTT deconnecte de %s : %s", r.mqttHote, g_echecMqtt.c_str());
     }
-    if (maintenant - g_dernierEssaiMqtt < 15000) return;
+    if (maintenant - g_dernierEssaiMqtt < g_delaiMqtt) return;
     g_dernierEssaiMqtt = maintenant;
     // Vers un serveur distant, le trafic MQTT doit être chiffré : il transporte
     // les identifiants de l'appareil et permet de le piloter.
@@ -1781,15 +1906,19 @@ void gererMqtt(uint32_t maintenant) {
     if (!ok) {
       // Un essai toutes les 15 s : la même raison n'est écrite qu'une fois.
       const String raison = raisonMqtt(mqtt.state(), r.mqttTls);
+      g_etatMqtt = mqtt.state();
+      g_echecTls = raison.startsWith("echec TLS");
       if (raison != g_echecMqtt)
         journal("MQTT : echec vers %s:%u : %s", r.mqttHote, (unsigned)r.mqttPort, raison.c_str());
       g_echecMqtt = raison;
+      g_delaiMqtt = g_delaiMqtt >= 150000UL ? 300000UL : g_delaiMqtt * 2;
       return;
     }
     mqtt.publish(statut.c_str(), "en ligne", true);
     mqtt.subscribe((sujetBase() + "/cmd").c_str());
     g_haPublie = false;
     g_echecMqtt = "";
+    g_delaiMqtt = 15000;
     g_mqttEtaitConnecte = true;
     journal("MQTT connecte a %s", r.mqttHote);
   }
@@ -1844,7 +1973,10 @@ bool envoyerHttp(const char *url, const String &corps, bool post,
                                (size_t)(rootca_crt_bundle_end - rootca_crt_bundle_start));
     else
       securise.setInsecure();
-    securise.setTimeout(4);
+    // La connexion est bornée par HTTPClient (setConnectTimeout) ; la
+    // négociation TLS, elle, attendait jusqu'à 120 s par défaut — bien au-delà
+    // du watchdog, si le serveur d'alertes se met à traîner.
+    securise.setHandshakeTimeout(5);
     ouvert = http.begin(securise, url);
   } else {
     ouvert = http.begin(clair, url);
@@ -1885,11 +2017,12 @@ void gererEnvois(uint32_t maintenant) {
       // Lisible tel quel sur un téléphone : « [Point chaud] Sonde absente… »
       const String type = champAlerte(alerte, "type"), zone = champAlerte(alerte, "nomZone");
       const bool urgent = (type == "DEFAUT" || type == "CHUTE" || type == "SANS_EFFET" ||
-                           type == "SONDE_FIGEE");
+                           type == "SONDE_FIGEE" || type == "TROP_CHAUD");
+      const bool discret = (type == "RAPPORT");  // pas de sonnerie pour le rapport du soir
       String corps = (zone.length() ? "[" + zone + "] " : String("")) + champAlerte(alerte, "texte");
       const String titre = String("Terrarium ") + g_id + (urgent ? " — alerte" : "");
       envoye = envoyerHttp(Stockage::reseau().urlAlertes, corps, true, "text/plain; charset=utf-8",
-                           titre.c_str(), urgent ? "high" : "default");
+                           titre.c_str(), urgent ? "high" : (discret ? "low" : "default"));
     } else {
       envoye = envoyerHttp(Stockage::reseau().urlAlertes, alerte, true, "application/json; charset=utf-8");
     }
@@ -1984,6 +2117,17 @@ void lancerServices() {
   serveur.on("/api/maj-distante", HTTP_POST, routeMajDistante);
   serveur.on("/api/sondes", HTTP_GET, routeSondesGet);
   serveur.on("/api/sondes", HTTP_POST, routeSondesPost);
+  serveur.on("/api/identifier", HTTP_POST, routeIdentifierPost);
+  serveur.on("/api/identifier", HTTP_DELETE, routeIdentifierDelete);
+  serveur.on("/api/rapport", HTTP_GET, routeRapportGet);
+  serveur.on("/api/rapport", HTTP_POST, routeRapportPost);
+  serveur.on("/api/jours", HTTP_GET, routeJoursGet);
+  serveur.on("/api/essai", HTTP_GET, routeEssaiGet);
+  serveur.on("/api/essai", HTTP_POST, routeEssaiPost);
+  serveur.on("/api/essai", HTTP_DELETE, routeEssaiDelete);
+  serveur.on("/api/calibrer", HTTP_POST, routeCalibrerPost);
+  serveur.on("/api/sauvegarde", HTTP_GET, routeSauvegardeGet);
+  serveur.on("/api/sauvegarde", HTTP_POST, routeSauvegardePost);
   serveur.on("/api/reseau", HTTP_GET, routeReseauGet);
   serveur.on("/api/reseau", HTTP_POST, routeReseauPost);
   serveur.on("/api/journal", HTTP_GET, routeJournalGet);
@@ -2110,7 +2254,7 @@ void boucle(uint32_t maintenant) {
     const bool ok = WiFi.status() == WL_CONNECTED;
     if (ok && !g_connecte) {
       g_connecte = true;
-      journal("WiFi connecte, adresse %s", WiFi.localIP().toString().c_str());
+      journal("WiFi connecte a %s, adresse %s", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
       if (!g_servicesLances) lancerServices();
     } else if (!ok && g_connecte) {
       g_connecte = false;
@@ -2119,7 +2263,14 @@ void boucle(uint32_t maintenant) {
     if (!ok && maintenant - g_dernierEssai > 20000) {
       g_dernierEssai = maintenant;
       WiFi.disconnect();
-      WiFi.begin(Stockage::reseau().ssid, Stockage::reseau().motDePasse);
+      // Réseau de secours enregistré : un essai sur deux. Une box changée, un
+      // répéteur éteint, et le socle retrouve quand même un chemin.
+      const ReglagesReseau &rr = Stockage::reseau();
+      g_essaiSecours = rr.ssid2[0] ? !g_essaiSecours : false;
+      if (g_essaiSecours)
+        WiFi.begin(rr.ssid2, rr.motDePasse2);
+      else
+        WiFi.begin(rr.ssid, rr.motDePasse);
     }
     // Jamais connecté après 3 min : le SSID est probablement faux, on ouvre le
     // point d'accès de secours plutôt que de rester inaccessible.
@@ -2140,6 +2291,42 @@ void boucle(uint32_t maintenant) {
 }
 
 bool connecte() { return g_connecte && !g_ap; }
+
+// État MQTT en quelques lettres, pour la dernière ligne de l'écran. Vide quand
+// tout va bien (ou que MQTT n'est pas utilisé).
+const char *etatCourtMqtt() {
+  const ReglagesReseau &r = Stockage::reseau();
+  if (!r.mqttActif || r.mqttHote[0] == '\0' || mqtt.connected() || !g_connecte || g_ap) return "";
+  if (!g_echecMqtt.length()) return "MQTT ...";
+  switch (g_etatMqtt) {
+    case MQTT_CONNECT_BAD_CREDENTIALS:
+    case MQTT_CONNECT_UNAUTHORIZED: return "MQTT MDP?";
+    case MQTT_CONNECTION_TIMEOUT: return "MQTT MUET";
+    case MQTT_CONNECT_FAILED: return g_echecTls ? "MQTT TLS" : "MQTT RES.";
+    default: return "MQTT ERR";
+  }
+}
+
+bool mqttConnecte() { return mqtt.connected(); }
+
+void publierRapport(const String &texte) {
+  if (!mqtt.connected()) return;
+  mqtt.publish((sujetBase() + "/rapport").c_str(), texte.c_str(), true);
+}
+
+// Bouton BOOT tenu 10 s : point d'accès de configuration, pour changer de box
+// sans câble USB. Un redémarrage revient au fonctionnement normal.
+void modeConfiguration() {
+  if (g_ap) return;
+  journal("Point d'acces de configuration ouvert a la demande (bouton) : %s", ssidPointAcces().c_str());
+  WiFi.disconnect();
+  if (mqtt.connected()) mqtt.disconnect();
+  ouvrirPointAcces();
+  if (!g_servicesLances) lancerServices();
+}
+
+String ssidConnecte() { return g_connecte && !g_ap ? WiFi.SSID() : String(""); }
+int rssi() { return WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : 0; }
 
 String etatMqtt() {
   const ReglagesReseau &r = Stockage::reseau();
@@ -2194,7 +2381,7 @@ bool essayerWifi(const char *ssid, const char *motDePasse, uint32_t delaiMs) {
 
 void alerter(TypeNotif type, uint8_t zone, const String &texte) {
   const uint8_t iz = (zone < NB_ZONES) ? zone : NB_ZONES;
-  const uint8_t it = (type <= NOTIF_INFO) ? (uint8_t)type : (uint8_t)NOTIF_INFO;
+  const uint8_t it = (type < NB_TYPES_NOTIF) ? (uint8_t)type : (uint8_t)NOTIF_INFO;
   const uint32_t maintenant = millis();
   // Un défaut ou un rétablissement passe toujours : ce sont les seuls messages
   // qu'on ne peut pas se permettre de perdre. Le reste est limité en cadence.

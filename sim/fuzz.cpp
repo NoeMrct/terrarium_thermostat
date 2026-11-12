@@ -1,7 +1,9 @@
 /* Fuzzing (libFuzzer) des modules sans Arduino : l'échappement JSON et les
    horaires (format.cpp), l'index d'anneau (anneau.cpp), l'encodeur QR (qr.cpp)
-   et le cœur de régulation (controle.cpp) nourri de mesures arbitraires — NaN,
-   infinis, dents de scie — et de réglages tirés au hasard.
+   le cœur de régulation (controle.cpp) nourri de mesures arbitraires — NaN,
+   infinis, dents de scie — et de réglages tirés au hasard, les liaisons
+   sonde-zone (liaisons.cpp, dont la lecture d'une adresse saisie ou restaurée)
+   et le calcul du soleil (soleil.cpp) aux latitudes et jours quelconques.
 
    Ce que l'on cherche : un plantage, un débordement, un comportement indéfini
    (AddressSanitizer et UndefinedBehaviorSanitizer sont actifs), ou une
@@ -14,6 +16,8 @@
 #include "../anneau.h"
 #include "../qr.h"
 #include "../controle.h"
+#include "../liaisons.h"
+#include "../soleil.h"
 #include "socle-factice.h"
 #include <cstdint>
 #include <cstring>
@@ -235,15 +239,73 @@ void fuzzProtocole(const uint8_t *d, size_t n) {
     ECHEC("réglages globaux invalides après une commande");
 }
 
+// Liaisons : une adresse texte quelconque (console, page, fichier restauré),
+// puis des liaisons manuelles et automatiques sur un bus arbitraire. Une sonde
+// ne doit jamais se retrouver liée à deux zones.
+void fuzzLiaisons(const uint8_t *d, size_t n) {
+  char texte[64];
+  const size_t l = n < sizeof texte - 1 ? n : sizeof texte - 1;
+  memcpy(texte, d, l);
+  texte[l] = '\0';
+  uint8_t rom[8];
+  if (Liaisons::romDepuisTexte(texte, rom)) {
+    char relu[20];
+    Liaisons::romTexte(rom, relu, sizeof relu);
+    uint8_t rom2[8];
+    if (!Liaisons::romDepuisTexte(relu, rom2) || !Liaisons::memeRom(rom, rom2))
+      ECHEC("adresse relue differente");
+  }
+  uint8_t liees[NB_ZONES][8];
+  memset(liees, 0, sizeof liees);
+  uint8_t presentes[Liaisons::MAX_SONDES][8];
+  memset(presentes, 0, sizeof presentes);
+  const uint8_t nb = n ? (uint8_t)(d[0] % (Liaisons::MAX_SONDES + 1)) : 0;
+  for (size_t i = 0; i < (size_t)nb * 8 && i + 1 < n; i++)
+    presentes[i / 8][i % 8] = d[i + 1] & 0x03;  // collisions voulues
+  for (size_t i = 0; i + 1 < n; i += 2) {
+    if (d[i] & 1)
+      Liaisons::lier(liees, presentes[d[i + 1] % Liaisons::MAX_SONDES], (uint8_t)(d[i + 1] % NB_ZONES));
+    else
+      Liaisons::lierAutomatiquement(liees, presentes, nb);
+    for (uint8_t a = 0; a < NB_ZONES; a++)
+      for (uint8_t b = a + 1; b < NB_ZONES; b++)
+        if (!Liaisons::romNulle(liees[a]) && Liaisons::memeRom(liees[a], liees[b]))
+          ECHEC("sonde liee a deux zones");
+  }
+  Lecteur r(d, n);
+  float avant[Liaisons::MAX_SONDES], apres[Liaisons::MAX_SONDES];
+  for (uint8_t i = 0; i < Liaisons::MAX_SONDES; i++) {
+    avant[i] = r.flottant();
+    apres[i] = r.flottant();
+  }
+  const int8_t m = Liaisons::sondeManipulee(avant, apres, nb);
+  if (m >= (int8_t)nb) ECHEC("sonde manipulee hors du bus");
+}
+
+// Soleil : jamais d'heure hors de la journée une fois ramenée, quels que soient
+// le jour, la latitude et la longitude (NaN et infinis compris).
+void fuzzSoleil(const uint8_t *d, size_t n) {
+  Lecteur r(d, n);
+  const uint16_t jour = (uint16_t)(r.octet() * 2);
+  const float lat = r.flottant(), lon = r.flottant();
+  int16_t lever = 0, coucher = 0;
+  if (Soleil::horairesUtc(jour, lat, lon, lever, coucher) &&
+      (Soleil::dansLaJournee(lever) >= 1440 || Soleil::dansLaJournee(coucher) >= 1440))
+    ECHEC("heure hors de la journee");
+  if (Soleil::dansLaJournee((int32_t)r.u32()) >= 1440) ECHEC("dansLaJournee hors bornes");
+}
+
 }  // namespace
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *d, size_t n) {
   if (n == 0) return 0;
-  switch (d[0] % 5) {
+  switch (d[0] % 7) {
     case 0: fuzzFormat(d + 1, n - 1); break;
     case 1: fuzzAnneau(d + 1, n - 1); break;
     case 2: fuzzQr(d + 1, n - 1); break;
     case 3: fuzzProtocole(d + 1, n - 1); break;
+    case 5: fuzzLiaisons(d + 1, n - 1); break;
+    case 6: fuzzSoleil(d + 1, n - 1); break;
     default: fuzzControle(d + 1, n - 1); break;
   }
   return 0;

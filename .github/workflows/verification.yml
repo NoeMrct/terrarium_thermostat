@@ -4,7 +4,7 @@
 #
 # Jobs indépendants :
 #   banc-dessai  bancs C++ (régulation, anneau, formatage, QR, canal de commande,
-#                migration), sanitizers, fuzzing court, cppcheck + clang-tidy,
+#                migration, liaisons des sondes, soleil), sanitizers, fuzzing court, cppcheck + clang-tidy,
 #                couverture gcov, clang-format sur tout le C++
 #   reseau       lint et types de l'application, protocole (schéma compris),
 #                client MQTT, application dans jsdom puis dans un vrai Chromium,
@@ -52,7 +52,7 @@ jobs:
                    --suppress=missingIncludeSystem --suppress=unusedFunction \
                    --suppress=checkersReport --suppress=memsetClassFloat \
                    --suppress=unmatchedSuppression --suppress=useStlAlgorithm \
-                   --quiet controle.cpp anneau.cpp format.cpp qr.cpp protocole.cpp reglages.cpp
+                   --quiet controle.cpp anneau.cpp format.cpp qr.cpp protocole.cpp reglages.cpp liaisons.cpp soleil.cpp
           make -C sim tidy
 
       - name: Couverture des bancs C++ (gcov), seuil dans sim/Makefile
@@ -142,18 +142,6 @@ jobs:
         working-directory: outils
         run: node test-accessibilite.js
 
-      - name: Régression visuelle (références dans outils/references-visuelles)
-        working-directory: outils
-        run: node test-visuel.js
-
-      - name: Images de différence en cas d'écart visuel
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ecarts-visuels-${{ github.sha }}
-          path: outils/captures/
-          if-no-files-found: ignore
-
       - name: Charge — 100 socles, 10 applications, interface à 20 socles
         working-directory: outils
         run: node test-charge.js --broker mqtt://localhost:1883 --ws ws://localhost:9001/mqtt --duree 15
@@ -181,13 +169,24 @@ jobs:
           git diff --exit-code -- app/demo.html \
             || { echo "::error::app/demo.html n'est pas à jour : lance 'node outils/construire-demo.js' et valide le résultat"; exit 1; }
 
+      # En dernier : un changement d'apparence voulu ne doit pas masquer le
+      # résultat des autres étapes. Les références sont produites par la CI
+      # elle-même (workflow « Références visuelles »), jamais depuis un poste.
+      - name: Régression visuelle (références dans outils/references-visuelles)
+        working-directory: outils
+        run: node test-visuel.js
+
+      - name: Images de différence en cas d'écart visuel
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecarts-visuels-${{ github.sha }}
+          path: outils/captures/
+          if-no-files-found: ignore
+
   navigateurs:
     name: Application dans ${{ matrix.moteur }}
     runs-on: ubuntu-latest
-    # Non bloquant tant qu'un passage au vert n'a pas été constaté sur ces
-    # moteurs (ils ne peuvent pas être lancés depuis l'environnement où cette
-    # chaîne a été écrite) ; à rendre bloquant ensuite en retirant cette ligne.
-    continue-on-error: true
     strategy:
       matrix:
         moteur: [webkit, firefox]
@@ -280,7 +279,7 @@ jobs:
             exit 1
           fi
 
-      - name: Garde-fou de taille (95 % de l'emplacement, anciens socles compris)
+      - name: Garde-fou de taille (95 % de l'emplacement d'application)
         run: node outils/verifier-taille-firmware.js build/terrarium_thermostat/build/esp32.esp32.esp32/terrarium_thermostat.ino.bin
 
       - name: Compilation reproductible — refaire le sketch donne le même binaire

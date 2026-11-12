@@ -25,10 +25,14 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { execSync } = require('child_process');
 
 const APP = path.join(__dirname, '..', 'app');
 const DEPOT = 'NoeMrct/terrarium_thermostat';
+// Seule origine acceptée pour les binaires : les pièces jointes des releases
+// du dépôt lui-même (l'API dit où elles sont, on vérifie que c'est bien là).
+const ORIGINE_BINAIRES = `https://github.com/${DEPOT}/releases/download/`;
 const sansFirmware = process.argv.includes('--sans-firmware');
 const sansMinifier = process.argv.includes('--sans-minifier');
 
@@ -66,11 +70,22 @@ console.log(`sw.js : cache ${nomCache}`);
 const dossierFw = path.join(APP, 'firmware');
 fs.mkdirSync(dossierFw, { recursive: true });
 
-async function telecharger(url, destination) {
+async function telecharger(url) {
+  if (!String(url).startsWith(ORIGINE_BINAIRES)) throw new Error(`${url} : hors de ${ORIGINE_BINAIRES}`);
   const r = await fetch(url, { headers: { 'User-Agent': 'terrariums-netlify' }, redirect: 'follow' });
   if (!r.ok) throw new Error(`${url} : HTTP ${r.status}`);
-  fs.writeFileSync(destination, Buffer.from(await r.arrayBuffer()));
-  return fs.statSync(destination).size;
+  return Buffer.from(await r.arrayBuffer());
+}
+
+// Les sommes publiées avec la release (terrarium-X.Y.Z-SHA256SUMS.txt, format
+// de sha256sum) : nom de fichier -> empreinte hexadécimale.
+function lireSommes(texte) {
+  const sommes = new Map();
+  for (const ligne of String(texte).split('\n')) {
+    const m = /^([0-9a-f]{64})\s+\*?(\S+)$/.exec(ligne.trim());
+    if (m) sommes.set(m[2], m[1]);
+  }
+  return sommes;
 }
 
 module.exports = { version };
@@ -124,14 +139,22 @@ async function minifier() {
   const parts = [
     ['bootloader.bin', 0x1000], ['partitions.bin', 0x8000], ['boot_app0.bin', 0xe000], ['firmware.bin', 0x10000]
   ];
+  // Chaque binaire est vérifié contre les sommes publiées avec la release
+  // avant d'être proposé au flashage : un téléchargement tronqué ou une pièce
+  // jointe qui ne correspond pas n'arrive jamais dans app/firmware/.
+  const pieceSommes = (release.assets || []).find(a => a.name === `terrarium-${versionFw}-SHA256SUMS.txt`);
+  if (!pieceSommes) { console.log(`firmware : SHA256SUMS absent de la release ${versionFw}, binaires non publiés`); return; }
+  const sommes = lireSommes((await telecharger(pieceSommes.browser_download_url)).toString('utf8'));
   const actifs = [];
   for (const [nom, offset] of parts) {
-    const asset = (release.assets || []).find(a => a.name === `terrarium-${versionFw}-${nom}` || a.name === nom);
+    const asset = (release.assets || []).find(a => a.name === `terrarium-${versionFw}-${nom}`);
     if (!asset) { console.log(`firmware : ${nom} absent de la release ${versionFw}`); return; }
-    const chemin = path.join(dossierFw, nom);
-    const taille = await telecharger(asset.browser_download_url, chemin);
-    actifs.push({ path: nom, offset, size: taille });
-    console.log(`firmware : ${nom} (${(taille / 1024).toFixed(0)} Ko)`);
+    const contenu = await telecharger(asset.browser_download_url);
+    const empreinte = crypto.createHash('sha256').update(contenu).digest('hex');
+    if (sommes.get(asset.name) !== empreinte) throw new Error(`${asset.name} : empreinte ${empreinte} différente de SHA256SUMS`);
+    fs.writeFileSync(path.join(dossierFw, nom), contenu);
+    actifs.push({ path: nom, offset, size: contenu.length });
+    console.log(`firmware : ${nom} (${(contenu.length / 1024).toFixed(0)} Ko, empreinte vérifiée)`);
   }
   const manifeste = {
     name: 'Socle chauffant', version: versionFw, date: String(release.published_at || '').slice(0, 10),

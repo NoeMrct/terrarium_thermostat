@@ -312,7 +312,7 @@ const FAUX_MQTT = `
           return client;
         },
         publish(sujet, charge, opts, cb) {
-          if (typeof opts === 'function') { cb = opts; opts = {}; }
+          if (typeof opts === 'function') cb = opts;   // publish(sujet, charge, cb)
           const m = /^terrarium\\/([^/]+)\\/cmd$/.exec(sujet);
           if (m && socles[m[1]]) setTimeout(() => traiter(m[1], charge), 250);
           if (cb) setTimeout(() => cb(null), 0);

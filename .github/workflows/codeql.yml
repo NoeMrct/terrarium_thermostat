@@ -1,10 +1,10 @@
 # Analyse de sécurité par CodeQL, à chaque modification et chaque semaine :
 #   - JavaScript : application, agent de service, outils, serveur ;
 #   - C++ : le firmware, en observant la compilation arduino-cli (xtensa-esp32-elf-g++
-#     est un GCC, que CodeQL sait suivre). Ce volet est non bloquant tant qu'un
-#     passage au vert n'a pas été constaté sur GitHub ; cppcheck, clang-tidy,
-#     les sanitizers et le fuzzing couvrent de toute façon les modules sans
-#     Arduino dans le workflow de vérification.
+#     est un GCC, que CodeQL sait suivre) ; cppcheck, clang-tidy, les sanitizers
+#     et le fuzzing couvrent par ailleurs les modules sans Arduino dans le
+#     workflow de vérification.
+# Le périmètre (code tiers exclu) est dans .github/codeql/codeql-config.yml.
 name: CodeQL
 
 on:
@@ -29,6 +29,7 @@ jobs:
         with:
           languages: javascript
           queries: security-and-quality
+          config-file: ./.github/codeql/codeql-config.yml
       - uses: github/codeql-action/analyze@v3
         with:
           category: javascript
@@ -36,7 +37,6 @@ jobs:
   firmware:
     name: C++ (firmware)
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: arduino/setup-arduino-cli@v2
@@ -46,16 +46,23 @@ jobs:
           arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
           arduino-cli core install esp32:esp32@3.3.11 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
           sh outils/installer-bibliotheques.sh
+      # arduino-cli compile des copies des sources, hors du dépôt : on lui
+      # demande seulement les commandes de compilation, rejouées ensuite sur
+      # les fichiers du dépôt pendant que CodeQL observe (voir le script).
+      - name: Commandes de compilation (arduino-cli, sans compiler)
+        run: |
+          mkdir -p build/terrarium_thermostat
+          cp *.ino *.h *.cpp partitions.csv build/terrarium_thermostat/
+          arduino-cli compile --fqbn esp32:esp32:esp32:PartitionScheme=custom \
+            --build-path "$PWD/build/codeql" --only-compilation-database build/terrarium_thermostat
       - uses: github/codeql-action/init@v3
         with:
           languages: c-cpp
           build-mode: manual
           queries: security-and-quality
-      - name: Compilation observée par CodeQL
-        run: |
-          mkdir -p build/terrarium_thermostat
-          cp *.ino *.h *.cpp partitions.csv build/terrarium_thermostat/
-          arduino-cli compile --fqbn esp32:esp32:esp32:PartitionScheme=custom build/terrarium_thermostat
+          config-file: ./.github/codeql/codeql-config.yml
+      - name: Compilation des sources du dépôt, observée par CodeQL
+        run: node outils/compiler-pour-codeql.js build/codeql/compile_commands.json
       - uses: github/codeql-action/analyze@v3
         with:
           category: firmware

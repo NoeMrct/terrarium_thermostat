@@ -15,7 +15,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { JSDOM } = require('jsdom');
+const { JSDOM, VirtualConsole } = require('jsdom');
 
 const SOURCE = path.join(__dirname, '..', 'page_web.h');
 let ok = 0, ko = 0;
@@ -34,7 +34,7 @@ function creerSocle(options = {}) {
     // cas qui casse un JSON mal échappé et une page vulnérable à l'injection.
     nom: i === 0 ? 'Point "chaud" <b>\\x' : 'Zone fraîche',
     temp: 30.25 + i, consigne: 32 - i, demande: 40, duty: 33,
-    chauffe: i === 0, derive: false, autotune: options.autotune === i,
+    chauffe: i === 0, derive: false, tropChaud: options.tropChaud === i, autotune: options.autotune === i,
     defaut: options.defaut === i ? 'SONDE' : null,
     jour: 32 - i, nuit: 26 - i, bande: 2, ki: 0.0006, max: 40, offset: 0,
     debutJour: '08:00', debutNuit: '20:00', rampe: 45,
@@ -47,7 +47,10 @@ function creerSocle(options = {}) {
       courantAlimA: 3, puissanceTapisW: 20, tensionV: 12, zonesSimultanees: 1,
       maintenanceMin: 10, ecranVeilleMin: 10, saisonActive: false, saisonDelta: 5,
       saisonDescenteJ: 21, saisonPlateauJ: 60, saisonRemonteeJ: 21,
-      saisonDebutEpoch: 0, decalageActuel: 0, heureFiable: true
+      saisonDebutEpoch: 0, decalageActuel: 0, heureFiable: true,
+      rapportActif: true, rapportMinutes: 1200, prixKwh: 0.2516, ledEteinte: false, ecranNuit: 0,
+      soleilActif: true, soleilDecalageMin: 0, latitude: 48.85, longitude: 2.35, zonePrioritaire: 1,
+      soleilJour: 463, soleilNuit: 1052
     },
     status: {
       uptime: 7200, tapisActif: 0, alertesEnAttente: 0, histHeures: options.histHeures || 336,
@@ -56,10 +59,11 @@ function creerSocle(options = {}) {
       sante: { proto: 3, version: '3.4.0', uptime: 7200, rssi: -63, heap: 171000, heapMin: 142000,
                blocMax: 98000, reset: 'mise sous tension', otaEnAttente: !!options.otaEnAttente,
                signatureOta: false, plantage: options.plantage || undefined,
-               hote: 'terraA1B2C3.local', ip: '192.168.1.42', maj: options.maj || undefined }
+               hote: 'terraA1B2C3.local', ip: '192.168.1.42', maj: options.maj || undefined,
+               mqtt: options.mqtt || 'connecte', webProtege: options.webProtege !== false }
     },
     reseau: {
-      ssid: 'maison', webUtilisateur: 'admin', urlAlertes: 'https://exemple.fr/alerte',
+      ssid: 'maison', ssid2: 'secours', webUtilisateur: 'admin', urlAlertes: 'https://exemple.fr/alerte',
       urlHeartbeat: '', heartbeatMinutes: 5, mqttHote: 'broker.exemple.fr', mqttPort: 8883,
       mqttPrefixe: 'terrarium', mqttUtilisateur: 'socle', decouverteHA: true,
       mqttTls: true, verifierTls: true, jeton: 'K7M2QX4TBW9HRPFZ3NXCVJ8D',
@@ -73,15 +77,23 @@ function creerSocle(options = {}) {
       maintenanceRestanteS: 0,
       zones: [0, 1].map(i => ({
         nom: 'Zone ' + (i + 1), min: 29.1, max: 33.2, moyenne: 31.4, horsPlagePct: 4,
-        points: 1440, heuresChauffe: 12.5, kWh: 0.25,
-        defauts: { sonde: 0, surchauffe: 0, figee: 0 }
+        points: 1440, heuresChauffe: 12.5, kWh: 0.25, euros: 0.06,
+        defauts: { sonde: 0, surchauffe: 0, figee: 0, inefficace: 1 }
       }))
     },
     sondes: {
       sondes: [{ rom: '28FF641F8B2C0155', temp: 30.2, zone: 0 },
                { rom: '28FF9A2C7C1A0033', temp: 26.5, zone: 1 }],
-      parasite: false
+      parasite: false,
+      liaisons: [{ rom: '28FF641F8B2C0155', presente: true }, { rom: '28FF000000000077', presente: false }],
+      identification: null, resultat: ''
     },
+    essai: { zone: 0, restantS: 0, resultat: '' },
+    jours: { prixKwh: 0.2516, jours: [
+      { date: '2026-09-09', zones: [{ min: 29.5, max: 33.1, moyenne: 31.2, heures: 9.5, kWh: 0.19, euros: 0.048, defauts: 0 },
+                                    { min: 24.1, max: 27.9, moyenne: 26.0, heures: 6.25, kWh: 0.125, euros: 0.031, defauts: 2 }] },
+      { date: '2026-09-08', zones: [{ min: 29.4, max: 33.0, moyenne: 31.1, heures: null, kWh: null, euros: null, defauts: null },
+                                    { min: null, max: null, moyenne: null, heures: null, kWh: null, euros: null, defauts: null }] }] },
     points: Array.from({ length: 200 }, (_, i) => ({
       e: maintenant - (200 - i) * 60,
       t0: 30 + Math.sin(i / 9), t1: 26 + Math.cos(i / 7), c0: 32, c1: 28
@@ -92,7 +104,12 @@ function creerSocle(options = {}) {
 function creerPage(socle) {
   const src = fs.readFileSync(SOURCE, 'utf8');
   const html = src.split('R"HTML(')[1].split(')HTML"')[0];
-  const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'http://terrarium.local/', pretendToBeVisual: true });
+  // jsdom ne sait pas recharger une page : après une restauration réussie, la
+  // page appelle location.reload(), ce qui n'est pas une erreur de la page.
+  const console2 = new VirtualConsole();
+  console2.sendTo(console, { omitJSDOMErrors: true });
+  console2.on('jsdomError', e => { if (!/navigation/.test(e.message)) console.error(e); });
+  const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'http://terrarium.local/', pretendToBeVisual: true, virtualConsole: console2 });
   const w = dom.window;
 
   w.alert = m => socle.envois.push({ alerte: String(m) });
@@ -127,12 +144,25 @@ function creerPage(socle) {
     if (chemin === '/api/sondes')  return opts.method === 'POST' ? rendre('Sonde liee.') : rendre(socle.sondes);
     if (chemin === '/api/history') return opts.method === 'DELETE' ? rendre('Historique efface') : rendre({ points: socle.points });
     if (chemin === '/api/journal') return rendre('2026-09-10 18:00:00 | Demarrage\n');
+    if (chemin === '/api/essai') {
+      if (opts.method === 'POST') { socle.essai = { zone: 2, restantS: 540, resultat: '' }; return rendre('Essai lance'); }
+      if (opts.method === 'DELETE') { socle.essai = { zone: 0, restantS: 0, resultat: 'Essai arrete' }; return rendre('Essai arrete'); }
+      return rendre(socle.essai);
+    }
+    if (chemin === '/api/identifier') {
+      if (opts.method === 'POST') { socle.sondes.identification = { zone: 1, restantS: 118 }; return rendre('Identification lancee'); }
+      socle.sondes.identification = null; return rendre('Identification annulee');
+    }
+    if (chemin === '/api/calibrer') { socle.status.zones[1].offset = -0.31; return rendre('Calibration : zone 2 decalee de -0.31 C'); }
+    if (chemin === '/api/jours') return rendre(socle.jours);
+    if (chemin === '/api/rapport') return opts.method === 'POST' ? rendre('Rapport envoye') : rendre('Rapport du 10/09 (temperatures sur 24 h)');
+    if (chemin === '/api/sauvegarde') return rendre('Configuration de terraA1B2C3 restauree');
     return rendre('OK');
   };
   // jsdom ne dessine pas : un contexte 2D inerte suffit, on teste la logique.
   w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (_, p) => (p === 'canvas' ? {} : () => {}) });
 
-  const js = html.match(/<script>([\s\S]*)<\/script>/)[1];
+  const js = w.document.querySelector('script:not([src])').textContent;
   // `let PTS = …` au sommet d'un script cree une liaison lexicale que window ne
   // montre pas : on recupere des accesseurs vivants depuis la meme evaluation.
   const vue = w.eval(js + '\n;(function(){return{get PTS(){return PTS},get GX(){return GX},get S(){return S}}})()');
@@ -327,6 +357,66 @@ const dernier = (socle, chemin, methode) =>
     await q.w.eval('majDistante()'); await attendre(300);
     const m2 = dernier(s7, '/api/maj-distante', 'POST');
     v('…ou l\'URL complète', m2 && /^url=https%3A%2F%2Fgithub\.com/.test(m2.corps));
+  }
+
+  titre('12. Firmware 3.5 : sondes, essai, rapport, soleil, sauvegarde');
+  {
+    const s8 = creerSocle({ tropChaud: 1, webProtege: false, mqtt: 'NON CONNECTE : acces refuse par le broker' });
+    const q = creerPage(s8);
+    await attendre(900);
+    v('une zone trop chaude est signalée', q.html('#zones').includes('trop chaud'));
+    v('l\'interface sans mot de passe est signalée', q.html('#avertissements').includes('sans mot de passe'));
+    await q.w.eval("onglet('reg',document.querySelector('.tabs button'))"); await attendre(300);
+    v('la liaison de chaque zone est affichée', q.html('#sondes').includes('28FF641F8B2C0155') && q.html('#sondes').includes('28FF000000000077'));
+    v('une sonde liée mais absente du bus est signalée', q.html('#sondes').includes('absente du bus'));
+    await q.w.eval('scan(1)'); await attendre(300);
+    v('« Relire le bus » relit vraiment le bus', (dernier(s8, '/api/sondes', 'GET') || {}).requete === 'relire=1');
+    await q.w.eval('identifier(0)'); await attendre(300);
+    v('« Identifier » lance l\'identification de la zone', (dernier(s8, '/api/identifier', 'POST') || {}).requete === 'z=0');
+    v('la marche à suivre est affichée pendant l\'identification', q.html('#sondes').includes('serre la sonde'));
+    await q.w.eval('annulerIdent()'); await attendre(300);
+    v('l\'identification s\'annule', !!dernier(s8, '/api/identifier', 'DELETE') && !q.html('#sondes').includes('serre la sonde'));
+    await q.w.eval('calibrer()'); await attendre(400);
+    v('après calibration, le champ de calibration montre la nouvelle valeur', q.$('#o1') && q.$('#o1').value === '-0.31', q.$('#o1') && q.$('#o1').value);
+    await q.w.eval('essai(1)'); await attendre(300);
+    v('l\'essai de chauffe part pour la bonne zone', (dernier(s8, '/api/essai', 'POST') || {}).requete === 'z=1');
+    v('l\'essai en cours est affiché', q.html('#essai').includes('Essai en cours') && q.html('#essai').includes('9 min'));
+    await q.w.eval('arreterEssai()'); await attendre(300);
+    v('l\'essai s\'arrête', !!dernier(s8, '/api/essai', 'DELETE') && q.html('#essai').includes('Essai arrete'));
+    v('l\'heure du rapport est pré-remplie en HH:MM', q.$('#gRH') && q.$('#gRH').value === '20:00', q.$('#gRH') && q.$('#gRH').value);
+    v('le prix du kWh est pré-rempli', q.$('#gP') && q.$('#gP').value === '0.2516');
+    v('les horaires du soleil du jour sont affichés', q.texte('#gEtatSoleil').includes('07:43') && q.texte('#gEtatSoleil').includes('17:32'), q.texte('#gEtatSoleil'));
+    v('la zone prioritaire est pré-sélectionnée', q.$('#gZP') && q.$('#gZP').value === '1');
+    q.$('#gP').value = '0,30'; q.$('#gRH').value = '21:15'; q.$('#gLa').value = '45,76';
+    await q.w.eval('envoyerGlobaux()'); await attendre(300);
+    {
+      const e = dernier(s8, '/api/globaux', 'POST') || { corps: '' };
+      v('rapport, prix, soleil, priorité, LED et écran sont transmis',
+        ['rapportActif=1', 'rapportHeure=21%3A15', 'soleilActif=1', 'zonePrioritaire=1', 'ledEteinte=0', 'ecranNuit=0', 'soleilDecalageMin=0']
+          .every(c => e.corps.includes(c)));
+      v('la virgule décimale est acceptée', e.corps.includes('prixKwh=0.30') && e.corps.includes('latitude=45.76'));
+    }
+    await q.w.eval('voirRapport()'); await attendre(300);
+    v('« Voir le rapport » l\'affiche', !q.$('#rapport').hidden && q.texte('#rapport').includes('Rapport du'));
+    await q.w.eval("onglet('res',document.querySelector('.tabs button'))"); await attendre(300);
+    v('le réseau Wi-Fi de secours est pré-rempli', q.$('#ssid2') && q.$('#ssid2').value === 'secours');
+    await q.w.eval('envoyerRes()'); await attendre(300);
+    v('…et transmis à l\'enregistrement', /ssid2=secours&wifiPass2=/.test((dernier(s8, '/api/reseau', 'POST') || {}).corps || ''));
+    await q.w.eval("onglet('sta',document.querySelector('.tabs button'))"); await attendre(400);
+    v('le coût en euros est affiché', q.html('#stxt').includes('0.06 €'));
+    v('le défaut « sans effet » est compté', q.html('#stxt').includes('sans effet 1'));
+    v('l\'état MQTT est affiché', q.html('#sante').includes('acces refuse'));
+    v('les résumés journaliers forment un tableau', q.html('#jours').includes('<table>') && q.html('#jours').includes('2026-09-09'));
+    v('un jour sans comparaison possible affiche des tirets', q.html('#jours').includes('—'));
+    v('les défauts du jour sont signalés', q.html('#jours').includes('2 défaut(s)'));
+    const f = q.$('#fSauv');
+    Object.defineProperty(f, 'files', { value: [{ name: 'terraA1B2C3-sauvegarde.json', text: async () => '{"format":"terrarium-sauvegarde"}' }] });
+    await q.w.eval('restaurer()'); await attendre(300);
+    {
+      const e = dernier(s8, '/api/sauvegarde', 'POST');
+      v('la restauration envoie le fichier en JSON, avec X-Terrarium',
+        e && e.corps.includes('terrarium-sauvegarde') && e.entetes['Content-Type'] === 'application/json' && e.entetes['X-Terrarium'] === '1');
+    }
   }
 
   console.log(`\n=== ${ko ? 'DES TESTS ONT ECHOUE' : 'INTERFACE WEB EMBARQUEE OK'}` +

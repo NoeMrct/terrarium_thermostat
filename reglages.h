@@ -28,7 +28,24 @@ struct ReglagesGlobaux {
   uint16_t saisonPlateauJ;
   uint16_t saisonRemonteeJ;
   uint32_t saisonDebutEpoch;
+  // ------------------------------------------------------------------------
+  // 3.5 : TOUT AJOUT SE FAIT ICI, EN FIN DE STRUCTURE. Relue par la 3.5, une
+  // mémoire écrite par la 3.4 laisse ces champs à zéro : zéro doit donc
+  // toujours être un réglage sensé (d'où ledEteinte plutôt que ledAllumee).
+  // ------------------------------------------------------------------------
+  bool rapportActif;          // rapport quotidien envoyé avec les alertes
+  uint16_t rapportMinutes;    // heure d'envoi, en minutes depuis minuit
+  float prixKwh;              // euros par kWh ; 0 = inconnu, aucun coût affiché
+  bool ledEteinte;            // LED d'état de la carte éteinte sur demande
+  uint8_t ecranNuit;          // EcranNuit : atténué (défaut), normal ou éteint la nuit
+  bool soleilActif;           // jour et nuit calés sur le lever et le coucher du soleil
+  int16_t soleilDecalageMin;  // minutes ajoutées au lever et au coucher
+  float latitude;             // degrés, positive au nord
+  float longitude;            // degrés, positive à l'est
+  uint8_t zonePrioritaire;    // 0 = aucune, sinon numéro de zone (1..NB_ZONES)
 };
+
+enum EcranNuit : uint8_t { ECRAN_NUIT_ATTENUE = 0, ECRAN_NUIT_NORMAL = 1, ECRAN_NUIT_ETEINT = 2 };
 
 struct StatsZone {
   uint32_t secondesChauffe;  // cumul depuis toujours, pour l'énergie
@@ -71,6 +88,10 @@ struct ReglagesReseau {
   // Assistant…), 1 = texte lisible avec en-têtes Title/Priority/Tags, ce que
   // lisent ntfy et les services de notification du même genre.
   uint8_t formatAlertes;
+  // 3.5 : réseau Wi-Fi de secours, essayé en alternance quand le premier ne
+  // répond pas (box changée, répéteur). Vide = aucun.
+  char ssid2[33];
+  char motDePasse2[65];
 };
 
 enum FormatAlertes : uint8_t { ALERTES_JSON = 0, ALERTES_TEXTE = 1 };

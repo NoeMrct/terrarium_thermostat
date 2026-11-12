@@ -88,6 +88,10 @@ void oublierReponses() {
 
 void traiterCommande(Socle &socle, const char *charge, size_t taille) {
   JsonDocument doc;
+  // L'analyseur de clang prend le placement new de VariantData::toObject
+  // (ArduinoJson 7.4.2) pour une fuite et rattache le diagnostic à cet appel :
+  // faux positif connu, le document libère tout dans son destructeur.
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
   if (!charge || deserializeJson(doc, charge, taille) || !doc.is<JsonObject>()) {
     repondre(socle, "", false, "\"erreur\":\"JSON invalide\"");
     return;

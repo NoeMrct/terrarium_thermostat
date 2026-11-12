@@ -17,6 +17,16 @@ void reglagesGlobauxParDefaut(ReglagesGlobaux &g) {
   g.saisonDescenteJ = 21;
   g.saisonPlateauJ = 60;
   g.saisonRemonteeJ = 21;
+  g.rapportActif = false;
+  g.rapportMinutes = 20 * 60;
+  g.prixKwh = 0.0f;
+  g.ledEteinte = false;
+  g.ecranNuit = ECRAN_NUIT_ATTENUE;
+  g.soleilActif = false;
+  g.soleilDecalageMin = 0;
+  g.latitude = 0.0f;
+  g.longitude = 0.0f;
+  g.zonePrioritaire = 0;
 }
 
 bool globauxValides(const ReglagesGlobaux &g, char *erreur, size_t taille) {
@@ -38,6 +48,18 @@ bool globauxValides(const ReglagesGlobaux &g, char *erreur, size_t taille) {
     ECHEC("Duree de phase saisonniere hors 0-365 jours");
   if (g.saisonActive && g.saisonDescenteJ + g.saisonPlateauJ + g.saisonRemonteeJ == 0)
     ECHEC("Un cycle saisonnier doit durer au moins un jour");
+  if (g.rapportMinutes > 1439) ECHEC("Heure du rapport invalide");
+  if (!(isfinite(g.prixKwh) && g.prixKwh >= 0.0f && g.prixKwh <= 5.0f)) ECHEC("Prix du kWh hors 0-5 EUR");
+  if (g.ecranNuit > ECRAN_NUIT_ETEINT) ECHEC("Mode nuit de l'ecran inconnu");
+  if (g.soleilDecalageMin < -180 || g.soleilDecalageMin > 180) ECHEC("Decalage solaire hors -180..180 min");
+  // Au-delà des cercles polaires, le soleil peut ne pas se lever ou ne pas se
+  // coucher de la journée : les horaires fixes conviennent mieux.
+  if (!(isfinite(g.latitude) && g.latitude >= -65.0f && g.latitude <= 65.0f)) ECHEC("Latitude hors -65..65");
+  if (!(isfinite(g.longitude) && g.longitude >= -180.0f && g.longitude <= 180.0f))
+    ECHEC("Longitude hors -180..180");
+  if (g.soleilActif && g.latitude == 0.0f && g.longitude == 0.0f)
+    ECHEC("Position inconnue : renseigner latitude et longitude");
+  if (g.zonePrioritaire > NB_ZONES) ECHEC("Zone prioritaire inconnue");
 #undef ECHEC
   return true;
 }
@@ -61,7 +83,18 @@ bool assainirGlobaux(ReglagesGlobaux &g) {
   REPARE(saisonDescenteJ, g.saisonDescenteJ <= 365)
   REPARE(saisonPlateauJ, g.saisonPlateauJ <= 365)
   REPARE(saisonRemonteeJ, g.saisonRemonteeJ <= 365)
+  REPARE(rapportMinutes, g.rapportMinutes <= 1439)
+  REPARE(prixKwh, isfinite(g.prixKwh) && g.prixKwh >= 0.0f && g.prixKwh <= 5.0f)
+  REPARE(ecranNuit, g.ecranNuit <= ECRAN_NUIT_ETEINT)
+  REPARE(soleilDecalageMin, g.soleilDecalageMin >= -180 && g.soleilDecalageMin <= 180)
+  REPARE(latitude, isfinite(g.latitude) && g.latitude >= -65.0f && g.latitude <= 65.0f)
+  REPARE(longitude, isfinite(g.longitude) && g.longitude >= -180.0f && g.longitude <= 180.0f)
+  REPARE(zonePrioritaire, g.zonePrioritaire <= NB_ZONES)
 #undef REPARE
+  if (g.soleilActif && g.latitude == 0.0f && g.longitude == 0.0f) {
+    g.soleilActif = false;  // position perdue : retour aux horaires fixes
+    corrige = true;
+  }
   if (g.saisonActive &&
       (g.saisonDebutEpoch < 1700000000UL || g.saisonDescenteJ + g.saisonPlateauJ + g.saisonRemonteeJ == 0)) {
     g.saisonActive = false;  // cycle indatable : on ne l'applique pas

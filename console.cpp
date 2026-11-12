@@ -1,6 +1,8 @@
 #include "console.h"
 #include "stockage.h"
 #include "sondes.h"
+#include "essai.h"
+#include "taches.h"
 #include "reseau.h"
 #include "affichage.h"
 #include "courant.h"
@@ -308,10 +310,12 @@ void traiter(String cmd) {
                   ctrl.limiteZones(), ctrl.decalageSaison());
     for (uint8_t z = 0; z < NB_ZONES; z++) {
       const uint32_t sec = secondesChauffeTotales(z);
-      Serial.printf("  %-12s %6.1f h de chauffe  %6.3f kWh  defauts sonde/surchauffe/figee : %u/%u/%u\n",
-                    ctrl.cfg[z].nom, sec / 3600.0f, sec / 3600.0f * g.puissanceTapisW / 1000.0f,
+      Serial.printf("  %-12s %6.1f h de chauffe  %6.3f kWh", ctrl.cfg[z].nom, sec / 3600.0f,
+                    Taches::kwh(sec));
+      if (g.prixKwh > 0.0f) Serial.printf(" = %.2f EUR", Taches::euros(sec));
+      Serial.printf("  defauts sonde/surchauffe/figee/sans effet : %u/%u/%u/%u\n",
                     ctrl.zone[z].nbDefauts[DEF_SONDE], ctrl.zone[z].nbDefauts[DEF_SURCHAUFFE],
-                    ctrl.zone[z].nbDefauts[DEF_FIGE]);
+                    ctrl.zone[z].nbDefauts[DEF_FIGE], ctrl.zone[z].nbDefauts[DEF_INEFFICACE]);
     }
     return;
   }
@@ -320,7 +324,24 @@ void traiter(String cmd) {
     return;
   }
   if (v == "scan") {
+    Sondes::rescanner();  // une sonde branchée depuis le démarrage devient visible
     Serial.print(Sondes::inventaireTexte());
+    return;
+  }
+  if (v == "identifier") {
+    char message[140];
+    if (n >= 2 && j[1] == "stop") {
+      Sondes::annulerIdentification();
+      Serial.println(F("Identification annulee."));
+      return;
+    }
+    const int z = (n >= 2) ? j[1].toInt() : 0;
+    if (z < 1 || z > (int)NB_ZONES) {
+      Serial.println(F("Usage : identifier <zone> | identifier stop"));
+      return;
+    }
+    Sondes::lancerIdentification((uint8_t)(z - 1), message, sizeof message);
+    Serial.println(message);
     return;
   }
   if (v == "journal") {
@@ -331,6 +352,7 @@ void traiter(String cmd) {
     const ReglagesReseau &r = Stockage::reseau();
     Serial.printf("Appareil %s  (racine des sujets MQTT : %s/%s)\n", Reseau::identifiant().c_str(),
                   r.mqttPrefixe, Reseau::identifiant().c_str());
+    if (r.ssid2[0]) Serial.printf("Reseau de secours '%s'\n", r.ssid2);
     Serial.printf("SSID '%s'  etat %s  adresse %s\n", r.ssid,
                   Reseau::modePointAcces() ? "point d'acces de config"
                                            : (Reseau::connecte() ? "connecte" : "hors ligne"),
@@ -420,6 +442,144 @@ void traiter(String cmd) {
         "C)\n",
         c.saisonActive ? "active" : "inactive", c.saisonDelta, c.saisonDescenteJ, c.saisonPlateauJ,
         c.saisonRemonteeJ, ctrl.decalageSaison());
+    return;
+  }
+  if (v == "ecran" && n >= 3 && j[1] == "nuit") {
+    ReglagesGlobaux g = Stockage::globaux();
+    if (j[2] == "attenue")
+      g.ecranNuit = ECRAN_NUIT_ATTENUE;
+    else if (j[2] == "normal")
+      g.ecranNuit = ECRAN_NUIT_NORMAL;
+    else if (j[2] == "eteint")
+      g.ecranNuit = ECRAN_NUIT_ETEINT;
+    else {
+      Serial.println(F("Usage : ecran nuit <attenue|normal|eteint>"));
+      return;
+    }
+    if (!appliquerGlobaux(g)) return;
+    Serial.printf("La nuit, l'ecran est %s.\n", j[2].c_str());
+    return;
+  }
+  if (v == "led" && n >= 2) {
+    ReglagesGlobaux g = Stockage::globaux();
+    g.ledEteinte = (j[1] == "off");
+    if (!appliquerGlobaux(g)) return;
+    Serial.println(g.ledEteinte ? F("LED d'etat eteinte.") : F("LED d'etat allumee."));
+    return;
+  }
+  if (v == "prix" && n >= 2) {
+    ReglagesGlobaux g = Stockage::globaux();
+    g.prixKwh = j[1] == "off" ? 0.0f : j[1].toFloat();
+    if (!appliquerGlobaux(g)) return;
+    if (g.prixKwh > 0.0f)
+      Serial.printf("Prix du kWh : %.4f EUR (cout affiche dans `stats`, la page et le rapport).\n",
+                    g.prixKwh);
+    else
+      Serial.println(F("Prix du kWh inconnu : aucun cout affiche."));
+    return;
+  }
+  if (v == "rapport") {
+    ReglagesGlobaux g = Stockage::globaux();
+    if (n < 2) {
+      Serial.println(Taches::rapport());
+      return;
+    }
+    if (j[1] == "envoyer") {
+      Taches::envoyerRapport();
+      Serial.println(F("Rapport envoye vers les alertes."));
+      return;
+    }
+    if (j[1] == "off") {
+      g.rapportActif = false;
+    } else {
+      uint16_t m = 0;
+      if (!parseHHMM(j[1], m)) {
+        Serial.println(F("Usage : rapport | rapport <HH:MM> | rapport off | rapport envoyer"));
+        return;
+      }
+      g.rapportActif = true;
+      g.rapportMinutes = m;
+    }
+    if (!appliquerGlobaux(g)) return;
+    if (g.rapportActif)
+      Serial.printf("Rapport quotidien a %s, vers l'URL d'alertes et le sujet MQTT « rapport ».\n",
+                    j[1].c_str());
+    else
+      Serial.println(F("Rapport quotidien desactive."));
+    return;
+  }
+  if (v == "jours") {
+    Serial.print(Taches::joursTexte(n >= 2 ? (uint16_t)j[1].toInt() : 14));
+    return;
+  }
+  if (v == "soleil" && n >= 2) {
+    ReglagesGlobaux g = Stockage::globaux();
+    if (j[1] == "off") {
+      g.soleilActif = false;
+    } else if (n >= 3) {
+      g.latitude = j[1].toFloat();
+      g.longitude = j[2].toFloat();
+      g.soleilDecalageMin = (int16_t)(n >= 4 ? j[3].toInt() : 0);
+      g.soleilActif = true;
+    } else {
+      Serial.println(F("Usage : soleil <latitude> <longitude> [decalage min] | soleil off"));
+      return;
+    }
+    if (!appliquerGlobaux(g)) return;
+    if (ctrl.soleilActif())
+      Serial.printf("Jour a %s, nuit a %s aujourd'hui (suit le soleil).\n", hhmm(ctrl.debutJour(0)).c_str(),
+                    hhmm(ctrl.debutNuit(0)).c_str());
+    else
+      Serial.println(g.soleilActif ? F("Enregistre : applique des que l'heure sera connue.")
+                                   : F("Horaires fixes de chaque zone."));
+    return;
+  }
+  if (v == "priorite" && n >= 2) {
+    ReglagesGlobaux g = Stockage::globaux();
+    g.zonePrioritaire = j[1] == "off" ? 0 : (uint8_t)j[1].toInt();
+    if (!appliquerGlobaux(g)) return;
+    if (g.zonePrioritaire)
+      Serial.printf("Zone %u prioritaire quand l'alimentation ne suffit pas a tout le monde.\n",
+                    g.zonePrioritaire);
+    else
+      Serial.println(F("Aucune zone prioritaire."));
+    return;
+  }
+  if (v == "essai" && n >= 2) {
+    char message[200];
+    if (j[1] == "stop") {
+      Essai::annuler();
+      Serial.println(F("Essai arrete."));
+      return;
+    }
+    const int z = j[1].toInt();
+    if (z < 1 || z > (int)NB_ZONES) {
+      Serial.println(F("Usage : essai <zone> | essai stop"));
+      return;
+    }
+    Essai::lancer((uint8_t)(z - 1), message, sizeof message);
+    Serial.println(message);
+    return;
+  }
+  if (v == "calibrer") {
+    char message[200];
+    Essai::calibrer(message, sizeof message);
+    Serial.println(message);
+    return;
+  }
+  if (v == "wifi2" && n >= 2) {
+    ReglagesReseau &r = Stockage::reseau();
+    if (j[1] == "off") {
+      r.ssid2[0] = '\0';
+      r.motDePasse2[0] = '\0';
+    } else {
+      snprintf(r.ssid2, sizeof r.ssid2, "%s", j[1].c_str());
+      snprintf(r.motDePasse2, sizeof r.motDePasse2, "%s", n >= 3 ? j[2].c_str() : "");
+    }
+    Stockage::sauverReseau();
+    Serial.println(r.ssid2[0]
+                       ? F("Reseau de secours enregistre : essaye en alternance si le premier ne repond pas.")
+                       : F("Reseau de secours retire."));
     return;
   }
   if (v == "ecran" && n >= 2) {
@@ -524,8 +684,9 @@ void traiter(String cmd) {
       Serial.println(F("Zone invalide."));
       return;
     }
-    Serial.println(Sondes::lierParIndex((uint8_t)idx, (uint8_t)(z - 1)) ? F("Sonde liee.")
-                                                                        : F("Index de sonde introuvable."));
+    char message[140];
+    Sondes::lierParIndex((uint8_t)idx, (uint8_t)(z - 1), message, sizeof message);
+    Serial.println(message);
     return;
   }
 
@@ -618,7 +779,7 @@ namespace Console {
 void aide() {
   Serial.println(
       F("\nCommandes (z = numero de zone) :\n"
-        "  status | stats | version | sante | scan | journal | reseau | help\n"
+        "  status | stats | version | sante | scan | journal | reseau | jours [n] | help\n"
         "  appairage                  QR et code d'appairage sur l'ecran (60 s)\n"
         "  maj [version|url]          mise a jour tiree depuis GitHub (ou etat de la derniere)\n"
         "  test usine [oui]           auto-test ecran, sondes, memoire, WiFi ; `oui` = MOSFET aussi\n"
@@ -628,6 +789,12 @@ void aide() {
         "  alim <amperes> [watts] [volts]  puissance disponible -> zones simultanees\n"
         "  saison <degC> <jDescente> [jPlateau] [jRemontee] | saison off\n"
         "  ecran <minutes>            veille de l'afficheur (0 = jamais)\n"
+        "  ecran nuit <attenue|normal|eteint>  l'afficheur la nuit\n"
+        "  led <on|off>               LED d'etat de la carte\n"
+        "  rapport [HH:MM|off|envoyer] rapport quotidien (sans argument : l'afficher)\n"
+        "  prix <EUR par kWh|off>     cout de la chauffe\n"
+        "  soleil <lat> <lon> [min] | soleil off   jour et nuit cales sur le soleil\n"
+        "  priorite <z|off>           zone servie en priorite si l'alimentation manque\n"
         "  nom <z> <texte>            renommer la zone\n"
         "  jour <z> <degC>            consigne de jour\n"
         "  nuit <z> <degC>            consigne de nuit\n"
@@ -642,7 +809,11 @@ void aide() {
         "  chute <z> <degC> [s]       chute brutale : seuil et fenetre d'observation\n"
         "  autotune <z> | stop-autotune <z>\n"
         "  lier <index> <z>           associer une sonde du bus a une zone\n"
+        "  identifier <z> | stop      lier la sonde que l'on chauffe dans la main\n"
+        "  essai <z> | stop           essai de chauffe de mise en service (verdict)\n"
+        "  calibrer                   sondes cote a cote : aligner sur la zone 1\n"
         "  wifi <ssid> [mdp]          essaie le reseau et l'enregistre s'il repond\n"
+        "  wifi2 <ssid> [mdp] | off   reseau de secours, essaye en alternance\n"
         "  motdepasse web <mdp> [user] | motdepasse ota <mdp> | motdepasse ap <mdp>\n"
         "  url alertes <url> | url heartbeat <url>\n"
         "  url jeton <secret|off>     jeton envoye avec les alertes (Bearer)\n"

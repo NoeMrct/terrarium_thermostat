@@ -194,6 +194,7 @@ p.aide { margin-top: 10px; }
 .chauffe { color: var(--attention); font-weight: 650; display: inline-flex; align-items: center; gap: 2px; }
 .chauffe .ico { width: 14px; height: 14px; }
 .defaut { color: var(--danger); font-weight: 650; font-size: 12.5px; margin-top: 4px; }
+.conseil { color: var(--texte-2); font-size: 12px; line-height: 1.4; margin-top: 2px; }
 .derive { color: var(--attention); font-weight: 600; font-size: 12px; }
 
 /* ----------------------------------------------------------------- formulaires */

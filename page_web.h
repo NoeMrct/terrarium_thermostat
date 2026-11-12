@@ -44,6 +44,7 @@ progress{width:100%;height:9px}a{color:var(--a)}
 .zone::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--z1)}.zone.z2::before{background:var(--z2)}
 .stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-top:8px}
 .stat div{background:var(--k);border-radius:12px;padding:9px 10px}.stat b{display:block;font-size:16px;font-weight:650}.stat span{font-size:11.5px;color:var(--g)}
+.tbl{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:12.5px}td,th{padding:6px;text-align:left;border-bottom:1px solid var(--l);vertical-align:top}th{color:var(--g);font-weight:600}
 @media(min-width:760px){#zones{display:grid;grid-template-columns:1fr 1fr;gap:14px}#zones .card{margin:0}#zones+.card{margin-top:14px}}
 </style></head><body>
 <div id="connexion" hidden><form class="card" onsubmit="connecter(event)"><h3 style="margin-top:0">Connexion</h3>
@@ -66,6 +67,13 @@ progress{width:100%;height:9px}a{color:var(--a)}
 <a href="/api/history.csv">export CSV</a></div></div></div>
 <div id="sta" style="display:none"><div class="card" id="stxt">…</div>
 <div class="card" id="sante">…</div>
+<div class="card"><h3 style="margin-top:0">Résumés journaliers</h3><div class="tbl" id="jours">…</div></div>
+<div class="card"><h3 style="margin-top:0">Sauvegarde de la configuration</h3>
+<div class="g">Zones, réglages, sondes liées et alertes : de quoi remplacer une carte en une minute. Ni le Wi-Fi
+ni les mots de passe ne sont dans le fichier, mais l'URL d'alerte y est (une URL ntfy vaut un mot de passe).</div>
+<button class="s" onclick="location.href='/api/sauvegarde'">Télécharger</button>
+<label>Restaurer depuis un fichier</label><input class="w" type="file" id="fSauv" accept=".json,application/json">
+<button class="s" onclick="restaurer()">Restaurer</button></div>
 <div class="card"><div class="g">Couper le chauffage le temps d'une intervention, avec reprise automatique.</div>
 <button onclick="post('/api/maintenance?minutes=10')">Entretien 10 min</button>
 <button class="s" onclick="post('/api/maintenance?minutes=0')">Annuler</button></div>
@@ -121,10 +129,10 @@ async function stats(){
   h+= z.points? 'Sur 24 h : min '+z.min.toFixed(1)+' °C · max '+z.max.toFixed(1)+' °C · moyenne '+
       z.moyenne.toFixed(1)+' °C · hors plage '+z.horsPlagePct+' % du temps<br>'
      :'Pas encore assez d\'historique.<br>';
-  h+='Chauffe cumulée '+z.heuresChauffe.toFixed(1)+' h · '+z.kWh.toFixed(2)+' kWh<br>';
-  h+='Défauts : sonde '+z.defauts.sonde+' · surchauffe '+z.defauts.surchauffe+' · sonde figée '+z.defauts.figee;
+  h+='Chauffe cumulée '+z.heuresChauffe.toFixed(1)+' h · '+z.kWh.toFixed(2)+' kWh'+(z.euros!==undefined?' · '+z.euros.toFixed(2)+' €':'')+'<br>';
+  h+='Défauts : sonde '+z.defauts.sonde+' · surchauffe '+z.defauts.surchauffe+' · sonde figée '+z.defauts.figee+' · sans effet '+(z.defauts.inefficace||0);
   h+='</div>';});
- document.getElementById('stxt').innerHTML=h;sante();}
+ document.getElementById('stxt').innerHTML=h;sante();jours();}
 // Santé du socle : signal, mémoire, dernier redémarrage, plantage éventuel.
 function sante(){
  const s=S&&S.sante;const el=document.getElementById('sante');
@@ -141,6 +149,7 @@ function sante(){
  if(s.maj){const m=s.maj,cl=m.etape==='echec'||m.etape==='retour arriere'?'bad':m.etape==='validee'?'ok':'warn';
   h+='<div class="g" style="margin-top:8px">Dernière mise à jour : <span class="pill '+cl+'">'+esc(m.etape)+'</span> '+esc(m.version)+' — '+esc(m.detail)+'</div>';}
  h+='<div class="g" style="margin-top:8px">Interface locale : <code>http://'+esc(s.hote||'')+'/</code>'+(s.ip?' ou <code>http://'+esc(s.ip)+'/</code>':'')+'</div>';
+ if(s.mqtt)h+='<div class="g" style="margin-top:8px">MQTT : <span class="pill '+(s.mqtt==='connecte'?'ok':s.mqtt==='desactive'?'':'warn')+'">'+esc(s.mqtt)+'</span></div>';
  h+='<div class="g" style="margin-top:8px">Images de mise à jour signées : '+(s.signatureOta?'<b>exigées</b>':'non exigées')+' · protocole '+s.proto+'</div>';
  if(s.plantage)h+='<div class="avert" style="margin-top:10px"><b>Dernier plantage :</b> '+esc(s.plantage)+
   '<br><a href="/api/coredump">Télécharger le coredump</a> · <a href="#" onclick="effacerCoredump();return false">effacer</a></div>';
@@ -161,7 +170,7 @@ async function maj(){
   `<div class="card"><div class="zone${i?' z2':''}">${esc(z.nom)} — cible ${z.consigne.toFixed(1)} °C${z.autotune?' · AUTOTUNE':''}</div>
    <div class="big" style="color:${C[i]}">${z.defaut?'—':z.temp.toFixed(2)+' °C'}</div>
    ${z.defaut?`<div class="bad">DÉFAUT : ${esc(z.defaut)}</div><button onclick="post('/api/reset')">Lever</button>`
-    :`<div class="g">demande ${z.demande} % · charge ${z.duty} % ${z.chauffe?'· <b class="warn">CHAUFFE</b>':''}${z.derive?' · <span class="warn">dérive</span>':''}</div>`}
+    :`<div class="g">demande ${z.demande} % · charge ${z.duty} % ${z.chauffe?'· <b class="warn">CHAUFFE</b>':''}${z.derive?' · <span class="warn">dérive</span>':''}${z.tropChaud?' · <span class="warn">trop chaud</span>':''}</div>`}
    </div>`).join('');
  durees(S.histHeures||24);
  // L'OTA ouverte est le defaut de configuration le plus couteux : n'importe qui
@@ -174,6 +183,8 @@ async function maj(){
    ArduinoOTA n'est pas démarrée — sans quoi n'importe quel appareil du réseau local
    pourrait réécrire ce firmware. Définis-en un dans l'onglet Réseau pour l'activer ;
    le téléversement depuis cette page reste disponible entre-temps.`);
+ if(S.sante&&S.sante.webProtege===false)av.push(`<b>Interface locale sans mot de passe.</b> Tout appareil de ton réseau Wi-Fi peut
+   changer les consignes. Définis un utilisateur et un mot de passe dans l'onglet Réseau.`);
  if(S.sante&&S.sante.plantage)av.push(`<b>Le socle a redémarré après un plantage.</b> Le résumé est dans l'onglet Appareil, le fichier complet est téléchargeable : joins-le à un rapport de bogue.`);
  document.getElementById('avertissements').innerHTML=
   av.map(t=>`<div class="avert">${t}</div>`).join('');
@@ -208,8 +219,16 @@ function formulaires(){
    <button onclick="envoyer(${i})">Enregistrer</button>
    <button class="s" id="at${i}" onclick="post('/api/autotune?z=${i}')">Lancer l'autotune</button>
    <button class="danger" id="sat${i}" hidden onclick="supprimer('/api/autotune?z=${i}')">Arrêter l'autotune</button></div>`).join('')
-  +`<div class="card"><div class="g">Sondes 1-Wire détectées</div><div id="sondes">…</div>
-    <button class="s" onclick="scan()">Scanner</button></div>
+  +`<div class="card"><h3 style="margin-top:0">Sondes</h3>
+    <div class="g">Chaque zone suit l'adresse de sa sonde. Pour savoir laquelle est laquelle : « Identifier »,
+     puis serrer la sonde voulue dans la main.</div><div id="sondes">…</div>
+    <button class="s" onclick="scan(1)">Relire le bus</button>
+    <button class="s" onclick="calibrer()">Calibrer (sondes côte à côte)</button></div>
+    <div class="card"><h3 style="margin-top:0">Essai de chauffe</h3>
+    <div class="g">Mise en service d'un tapis : la zone chauffe seule, 10 min au plus, et l'essai dit si c'est
+     bien sa sonde qui monte. Sécurités actives.</div><div id="essai">…</div>
+    ${S.zones.map((z,i)=>`<button class="s" onclick="essai(${i})">Essai ${esc(z.nom)}</button>`).join('')}
+    <button class="danger" onclick="arreterEssai()">Arrêter l'essai</button></div>
     <div class="card"><h3 style="margin-top:0">Réglages généraux</h3>
     <div class="g">Ces réglages valent pour l'appareil entier, pas pour une zone.</div>
     <h3>Alimentation</h3>
@@ -224,7 +243,32 @@ function formulaires(){
     <div class="row">
      <div><label>Entretien par défaut (min)</label><input id="gE"></div>
      <div><label>Veille écran (min, 0 = jamais)</label><input id="gS"></div>
+     <div><label>Écran la nuit</label><select id="gEN"><option value="0">atténué</option><option value="1">normal</option><option value="2">éteint</option></select></div>
+     <div><label>LED de la carte</label><select id="gL"><option value="0">allumée</option><option value="1">éteinte</option></select></div>
     </div>
+    <h3>Rapport quotidien et coût</h3>
+    <div class="g">Un résumé par jour (températures, chauffe, kWh, euros, défauts) vers l'URL d'alerte et le sujet MQTT « rapport ».</div>
+    <div class="row">
+     <div><label>Rapport</label><select id="gRA"><option value="0">non</option><option value="1">oui</option></select></div>
+     <div><label>Heure (HH:MM)</label><input id="gRH"></div>
+     <div><label>Prix du kWh (€)</label><input id="gP"></div>
+    </div>
+    <button class="s" onclick="voirRapport()">Voir le rapport</button>
+    <button class="s" onclick="post('/api/rapport')">Envoyer maintenant</button>
+    <pre id="rapport" hidden></pre>
+    <h3>Jour et nuit calés sur le soleil</h3>
+    <div class="g">Les horaires suivent le lever et le coucher du soleil au lieu des heures fixes de chaque zone.
+     Deux décimales de latitude et de longitude suffisent.</div>
+    <div class="row">
+     <div><label>Actif</label><select id="gSo"><option value="0">non</option><option value="1">oui</option></select></div>
+     <div><label>Latitude</label><input id="gLa"></div>
+     <div><label>Longitude</label><input id="gLo"></div>
+     <div><label>Décalage (min)</label><input id="gSM"></div>
+    </div>
+    <div class="g" id="gEtatSoleil" style="margin-top:6px"></div>
+    <h3>Priorité</h3>
+    <div class="g">Quand l'alimentation ne suffit pas aux deux tapis à la fois, la zone prioritaire reçoit la plus grande part du temps de chauffe.</div>
+    <div class="row"><div><label>Zone prioritaire</label><select id="gZP"><option value="0">aucune</option>${S.zones.map((z,i)=>`<option value="${i+1}">${esc(z.nom)}</option>`).join('')}</select></div></div>
     <h3>Cyclage saisonnier</h3>
     <div class="g">Descente progressive des consignes, plateau, puis remontée —
      la période de repos hivernal de beaucoup d'espèces.</div>
@@ -243,6 +287,9 @@ function formulaires(){
    Laisser un champ vide désactive la fonction correspondante.</div>
    <label>SSID WiFi</label><input class="w" id="ssid">
    <label>Mot de passe WiFi (vide = inchangé)</label><input class="w" id="wpass" type="password">
+   <label>Réseau de secours (SSID, vide = aucun)</label><input class="w" id="ssid2">
+   <label>Mot de passe du réseau de secours (vide = inchangé)</label><input class="w" id="wpass2" type="password">
+   <div class="g">Essayé en alternance quand le premier ne répond pas (box en panne, répéteur…).</div>
    <label>Utilisateur de cette interface (vide = accès libre)</label><input class="w" id="wu">
    <label>Mot de passe de cette interface (vide = inchangé)</label><input class="w" id="wp" type="password">
    <label>Mot de passe OTA (vide = inchangé)</label><input class="w" id="op" type="password">
@@ -291,28 +338,38 @@ function formulaires(){
    <button onclick="majDistante()">Télécharger et installer</button></div>`;
  chargeRes();
  chargeGlobaux();
+ scan();
+ etatEssai();
 }
 async function chargeGlobaux(){
  const g=await J('/api/globaux');if(!g)return;
  for(const [k,v] of Object.entries({gA:g.courantAlimA,gW:g.puissanceTapisW,gV:g.tensionV,
   gE:g.maintenanceMin,gS:g.ecranVeilleMin,gSD:g.saisonDelta,gS1:g.saisonDescenteJ,
-  gS2:g.saisonPlateauJ,gS3:g.saisonRemonteeJ})) {const el=document.getElementById(k);if(el)el.value=v;}
+  gS2:g.saisonPlateauJ,gS3:g.saisonRemonteeJ,gRH:hm(g.rapportMinutes),gP:g.prixKwh||'',gEN:g.ecranNuit,
+  gL:g.ledEteinte?'1':'0',gRA:g.rapportActif?'1':'0',gSo:g.soleilActif?'1':'0',gZP:g.zonePrioritaire,
+  gLa:g.latitude||g.longitude?g.latitude:'',gLo:g.latitude||g.longitude?g.longitude:'',gSM:g.soleilDecalageMin})) {const el=document.getElementById(k);if(el)el.value=v;}
  document.getElementById('gSA').value=g.saisonActive?'1':'0';
+ document.getElementById('gEtatSoleil').textContent=g.soleilJour!==undefined
+  ?'Aujourd\'hui : jour à '+hm(g.soleilJour)+', nuit à '+hm(g.soleilNuit)+'.'
+  :g.soleilActif?'Enregistré : appliqué dès que l\'heure sera connue.':'Horaires fixes de chaque zone.';
  document.getElementById('gZones').textContent=
   g.zonesSimultanees+' zone(s) peuvent chauffer en même temps avec cette alimentation.';
  document.getElementById('gEtatSaison').textContent=
   g.saisonActive?('Cycle en cours · décalage appliqué : '+g.decalageActuel.toFixed(2)+' °C')
    :(g.heureFiable?'Cycle inactif.':'Cycle inactif — et l\'heure est inconnue, il ne peut pas démarrer.');}
 async function envoyerGlobaux(redemarrerCycle){
- const v=id=>encodeURIComponent(document.getElementById(id).value);
+ // Virgule décimale acceptée : « 0,25 » ne doit pas devenir 0.
+ const v=id=>encodeURIComponent(document.getElementById(id).value.trim().replace(',','.'));
  let q=`courantAlimA=${v('gA')}&puissanceTapisW=${v('gW')}&tensionV=${v('gV')}`
   +`&maintenanceMin=${v('gE')}&ecranVeilleMin=${v('gS')}&saisonActive=${v('gSA')}`
-  +`&saisonDelta=${v('gSD')}&saisonDescenteJ=${v('gS1')}&saisonPlateauJ=${v('gS2')}&saisonRemonteeJ=${v('gS3')}`;
+  +`&saisonDelta=${v('gSD')}&saisonDescenteJ=${v('gS1')}&saisonPlateauJ=${v('gS2')}&saisonRemonteeJ=${v('gS3')}`
+  +`&rapportActif=${v('gRA')}&rapportHeure=${v('gRH')}&prixKwh=${v('gP')}&ledEteinte=${v('gL')}&ecranNuit=${v('gEN')}`
+  +`&soleilActif=${v('gSo')}&latitude=${v('gLa')}&longitude=${v('gLo')}&soleilDecalageMin=${v('gSM')}&zonePrioritaire=${v('gZP')}`;
  if(redemarrerCycle)q+='&saisonRedemarrer=1';
  const r=await F('/api/globaux',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Terrarium':'1'},body:q});
  alert(await r.text());chargeGlobaux();maj();}
 async function chargeRes(){const c=await J('/api/reseau');if(!c)return;
- for(const [k,v] of Object.entries({ssid:c.ssid,wu:c.webUtilisateur,ua:c.urlAlertes,uh:c.urlHeartbeat,
+ for(const [k,v] of Object.entries({ssid:c.ssid,ssid2:c.ssid2||'',wu:c.webUtilisateur,ua:c.urlAlertes,uh:c.urlHeartbeat,
   hm:c.heartbeatMinutes,mh:c.mqttHote,mp:c.mqttPort,mx:c.mqttPrefixe,mu:c.mqttUtilisateur,tz:c.fuseau,ntp:c.ntp}))
   document.getElementById(k).value=v;
  document.getElementById('ha').value=c.decouverteHA?'1':'0';
@@ -362,14 +419,64 @@ async function majDistante(){
   body:(c.startsWith('https://')?'url=':'version=')+encodeURIComponent(c)});
  document.getElementById('etatMaj').textContent=await r.text();
  if(r.status===200)setTimeout(()=>location.reload(),60000);}
-async function scan(){
- const d=await J('/api/sondes');if(!d)return;let h='';
+const hm=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+const noms=()=>S?S.zones.map(z=>z.nom):['Zone 1','Zone 2'];
+let tIdent=0,tEssai=0;
+// Sondes : la liaison de chaque zone (et si sa sonde est là), puis le bus.
+async function scan(relire){
+ const d=await J('/api/sondes'+(relire?'?relire=1':''));const el=document.getElementById('sondes');if(!d||!el)return;
+ let h='';
+ (d.liaisons||[]).forEach((l,z)=>{h+='<div class="g" style="margin:6px 0"><b>'+esc(noms()[z])+'</b> : '+
+  (l?esc(l.rom)+(l.presente?'':' <span class="bad">absente du bus</span>'):'<span class="warn">aucune sonde liée</span>')+
+  ' <button class="s" onclick="identifier('+z+')">Identifier</button></div>';});
+ h+='<h3>Sur le bus</h3>';
  d.sondes.forEach(s=>{
-  h+='<div class="g" style="margin:6px 0">'+esc(s.rom)+' — '+s.temp.toFixed(2)+' °C '+
-     (s.zone>=0?'(liee a la zone '+(s.zone+1)+')':'(non liee)');
-  for(let z=0;z<2;z++)h+=' <button class="s" onclick="lier(\''+esc(s.rom)+'\','+z+')">vers zone '+(z+1)+'</button>';
+  h+='<div class="g" style="margin:6px 0">'+esc(s.rom)+' — '+(s.temp===null?'--':s.temp.toFixed(2)+' °C')+' '+
+     (s.zone>=0?'(zone '+(s.zone+1)+')':'(libre)');
+  noms().forEach((n,z)=>{if(s.zone!==z)h+=' <button class="s" onclick="lier(\''+esc(s.rom)+'\','+z+')">vers '+esc(n)+'</button>';});
   h+='</div>';});
- document.getElementById('sondes').innerHTML=h||'<div class="g">aucune sonde detectee</div>';}
+ if(!d.sondes.length)h+='<div class="g">Aucune sonde détectée : câblage, résistance de 4,7 kΩ ?</div>';
+ if(d.identification)h+='<div class="avert" style="margin-top:8px">Zone '+d.identification.zone+' : serre la sonde voulue dans la main ('+
+  d.identification.restantS+' s). Chauffage suspendu. <a href="#" onclick="annulerIdent();return false">Annuler</a></div>';
+ else if(d.resultat)h+='<div class="g" style="margin-top:8px">'+esc(d.resultat)+'</div>';
+ el.innerHTML=h;
+ clearTimeout(tIdent);if(d.identification)tIdent=setTimeout(scan,3000);}
+async function identifier(z){
+ if(!confirm('Identifier la sonde de « '+noms()[z]+' » ? Le chauffage est suspendu 2 min au plus : serre ensuite la sonde voulue dans la main.'))return;
+ const r=await F('/api/identifier?z='+z,{method:'POST',headers:H});if(!r.ok)alert(await r.text());scan();}
+async function annulerIdent(){await F('/api/identifier',{method:'DELETE',headers:H});scan();}
+async function calibrer(){
+ if(!confirm('Les sondes sont-elles côte à côte depuis quelques minutes ? Leurs calibrations seront alignées sur la zone 1.'))return;
+ const r=await F('/api/calibrer',{method:'POST',headers:H});alert(await r.text());
+ // Le champ « Calibration » doit montrer la nouvelle valeur : l'enregistrer tel
+ // quel ensuite effacerait la calibration.
+ await maj();if(S)S.zones.forEach((z,i)=>{const o=document.getElementById('o'+i);if(o)o.value=z.offset;});}
+async function etatEssai(){
+ const e=await J('/api/essai');const el=document.getElementById('essai');if(!e||!el)return;
+ el.innerHTML=e.zone?'<div class="avert" style="margin-top:8px">Essai en cours sur « '+esc(noms()[e.zone-1])+' » : '+Math.ceil(e.restantS/60)+' min au plus.</div>'
+  :'<div class="g" style="margin-top:8px">'+(e.resultat?esc(e.resultat):'Aucun essai depuis le démarrage.')+'</div>';
+ clearTimeout(tEssai);if(e.zone)tEssai=setTimeout(etatEssai,5000);}
+async function essai(z){
+ if(!confirm('Essai de chauffe sur « '+noms()[z]+' » : 10 min au plus, l\'autre zone attend. Lancer ?'))return;
+ const r=await F('/api/essai?z='+z,{method:'POST',headers:H});if(!r.ok)alert(await r.text());etatEssai();}
+async function arreterEssai(){await F('/api/essai',{method:'DELETE',headers:H});etatEssai();}
+async function voirRapport(){const r=await F('/api/rapport');const p=document.getElementById('rapport');
+ p.hidden=false;p.textContent=r.ok?await r.text():'Rapport indisponible.';}
+// Résumés journaliers : un an au plus en flash, le dernier mois ici.
+async function jours(){
+ const d=await J('/api/jours?n=31');const el=document.getElementById('jours');if(!d||!el||!d.jours)return;
+ if(!d.jours.length){el.innerHTML='<div class="g">Le premier résumé s\'écrit à minuit, une fois l\'heure connue.</div>';return;}
+ const f=(v,n)=>v===null||v===undefined?'—':v.toFixed(n);
+ let h='<table><tr><th>Jour</th>'+noms().map(n=>'<th>'+esc(n)+'</th>').join('')+'</tr>';
+ d.jours.forEach(j=>{h+='<tr><td>'+esc(j.date)+'</td>'+j.zones.map(z=>'<td>'+f(z.min,1)+' à '+f(z.max,1)+' °C<br>'+
+  f(z.heures,1)+' h · '+f(z.kWh,2)+' kWh'+(d.prixKwh>0&&z.euros!==null?' · '+z.euros.toFixed(2)+' €':'')+
+  (z.defauts?' · <span class="bad">'+z.defauts+' défaut(s)</span>':'')+'</td>').join('')+'</tr>';});
+ el.innerHTML=h+'</table>';}
+async function restaurer(){
+ const f=document.getElementById('fSauv').files[0];if(!f){alert('Choisis d\'abord un fichier de sauvegarde.');return;}
+ if(!confirm('Remplacer la configuration de ce socle par celle de '+f.name+' ?'))return;
+ const r=await F('/api/sauvegarde',{method:'POST',headers:{'Content-Type':'application/json'},body:await f.text()});
+ alert(await r.text());if(r.ok)location.reload();}
 async function lier(rom,z){const r=await F('/api/sondes?rom='+rom+'&z='+z,{method:'POST',headers:H});alert(await r.text());scan();}
 async function envoyer(i){
  const v=id=>encodeURIComponent(document.getElementById(id+i).value);
@@ -381,7 +488,7 @@ async function envoyer(i){
  alert(await r.text());maj();}
 async function envoyerRes(){
  const v=id=>encodeURIComponent(document.getElementById(id).value);
- const q=`ssid=${v('ssid')}&wifiPass=${v('wpass')}&webUser=${v('wu')}&webPass=${v('wp')}&otaPass=${v('op')}&apPass=${v('ap')}`+
+ const q=`ssid=${v('ssid')}&wifiPass=${v('wpass')}&ssid2=${v('ssid2')}&wifiPass2=${v('wpass2')}&webUser=${v('wu')}&webPass=${v('wp')}&otaPass=${v('op')}&apPass=${v('ap')}`+
   `&urlAlertes=${v('ua')}&formatAlertes=${v('fa')}&alerteJeton=${v('aj')}&urlHeartbeat=${v('uh')}&heartbeatMin=${v('hm')}&mqttHote=${v('mh')}&mqttPort=${v('mp')}`+
   `&mqttPrefixe=${v('mx')}&mqttUser=${v('mu')}&mqttPass=${v('mw')}&ha=${v('ha')}&mqttTls=${v('mt')}&verifierTls=${v('vt')}&fuseau=${v('tz')}&ntp=${v('ntp')}`;
  if(!confirm("Enregistrer et redémarrer ? Le chauffage est coupé pendant le redémarrage."))return;

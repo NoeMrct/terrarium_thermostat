@@ -19,9 +19,7 @@
    ============================================================================= */
 
 /* global document, navigator, caches, window, localStorage */
-const path = require('path');
-const http = require('http');
-const fs = require('fs');
+const { servirApp } = require('./servir-app');
 let playwright;
 try { playwright = require('playwright'); }
 catch (e) { console.error('Playwright est nécessaire : npm install --no-save playwright && npx playwright install chromium'); process.exit(2); }
@@ -33,27 +31,12 @@ const JETON = arg('jeton', 'SIMULATIONTESTJETON00001');
 const PORT = +arg('port', 8081);
 const MOTEUR = arg('navigateur', 'chromium');
 if (!playwright[MOTEUR]) { console.error(`Moteur inconnu : ${MOTEUR} (chromium, webkit ou firefox)`); process.exit(2); }
-const APP = path.resolve(__dirname, '..', 'app');
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css',
-                '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' };
 
 let ok = 0, ko = 0;
 const v = (q, c, d = '') => { console.log(`   ${c ? '[ OK ]' : '[ECHEC]'} ${q.padEnd(54)} ${String(d).slice(0, 60)}`); c ? ok++ : ko++; };
 
-const serveur = http.createServer((req, res) => {
-  let f = path.join(APP, decodeURIComponent(req.url.split('?')[0]));
-  if (f.endsWith('/')) f += 'index.html';
-  // version.json est produit à la publication : ici, une valeur de test.
-  if (req.url.split('?')[0] === '/version.json' && !fs.existsSync(f)) {
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ version: 'test', commit: 'banc', date: '' })); return;
-  }
-  fs.readFile(f, (e, d) => {
-    if (e) { res.statusCode = 404; res.end('absent'); return; }
-    res.setHeader('Content-Type', TYPES[path.extname(f)] || 'application/octet-stream');
-    res.end(d);
-  });
-}).listen(PORT);
+// version.json est produit à la publication : ici, une valeur de test.
+const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 'banc', date: '' } });
 
 (async () => {
   console.log(`Moteur : ${MOTEUR}`);

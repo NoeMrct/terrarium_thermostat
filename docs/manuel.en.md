@@ -59,9 +59,23 @@ as a QR code. It can be found again in the Network tab and with the `jeton` seri
 
 ## 5. Linking probes to zones
 
-Each DS18B20 probe has a unique address. **Settings → Detected 1-Wire probes → Scan**, then
-"to zone 1" / "to zone 2". If only one probe shows up, it is the wiring (see troubleshooting),
-not the software.
+Each DS18B20 probe has a unique address, and each zone follows the address of **its** probe: a
+probe is never linked to two zones, and a zone without a probe stays in fault, heating off. At
+the first boot, probes are linked in bus order; nothing says this order is that of the plates. To
+be sure, in the local interface, **Settings → Probes**:
+
+1. **Identify** next to a zone, then hold that zone's probe in your hand for a minute. The base
+   recognises it (it is the one warming up) and links it to the zone. Heating is suspended
+   meanwhile. Over serial: `identifier 1`.
+2. **Heating test** (same tab, or `essai 1`): the zone heats alone for ten minutes at most and the
+   base says whether it is really its own probe that rises. Do it when commissioning each mat.
+3. **Calibrate** (or `calibrer`): probes laid side by side for a few minutes, the other zones are
+   aligned on zone 1.
+
+**Re-read the bus** after plugging in a probe; "to zone 1" / "to zone 2" links by hand. If only
+one probe shows up, it is the wiring (see troubleshooting), not the software. While running, the
+base also checks that heating a zone raises its own probe: if another zone's probe rises instead,
+both zones go into the HEATING WITHOUT EFFECT fault (label `CHAUFFE SANS EFFET`).
 
 The probe goes **at the hot spot, under the substrate, against the mat** — never in the air.
 Check with an infrared thermometer before putting an animal in.
@@ -107,6 +121,15 @@ stable, it makes the zone oscillate for about an hour, then saves what it learne
 **Device** tab: the power supply (available amps, power of one mat), seasonal cycling,
 statistics, the base's health, settings backups.
 
+In the local interface, **Settings → General settings** adds:
+
+- **Day and night following the sun**: latitude and longitude (two decimals are enough), and an
+  optional offset; sunrise and sunset then replace the fixed times, through the seasons.
+- **Priority zone**: when the power supply cannot feed both mats at once, it gets the larger share
+  of heating time.
+- **Price per kWh**: the heating cost appears in the statistics and the report.
+- **Screen at night** (dimmed, normal or off) and **board LED**.
+
 ## 8. Reading the status
 
 - **online**: the base is publishing. **silent**: it is announced online but has published
@@ -116,8 +139,21 @@ statistics, the base's health, settings backups.
   for, from 0 to 100 %.
 - **drift**: the temperature has been moving away from the setpoint for a while without a fault
   being declared. Often: lid open, cold room, ageing mat.
-- **FAULT**: the zone's heating is cut and locked. The label says why (PROBE, OVERHEAT,
-  FROZEN…). Once the cause is fixed, **Clear faults**.
+- **too hot**: the zone has been above its setpoint for a while without heating (room too warm,
+  lamp). The base can do nothing about it: cool the room or lower the lamp.
+- **FAULT**: the zone's heating is cut and locked. The label says why (probe, overheat, frozen
+  probe, heating without effect) and a tip is shown below it. Once the cause is fixed, **Clear
+  faults**.
+
+On the base itself, with no cable and no phone:
+
+- **The screen** shows the IP address at the bottom, or what is wrong (WIFI --, an MQTT code, AP
+  config, ENTRETIEN). A **short press on BOOT** moves to the last 6 hours' curves, then to the
+  network, probes and system pages;
+  **3 s** shows the pairing QR; **10 s** opens the configuration network (to change routers).
+- **The blue LED**: fast blinking, a zone in fault; steady, identification or test running; slow
+  blinking, configuration network open; one flash per second, no Wi-Fi; double flash, MQTT
+  refused; a short flash every five seconds, all is well.
 
 ## 9. Charts and statistics
 
@@ -138,6 +174,9 @@ whether a terrarium **holds** its values, not only whether it reaches them.
   "Alert URL" in the Network tab, choose the "text" format, install ntfy on the phone. Details
   in `docs/alertes-telephone.md`. With the Terrariums server: "Enable server notifications" in
   the Device tab, and the server pushes the alerts.
+- **Daily report** (local interface, General settings): at the chosen time, a summary of the day
+  — temperatures, heating hours, kWh, cost, faults — sent to the alert URL (low priority on ntfy)
+  and on the `rapport` MQTT topic.
 - **Knowing it is alive**: the heartbeat URL called every five minutes; with
   [healthchecks.io](https://healthchecks.io), you are warned when the base goes quiet.
 - **Home automation**: Home Assistant discovery can be enabled in the Network tab; `/metrics`
@@ -149,8 +188,13 @@ whether a terrarium **holds** its values, not only whether it reaches them.
   itself at the given time.
 - **Settings backup** (Device tab): a JSON file with setpoints, schedules and device settings,
   to import again on a spare base.
+- **Base configuration backup** (local interface, Device tab): zones, settings, linked probes and
+  alerts in one file, to restore on a replacement board. Wi-Fi and passwords are not in it; the
+  alert URL is.
+- **Daily summaries** (local interface, Device tab, or `jours`): a year of days — temperatures,
+  heating hours, kWh and cost.
 - **Export configuration** (bottom of the list): the whole app — broker and bases — to change
-  phones. The file contains the pairing codes: keep it to yourself.
+  phones. The file contains the pairing codes and the broker password: keep it to yourself.
 - **Restart**, **Erase history**: Device tab. The app's local history is erased at the same time.
 
 ## 12. Updating

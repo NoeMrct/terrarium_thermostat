@@ -7,6 +7,82 @@ affiche le commit dont elle est issue.
 
 ## [Non publié]
 
+Firmware 3.5.0 (`FW_VERSION`). Le binaire ne tient plus dans les emplacements
+de 1,5 Mo des socles flashés avant la 3.4.0 : ceux-là se reflashent une fois
+par câble (la mise à jour à distance refuse le binaire sans rien casser). Les
+réglages persistés s'enrichissent par la fin : rien n'est perdu à la mise à
+jour.
+
+### Ajouté
+- **Sondes sûres.** Chaque zone suit l'adresse de sa sonde et une sonde n'est
+  jamais liée à deux zones. Plus de repli sur « la n-ième sonde du bus » : une
+  zone sans sonde liée reste en défaut SONDE, chauffe coupée. La liaison
+  automatique n'a lieu que sans ambiguïté (premier démarrage, ou une seule zone
+  libre, une seule sonde orpheline et toutes les autres présentes). `scan` et
+  « Relire le bus » relisent vraiment le bus, et il est relu de lui-même toutes
+  les 5 min tant qu'une zone n'a pas de mesure.
+- **Assistant d'identification** (`identifier <z>`, bouton « Identifier ») :
+  le chauffage est suspendu, on serre la sonde voulue dans la main et le socle
+  la lie à la zone (2 min au plus).
+- **Contrôle croisé « sondes inversées »** : après 6 min de chauffe effective,
+  si la sonde de la zone ne bouge pas alors que celle d'une autre zone monte,
+  les deux zones passent en défaut CHAUFFE SANS EFFET, avec la raison dans le
+  journal et l'alerte. Une chauffe qui ne fait rien monter du tout reste une
+  simple alerte.
+- **Essai de chauffe guidé** (`essai <z>`, page locale) : la zone chauffe seule
+  10 min au plus, sécurités actives, avec un verdict (sa sonde a pris 0,5 °C,
+  une autre a monté à sa place, ou rien n'a bougé).
+- **Calibration côte à côte** (`calibrer`) : sondes posées ensemble, les
+  décalages des autres zones sont alignés sur la zone 1.
+- **Valeurs aberrantes filtrées** : un saut de plus de 4 °C entre deux lectures
+  n'est retenu qu'après trois confirmations.
+- **Alerte « trop chaud »** : une zone au-dessus de sa consigne, au-delà du seuil
+  de dérive et pendant sa durée, alors qu'elle ne chauffe pas (canicule, lampe)
+  est signalée : alerte urgente, marqueur à l'écran, champ `tropChaud` dans
+  l'état.
+- **Diagnostic sans câble.** Bouton BOOT : appui court, page suivante de
+  l'écran (zones, courbes des 6 dernières heures, réseau, sondes, système) ;
+  3 s, QR d'appairage ; 10 s, point
+  d'accès de configuration. LED bleue, de la plus importante à la plus banale :
+  défaut, identification ou essai, point d'accès, Wi-Fi absent, MQTT refusé,
+  tout va bien (`led off` l'éteint). Ligne d'état en bas de l'écran.
+- **Écran** : flèches de tendance, atténué la nuit (`ecran nuit
+  <attenue|normal|eteint>`), messages temporaires.
+- **Rapport quotidien** (`rapport <HH:MM>`, page locale) : températures sur
+  24 h, heures de chauffe, kWh, coût et défauts, vers l'URL d'alerte (priorité
+  basse pour ntfy) et le sujet MQTT `rapport`.
+- **Coût en euros** (`prix <€/kWh>`) dans `stats`, la page locale et le rapport.
+- **Résumés journaliers sur un an** (`jours [n]`, `/api/jours`, tableau de
+  l'onglet Appareil).
+- **Jour et nuit calés sur le soleil** (`soleil <lat> <lon> [décalage]`) : lever
+  et coucher recalculés chaque jour à la place des horaires fixes.
+- **Zone prioritaire** (`priorite <z>`) : quand l'alimentation ne suffit pas aux
+  deux tapis, elle reçoit la plus grande part du temps de chauffe.
+- **Wi-Fi de secours** (`wifi2 <ssid> [mdp]`, onglet Réseau), essayé en
+  alternance quand le premier ne répond pas.
+- **Sauvegarde et restauration de la configuration** (`/api/sauvegarde`,
+  onglet Appareil) : zones, réglages, sondes liées, alertes ; tout ou rien ;
+  jamais de mot de passe dans le fichier.
+- **Alertes de démarrage** : durée d'une coupure de courant (en fourchette) au
+  retour de l'heure, trois redémarrages anormaux de suite, mémoire fragmentée.
+- Santé : `mqtt` (état de la connexion au broker) et `webProtege` ; la page
+  locale avertit quand elle n'a pas de mot de passe.
+- Application : un conseil sous chaque défaut, marqueur « trop chaud ».
+- Tests : bancs `test-liaisons` et `test-soleil`, scénarios 21 à 28 du
+  simulateur (sondes inversées, couplage légitime, pic isolé, canicule,
+  priorité, essai de chauffe, soleil), fuzzing des liaisons et du soleil, tests
+  de la page locale pour chaque nouveauté.
+
+### Modifié
+- Réessais MQTT espacés : 15 s, puis doublés jusqu'à 5 min, au lieu d'un essai
+  toutes les 5 s contre un broker qui refuse.
+- Négociation TLS des alertes et de la mise à jour tirée bornée à 5-6 s.
+- Le garde-fou de taille ne contrôle plus l'ancienne table de partitions
+  (`--anciens-socles` le rétablit).
+- `npm run lint` et `npm run types` fonctionnent aussi sous Windows.
+- L'avertissement d'export de l'application mentionne le mot de passe du broker,
+  que le fichier contient.
+
 ### Corrigé
 
 - L'identifiant du socle (`terraXXXXXX` : sujets MQTT, nom mDNS, point

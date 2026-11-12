@@ -24,8 +24,11 @@ self.addEventListener('activate', e => {
 });
 
 // L'application demande l'activation immédiate quand l'utilisateur a cliqué
-// « Recharger » : pas de version qui attend indéfiniment un onglet fermé.
-self.addEventListener('message', e => { if (e.data === 'SKIP_WAITING') sw.skipWaiting(); });
+// « Recharger » : pas de version qui attend indéfiniment un onglet fermé. Seule
+// une page de la même origine peut le demander.
+self.addEventListener('message', e => {
+  if (e.origin === location.origin && e.data === 'SKIP_WAITING') sw.skipWaiting();
+});
 
 self.addEventListener('fetch', e => {
   const u = new URL(e.request.url);

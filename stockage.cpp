@@ -19,6 +19,7 @@ const char *CHEMIN_HIST = "/hist.bin";
 const char *CHEMIN_JOURNAL = "/journal.log";
 const char *CHEMIN_JOURNAL_PREC = "/journal.1.log";
 const char *CHEMIN_ALERTES = "/alertes.txt";
+const char *CHEMIN_JOURS = "/jours.bin";
 
 const uint32_t HIST_MAGIC = 0x54455231;  // "TER1"
 
@@ -372,6 +373,64 @@ void sauverEpoch(uint32_t e) {
   prefs.begin("thermo", false);
   prefs.putUInt("epoch", e);
   prefs.end();
+}
+
+uint8_t lireCompteur(const char *cle) {
+  prefs.begin("thermo", true);
+  const uint8_t v = prefs.getUChar(cle, 0);
+  prefs.end();
+  return v;
+}
+
+void ecrireCompteur(const char *cle, uint8_t valeur) {
+  prefs.begin("thermo", false);
+  prefs.putUChar(cle, valeur);
+  prefs.end();
+}
+
+// --- résumés journaliers -----------------------------------------------------
+// Un enregistrement par jour, ajoutés à la suite. Une fois l'an atteint, le
+// fichier est réécrit sans le plus ancien : une fois par jour, 10 Ko, ce qui
+// ne coûte rien à la flash.
+void joursAjouter(const ResumeJour &j) {
+  if (!g_fsPret) return;
+  const uint16_t n = joursNombre();
+  if (n >= JOURS_MAX) {
+    File src = LittleFS.open(CHEMIN_JOURS, "r");
+    File dst = LittleFS.open("/jours.tmp", "w");
+    if (!src || !dst) return;
+    src.seek(sizeof(ResumeJour) * (n - JOURS_MAX + 1));
+    ResumeJour r;
+    while (src.read((uint8_t *)&r, sizeof r) == sizeof r) dst.write((const uint8_t *)&r, sizeof r);
+    src.close();
+    dst.close();
+    LittleFS.remove(CHEMIN_JOURS);
+    LittleFS.rename("/jours.tmp", CHEMIN_JOURS);
+  }
+  File f = LittleFS.open(CHEMIN_JOURS, "a");
+  if (!f) return;
+  f.write((const uint8_t *)&j, sizeof j);
+  f.close();
+}
+
+uint16_t joursNombre() {
+  if (!g_fsPret || !LittleFS.exists(CHEMIN_JOURS)) return 0;
+  File f = LittleFS.open(CHEMIN_JOURS, "r");
+  if (!f) return 0;
+  const size_t n = f.size() / sizeof(ResumeJour);
+  f.close();
+  return (uint16_t)n;
+}
+
+bool joursLire(uint16_t rang, ResumeJour &j) {
+  const uint16_t n = joursNombre();
+  if (rang >= n) return false;
+  File f = LittleFS.open(CHEMIN_JOURS, "r");
+  if (!f) return false;
+  f.seek(sizeof(ResumeJour) * (n - 1 - rang));
+  const bool ok = f.read((uint8_t *)&j, sizeof j) == sizeof j;
+  f.close();
+  return ok;
 }
 
 // --- historique ------------------------------------------------------------

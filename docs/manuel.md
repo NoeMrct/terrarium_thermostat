@@ -58,9 +58,23 @@ et en QR code. Il se retrouve ensuite dans l'onglet Réseau et avec la commande 
 
 ## 5. Lier les sondes aux zones
 
-Les sondes DS18B20 ont chacune une adresse unique. Onglet **Réglages → Sondes 1-Wire détectées →
-Scanner**, puis « vers zone 1 » / « vers zone 2 ». Si une seule sonde apparaît, c'est le câblage
-(voir le dépannage), pas le logiciel.
+Les sondes DS18B20 ont chacune une adresse unique, et chaque zone suit l'adresse de **sa** sonde :
+une sonde n'est jamais liée à deux zones, et une zone sans sonde reste en défaut, chauffe coupée.
+Au premier démarrage, les sondes sont liées dans l'ordre du bus ; rien ne dit que cet ordre est
+celui des plaques. Pour en être sûr, dans l'interface locale, onglet **Réglages → Sondes** :
+
+1. **Identifier** à côté d'une zone, puis serre dans la main la sonde de cette zone pendant une
+   minute. Le socle la reconnaît (c'est elle qui se réchauffe) et la lie à la zone. Le chauffage
+   est suspendu pendant ce temps. En série : `identifier 1`.
+2. **Essai de chauffe** (même onglet, ou `essai 1`) : la zone chauffe seule dix minutes au plus et
+   le socle dit si c'est bien sa sonde qui monte. À faire à la mise en service de chaque tapis.
+3. **Calibrer** (ou `calibrer`) : sondes posées côte à côte quelques minutes, les autres zones
+   sont alignées sur la zone 1.
+
+**Relire le bus** après avoir branché une sonde ; « vers zone 1 » / « vers zone 2 » lie à la main.
+Si une seule sonde apparaît, c'est le câblage (voir le dépannage), pas le logiciel. En
+fonctionnement, le socle vérifie aussi que la chauffe d'une zone fait monter sa propre sonde : si
+c'est celle d'une autre zone qui monte, les deux zones passent en défaut CHAUFFE SANS EFFET.
 
 La sonde va **au point chaud, sous le substrat, contre le tapis** — jamais dans l'air. Vérifie au
 thermomètre infrarouge avant d'installer un animal.
@@ -106,6 +120,15 @@ il fait osciller la zone pendant environ une heure, puis enregistre ce qu'il a a
 Onglet **Appareil** : l'alimentation (ampères disponibles, puissance d'un tapis), le cyclage
 saisonnier, les statistiques, la santé du socle, les sauvegardes de réglages.
 
+Dans l'interface locale, **Réglages → Réglages généraux** ajoute :
+
+- **Jour et nuit calés sur le soleil** : latitude et longitude (deux décimales suffisent), et un
+  décalage éventuel ; le lever et le coucher remplacent alors les horaires fixes, au fil des saisons.
+- **Zone prioritaire** : quand l'alimentation ne suffit pas aux deux tapis à la fois, elle reçoit la
+  plus grande part du temps de chauffe.
+- **Prix du kWh** : le coût de la chauffe apparaît dans les statistiques et le rapport.
+- **Écran la nuit** (atténué, normal ou éteint) et **LED de la carte**.
+
 ## 8. Lire l'état
 
 - **en ligne** : le socle publie. **silencieux** : il est annoncé en ligne mais n'a rien publié
@@ -115,8 +138,21 @@ saisonnier, les statistiques, la santé du socle, les sauvegardes de réglages.
   réclame, de 0 à 100 %.
 - **dérive** : la température s'éloigne de la consigne depuis un moment sans qu'un défaut soit
   déclaré. Souvent : couvercle ouvert, pièce froide, tapis vieillissant.
+- **trop chaud** : la zone dépasse sa consigne depuis un moment alors qu'elle ne chauffe pas
+  (pièce trop chaude, lampe). Le socle n'y peut rien : il faut refroidir la pièce ou baisser la lampe.
 - **DÉFAUT** : le chauffage de la zone est coupé et verrouillé. Le libellé dit pourquoi (SONDE,
-  SURCHAUFFE, FIGEE…). Une fois la cause corrigée, **Lever les défauts**.
+  SURCHAUFFE, SONDE FIGEE, CHAUFFE SANS EFFET) et un conseil s'affiche dessous. Une fois la cause
+  corrigée, **Lever les défauts**.
+
+Sur le socle lui-même, sans câble ni téléphone :
+
+- **L'écran** affiche en bas l'adresse IP, ou ce qui ne va pas (WIFI --, un code MQTT, AP config,
+  ENTRETIEN). Un **appui court sur BOOT** passe aux courbes des 6 dernières heures, puis aux
+  pages réseau, sondes et système ; **3 s** affichent le QR d'appairage ; **10 s** ouvrent le
+  réseau de configuration (changer de box).
+- **La LED bleue** : clignotement rapide, une zone en défaut ; allumée fixe, identification ou essai
+  en cours ; clignotement lent, réseau de configuration ouvert ; un éclair par seconde, pas de
+  Wi-Fi ; double éclair, MQTT refusé ; un bref éclair toutes les cinq secondes, tout va bien.
 
 ## 9. Courbes et statistiques
 
@@ -137,6 +173,9 @@ disent si un terrarium **tient** ses valeurs, pas seulement s'il les atteint.
   « URL d'alerte » de l'onglet Réseau, choisis le format « texte », installe ntfy sur le téléphone.
   Détails dans `docs/alertes-telephone.md`. Avec le serveur Terrariums : « Activer les notifications
   du serveur » dans l'onglet Appareil, et c'est le serveur qui pousse les alertes.
+- **Rapport quotidien** (interface locale, Réglages généraux) : à l'heure choisie, un résumé de la
+  journée — températures, heures de chauffe, kWh, coût, défauts — envoyé à l'URL d'alerte (en
+  priorité basse sur ntfy) et sur le sujet MQTT `rapport`.
 - **Savoir qu'il est vivant** : l'URL de heartbeat appelée toutes les cinq minutes ; avec
   [healthchecks.io](https://healthchecks.io), tu es prévenu quand le socle se tait.
 - **Domotique** : la découverte Home Assistant est activable dans l'onglet Réseau ; `/metrics`
@@ -148,8 +187,14 @@ disent si un terrarium **tient** ses valeurs, pas seulement s'il les atteint.
   seul à l'heure dite.
 - **Sauvegarde des réglages** (onglet Appareil) : un fichier JSON avec consignes, horaires et
   réglages de l'appareil, à réimporter sur un socle de rechange.
+- **Sauvegarde de la configuration du socle** (interface locale, onglet Appareil) : zones, réglages,
+  sondes liées et alertes dans un fichier, à restaurer sur une carte de remplacement. Le Wi-Fi et
+  les mots de passe n'y sont pas ; l'URL d'alerte, si.
+- **Résumés journaliers** (interface locale, onglet Appareil, ou `jours`) : un an de journées —
+  températures, heures de chauffe, kWh et coût.
 - **Exporter la configuration** (bas de la liste) : l'application entière — broker et socles — pour
-  changer de téléphone. Le fichier contient les codes d'appairage : garde-le pour toi.
+  changer de téléphone. Le fichier contient les codes d'appairage et le mot de passe du broker :
+  garde-le pour toi.
 - **Redémarrer**, **Effacer l'historique** : onglet Appareil. L'historique local de l'application est
   effacé en même temps.
 

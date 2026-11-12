@@ -6,13 +6,13 @@
    ne rentre plus — et une mise à jour OTA non plus. Mieux vaut le savoir à la
    revue qu'au flashage.
 
-   Deux emplacements comptent : celui de partitions.csv (socles flashés par USB
-   avec la table courante) et celui des socles flashés avant 3.4.0, qui gardent
-   leur table de 1,5 Mo tant qu'ils ne sont pas reflashés par câble — une mise
-   à jour OTA doit rentrer chez eux aussi. Quand plus aucun socle n'a l'ancienne
-   table, passer --sans-anciens-socles (ou retirer EMPLACEMENT_ANCIEN).
+   L'emplacement contrôlé est celui de partitions.csv. Depuis la 3.5.0, le
+   firmware ne tient plus dans les 1,5 Mo de la table des socles 3.0 à 3.3 :
+   ceux-là se reflashent une fois par câble (la mise à jour à distance refuse
+   proprement un binaire trop gros, rien ne casse). --anciens-socles ajoute ce
+   contrôle pour une branche qui devrait encore les servir.
 
-     node verifier-taille-firmware.js <chemin du .bin compilé> [--sans-anciens-socles]
+     node verifier-taille-firmware.js <chemin du .bin compilé> [--anciens-socles]
    ============================================================================= */
 
 const fs = require('fs');
@@ -20,7 +20,7 @@ const path = require('path');
 
 const args = process.argv.slice(2);
 const bin = args.find(a => !a.startsWith('--'));
-if (!bin || !fs.existsSync(bin)) { console.error('Usage : node verifier-taille-firmware.js <firmware.bin> [--sans-anciens-socles]'); process.exit(2); }
+if (!bin || !fs.existsSync(bin)) { console.error('Usage : node verifier-taille-firmware.js <firmware.bin> [--anciens-socles]'); process.exit(2); }
 
 // La taille de l'emplacement courant est lue dans partitions.csv : si elle
 // change, le seuil suit.
@@ -32,7 +32,7 @@ const SEUIL = 0.95;
 
 const taille = fs.statSync(bin).size;
 const cibles = [['emplacement courant (partitions.csv)', EMPLACEMENT_COURANT]];
-if (!args.includes('--sans-anciens-socles')) cibles.push(['socles flashés avant 3.4.0', EMPLACEMENT_ANCIEN]);
+if (args.includes('--anciens-socles')) cibles.push(['socles flashés avant 3.4.0', EMPLACEMENT_ANCIEN]);
 
 let echec = false;
 for (const [nom, capacite] of cibles) {

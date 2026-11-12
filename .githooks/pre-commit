@@ -19,13 +19,15 @@ if [ -n "$cpp" ] && command -v clang-format >/dev/null 2>&1; then
   fi
 fi
 
-# JavaScript : lint et types.
+# JavaScript : lint et types. Les points d'entrée des paquets, pas les
+# raccourcis de node_modules/.bin : ceux-ci dépendent du système qui a fait
+# `npm ci` (liens symboliques sous Linux, .cmd sous Windows).
 js=$(printf '%s\n' "$fichiers" | grep -E '^(app|outils|serveur)/.*\.js$|^eslint\.config\.js$' | grep -v node_modules | grep -v installateur || true)
-if [ -n "$js" ] && [ -x outils/node_modules/.bin/eslint ]; then
-  outils/node_modules/.bin/eslint $js || echec=1
+if [ -n "$js" ] && [ -f outils/node_modules/eslint/bin/eslint.js ]; then
+  node outils/node_modules/eslint/bin/eslint.js $js || echec=1
 fi
-if printf '%s\n' "$fichiers" | grep -qE '^app/.*\.js$' && [ -x outils/node_modules/.bin/tsc ]; then
-  outils/node_modules/.bin/tsc -p jsconfig.json || echec=1
+if printf '%s\n' "$fichiers" | grep -qE '^app/.*\.js$' && [ -f outils/node_modules/typescript/bin/tsc ]; then
+  node outils/node_modules/typescript/bin/tsc -p jsconfig.json || echec=1
 fi
 
 # Fichiers générés : page compressée, aide, démonstration.

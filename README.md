@@ -699,7 +699,17 @@ sont dans des zones de mémoire que le téléversement ne touche pas.
 | `alim <A> [W] [V]` | Puissance disponible → zones simultanées |
 | `saison <°C> <jours> [plateau] [remontée]` | Cyclage saisonnier (`saison off`) |
 | `ecran <minutes>` | Veille de l'afficheur (0 = jamais) |
-| `scan` | Liste les sondes détectées avec leur numéro de série |
+| `ecran nuit <attenue\|normal\|eteint>` | L'afficheur la nuit |
+| `led <on\|off>` | LED d'état de la carte |
+| `scan` | Relit le bus et liste les sondes, avec la zone de chacune |
+| `identifier <z>` | Lier la sonde que l'on serre dans la main à la zone (`identifier stop`) |
+| `essai <z>` | Essai de chauffe de mise en service, avec verdict (`essai stop`) |
+| `calibrer` | Sondes côte à côte : aligner les autres zones sur la zone 1 |
+| `rapport [HH:MM\|off\|envoyer]` | Rapport quotidien ; sans argument, l'afficher |
+| `prix <€/kWh\|off>` | Coût de la chauffe dans `stats`, la page et le rapport |
+| `jours [n]` | Résumés journaliers (un an au plus) |
+| `soleil <lat> <lon> [min]` | Jour et nuit calés sur le soleil (`soleil off`) |
+| `priorite <z\|off>` | Zone servie en priorité quand l'alimentation manque |
 | `journal` | Les derniers événements |
 | `reseau` | État WiFi, MQTT, alertes, heure |
 | `nom 1 Pogona` | Renommer une zone |
@@ -718,6 +728,7 @@ sont dans des zones de mémoire que le téléversement ne touche pas.
 | `stop-autotune 1` | L'interrompre |
 | `lier 0 1` | Associer la sonde n°0 à la zone 1 |
 | `wifi SSID motdepasse` | Identifiants réseau — essayés tout de suite, enregistrés si le réseau répond |
+| `wifi2 SSID [motdepasse]` | Réseau de secours, essayé en alternance (`wifi2 off`) |
 | `maj [version\|url]` | Faire télécharger et installer une release par le socle lui-même |
 | `test usine [oui]` | Auto-test : écran, sondes, mémoire, partitions, Wi-Fi, heure ; `oui` actionne aussi chaque MOSFET une fraction de seconde |
 | `motdepasse web <mdp>` | Protéger l'interface web |
@@ -880,8 +891,12 @@ l'écriture réelle en flash. Ces parties sont relues et compilées, pas exercé
 
 À faire **avant d'y installer un animal**, dans cet ordre :
 
-1. `scan` renvoie bien deux sondes, avec des températures plausibles.
-2. Vérifier au multimètre qu'un seul MOSFET conduit à la fois.
+1. `scan` renvoie bien deux sondes, avec des températures plausibles ;
+   `identifier 1` puis `identifier 2` (sonde serrée dans la main) les lient
+   chacune à sa zone.
+2. Vérifier au multimètre qu'un seul MOSFET conduit à la fois, puis `essai 1`
+   et `essai 2` : chaque zone chauffe seule et le socle confirme que c'est sa
+   sonde qui monte.
 3. Laisser tourner une nuit et comparer aux relevés d'un thermomètre
    indépendant, puis calibrer avec `offset`.
 4. Débrancher volontairement une sonde : le défaut doit apparaître en moins de
@@ -899,7 +914,7 @@ l'écriture réelle en flash. Ces parties sont relues et compilées, pas exercé
 |---|---|
 | `scan` ne trouve aucune sonde | Résistance de 4,7 kΩ absente, ou fil de données sur la mauvaise broche |
 | Une seule sonde sur deux détectée | Soudure, ou deux sondes qui se gênent sur un fil trop long |
-| Les zones semblent inversées | Association non figée : faire `scan` puis `lier` |
+| Les zones semblent inversées, ou défaut « CHAUFFE SANS EFFET » sur les deux zones | Sondes inversées : `identifier 1`, `identifier 2`, puis `reset` |
 | Un tapis chauffe au démarrage | Résistance de 10 kΩ manquante sur la grille |
 | La température n'atteint jamais la consigne | Regarder la charge : si elle est à 100 %, l'alimentation ou le tapis est sous-dimensionné |
 | Alerte « chauffe sans effet » | Tapis grillé, MOSFET HS, sonde déplacée, ou puissance insuffisante. Plaque brûlante au toucher : le bilame a ouvert, la sonde n'est plus dessus |

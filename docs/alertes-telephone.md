@@ -21,7 +21,13 @@ lui-même** appelle un service de notification à chaque alerte (sections 1 et
    « Terrarium terraXXXXXX — alerte : [Point chaud] Zone 1 en DEFAUT : SONDE… ».
 
 En format texte, le socle envoie le message en clair avec les en-têtes `Title`,
-`Priority` (haute pour un défaut, une chute, une chauffe sans effet) et `Tags`.
+`Priority` (haute pour un défaut, une chute, une chauffe sans effet, une sonde
+figée ou une zone trop chaude ; basse pour le rapport quotidien, qui ne fait pas
+sonner le téléphone) et `Tags`.
+
+Le **rapport quotidien** (interface locale, Réglages généraux, ou `rapport 20:00`
+en série) passe par la même URL : chaque jour à l'heure choisie, températures,
+heures de chauffe, kWh, coût et défauts de la journée.
 Un serveur ntfy auto-hébergé fonctionne de la même façon ; un sujet protégé par
 mot de passe se configure avec le « jeton envoyé avec les alertes »
 (`Authorization: Bearer …`, ntfy accepte ses jetons d'accès ainsi).

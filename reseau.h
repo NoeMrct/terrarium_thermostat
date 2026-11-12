@@ -19,6 +19,12 @@ bool connecte();
 // Connexion MQTT, en clair pour la console : « connecte », « desactive »,
 // ou la raison du dernier échec (mot de passe refusé, TLS…).
 String etatMqtt();
+const char *etatCourtMqtt();  // « MQTT MDP? », « MQTT TLS »… ou vide si tout va bien
+bool mqttConnecte();
+void publierRapport(const String &texte);  // sujet retenu <base>/rapport
+void modeConfiguration();                  // point d'accès de configuration, à la demande
+String ssidConnecte();
+int rssi();
 bool modePointAcces();
 String adresse();
 String nomHote();            // « terraA1B2C3.local » : l'interface locale de CE socle

@@ -33,8 +33,11 @@ flowchart TD
    des liaisons à haute résistance.
 6. Si une seule sonde : la lier aux deux zones en attendant n'est pas possible ;
    la zone sans sonde reste en défaut, c'est voulu.
-7. Deux sondes détectées mais la zone reste en défaut : `lier <index> <zone>`
-   puis `reset`.
+7. Deux sondes détectées mais la zone reste en défaut : `identifier <zone>` (puis
+   serrer sa sonde dans la main) ou `lier <index> <zone>`, puis `reset`.
+8. Sonde remplacée : l'ancienne est « absente du bus » et la nouvelle n'est pas
+   liée d'office (elle pourrait être celle d'une autre plaque). `identifier
+   <zone>` la lie sans ambiguïté.
 
 ## E — Défaut SURCHAUFFE
 
@@ -51,13 +54,25 @@ La sonde renvoie strictement la même valeur pendant des minutes. Souvent un fil
 data intermittent (valeur en cache du capteur) ou une sonde contrefaite. Secouer
 doucement le câble en regardant `status` : si la valeur bouge, c'est le fil.
 
+## G — Défaut CHAUFFE SANS EFFET (sondes inversées)
+
+La chauffe d'une zone a fait monter la sonde d'une autre zone, pas la sienne :
+les sondes sont presque toujours inversées (ou posées sur la mauvaise plaque).
+Les deux zones sont coupées.
+
+1. `identifier 1`, puis serrer dans la main la sonde posée sur la plaque 1 ;
+   pareil pour la zone 2. Ou intervertir les sondes physiquement.
+2. `reset` pour lever les défauts.
+3. `essai 1` puis `essai 2` : chaque zone chauffe seule et le socle confirme que
+   c'est bien sa sonde qui monte.
+
 ## H — Problèmes à distance (application)
 
 | Ce que montre l'application | Cause probable | Quoi faire |
 |---|---|---|
 | « non connecté » / erreur d'adresse | URL du broker fausse, pas en `wss://` | Tester la connexion ; adresse `wss://…:8884/mqtt` chez HiveMQ |
 | « connexion refusée : identifiants » | mauvais compte broker | Compte de l'application (`appli`), pas celui du socle |
-| socle **hors ligne** | socle sans Wi-Fi ou sans MQTT | Écran du socle : « AP » ? `reseau` en série ; `mqtt` réglé ? TLS 8883 ? |
+| socle **hors ligne** | socle sans Wi-Fi ou sans MQTT | Bas de l'écran (WIFI --, code MQTT, AP config) ou LED bleue (éclair par seconde : pas de Wi-Fi ; double éclair : MQTT refusé) ; `reseau` en série donne la raison ; `mqtt` réglé ? TLS 8883 ? |
 | socle **silencieux** | en ligne mais ne publie plus | Wi-Fi faible (voir Santé du socle), redémarrer |
 | « le socle n'a pas répondu » | commande sans réponse | identifiant du socle exact (`terraXXXXXX`) ; préfixe des sujets identique des deux côtés |
 | « jeton invalide » | code d'appairage faux | 24 caractères, majuscules ; `jeton` en série |
@@ -73,8 +88,12 @@ doucement le câble en regardant `status` : si la valeur bouge, c'est le fil.
   100 % en permanence = manque de puissance.
 - **Oscille** : lancer l'autotune une fois stable ; sinon bande plus large.
 - **Dérive signalée** : couvercle ouvert, pièce froide, tapis vieillissant.
-- **Chauffe sans effet** : fil de tapis coupé, bilame ouvert (plaque > 70 °C ?),
-  fusible. Avec un INA219, la mesure de courant le dit directement.
+- **Chauffe sans effet** (alerte) : le tapis chauffe et rien ne monte. Fil de
+  tapis coupé, bilame ouvert (plaque > 70 °C ?), fusible. Avec un INA219, la
+  mesure de courant le dit directement. Si c'est la sonde d'une autre zone qui
+  monte, c'est un défaut : voir G.
+- **Trop chaud** : la zone dépasse sa consigne sans chauffer. La pièce ou une
+  lampe chauffe plus que voulu : le socle ne peut que couper, c'est déjà fait.
 
 ## Après un redémarrage inattendu
 
@@ -84,3 +103,8 @@ partitions et Wi-Fi. `CHUTE D'ALIMENTATION` = le 5 V s'est effondré : LM2596,
 câble, ou tapis qui tire sur le 12 V au démarrage. `PANIQUE` = bug : joindre le
 fichier `/api/coredump` à un rapport. Une mise à jour fraîche qui plante est
 annulée toute seule : le socle revient à la version d'avant et le dit.
+
+Trois redémarrages anormaux de suite déclenchent une alerte : à ce stade, c'est
+l'alimentation ou le câblage qu'il faut revoir avant toute chose. Après une
+coupure de courant, une alerte donne sa durée (en fourchette) dès que l'heure
+est revenue.

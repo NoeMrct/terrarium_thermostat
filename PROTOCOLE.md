@@ -79,7 +79,8 @@ Avec un préfixe `terrarium` et un identifiant d'appareil `terraA1B2C3` :
 | `terrarium/terraA1B2C3/statut` | socle → app | `en ligne` / `hors ligne` (persistant) |
 | `terrarium/terraA1B2C3/zone1/etat` | socle → app | JSON d'état (persistant), **dès que quelque chose change** — au plus toutes les 2 s — et de toute façon toutes les 60 s |
 | `terrarium/terraA1B2C3/zone2/etat` | socle → app | idem |
-| `terrarium/terraA1B2C3/sante` | socle → app | JSON de santé (persistant), toutes les 60 s : `proto`, `version`, `uptime`, `rssi`, `heap`, `heapMin`, `blocMax`, `reset`, `otaEnAttente`, `signatureOta`, `hote` (`terraA1B2C3.local`), `ip`, `maj` (dernière mise à jour tirée : `etape`, `version`, `detail` — absent si aucune), `plantage` (si un coredump existe), `courantA`/`energieWh` (avec INA219) |
+| `terrarium/terraA1B2C3/sante` | socle → app | JSON de santé (persistant), toutes les 60 s : `proto`, `version`, `uptime`, `rssi`, `heap`, `heapMin`, `blocMax`, `reset`, `otaEnAttente`, `signatureOta`, `hote` (`terraA1B2C3.local`), `ip`, `maj` (dernière mise à jour tirée : `etape`, `version`, `detail` — absent si aucune), `plantage` (si un coredump existe), `courantA`/`energieWh` (avec INA219), `mqtt` (état de la connexion au broker, en clair) et `webProtege` (l'interface locale demande un mot de passe), depuis la 3.5 |
+| `terrarium/terraA1B2C3/rapport` | socle → app | rapport quotidien en texte (persistant), à l'heure choisie, si le rapport est activé — depuis la 3.5 |
 | `terrarium/terraA1B2C3/maj` | socle → app | progression d'une mise à jour tirée (non persistant) : `etat` (`telechargement`, `redemarrage`, `erreur`), `pct`, `detail`, `version` |
 | `terrarium/terraA1B2C3/cmd` | app → socle | requête JSON (l'application l'envoie en QoS 1) |
 | `terrarium/terraA1B2C3/reponse` | socle → app | réponse JSON |

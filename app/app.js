@@ -57,7 +57,11 @@ const App = (() => {
       notifDefaut: '{nom} — DÉFAUT', notifDefautCorps: '{zone} : {d}. Chauffage coupé.',
       notifRetabli: '{nom} — rétabli', notifRetabliCorps: '{zone} est revenue à la normale.',
       attenteDonnees: 'en attente de données…', zoneN: 'Zone {n}', defautLib: 'DÉFAUT : {d}', cible: 'cible {v} °C',
-      demande: 'demande {v} %', chauffe: 'chauffe', derive: 'dérive', autotune: 'autotune',
+      demande: 'demande {v} %', chauffe: 'chauffe', derive: 'dérive', autotune: 'autotune', tropChaud: 'trop chaud',
+      conseilSonde: 'Sonde absente ou illisible : vérifie son câble et la résistance de 4,7 kΩ. Le tapis reste coupé.',
+      conseilSurchauffe: 'La coupure max a été dépassée : vérifie que la sonde est bien en place, puis lève le défaut.',
+      conseilFigee: 'La mesure ne bouge plus du tout : sonde débranchée ou abîmée.',
+      conseilInefficace: 'Le tapis chauffe sans faire monter sa sonde : sondes inversées le plus souvent, sinon tapis débranché ou sonde hors de la zone.',
       aucunSocle: 'Aucun socle pour l\'instant', aucunSocleAide: 'Ajoute ton premier socle ci-dessous, ou scanne le QR code collé dessous.',
       heuresService: '{h} h de service', horlogeSocle: 'horloge du socle {h}', entretienMin: 'entretien : {m} min',
       alertesAttente: '{n} alerte(s) en attente', majAppli: 'mets à jour l\'application', majSocle: 'firmware à mettre à jour',
@@ -120,7 +124,7 @@ const App = (() => {
       aucunQr: 'Aucun QR détecté.', qrNonReconnu: 'QR non reconnu.', codeLu: 'Code lu, complète le nom puis valide.', cameraIndispo: 'Caméra indisponible : {m}',
       nouvelleVersion: 'Nouvelle version de l\'application disponible.', recharger: 'Recharger',
       installer: 'Installer l\'application', installIos: 'Sur iPhone et iPad : bouton Partager, puis « Sur l\'écran d\'accueil ».', installee: 'Application installée.',
-      exportConfigQ: 'Exporter la configuration ?', exportConfigTexte: 'Le fichier contient les codes d\'appairage de tes socles : garde-le pour toi.',
+      exportConfigQ: 'Exporter la configuration ?', exportConfigTexte: 'Le fichier contient les codes d\'appairage de tes socles et le mot de passe du broker : garde-le pour toi.',
       exporter: 'Exporter', importOk: '{n} socle(s) importé(s).', importRien: 'Rien de nouveau dans ce fichier.', importInvalide: 'Fichier non reconnu.',
       telechargementIndispo: 'Téléchargement indisponible ici.', importReglagesOk: 'Réglages envoyés au socle.', importReglagesKo: 'Import interrompu : {m}',
       diagnostic: 'Diagnostic', copierRapport: 'Copier le rapport', rapportCopie: 'Rapport copié.', copieImpossible: 'Copie impossible — sélectionne le texte.',
@@ -161,7 +165,11 @@ const App = (() => {
       notifDefaut: '{nom} — FAULT', notifDefautCorps: '{zone}: {d}. Heating cut off.',
       notifRetabli: '{nom} — recovered', notifRetabliCorps: '{zone} is back to normal.',
       attenteDonnees: 'waiting for data…', zoneN: 'Zone {n}', defautLib: 'FAULT: {d}', cible: 'target {v} °C',
-      demande: 'demand {v} %', chauffe: 'heating', derive: 'drift', autotune: 'autotune',
+      demande: 'demand {v} %', chauffe: 'heating', derive: 'drift', autotune: 'autotune', tropChaud: 'too hot',
+      conseilSonde: 'Probe missing or unreadable: check its cable and the 4.7 kΩ resistor. The mat stays off.',
+      conseilSurchauffe: 'The maximum cut-off was exceeded: check that the probe is in place, then clear the fault.',
+      conseilFigee: 'The reading no longer moves at all: probe unplugged or damaged.',
+      conseilInefficace: 'The mat heats without raising its probe: usually swapped probes, otherwise an unplugged mat or a probe outside the zone.',
       aucunSocle: 'No base yet', aucunSocleAide: 'Add your first base below, or scan the QR code stuck underneath it.',
       heuresService: '{h} h uptime', horlogeSocle: 'base clock {h}', entretienMin: 'maintenance: {m} min',
       alertesAttente: '{n} pending alert(s)', majAppli: 'update the app', majSocle: 'firmware update advised',
@@ -224,7 +232,7 @@ const App = (() => {
       aucunQr: 'No QR detected.', qrNonReconnu: 'QR not recognised.', codeLu: 'Code read, fill in the name then confirm.', cameraIndispo: 'Camera unavailable: {m}',
       nouvelleVersion: 'A new version of the app is available.', recharger: 'Reload',
       installer: 'Install the app', installIos: 'On iPhone and iPad: Share button, then “Add to Home Screen”.', installee: 'App installed.',
-      exportConfigQ: 'Export the configuration?', exportConfigTexte: 'The file contains the pairing codes of your bases: keep it to yourself.',
+      exportConfigQ: 'Export the configuration?', exportConfigTexte: 'The file contains the pairing codes of your bases and the broker password: keep it to yourself.',
       exporter: 'Export', importOk: '{n} base(s) imported.', importRien: 'Nothing new in this file.', importInvalide: 'File not recognised.',
       telechargementIndispo: 'Download unavailable here.', importReglagesOk: 'Settings sent to the base.', importReglagesKo: 'Import interrupted: {m}',
       diagnostic: 'Diagnostics', copierRapport: 'Copy report', rapportCopie: 'Report copied.', copieImpossible: 'Copy failed — select the text.',
@@ -284,9 +292,11 @@ const App = (() => {
       const v = (TEXTES.en.page || {})[el.getAttribute('data-i18n-ph') || ''];
       if (v !== undefined) el.setAttribute('placeholder', v);
     });
-    // Les pages statiques existent en deux langues : aide.html / aide.en.html, etc.
+    // Les pages statiques existent en deux langues : aide.html / aide.en.html,
+    // etc. Un hébergeur qui réécrit les liens en « jolies URL » (/aide) est
+    // accepté aussi.
     document.querySelectorAll('a[href]').forEach(a => {
-      const m = /^(aide|mentions-legales|confidentialite)\.html(#.*)?$/.exec(a.getAttribute('href') || '');
+      const m = /^\/?(aide|mentions-legales|confidentialite)(?:\.html)?(#.*)?$/.exec(a.getAttribute('href') || '');
       if (m) a.setAttribute('href', m[1] + '.en.html' + (m[2] || ''));
     });
   }
@@ -926,6 +936,10 @@ const App = (() => {
   }
 
   // ------------------------------------------------------------ composants
+  // Sous un défaut, ce que l'on vérifie d'abord, sans ouvrir la documentation.
+  const CONSEILS_DEFAUT = { 'SONDE': 'conseilSonde', 'SURCHAUFFE': 'conseilSurchauffe',
+    'SONDE FIGEE': 'conseilFigee', 'CHAUFFE SANS EFFET': 'conseilInefficace' };
+
   function tuileZone(z, i) {
     if (!z) {
       return `<div class="zone squelette" data-zone="${i}" aria-busy="true"><span class="sr-only">${t('attenteDonnees')}</span>
@@ -939,10 +953,12 @@ const App = (() => {
       <div class="titre">${esc(z.nom || t('zoneN', { n: i + 1 }))}</div>
       <div class="temp${panne ? ' panne' : ''}">${temp}</div>
       ${panne ? `<div class="defaut">${t('defautLib', { d: esc(z.defaut) })}</div>` : ''}
+      ${panne && CONSEILS_DEFAUT[z.defaut] ? `<div class="conseil">${t(CONSEILS_DEFAUT[z.defaut])}</div>` : ''}
       <div class="meta">
         <span>${t('cible', { v: fixe1(z.consigne) })}</span><span>${t('demande', { v: z.demande === undefined ? '—' : z.demande })}</span>
         ${z.chauffe ? `<span class="chauffe">${icone('i-flamme')}${t('chauffe')}</span>` : ''}
         ${z.derive ? `<span class="derive">${t('derive')}</span>` : ''}
+        ${z.tropChaud ? `<span class="derive">${t('tropChaud')}</span>` : ''}
         ${z.autotune ? `<span class="badge neutre">${t('autotune')}</span>` : ''}
       </div>
     </div>`;

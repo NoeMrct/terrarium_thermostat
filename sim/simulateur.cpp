@@ -56,6 +56,16 @@ struct Sim {
   bool sondeDebranchee[NB_ZONES] = { false, false };
   bool sondeFigee[NB_ZONES] = { false, false };
   float valeurFigee[NB_ZONES] = { 0, 0 };
+  // Quelle sonde physique lit chaque zone : { 1, 0 } = sondes inversées.
+  uint8_t sondeDe[NB_ZONES] = { 0, 1 };
+  // Deux zones dans le même terrarium : part de la chaleur du tapis 1 qui
+  // réchauffe l'air autour de la sonde 2 (0 = terrariums séparés).
+  float couplage12 = 0.0f;
+  float ambianteBase = 20.0f;
+  // Lectures imposées (pic parasite) : valeur et nombre de lectures restantes.
+  float valeurImposee[NB_ZONES] = { 0, 0 };
+  int lecturesImposees[NB_ZONES] = { 0, 0 };
+  int nbTropChaud = 0;
   bool traceCsv = false;
 
   int nbDefauts = 0, nbDerives = 0, nbAutotunes = 0, nbChutes = 0, nbSansEffet = 0;
@@ -67,6 +77,7 @@ struct Sim {
       terra[z].regle(tDepart);
       terra[z].Tambiante = tAmbiante;
     }
+    ambianteBase = tAmbiante;
     ctrl.demarrer(0);
     ctrl.horloge(true, 12 * 60);  // plein jour par défaut
   }
@@ -82,6 +93,10 @@ struct Sim {
   }
 
   float lecture(uint8_t z) {
+    if (lecturesImposees[z] > 0) {
+      lecturesImposees[z]--;
+      return valeurImposee[z];
+    }
     if (sondeDebranchee[z]) return -127.0f;                 // DEVICE_DISCONNECTED_C
     if (sondeFigee[z]) return valeurFigee[z];               // vraie sonde bloquee
     return roundf((terra[z].T + bruit()) * 16.0f) / 16.0f;  // quantification 12 bits
@@ -96,6 +111,7 @@ struct Sim {
       if (n.type == NOTIF_AUTOTUNE) nbAutotunes++;
       if (n.type == NOTIF_CHUTE) nbChutes++;
       if (n.type == NOTIF_SANS_EFFET) nbSansEffet++;
+      if (n.type == NOTIF_TROP_CHAUD) nbTropChaud++;
       if (!traceCsv) printf("      [%7lus] %s\n", (unsigned long)(ms / 1000), n.texte);
     }
   }
@@ -105,8 +121,10 @@ struct Sim {
   void avancer(float secondes) {
     const float dt = 2.0f;
     for (float t = 0; t < secondes; t += dt) {
-      for (uint8_t z = 0; z < NB_ZONES; z++) ctrl.mesure(z, lecture(z), ms, dt);
+      for (uint8_t z = 0; z < NB_ZONES; z++) ctrl.mesure(z, lecture(sondeDe[z]), ms, dt);
       ctrl.avancer(ms);
+      if (couplage12 > 0.0f)
+        terra[1].Tambiante = ambianteBase + couplage12 * (terra[0].Tcoeur - ambianteBase);
       for (uint8_t z = 0; z < NB_ZONES; z++) terra[z].pas(ctrl.tapisDeZone(z) >= 0, dt);
       ms += (uint32_t)(dt * 1000.0f);
       videNotifs();
@@ -561,6 +579,172 @@ static void scenarioEndurance(bool csv) {
       s.ctrl.zone[0].demande == s.ctrl.zone[0].demande && s.ctrl.zone[1].demande == s.ctrl.zone[1].demande);
 }
 
+// 21. Sondes inversées : chaque tapis chauffe la plaque où est posée la sonde
+//     de l'autre zone. Sans contrôle croisé, l'une des zones chauffe sans fin
+//     (jusqu'au bilame) pendant que l'autre croit avoir trop chaud.
+static void scenarioSondesInversees(bool csv) {
+  titre("21. Sondes inversees (chaque sonde sur la plaque de l'autre zone)");
+  Sim s;
+  s.traceCsv = csv;
+  s.init(22.0f, 20.0f);
+  s.sondeDe[0] = 1;
+  s.sondeDe[1] = 0;
+  float plaqueMax = 0.0f;
+  uint32_t detection = 0;
+  for (int i = 0; i < 2 * 3600 / 10 && !detection; i++) {
+    s.avancer(10);
+    for (uint8_t z = 0; z < NB_ZONES; z++)
+      if (s.terra[z].Tcoeur > plaqueMax) plaqueMax = s.terra[z].Tcoeur;
+    if (s.ctrl.zone[0].defaut == DEF_INEFFICACE || s.ctrl.zone[1].defaut == DEF_INEFFICACE) detection = s.ms;
+  }
+  char d[96];
+  snprintf(d, sizeof d, "apres %lu min, plaque au plus a %.1f C", (unsigned long)(detection / 60000),
+           plaqueMax);
+  verifier("inversion detectee en moins d'une heure", detection != 0 && detection < 3600000UL, d);
+  verifier("les deux zones sont coupees",
+           s.ctrl.zone[0].defaut == DEF_INEFFICACE && s.ctrl.zone[1].defaut == DEF_INEFFICACE);
+  verifier("aucune plaque n'a approche le seuil de coupure (40 C)", plaqueMax < 38.0f, d);
+  bool chauffe = false;
+  for (int i = 0; i < 300; i++) {
+    s.avancer(2);
+    if (s.ctrl.tapisDeZone(0) >= 0 || s.ctrl.tapisDeZone(1) >= 0) chauffe = true;
+  }
+  verifier("plus aucun tapis ne chauffe ensuite", !chauffe);
+  verifier("le message parle d'inversion", strstr(s.dernierTexte, "inversees") != nullptr, s.dernierTexte);
+}
+
+// 22. Deux zones dans le même terrarium : le tapis 1 réchauffe aussi l'air de
+//     la zone 2. Ce n'est pas une inversion : la sonde 1, posée sur son tapis,
+//     monte bien avant l'autre.
+static void scenarioCouplageLegitime(bool csv) {
+  titre("22. Zones couplees dans un meme terrarium : pas de faux positif");
+  Sim s;
+  s.traceCsv = csv;
+  s.init(20.0f, 20.0f);
+  s.couplage12 = 0.6f;
+  s.ctrl.cfg[1].consigneJour = 20.0f;  // la zone 2 ne chauffe jamais : elle subit
+  s.avancer(4.0f * 3600.0f);
+  char d[96];
+  snprintf(d, sizeof d, "T1=%.1f C, T2=%.1f C, %d defaut(s)", s.ctrl.zone[0].temperature,
+           s.ctrl.zone[1].temperature, s.nbDefauts);
+  verifier("la zone 2 a bien pris de la chaleur sans chauffer", s.ctrl.zone[1].temperature > 21.5f, d);
+  verifier("aucun defaut : la sonde 1 repondait a son tapis", s.nbDefauts == 0, d);
+}
+
+// 23. Nuit froide, tapis trop faible : la zone pousse à fond et ne monte plus.
+//     L'autre zone, à l'équilibre, ne bouge pas : rien ne désigne une inversion.
+static void scenarioTapisFaible(bool csv) {
+  titre("23. Tapis trop faible pour la piece : alerte, mais pas de coupure");
+  Sim s;
+  s.traceCsv = csv;
+  s.init(24.0f, 12.0f);
+  s.terra[0].puissance = 6.0f;  // ne peut pas tenir 32 C dans une piece a 12 C
+  s.terra[1].regle(27.9f);
+  s.avancer(3.0f * 3600.0f);
+  verifier("aucune coupure : ni la zone faible ni l'autre",
+           s.ctrl.zone[0].defaut == DEF_AUCUN && s.ctrl.zone[1].defaut == DEF_AUCUN,
+           nomDefaut(s.ctrl.zone[0].defaut));
+}
+
+// 24. Pic parasite : une lecture isolée à 45 C (au-delà du seuil de 40 C) ne
+//     doit pas couper le chauffage ; la même valeur répétée, si.
+static void scenarioPicIsole(bool csv) {
+  titre("24. Pic de lecture isole (bit faux sur un long cable)");
+  Sim s;
+  s.traceCsv = csv;
+  s.init(31.0f, 20.0f);
+  s.avancer(300);
+  s.valeurImposee[0] = 45.0f;
+  s.lecturesImposees[0] = 1;
+  s.avancer(10);
+  verifier("une lecture isolee a 45 C est ignoree", s.ctrl.zone[0].defaut == DEF_AUCUN,
+           nomDefaut(s.ctrl.zone[0].defaut));
+  s.lecturesImposees[0] = 2;
+  s.avancer(10);
+  verifier("deux lectures de suite aussi", s.ctrl.zone[0].defaut == DEF_AUCUN);
+  s.lecturesImposees[0] = 5;
+  s.avancer(10);
+  verifier("repetee, elle declenche la coupure de surchauffe", s.ctrl.zone[0].defaut == DEF_SURCHAUFFE,
+           nomDefaut(s.ctrl.zone[0].defaut));
+}
+
+// 25. Canicule : la zone dépasse sa consigne sans chauffer. Alerte « trop
+//     chaud » bien avant la coupure de surchauffe.
+static void scenarioTropChaud(bool csv) {
+  titre("25. Canicule : trop chaud sans chauffer");
+  Sim s;
+  s.traceCsv = csv;
+  s.init(33.0f, 38.0f);
+  s.ctrl.cfg[1].consigneJour = 36.0f;  // la zone 2 n'est pas concernee
+  s.avancer(60.0f * 60.0f);
+  char d[64];
+  snprintf(d, sizeof d, "T=%.1f C pour 32 C", s.ctrl.zone[0].temperature);
+  verifier("alerte « trop chaud » emise", s.nbTropChaud >= 1, d);
+  verifier("aucune coupure : on reste sous le seuil de 40 C", s.ctrl.zone[0].defaut == DEF_AUCUN);
+  s.terra[0].Tambiante = 25.0f;
+  s.avancer(3.0f * 3600.0f);
+  verifier("retour a la normale signale", !s.ctrl.zone[0].tropChaudActif);
+}
+
+// 26. Priorité : alimentation pour un seul tapis, deux zones qui réclament
+//     tout. La zone prioritaire reçoit environ deux fois plus de créneaux.
+static void scenarioPriorite(bool csv) {
+  titre("26. Zone prioritaire quand l'alimentation ne suffit pas");
+  Sim s;
+  s.traceCsv = csv;
+  s.init(18.0f, 10.0f);
+  for (uint8_t z = 0; z < NB_ZONES; z++) s.terra[z].puissance = 8.0f;  // jamais rassasiees
+  s.ctrl.zonePrioritaire(1);
+  s.avancer(2.0f * 3600.0f);
+  const float d0 = s.ctrl.duty(0), d1 = s.ctrl.duty(1);
+  char d[64];
+  snprintf(d, sizeof d, "Z1=%.0f%% Z2 (prioritaire)=%.0f%%", d0, d1);
+  verifier("la zone prioritaire chauffe nettement plus", d1 > 1.5f * d0, d);
+  verifier("l'autre n'est pas affamee", d0 > 15.0f, d);
+}
+
+// 27. Essai de chauffe (mise en service) : la zone forcée chauffe seule.
+static void scenarioEssaiChauffe(bool csv) {
+  titre("27. Essai de chauffe d'une zone");
+  Sim s;
+  s.traceCsv = csv;
+  s.init(22.0f, 20.0f);
+  const bool lance = s.ctrl.forcerChauffe(1, s.ms, 300000);
+  bool autreChauffe = false, forceeChauffe = true;
+  for (int i = 0; i < 140; i++) {
+    s.avancer(2);
+    if (s.ctrl.tapisDeZone(0) >= 0) autreChauffe = true;
+    if (s.ctrl.tapisDeZone(1) < 0) forceeChauffe = false;
+  }
+  verifier("essai accepte", lance);
+  verifier("la zone essayee chauffe en continu", forceeChauffe);
+  verifier("l'autre zone, pourtant froide, attend", !autreChauffe);
+  s.avancer(400);
+  verifier("fin de l'essai a l'echeance", s.ctrl.zoneForcee() < 0);
+  s.ctrl.declencherDefaut(0, DEF_SONDE, s.ms);
+  verifier("pas d'essai sur une zone en defaut", !s.ctrl.forcerChauffe(0, s.ms, 60000));
+}
+
+// 28. Jour et nuit calés sur le soleil.
+static void scenarioSoleil(bool) {
+  titre("28. Jour et nuit cales sur le soleil");
+  Sim s;
+  s.init(30.0f, 20.0f);
+  s.ctrl.horairesSoleil(true, 7 * 60 + 10, 18 * 60 + 40);
+  s.ctrl.horloge(true, 18 * 60);
+  s.avancer(2);
+  verifier("18:00 : encore le jour (coucher a 18:40)", fabsf(s.ctrl.zone[0].consigneEff - 32.0f) < 0.01f);
+  s.ctrl.horloge(true, 20 * 60);
+  s.avancer(2);
+  verifier("20:00 : la nuit est la, alors que l'horaire fixe dirait jour",
+           fabsf(s.ctrl.zone[0].consigneEff - 26.0f) < 0.01f);
+  s.ctrl.horairesSoleil(true, 19 * 60, 7 * 60);
+  verifier("lever apres coucher : horaires fixes conserves",
+           !s.ctrl.soleilActif() && s.ctrl.debutJour(0) == 8 * 60);
+  s.ctrl.horairesSoleil(false, 0, 0);
+  verifier("desactive : retour aux horaires de chaque zone", s.ctrl.debutNuit(1) == 20 * 60);
+}
+
 int main(int argc, char **argv) {
   bool csv = false;
   int seul = 0;
@@ -580,7 +764,11 @@ int main(int argc, char **argv) {
                                 scenarioExclusion,        scenarioAutotuneConcurrence,
                                 scenarioReposApresDefaut, scenarioLimitePuissance,
                                 scenarioMaintenance,      scenarioChuteBrutale,
-                                scenarioSaison,           scenarioEndurance };
+                                scenarioSaison,           scenarioEndurance,
+                                scenarioSondesInversees,  scenarioCouplageLegitime,
+                                scenarioTapisFaible,      scenarioPicIsole,
+                                scenarioTropChaud,        scenarioPriorite,
+                                scenarioEssaiChauffe,     scenarioSoleil };
   const int n = sizeof(scenarios) / sizeof(scenarios[0]);
 
   if (csv) {

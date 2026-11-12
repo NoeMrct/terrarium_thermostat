@@ -59,6 +59,7 @@ const attendre = ms => new Promise(r => setTimeout(r, ms));
   const enPanne = (socles().match(/DÉFAUT :/g) || []).length;
   v('une zone saine n\'est pas marquée en défaut', enPanne === 1, `${enPanne} zone(s) en défaut`);
   v('le défaut simulé porte son vrai libellé', socles().includes('SONDE'));
+  v('un conseil accompagne le défaut', socles().includes('class="conseil"') && socles().includes('4,7 kΩ'));
 
   const t1 = (socles().match(/(\d+\.\d)<small>/) || [])[1];
   await attendre(5000);

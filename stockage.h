@@ -29,6 +29,16 @@ void sauverBiais(uint8_t z, float b);
 uint32_t lireEpoch();
 void sauverEpoch(uint32_t e);
 
+// Petit compteur persistant (redémarrages anormaux en série).
+uint8_t lireCompteur(const char *cle);
+void ecrireCompteur(const char *cle, uint8_t valeur);
+
+// Résumés journaliers, un an au plus. `rang` 0 = le plus récent.
+static const uint16_t JOURS_MAX = 366;
+void joursAjouter(const ResumeJour &j);
+uint16_t joursNombre();
+bool joursLire(uint16_t rang, ResumeJour &j);
+
 // --- réglages réseau et globaux ---
 ReglagesReseau &reseau();
 void sauverReseau();

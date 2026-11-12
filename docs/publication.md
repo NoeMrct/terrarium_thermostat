@@ -4,8 +4,8 @@
 
 | Déclencheur | Ce qui se passe |
 |---|---|
-| chaque `git push` | CI complète (`verification.yml`) : bancs PC (sanitizers, couverture, clang-tidy, fuzzing), lint, types, protocole, application dans jsdom et Chromium, accessibilité, régression visuelle, charge, serveur, Lighthouse, compilation ESP32 reproductible et taille, matrice WebKit/Firefox (non bloquante) |
-| chaque `git push`, et le lundi | `codeql.yml` : CodeQL JavaScript (bloquant) et C++ du firmware (non bloquant) |
+| chaque `git push` | CI complète (`verification.yml`) : bancs PC (sanitizers, couverture, clang-tidy, fuzzing), lint, types, protocole, application dans jsdom et Chromium, accessibilité, régression visuelle, charge, serveur, Lighthouse, compilation ESP32 reproductible et taille, matrice WebKit/Firefox |
+| chaque `git push`, et le lundi | `codeql.yml` : CodeQL JavaScript et C++ du firmware (compilation arduino-cli observée) ; périmètre dans `.github/codeql/codeql-config.yml` |
 | déploiement Netlify (chaque push sur `main`) | `npm ci --prefix outils --omit=dev && node outils/preparer-publication.js` : `version.json` (commit de l'application **et** dernière version du firmware publiée), nom de cache de l'agent de service = commit, minification de `app.js`/`mqtt.js`/`sw.js` par terser avec cartes de sources, binaires de la dernière release copiés pour la page « Flasher un socle » |
 | étiquette `vX.Y.Z` | `publication.yml` : compilation reproductible, signature si la clé est configurée, attestation de provenance, PDF de la documentation, release GitHub avec les binaires, les PDF et les notes du changelog, redéploiement du site si le hook est configuré |
 | exécuteur auto-hébergé avec une carte | `materiel.yml` : flashage et test de fumée par port série (`outils/test-materiel.js`) — à la demande ou à chaque étiquette |
@@ -60,9 +60,11 @@ Un socle en service se met à jour depuis l'application : il télécharge
 sur la release, en HTTPS. Il n'accepte comme origine que
 `MAJ_ORIGINES_AUTORISEES` de `config.h` (les releases de ce dépôt) : un fork
 doit y mettre son propre dépôt, ainsi que dans `MAJ_URL_MODELE` et
-`MAJ_URL_MODELE_SIGNE`. Un socle flashé avant la 3.4.0 garde ses emplacements
-de 1,5 Mo : `outils/verifier-taille-firmware.js` fait échouer la publication si
-le binaire n'y tient plus (95 %).
+`MAJ_URL_MODELE_SIGNE`. `outils/verifier-taille-firmware.js` fait échouer la
+publication si le binaire dépasse 95 % de l'emplacement de `partitions.csv`.
+Depuis la 3.5.0, le firmware ne tient plus dans les emplacements de 1,5 Mo des
+socles flashés avant la 3.4.0 : ceux-là se reflashent une fois par câble (la
+mise à jour à distance refuse le binaire sans rien casser).
 
 ## Secrets du dépôt (Settings → Secrets and variables → Actions)
 

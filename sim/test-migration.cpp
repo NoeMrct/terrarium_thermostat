@@ -57,11 +57,13 @@ struct ReglagesReseau32 {
 static_assert(sizeof(ReglagesReseau32) == 912, "image 3.2 de ReglagesReseau");
 static_assert(offsetof(ReglagesReseau, alerteJeton) == 912, "3.3 ajoute alerteJeton en fin de l'image 3.2");
 static_assert(offsetof(ReglagesReseau, formatAlertes) == 977, "formatAlertes suit alerteJeton");
-static_assert(sizeof(ReglagesReseau) == 978, "taille de ReglagesReseau en 3.4");
+static_assert(offsetof(ReglagesReseau, ssid2) == 978, "3.5 ajoute le WiFi de secours en fin de l'image 3.4");
+static_assert(sizeof(ReglagesReseau) == 1076, "taille de ReglagesReseau en 3.5");
 static_assert(offsetof(ReglagesReseau, jeton) == offsetof(ReglagesReseau32, jeton), "le jeton ne bouge pas");
 static_assert(offsetof(ReglagesReseau, sondeRom) == offsetof(ReglagesReseau32, sondeRom),
               "les sondes liées ne bougent pas");
-static_assert(sizeof(ReglagesGlobaux) == 36, "taille de ReglagesGlobaux");
+static_assert(offsetof(ReglagesGlobaux, rapportActif) == 36, "3.5 ajoute ses reglages apres l'image 3.4");
+static_assert(sizeof(ReglagesGlobaux) == 64, "taille de ReglagesGlobaux en 3.5");
 static_assert(sizeof(EtatMaj) == 97, "taille de EtatMaj");
 static_assert(sizeof(StatsZone) == 16, "taille de StatsZone");
 static_assert(sizeof(ReglagesZone) == 72, "taille de ReglagesZone");
@@ -100,8 +102,9 @@ int main() {
           "broker, port, TLS et préfixe conservés");
   VERIFIE(memcmp(courante.sondeRom, ancienne.sondeRom, sizeof ancienne.sondeRom) == 0,
           "sondes liées conservées");
-  VERIFIE(courante.alerteJeton[0] == '\0' && courante.formatAlertes == 0,
-          "champs ajoutés depuis : à zéro (puis valeur par défaut au démarrage)");
+  VERIFIE(courante.alerteJeton[0] == '\0' && courante.formatAlertes == 0 && courante.ssid2[0] == '\0' &&
+              courante.motDePasse2[0] == '\0',
+          "champs ajoutés depuis (jeton d'alerte, format, WiFi de secours) : à zéro");
 
   // Une mémoire écrite par un firmware PLUS récent (retour en arrière) : on ne
   // garde que le préfixe que cette version connaît.
@@ -124,11 +127,15 @@ int main() {
   ReglagesGlobaux g;
   Stockage::reglagesGlobauxParDefaut(g);
   g.courantAlimA = 5.0f;
+  g.saisonDebutEpoch = 1700000000u;
   ReglagesGlobaux g2;
-  const size_t lg = Stockage::relireTolerant((const uint8_t *)&g, sizeof g - 4, &g2,
-                                             sizeof g2);  // écrite sans saisonDebutEpoch
-  VERIFIE(lg == sizeof g - 4 && g2.courantAlimA == 5.0f && g2.saisonDebutEpoch == 0,
-          "globaux écrits par une version sans le dernier champ : relus, dernier champ à zéro");
+  memset(&g2, 0xA5, sizeof g2);
+  const size_t lg = Stockage::relireTolerant((const uint8_t *)&g, 36, &g2, sizeof g2);  // image 3.4
+  VERIFIE(lg == 36 && g2.courantAlimA == 5.0f && g2.saisonDebutEpoch == 1700000000u,
+          "globaux écrits par la 3.4 : relus en entier");
+  VERIFIE(!g2.rapportActif && g2.prixKwh == 0.0f && !g2.ledEteinte && g2.ecranNuit == ECRAN_NUIT_ATTENUE &&
+              !g2.soleilActif && g2.zonePrioritaire == 0,
+          "…les réglages 3.5 valent zéro : pas de rapport, coût inconnu, LED allumée, écran atténué la nuit");
   VERIFIE(!Stockage::assainirGlobaux(g2), "…et jugés sains tels quels");
   g2.courantAlimA = 1e9f;
   VERIFIE(Stockage::assainirGlobaux(g2) && g2.courantAlimA == 3.0f,
@@ -173,6 +180,38 @@ int main() {
   VERIFIE(Stockage::assainirGlobaux(r) && !r.saisonActive, "…et désactivé à l'assainissement");
   r.saisonDescenteJ = 400;
   VERIFIE(!Stockage::globauxValides(r, nullptr, 0), "phase de 400 jours refusée (sans tampon d'erreur)");
+  // Réglages 3.5.
+  Stockage::reglagesGlobauxParDefaut(r);
+  VERIFIE(Stockage::globauxValides(r, err, sizeof err), "réglages par défaut valides");
+  r.prixKwh = 0.2516f;
+  r.rapportActif = true;
+  r.rapportMinutes = 21 * 60;
+  VERIFIE(Stockage::globauxValides(r, err, sizeof err), "prix 0,2516 EUR et rapport à 21 h acceptés");
+  r.prixKwh = -1.0f;
+  VERIFIE(!Stockage::globauxValides(r, err, sizeof err) && strstr(err, "kWh"), "prix négatif refusé");
+  VERIFIE(Stockage::assainirGlobaux(r) && r.prixKwh == 0.0f, "…et remis à « inconnu »");
+  r.rapportMinutes = 1440;
+  VERIFIE(!Stockage::globauxValides(r, err, sizeof err), "heure de rapport 24:00 refusée");
+  Stockage::reglagesGlobauxParDefaut(r);
+  r.soleilActif = true;
+  VERIFIE(!Stockage::globauxValides(r, err, sizeof err) && strstr(err, "Position"),
+          "soleil sans position : refusé");
+  VERIFIE(Stockage::assainirGlobaux(r) && !r.soleilActif, "…et désactivé à l'assainissement");
+  r.soleilActif = true;
+  r.latitude = 48.86f;
+  r.longitude = 2.35f;  // Paris
+  VERIFIE(Stockage::globauxValides(r, err, sizeof err), "soleil avec une position plausible : accepté");
+  r.latitude = 78.0f;
+  VERIFIE(!Stockage::globauxValides(r, err, sizeof err), "au-delà du cercle polaire : refusé");
+  Stockage::reglagesGlobauxParDefaut(r);
+  r.zonePrioritaire = NB_ZONES + 1;
+  VERIFIE(!Stockage::globauxValides(r, err, sizeof err), "zone prioritaire inexistante refusée");
+  r.zonePrioritaire = 1;
+  r.ecranNuit = 7;
+  VERIFIE(!Stockage::globauxValides(r, err, sizeof err), "mode d'écran inconnu refusé");
+  VERIFIE(Stockage::assainirGlobaux(r) && r.ecranNuit == ECRAN_NUIT_ATTENUE && r.zonePrioritaire == 1,
+          "…assaini sans toucher au reste");
+
   VERIFIE(strcmp(nomEtapeMaj(MAJ_VALIDEE), "validee") == 0 &&
               strcmp(nomEtapeMaj(MAJ_RETOUR_ARRIERE), "retour arriere") == 0 &&
               strcmp(nomEtapeMaj(MAJ_ECHEC), "echec") == 0 &&

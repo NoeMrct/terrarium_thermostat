@@ -33,6 +33,8 @@ const char *nomNotification(TypeNotif t) {
     case NOTIF_CHUTE: return "CHUTE";
     case NOTIF_SANS_EFFET: return "SANS_EFFET";
     case NOTIF_INFO: return "INFO";
+    case NOTIF_RAPPORT: return "RAPPORT";
+    case NOTIF_TROP_CHAUD: return "TROP_CHAUD";
     default: return "INCONNU";
   }
 }
@@ -171,8 +173,9 @@ float Controleur::consignePour(uint8_t z) const {
   const float saison = m_saison;
   if (!m_heureConnue) return borne(c.consigneJour + saison, CONSIGNE_MIN, CONSIGNE_MAX);
 
-  const uint16_t depuisJour = ecartCirculaire(c.debutJour, m_minutes);
-  const uint16_t depuisNuit = ecartCirculaire(c.debutNuit, m_minutes);
+  const uint16_t dJour = debutJour(z), dNuit = debutNuit(z);
+  const uint16_t depuisJour = ecartCirculaire(dJour, m_minutes);
+  const uint16_t depuisNuit = ecartCirculaire(dNuit, m_minutes);
 
   float base;
   if (c.rampeMinutes > 0 && depuisJour < c.rampeMinutes) {
@@ -182,7 +185,7 @@ float Controleur::consignePour(uint8_t z) const {
     const float k = (float)depuisNuit / c.rampeMinutes;
     base = c.consigneJour + k * (c.consigneNuit - c.consigneJour);
   } else {
-    const bool estJour = depuisJour < ecartCirculaire(c.debutJour, c.debutNuit);
+    const bool estJour = depuisJour < ecartCirculaire(dJour, dNuit);
     base = estJour ? c.consigneJour : c.consigneNuit;
   }
   return borne(base + saison, CONSIGNE_MIN, CONSIGNE_MAX);
@@ -253,6 +256,22 @@ uint32_t Controleur::maintenanceRestanteMs(uint32_t nowMs) const {
   return reste > 0 ? (uint32_t)reste : 0;
 }
 
+void Controleur::horairesSoleil(bool actif, uint16_t lever, uint16_t coucher) {
+  // Un lever après le coucher n'a pas de sens : on garde alors les horaires fixes.
+  m_soleilActif = actif && lever < 1440 && coucher < 1440 && lever < coucher;
+  if (m_soleilActif) {
+    m_lever = lever;
+    m_coucher = coucher;
+  }
+}
+
+bool Controleur::forcerChauffe(uint8_t z, uint32_t nowMs, uint32_t ms) {
+  if (z >= NB_ZONES || zone[z].defaut != DEF_AUCUN || m_suspendu || m_maintenanceFin != 0) return false;
+  m_forcee = (int8_t)z;
+  m_forceFin = nowMs + ms;
+  return true;
+}
+
 void Controleur::demarrer(uint32_t nowMs) {
   m_debutCreneau = m_dernierAvance = nowMs;
   for (uint8_t i = 0; i < NB_TAPIS; i++) m_dernierOff[i] = nowMs;
@@ -265,20 +284,25 @@ void Controleur::horloge(bool connue, uint16_t minutes) {
   for (uint8_t z = 0; z < NB_ZONES; z++) zone[z].heureConnue = connue;
 }
 
-void Controleur::declencherDefaut(uint8_t z, Defaut d, uint32_t nowMs, bool compter) {
+void Controleur::declencherDefaut(uint8_t z, Defaut d, uint32_t nowMs, bool compter, const char *detail) {
   if (zone[z].defaut != DEF_AUCUN) return;
   zone[z].defaut = d;
   zone[z].demande = 0.0f;
   zone[z].integrale = 0.0f;
   zone[z].credit = 0.0f;
   zone[z].autotune = AT_INACTIF;
+  zone[z].croiseOuvert = false;
   if (m_tapisDeZone[z] >= 0) {
     m_dernierOff[m_tapisDeZone[z]] = nowMs;  // son temps de repos démarre maintenant
     m_tapisDeZone[z] = -1;
   }
   if (compter && d <= DEF_INEFFICACE) zone[z].nbDefauts[d]++;
-  notifier(NOTIF_DEFAUT, z, "%s en DEFAUT : %s (%.2f C). Chauffage coupe et verrouille.", cfg[z].nom,
-           nomDefaut(d), (double)zone[z].temperature);
+  if (detail && detail[0])
+    notifier(NOTIF_DEFAUT, z, "%s en DEFAUT : %s (%.2f C) : %s. Chauffage coupe et verrouille.", cfg[z].nom,
+             nomDefaut(d), (double)zone[z].temperature, detail);
+  else
+    notifier(NOTIF_DEFAUT, z, "%s en DEFAUT : %s (%.2f C). Chauffage coupe et verrouille.", cfg[z].nom,
+             nomDefaut(d), (double)zone[z].temperature);
 }
 
 void Controleur::leverDefauts(uint32_t nowMs) {
@@ -297,8 +321,23 @@ void Controleur::leverDefauts(uint32_t nowMs) {
     zone[z].tempChute = NAN;
     zone[z].msChute = 0;
     zone[z].chuteSignalee = false;
+    zone[z].croiseOuvert = false;
     zone[z].integrale = zone[z].biais;  // reprise au point de fonctionnement appris
     notifier(NOTIF_RETABLI, z, "%s : defaut leve, regulation reprise.", cfg[z].nom);
+  }
+}
+
+void Controleur::oublierMesures() {
+  for (uint8_t z = 0; z < NB_ZONES; z++) {
+    ZoneEtat &s = zone[z];
+    s.croiseOuvert = false;
+    s.tempChute = NAN;  // une sonde lâchée après avoir été chauffée « chute »
+    s.msChute = 0;
+    s.chuteSignalee = false;
+    s.derniereBrute = NAN;
+    s.msFigee = 0;
+    s.episodeActif = false;
+    s.msChauffeEpisode = 0;
   }
 }
 
@@ -459,6 +498,13 @@ void Controleur::mesure(uint8_t z, float brute, uint32_t nowMs, float dtSec) {
   }
   s.lecturesInvalides = 0;
 
+  // Saut aberrant isolé : ignoré, sans compter comme une panne de sonde.
+  if (isfinite(s.brute) && fabsf(brute - s.brute) > SAUT_MAX && s.sautsConsecutifs + 1 < SAUT_CONFIRMATIONS) {
+    s.sautsConsecutifs++;
+    return;
+  }
+  s.sautsConsecutifs = 0;
+
   s.brute = brute;
   s.temperature = brute + c.offset;  // calibration
   s.consigneEff = consignePour(z);
@@ -505,6 +551,7 @@ void Controleur::mesure(uint8_t z, float brute, uint32_t nowMs, float dtSec) {
   majAutotune(z, nowMs);
   if (s.autotune == AT_ATTENTE || s.autotune == AT_OSCILLE) {
     s.demande = s.relaisHaut ? 1.0f : 0.0f;
+    s.croiseOuvert = false;  // oscillation volontaire : rien à conclure
     return;
   }
 
@@ -569,6 +616,10 @@ void Controleur::mesure(uint8_t z, float brute, uint32_t nowMs, float dtSec) {
     s.sansEffetSignale = false;
   }
 
+  // --- 5 bis. Contrôle croisé : la chaleur de ce tapis va-t-elle ailleurs ? --
+  verifierCroisement(z, nowMs);
+  if (s.defaut != DEF_AUCUN) return;
+
   // --- 6. Chute brutale : porte restée ouverte, tapis débranché, courant
   //        d'air. Bien plus rapide que le diagnostic « chauffe sans effet »,
   //        qui met vingt minutes à conclure.
@@ -605,6 +656,26 @@ void Controleur::mesure(uint8_t z, float brute, uint32_t nowMs, float dtSec) {
                (double)s.temperature, (double)s.consigneEff);
     }
     s.msDerive = 0;
+  }
+
+  // --- 8. Trop chaud sans chauffer : canicule, soleil, lampe ---------------
+  //        La chauffe ne peut pas refroidir. On prévient bien avant la
+  //        coupure de surchauffe, qui n'arrive que lorsqu'il est déjà tard.
+  if (-erreur > c.deriveSeuil && s.demande < 0.01f) {
+    s.msTropChaud += (uint32_t)(dtSec * 1000.0f);
+    if (!s.tropChaudActif && s.msTropChaud >= (uint32_t)c.deriveMinutes * 60000UL) {
+      s.tropChaudActif = true;
+      notifier(NOTIF_TROP_CHAUD, z,
+               "%s : %.1f C AU-DESSUS de la consigne depuis %u min sans chauffer (%.2f C) — aerer, ombrer.",
+               c.nom, (double)-erreur, (unsigned)c.deriveMinutes, (double)s.temperature);
+    }
+  } else {
+    if (s.tropChaudActif && -erreur < c.deriveSeuil * 0.5f) {
+      s.tropChaudActif = false;
+      notifier(NOTIF_DERIVE_FIN, z, "%s : temperature redescendue a %.2f C (consigne %.2f).", c.nom,
+               (double)s.temperature, (double)s.consigneEff);
+    }
+    s.msTropChaud = 0;
   }
 }
 
@@ -655,6 +726,77 @@ void Controleur::comptabiliser(uint32_t nowMs, uint32_t delta) {
     s.msChauffeReste %= 1000;
     if (s.episodeActif) s.msChauffeEpisode += delta;
   }
+  // Contrôle croisé : qui a chauffé pendant la fenêtre de chaque zone.
+  for (uint8_t z = 0; z < NB_ZONES; z++) {
+    ZoneEtat &s = zone[z];
+    if (!s.croiseOuvert) continue;
+    for (uint8_t k = 0; k < NB_ZONES; k++) {
+      if (m_tapisDeZone[k] < 0) continue;
+      if (k == z)
+        s.croiseMsChauffe += delta;
+      else
+        s.croiseMsAutre[k] += delta;
+    }
+  }
+}
+
+// ============================ CONTRÔLE CROISÉ ================================
+
+void Controleur::ouvrirCroisement(uint8_t z) {
+  ZoneEtat &s = zone[z];
+  s.croiseOuvert = true;
+  s.croiseMsChauffe = 0;
+  for (uint8_t k = 0; k < NB_ZONES; k++) {
+    s.croiseRef[k] = zone[k].temperature;
+    s.croiseMsAutre[k] = 0;
+  }
+}
+
+/*  Signature d'une inversion : la zone z pousse à fond depuis CROISE_CHAUFFE_MS
+    de chauffe effective et sa sonde n'a rien gagné, pendant qu'une zone k qui
+    n'a pas chauffé une seconde voit la sienne prendre CROISE_HAUSSE_AUTRE.
+    Chacune de ces conditions écarte un cas légitime :
+    - zone à l'équilibre, qui maintient sans pousser : pas « à fond » ;
+    - terrarium froid, tapis faible : la sonde de k ne bouge pas non plus ;
+    - deux zones dans le même terrarium : la sonde de z, posée sur son propre
+      tapis, monte bien avant celle de k ;
+    - k qui chauffe elle-même : sa hausse ne prouve rien, la fenêtre l'ignore.
+    Alors les deux zones sont coupées : celle qui chauffe n'agit pas sur sa
+    sonde, et celle dont la sonde monte reçoit une chaleur qu'elle ne commande
+    pas — si elle se mettait à chauffer, ce serait l'autre plaque qui monterait. */
+void Controleur::verifierCroisement(uint8_t z, uint32_t nowMs) {
+  ZoneEtat &s = zone[z];
+  const bool pousse = s.demande >= CROISE_DEMANDE_MIN && (s.consigneEff - s.temperature) > CROISE_ECART_MIN;
+  if (!pousse) {
+    s.croiseOuvert = false;
+    return;
+  }
+  if (!s.croiseOuvert || !isfinite(s.croiseRef[z])) {
+    ouvrirCroisement(z);
+    return;
+  }
+  if (s.temperature >= s.croiseRef[z] + CROISE_REPONSE) {  // sa sonde réagit : le tapis agit
+    ouvrirCroisement(z);
+    return;
+  }
+  if (s.croiseMsChauffe < CROISE_CHAUFFE_MS) return;
+
+  for (uint8_t k = 0; k < NB_ZONES; k++) {
+    if (k == z || s.croiseMsAutre[k] > 0) continue;
+    const ZoneEtat &a = zone[k];
+    if (a.defaut != DEF_AUCUN || !isfinite(a.temperature) || !isfinite(s.croiseRef[k])) continue;
+    const float hausse = a.temperature - s.croiseRef[k];
+    if (hausse < CROISE_HAUSSE_AUTRE) continue;
+
+    char detail[96];
+    snprintf(detail, sizeof detail, "sa sonde ne bouge pas, celle de %s a pris %.1f C (sondes inversees ?)",
+             cfg[k].nom, (double)hausse);
+    declencherDefaut(z, DEF_INEFFICACE, nowMs, true, detail);
+    snprintf(detail, sizeof detail, "sa sonde chauffe sous le tapis de %s (sondes inversees ?)", cfg[z].nom);
+    declencherDefaut(k, DEF_INEFFICACE, nowMs, true, detail);
+    return;
+  }
+  ouvrirCroisement(z);  // rien de probant : nouvelle fenêtre
 }
 
 int8_t Controleur::choisirTapis(uint8_t z, uint32_t nowMs) {
@@ -690,12 +832,33 @@ void Controleur::ordonnancer(uint32_t nowMs) {
   }
 
   if (m_suspendu || m_maintenanceFin != 0) {
-    for (uint8_t z = 0; z < NB_ZONES; z++)
+    for (uint8_t z = 0; z < NB_ZONES; z++) {
+      // Sondes manipulées pendant un arrêt (entretien, identification) : les
+      // références du contrôle croisé ne valent plus rien.
+      zone[z].croiseOuvert = false;
       if (m_tapisDeZone[z] >= 0) {
         m_dernierOff[m_tapisDeZone[z]] = nowMs;
         m_tapisDeZone[z] = -1;
       }
+    }
     return;
+  }
+
+  // Essai de chauffe : la zone forcée chauffe seule, les autres attendent.
+  if (m_forcee >= 0) {
+    if ((int32_t)(nowMs - m_forceFin) >= 0 || zone[m_forcee].defaut != DEF_AUCUN) {
+      m_forcee = -1;
+    } else {
+      for (uint8_t z = 0; z < NB_ZONES; z++) {
+        if (z == (uint8_t)m_forcee) {
+          if (m_tapisDeZone[z] < 0) m_tapisDeZone[z] = choisirTapis(z, nowMs);
+        } else if (m_tapisDeZone[z] >= 0) {
+          m_dernierOff[m_tapisDeZone[z]] = nowMs;
+          m_tapisDeZone[z] = -1;
+        }
+      }
+      return;
+    }
   }
 
   // Une zone en autotune passe avant tout : son relais doit délivrer la pleine
@@ -733,13 +896,27 @@ void Controleur::ordonnancer(uint32_t nowMs) {
   }
   if (!renouveler) return;
 
-  // Distribution des crédits du créneau écoulé
+  // Distribution des crédits du créneau écoulé. Quand l'alimentation ne suffit
+  // pas à tout le monde et qu'une zone est prioritaire, les créneaux
+  // disponibles sont partagés au prorata de la demande, celle de la zone
+  // prioritaire comptant double : environ deux tiers / un tiers entre deux
+  // zones qui réclament tout. Sinon, chacune gagne ce qu'elle demande.
+  float somme = 0.0f, sommePonderee = 0.0f;
+  for (uint8_t z = 0; z < NB_ZONES; z++) {
+    if (zone[z].defaut != DEF_AUCUN) continue;
+    somme += zone[z].demande;
+    sommePonderee += ((int8_t)z == m_prioritaire ? 2.0f : 1.0f) * zone[z].demande;
+  }
+  const bool arbitrer = m_prioritaire >= 0 && somme > (float)m_maxZones && sommePonderee > 0.0f;
   for (uint8_t z = 0; z < NB_ZONES; z++) {
     if (zone[z].defaut != DEF_AUCUN) {
       zone[z].credit = 0;
       continue;
     }
-    zone[z].credit += zone[z].demande * (float)CRENEAU_MS;
+    const float poids = ((int8_t)z == m_prioritaire) ? 2.0f : 1.0f;
+    const float gain = arbitrer ? poids * zone[z].demande / sommePonderee * (float)m_maxZones
+                                : zone[z].demande;
+    zone[z].credit += gain * (float)CRENEAU_MS;
     const float plafond = 1.5f * CRENEAU_MS;
     if (zone[z].credit > plafond) zone[z].credit = plafond;
   }

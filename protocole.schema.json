@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/NoeMrct/terrarium_thermostat/protocole.schema.json",
   "title": "Protocole de pilotage du socle chauffant — version 2",
-  "description": "Ce que le socle publie et ce qu'il accepte, sujet par sujet. PROTOCOLE.md explique ; ce fichier est ce que vérifient outils/test-protocole.js (sur le socle simulé) et la CI. Un champ absent de ce schéma mais présent dans un message est toléré (additionalProperties) : une application plus ancienne ignore ce qu'elle ne connaît pas. Version 3 du protocole (firmware 3.4) : action « maj », sujet « maj », champs hote, ip et maj dans « sante ».",
+  "description": "Ce que le socle publie et ce qu'il accepte, sujet par sujet. PROTOCOLE.md explique ; ce fichier est ce que vérifient outils/test-protocole.js (sur le socle simulé) et la CI. Un champ absent de ce schéma mais présent dans un message est toléré (additionalProperties) : une application plus ancienne ignore ce qu'elle ne connaît pas. Version 3 du protocole (firmware 3.4) : action « maj », sujet « maj », champs hote, ip et maj dans « sante ». Firmware 3.5 : champs facultatifs tropChaud (zones), mqtt et webProtege (sante), sujet texte « rapport ».",
   "$defs": {
     "drapeau": {
       "description": "Booléen tel que l'exposent les sujets « etat » (pour Home Assistant) : chaîne \"0\"/\"1\", ou vrai booléen.",
@@ -143,6 +143,14 @@
         },
         "maj": {
           "$ref": "#/$defs/maj"
+        },
+        "mqtt": {
+          "type": "string",
+          "description": "État de la connexion au broker, en clair (firmware 3.5, facultatif)."
+        },
+        "webProtege": {
+          "type": "boolean",
+          "description": "L'interface locale demande un mot de passe (firmware 3.5, facultatif)."
         }
       },
       "additionalProperties": true
@@ -228,6 +236,10 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 1439
+        },
+        "tropChaud": {
+          "type": "boolean",
+          "description": "Plus chaud que la consigne depuis longtemps sans chauffer (firmware 3.5, facultatif)."
         }
       },
       "additionalProperties": true

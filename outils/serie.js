@@ -5,15 +5,21 @@
    test-materiel.js (banc) et provisionner.js (production). */
 
 const fs = require('fs');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 
+// Le nom du port vient de la ligne de commande : il est passé tel quel à stty
+// ou mode comme argument (jamais à travers un interpréteur de commandes), et
+// seul un nom plausible de port est accepté.
 function configurerPort(port) {
   if (process.platform === 'win32') {
     const com = port.replace(/^\\\\.\\/, '');
-    execSync(`mode ${com} BAUD=115200 PARITY=n DATA=8 STOP=1 dtr=on rts=on`, { stdio: 'ignore' });
+    if (!/^COM\d{1,3}$/i.test(com)) throw new Error(`port série inattendu : ${port} (attendu COMn)`);
+    execFileSync('mode.com', [com, 'BAUD=115200', 'PARITY=n', 'DATA=8', 'STOP=1', 'dtr=on', 'rts=on'], { stdio: 'ignore' });
     return `\\\\.\\${com}`;
   }
-  execSync(`stty -F ${port} 115200 raw -echo -hupcl cs8 -cstopb -parenb`, { stdio: 'ignore' });
+  if (!/^\/dev\/[\w.-]+$/.test(port)) throw new Error(`port série inattendu : ${port} (attendu /dev/…)`);
+  // stty désigne le port par -F sous Linux, -f sous macOS (BSD).
+  execFileSync('stty', [process.platform === 'darwin' ? '-f' : '-F', port, '115200', 'raw', '-echo', '-hupcl', 'cs8', '-cstopb', '-parenb'], { stdio: 'ignore' });
   return port;
 }
 

@@ -280,9 +280,9 @@ client.on('connect', async () => {
     verifier('déroulement du test', false, err.message);
   }
 
-    titre('15. Conformité au schéma du protocole');
-    verifier('tout ce que le socle a émis respecte protocole.schema.json', horsSchema.length === 0,
-             horsSchema.slice(0, 2).join(' | ').slice(0, 90));
+  titre('15. Conformité au schéma du protocole');
+  verifier('tout ce que le socle a émis respecte protocole.schema.json', horsSchema.length === 0,
+           horsSchema.slice(0, 2).join(' | ').slice(0, 90));
 
   console.log(`\n=== ${echecs ? 'DES TESTS ONT ECHOUE' : 'TOUS LES TESTS PASSENT'}` +
               ` (${reussites} reussite(s), ${echecs} echec(s)) ===`);

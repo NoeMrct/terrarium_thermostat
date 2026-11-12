@@ -52,6 +52,9 @@
 #include "affichage.h"
 #include "console.h"
 #include "courant.h"
+#include "essai.h"
+#include "facade.h"
+#include "taches.h"
 
 #include <time.h>
 #include <sys/time.h>
@@ -249,6 +252,7 @@ void surSynchroNtp(struct timeval *tv) {
   g_heureFiable = true;
   g_heureApprox = false;
   journal("Heure synchronisee par NTP : %s", horodatage().c_str());
+  Taches::heureSynchronisee();  // la boucle en déduira la durée d'une coupure
 }
 
 void restaurerHeure() {
@@ -330,6 +334,8 @@ void appliquerReglagesGlobaux() {
   const ReglagesGlobaux &g = Stockage::globaux();
   ctrl.limiterZones(Stockage::zonesSimultanees(g));
   ctrl.decalageSaison(g_heureFiable ? Stockage::decalageSaisonnier(g, (uint32_t)time(nullptr)) : 0.0f);
+  ctrl.zonePrioritaire((int8_t)g.zonePrioritaire - 1);
+  Taches::appliquerSoleil();
 }
 
 // ============================ SERVICES PARTAGÉS ==============================
@@ -380,6 +386,8 @@ void setup() {
   Serial.println(F("\n=== Thermostat terrarium v3 — un seul tapis alimente a la fois ==="));
 
   Stockage::demarrer();
+  // Dernière heure mise en flash avant l'arrêt : sert à mesurer une coupure.
+  const uint32_t epochSauvegarde = Stockage::lireEpoch();
   if (!Stockage::systemeFichiersPret())
     Serial.println(F("LittleFS indisponible : ni historique, ni journal, ni file d'alertes."));
 
@@ -410,12 +418,14 @@ void setup() {
   Sondes::demarrer();
   Affichage::demarrer();
   Courant::demarrer();
+  Facade::demarrer();
 
   // Premier démarrage de cet appareil : on tire son secret et on l'affiche, car
   // c'est la seule preuve de propriété permettant de le rattacher à un compte.
   const bool premierDemarrage = Stockage::assurerJeton();
 
   Reseau::demarrer();
+  Taches::demarrer(epochSauvegarde);
 
   if (premierDemarrage) {
     journal("Premier demarrage : code d'appairage genere");
@@ -464,7 +474,9 @@ void loop() {
   const uint32_t maintenant = millis();
 
   Console::boucle();
+  Facade::boucle(maintenant);  // bouton BOOT et LED d'état
   Reseau::boucle(maintenant);  // jamais bloquant : la régulation tient sans réseau
+  Taches::boucle(maintenant);  // rapport, résumés du jour, soleil, mémoire
 
   // --- mesures, en deux temps pour ne pas bloquer sur la conversion ---
   if (!conversionDemandee && maintenant - tMesure >= PERIODE_MESURE_MS) {
@@ -477,6 +489,8 @@ void loop() {
     tMesure = maintenant;
     ctrl.horloge(g_heureFiable, minutesDuJour());
     for (uint8_t z = 0; z < NB_ZONES; z++) ctrl.mesure(z, Sondes::lire(z), maintenant, dt);
+    Sondes::suivre(maintenant);  // identification en cours, sonde rebranchée
+    Essai::suivre(maintenant);   // essai de chauffe en cours
   }
 
   // --- puissance ---

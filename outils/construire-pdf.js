@@ -15,27 +15,18 @@
    ============================================================================= */
 
 const fs = require('fs');
-const http = require('http');
 const path = require('path');
+const { servirApp } = require('./servir-app');
 let chromium;
 try { ({ chromium } = require('playwright')); }
 catch (e) { console.error('Playwright est nécessaire : npm install --no-save playwright@1.56.0 && npx playwright install chromium'); process.exit(2); }
 
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i >= 0 ? process.argv[i + 1] : d; };
-const APP = path.resolve(__dirname, '..', 'app');
 const SORTIE = path.resolve(arg('sortie', path.join(__dirname, 'pdf')));
-const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png' };
 
 // Les pages servies en HTTP plutôt qu'en file:// : la CSP des pages (base-uri,
 // style-src 'self') se comporte alors exactement comme sur le site.
-const serveur = http.createServer((req, res) => {
-  const f = path.join(APP, decodeURIComponent(req.url.split('?')[0]));
-  fs.readFile(f, (e, d) => {
-    if (e) { res.statusCode = 404; res.end('absent'); return; }
-    res.setHeader('Content-Type', TYPES[path.extname(f)] || 'application/octet-stream');
-    res.end(d);
-  });
-}).listen(0);
+const serveur = servirApp();
 
 const DOCUMENTS = [
   { page: 'demarrage-rapide.html', pdf: 'demarrage-rapide.pdf', titre: 'Démarrage rapide / Quick start' },

@@ -48,6 +48,11 @@ static const float TEMP_MIN_PLAUSIBLE = 0.0f;
 static const float TEMP_MAX_PLAUSIBLE = 60.0f;
 static const uint32_t FIGE_ALERTE_MS = 900000;   // 15 min -> avertissement
 static const uint32_t FIGE_DEFAUT_MS = 1800000;  // 30 min -> coupure
+// Saut aberrant : une sonde posée sur une plaque ne gagne ni ne perd 4 °C en
+// 2 s. Une lecture isolée de ce genre (bit faux sur un long câble) est ignorée ;
+// répétée SAUT_CONFIRMATIONS fois, elle devient la nouvelle mesure.
+static const float SAUT_MAX = 4.0f;
+static const uint8_t SAUT_CONFIRMATIONS = 3;
 
 // Autotune. Le relais bascule avec une hystérésis nettement supérieure au pas
 // de quantification du DS18B20 (0,0625 °C) : sans elle, il commuterait sur le
@@ -57,10 +62,22 @@ static const float AUTOTUNE_BANDE_MIN = 0.50f;  // plancher, pour éviter le cha
 static const float AUTOTUNE_KI_MAX = 0.005f;
 static const float AUTOTUNE_MARGE_KP = 0.35f;  // plus prudent que les 0,45 de Ziegler-Nichols
 
+// Contrôle croisé des sondes. Une seule zone chauffe à la fois la plupart du
+// temps : la chaleur d'un tapis doit donc arriver sur la sonde de SA zone. Si
+// une zone pousse à fond sans que sa sonde bouge, pendant que la sonde d'une
+// zone qui ne chauffe pas prend de la chaleur, les sondes sont inversées (ou
+// posées sur la mauvaise plaque) : le tapis chaufferait alors sans limite,
+// jusqu'au bilame.
+static const uint32_t CROISE_CHAUFFE_MS = 360000;  // 6 min de chauffe effective
+static const float CROISE_DEMANDE_MIN = 0.9f;      // la zone demande toute la puissance
+static const float CROISE_ECART_MIN = 0.5f;        // °C sous sa consigne
+static const float CROISE_REPONSE = 0.5f;          // sa sonde gagne autant : le tapis agit
+static const float CROISE_HAUSSE_AUTRE = 1.5f;     // ce que prend la sonde de l'autre zone
+
 // ---------------------------------------------------------------------------
-// DEF_INEFFICACE n'est plus déclenché : le diagnostic « chauffe sans effet »
-// est devenu une alerte. La valeur reste définie pour pouvoir relire un défaut
-// enregistré par une version antérieure.
+// DEF_INEFFICACE : la chauffe d'une zone n'agit pas sur sa sonde mais sur celle
+// d'une autre (contrôle croisé ci-dessus). Le simple constat « je chauffe et ça
+// ne monte pas » reste une alerte (NOTIF_SANS_EFFET) : seul, il ne prouve rien.
 enum Defaut : uint8_t { DEF_AUCUN = 0, DEF_SONDE, DEF_SURCHAUFFE, DEF_FIGE, DEF_INEFFICACE };
 const char *nomDefaut(Defaut d);
 
@@ -103,7 +120,9 @@ enum TypeNotif : uint8_t {
   NOTIF_AUTOTUNE,
   NOTIF_CHUTE,
   NOTIF_SANS_EFFET,
-  NOTIF_INFO
+  NOTIF_INFO,
+  NOTIF_RAPPORT,    // rapport quotidien : priorité basse, jamais étouffé par une autre info
+  NOTIF_TROP_CHAUD  // au-dessus de la consigne sans chauffer : la chauffe n'y peut rien
 };
 
 struct Notification {
@@ -144,12 +163,23 @@ struct ZoneEtat {
   uint32_t msChauffeEpisode = 0;
   bool sansEffetSignale = false;
 
+  // contrôle croisé : fenêtre ouverte quand la zone pousse à fond
+  bool croiseOuvert = false;
+  float croiseRef[NB_ZONES] = { NAN, NAN };     // températures des zones à l'ouverture
+  uint32_t croiseMsChauffe = 0;                 // chauffe de cette zone depuis
+  uint32_t croiseMsAutre[NB_ZONES] = { 0, 0 };  // chauffe des autres zones depuis
+
   // dérive douce
   uint32_t msDerive = 0;
   bool deriveActive = false;
 
   uint8_t lecturesInvalides = 0;
-  bool cfgModifie = false;  // l'autotune a réécrit les gains : à sauvegarder
+  uint8_t sautsConsecutifs = 0;  // lectures écartées pour saut aberrant
+  bool cfgModifie = false;       // l'autotune a réécrit les gains : à sauvegarder
+
+  // trop chaud sans chauffer (canicule, soleil, lampe) : alerte seulement
+  uint32_t msTropChaud = 0;
+  bool tropChaudActif = false;
 
   // détection de chute brutale (porte ouverte, tapis débranché)
   float tempChute = NAN;
@@ -214,10 +244,16 @@ public:
   bool prendreNotification(Notification &n);  // file FIFO à vider
 
   // `compter` = false pour un verrouillage volontaire (commande `off`) : il ne
-  // doit pas grossir les compteurs de pannes des statistiques.
-  void declencherDefaut(uint8_t z, Defaut d, uint32_t nowMs, bool compter = true);
+  // doit pas grossir les compteurs de pannes des statistiques. `detail` complète
+  // la notification quand le nom du défaut ne suffit pas à comprendre.
+  void declencherDefaut(uint8_t z, Defaut d, uint32_t nowMs, bool compter = true,
+                        const char *detail = nullptr);
   void leverDefauts(uint32_t nowMs);
   void appliquerDefautsRestaures(const uint8_t d[NB_ZONES]);
+  // Les sondes viennent d'être manipulées volontairement (identification,
+  // nouvelle liaison) : les diagnostics qui comparent une mesure à une mesure
+  // antérieure repartent de zéro, au lieu d'y voir une chute ou une inversion.
+  void oublierMesures();
   void suspendre(bool actif) { m_suspendu = actif; }  // OTA, arrêt manuel
 
   bool lancerAutotune(uint8_t z, uint32_t nowMs, char *erreur, size_t taille);
@@ -225,18 +261,44 @@ public:
 
   float consignePour(uint8_t z) const;  // consigne courante calculée
 
+  // Jour et nuit calés sur le soleil : lever et coucher du jour (minutes
+  // locales), qui remplacent les horaires fixes de toutes les zones. Les
+  // réglages enregistrés ne sont pas touchés : désactiver rend les horaires fixes.
+  void horairesSoleil(bool actif, uint16_t lever, uint16_t coucher);
+  bool soleilActif() const { return m_soleilActif; }
+  uint16_t debutJour(uint8_t z) const { return m_soleilActif ? m_lever : cfg[z].debutJour; }
+  uint16_t debutNuit(uint8_t z) const { return m_soleilActif ? m_coucher : cfg[z].debutNuit; }
+
+  // Zone servie en priorité quand l'alimentation n'alimente pas tout le monde :
+  // elle gagne ses créneaux deux fois plus vite. -1 = aucune.
+  void zonePrioritaire(int8_t z) { m_prioritaire = (z >= 0 && z < (int8_t)NB_ZONES) ? z : -1; }
+  int8_t zonePrioritaire() const { return m_prioritaire; }
+
+  // Essai de chauffe (mise en service) : la zone chauffe seule, à pleine
+  // puissance, pendant `ms` au plus. Les coupures de sécurité restent actives.
+  bool forcerChauffe(uint8_t z, uint32_t nowMs, uint32_t ms);
+  void arreterForcage() { m_forcee = -1; }
+  int8_t zoneForcee() const { return m_forcee; }
+
 private:
   void notifier(TypeNotif t, uint8_t z, const char *fmt, ...);
   void comptabiliser(uint32_t nowMs, uint32_t delta);
   void ordonnancer(uint32_t nowMs);
   int8_t choisirTapis(uint8_t z, uint32_t nowMs);
   void majAutotune(uint8_t z, uint32_t nowMs);
+  void ouvrirCroisement(uint8_t z);
+  void verifierCroisement(uint8_t z, uint32_t nowMs);
 
   int8_t m_tapisDeZone[NB_ZONES] = { -1, -1 };
   uint8_t m_maxZones = MAX_ZONES_DEFAUT;
   float m_saison = 0.0f;
   uint32_t m_maintenanceFin = 0;
   uint32_t m_debutCreneau = 0;
+  bool m_soleilActif = false;
+  uint16_t m_lever = 8 * 60, m_coucher = 20 * 60;
+  int8_t m_prioritaire = -1;
+  int8_t m_forcee = -1;
+  uint32_t m_forceFin = 0;
   uint32_t m_dernierAvance = 0;
   uint32_t m_dernierOff[NB_TAPIS] = { 0 };
   bool m_suspendu = false;

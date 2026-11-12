@@ -32,9 +32,12 @@ async function jusqua(condition, limiteMs = 10000, pas = 150) {
 }
 
 function creerApp(adressePage) {
-  const html = fs.readFileSync(path.join(DOSSIER, 'index.html'), 'utf8').replace(/<script src="[^"]*"[^>]*><\/script>\s*/g, '');
+  const html = fs.readFileSync(path.join(DOSSIER, 'index.html'), 'utf8');
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: adressePage, pretendToBeVisual: true });
   const w = dom.window;
+  // jsdom ne charge pas les scripts externes en mode « outside-only » : on
+  // retire les balises et on injecte les scripts directement.
+  for (const s of w.document.querySelectorAll('script[src]')) s.remove();
   w.eval(fs.readFileSync(path.join(DOSSIER, 'mqtt.js'), 'utf8'));
   w.localStorage.setItem('terrarium.langue', 'fr');
   w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (_, p) => (p === 'canvas' ? {} : () => {}) });
