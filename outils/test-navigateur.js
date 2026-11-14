@@ -106,8 +106,10 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   await page.waitForTimeout(1800);
   v('un chevron envoie la nouvelle cible (commande signée, en QoS 1)', (await page.textContent('#message')).includes('enregistrés'), `${cibleAvant} → ${await page.textContent('#detail [data-r="zcible"]')}`);
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
-  v('Échap revient à l\'accueil, le focus sur la zone', await page.evaluate(() => document.activeElement && document.activeElement.matches('.zone-accueil[data-z="0"]')));
+  // Le retour est animé : sur un runner chargé, 300 ms ne suffisent pas toujours (vu dans Firefox).
+  await page.waitForFunction(() => document.activeElement && document.activeElement.matches('.zone-accueil[data-z="0"]'), null, { timeout: 4000 }).catch(() => {});
+  v('Échap revient à l\'accueil, le focus sur la zone', await page.evaluate(() => document.activeElement && document.activeElement.matches('.zone-accueil[data-z="0"]')),
+    await page.evaluate(() => { const a = document.activeElement; return a ? `${a.tagName.toLowerCase()}${a.id ? '#' + a.id : ''}.${[...a.classList].join('.')}` : 'aucun'; }));
 
   console.log('\n== Panneaux');
   await page.click('.rubrique[data-nom=courbes]');
