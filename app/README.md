@@ -98,6 +98,13 @@ l'agent de service d'après le commit, minifie les scripts (terser, cartes de
 sources à côté) et copie le firmware de la dernière release pour la page
 « Flasher un socle » ; sur un autre hébergeur, l'exécuter avant de publier.
 
+Netlify sert chaque page à deux adresses, avec et sans extension
+(`demo.html` aussi à `/demo`), et choisit les en-têtes d'après l'adresse
+demandée. Les règles propres à la démonstration et à la page de flashage sont
+donc écrites pour les deux adresses ; `outils/verifier-netlify.js` (CI) vérifie
+qu'elles restent identiques et que chaque page reçoit une politique qui permet
+ce qu'elle contient.
+
 ### GitHub Pages
 
 Déposer le contenu de `app/` sur une branche `gh-pages`.

@@ -157,6 +157,16 @@ peut pas diverger de l'application réelle. Seul le client MQTT est remplacé pa
 une imitation qui répond dans la page, et la politique de sécurité (CSP) de la
 vraie page en est retirée, puisque tout y est en ligne.
 
+Sur le site, Netlify lui envoie sa propre politique, qui autorise ce contenu en
+ligne, à ses deux adresses (`/demo.html` et `/demo`). `verifier-netlify.js`
+contrôle `netlify.toml` : une règle propre à une page existe pour ses deux
+adresses avec les mêmes valeurs, et une page qui a du script ou du style en
+ligne n'est servie nulle part sous une politique qui les refuse.
+
+```
+node verifier-netlify.js
+```
+
 C'est ce fichier qui a révélé que l'application affichait toutes les zones en
 panne : le socle publie `defaut: "0"` pour Home Assistant, et la chaîne `"0"`
 est vraie en JavaScript.

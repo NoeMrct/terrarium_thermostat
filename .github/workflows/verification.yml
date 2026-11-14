@@ -8,8 +8,9 @@
 #                couverture gcov, clang-format sur tout le C++
 #   reseau       lint et types de l'application, protocole (schéma compris),
 #                client MQTT, application dans jsdom puis dans un vrai Chromium,
-#                couverture c8, démonstration, page embarquée, accessibilité,
-#                régression visuelle, charge, Lighthouse (et poids, pour information)
+#                couverture c8, démonstration, page embarquée, en-têtes Netlify,
+#                accessibilité, régression visuelle, charge, Lighthouse (et poids,
+#                pour information)
 #   navigateurs  l'application dans WebKit et Firefox (Safari iPhone est la cible)
 #   serveur      le serveur auto-hébergeable (comptes, historique, push, console)
 #   firmware     compilation ESP32 reproductible sans avertissement, taille
@@ -110,6 +111,9 @@ jobs:
         run: |
           node outils/compresser-page.js --verifier
           node outils/construire-aide.js --verifier
+
+      - name: En-têtes Netlify (mêmes règles aux deux adresses d'une page, contenu en ligne autorisé)
+        run: node outils/verifier-netlify.js
 
       - name: Client MQTT de l'application
         working-directory: outils

@@ -1036,6 +1036,6 @@ défaut.
 | `app/mentions-legales.html`, `app/confidentialite.html` (+ `.en.html`), `app/404.html` | Pages du site |
 | `serveur/` | Serveur auto-hébergé facultatif : broker MQTT avec comptes et droits par socle, historique, notifications push, administration (`serveur/README.md`) |
 | `INSTALLATION.md` | Guide d'installation, des trois niveaux à la mise en service |
-| `outils/` | Socle simulé, tests (protocole et schéma, client MQTT, application dans jsdom et dans Chromium/WebKit/Firefox, interface web, démonstration, accessibilité, régression visuelle, charge, serveur, QR, matériel par port série), lint et types, couverture, compression de la page, aide et PDF, icônes, captures, étiquette QR, provisionnement, signature du firmware, préparation de la publication |
+| `outils/` | Socle simulé, tests (protocole et schéma, client MQTT, application dans jsdom et dans Chromium/WebKit/Firefox, interface web, démonstration, accessibilité, régression visuelle, charge, serveur, QR, matériel par port série), lint et types, couverture, compression de la page, aide et PDF, icônes, captures, étiquette QR, provisionnement, signature du firmware, préparation de la publication, contrôle des en-têtes Netlify |
 | `.github/workflows/` | Vérification automatique à chaque modification, publication par étiquette (binaires reproductibles et attestés, PDF), CodeQL (JavaScript et C++), banc matériel |
 | `sim/` | Le banc d'essai pour PC |

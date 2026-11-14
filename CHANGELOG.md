@@ -300,6 +300,14 @@ jour.
 
 ### Corrigé
 
+- Site : la démonstration ouverte à l'adresse `/demo` (sans `.html`)
+  s'affichait brute, sans mise en forme ni script. Netlify sert chaque page
+  aussi sans son extension, mais choisit les en-têtes d'après l'adresse
+  demandée : à `/demo`, seule la politique générale s'appliquait, et elle
+  refuse le script et le style en ligne dont la démonstration est faite. Même
+  défaut pour la page de flashage à `/installer`. Les règles propres à ces
+  pages valent maintenant pour leurs deux adresses, et
+  `outils/verifier-netlify.js` (CI, crochet de commit) le contrôle.
 - Application : à la toute première visite, l'agent de service rechargeait la
   page en prenant la main ; ce qui venait d'être saisi était perdu. Il ne
   recharge plus qu'à l'arrivée d'une nouvelle version acceptée.
