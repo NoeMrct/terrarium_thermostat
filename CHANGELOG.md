@@ -89,6 +89,10 @@ jour.
   dit pourquoi la box refuse (mot de passe, réseau introuvable ou en 5 GHz,
   pas de réponse) et redémarre dessus. L'interface complète passe à
   `/interface` (et reste `/` hors point d'accès).
+- **Page locale aux couleurs de l'application** (I7) : fond blanc, cartes sans
+  ombre, commandes noires, onglets segmentés, zones en orange et bleu,
+  températures en grands chiffres fins à la française (« 30,6° »), bandeau
+  « PAGE LOCALE · sans Internet ». Sombre automatique, comme l'application.
 - Tests : bancs `test-liaisons` et `test-soleil`, scénarios 21 à 28 du
   simulateur (sondes inversées, couplage légitime, pic isolé, canicule,
   priorité, essai de chauffe, soleil), fuzzing des liaisons et du soleil, tests

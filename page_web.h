@@ -1,7 +1,8 @@
 /* page_web.h — interface web embarquée, servie depuis la flash programme.
-   Même langage visuel que l'application (app/style.css) : jetons de couleur
-   clairs et sombres, cartes, pastilles, onglets segmentés. Après toute
-   modification : node outils/compresser-page.js (régénère page_web_gz.h). */
+   Même langage visuel que l'application (app/style.css) : fond blanc, cartes
+   grises sans ombre, noir pour les commandes, orange et bleu pour les zones,
+   grands chiffres fins ; sombre automatique. Après toute modification :
+   node outils/compresser-page.js (régénère page_web_gz.h). */
 #ifndef PAGE_WEB_H
 #define PAGE_WEB_H
 
@@ -14,33 +15,35 @@ static const char PAGE_HTML[] PROGMEM = R"HTML(<!doctype html><html lang="fr"><h
 <meta name="theme-color" content="#f3f5f7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="/icone.svg"><style>
-:root{color-scheme:light dark;--f:#f3f5f7;--c:#fff;--k:#f1f3f6;--l:#e4e8ed;--t:#15191e;--g:#5b6470;--g3:#5f6975;--a:#15803d;--at:#fff;--ad:#e6f6ec;--w:#9a4a07;--wd:#fdf1df;--d:#c2272d;--dd:#fde8e8;--z1:#d95f0a;--z2:#0b7fb9}
-@media(prefers-color-scheme:dark){:root{--f:#0f1115;--c:#181b21;--k:#22262e;--l:#2a2f38;--t:#f3f4f6;--g:#a3abb6;--g3:#8d96a3;--a:#34d399;--at:#0b1a12;--ad:#16302a;--w:#fbbf24;--wd:#332a12;--d:#f87171;--dd:#3a1d1d;--z1:#fb923c;--z2:#38bdf8}}
-body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;margin:0;padding:12px 14px 28px;background:var(--f);color:var(--t);font-size:15px;line-height:1.45;font-variant-numeric:tabular-nums;max-width:1040px;margin-inline:auto}
-h1{font-size:20px;margin:4px 0 2px;font-weight:700;letter-spacing:-.01em}.sub{color:var(--g);font-size:12px;margin-bottom:12px;display:flex;flex-wrap:wrap;gap:4px}
-.card{background:var(--c);border-radius:20px;padding:16px;margin-bottom:14px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.06)}
-.big{font-size:34px;font-weight:650;line-height:1.1;letter-spacing:-.02em;margin:4px 0}
+:root{color-scheme:light dark;--f:#fff;--c:#f6f6f4;--k:#efefec;--l:#e6e6e3;--t:#121315;--g:#5f6368;--g3:#6b7075;--a:#121315;--at:#fff;--ad:#e8f3ed;--ok:#17683f;--w:#9a4a07;--wd:#fdf1df;--d:#b42318;--dd:#fbedeb;--z1:#e0661c;--z2:#2f6fdb}
+@media(prefers-color-scheme:dark){:root{--f:#0d0e10;--c:#17181b;--k:#232428;--l:#2a2b30;--t:#f2f2f0;--g:#a7abb0;--g3:#93989e;--a:#f2f2f0;--at:#121315;--ad:#173327;--ok:#3ccf8e;--w:#fbbf24;--wd:#332a12;--d:#f97066;--dd:#3a1d1d;--z1:#f08a4b;--z2:#6c9cf0}}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;margin:0;padding:14px 16px 28px;background:var(--f);color:var(--t);font-size:15px;line-height:1.45;font-variant-numeric:tabular-nums;max-width:1040px;margin-inline:auto}
+h1{font-size:26px;margin:4px 0 2px;font-weight:600;letter-spacing:-.01em}.sub{color:var(--g);font-size:12px;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:4px}
+.marque{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--g)}.marque b{height:24px;padding:0 10px;border-radius:12px;background:var(--a);color:var(--at);display:inline-flex;align-items:center;font-size:11.5px;font-weight:600;letter-spacing:.04em}
+.card{background:var(--c);border-radius:20px;padding:16px;margin-bottom:14px}
+.big{font-size:40px;font-weight:200;line-height:1.05;letter-spacing:-.03em;margin:4px 0}.et{font-size:13px;font-weight:500;color:var(--g)}.et.ch{color:var(--z1)}.z2 .et.ch,.et.ch.z2{color:var(--z2)}
 .g{color:var(--g);font-size:12.5px}.bad{color:var(--d);font-weight:650}.warn{color:var(--w);font-weight:600}
 canvas{width:100%;height:230px;background:var(--k);border-radius:14px;display:block}
 label{display:block;margin:10px 0 4px;font-size:12.5px;font-weight:500;color:var(--g)}
 input,select{width:110px;min-height:40px;background:var(--k);color:var(--t);border:1px solid transparent;border-radius:12px;padding:7px 11px;font-size:15px;font:inherit}
-input:focus-visible,select:focus-visible{outline:none;border-color:var(--a);box-shadow:0 0 0 3px var(--ad)}
+input:focus-visible,select:focus-visible{outline:none;border-color:#2f6fdb;box-shadow:0 0 0 3px rgba(47,111,219,.25)}
 input.w{width:100%;box-sizing:border-box}
-button{background:var(--a);color:var(--at);border:0;border-radius:14px;padding:10px 16px;font-weight:650;font-size:14px;margin:10px 6px 0 0;cursor:pointer;font-family:inherit;min-height:40px}
+button{background:var(--a);color:var(--at);border:0;border-radius:999px;padding:10px 18px;font-weight:500;font-size:14px;margin:10px 6px 0 0;cursor:pointer;font-family:inherit;min-height:42px}
+button:focus-visible{outline:3px solid #2f6fdb;outline-offset:2px}
 button.s{background:var(--k);color:var(--t)}button.danger{background:var(--dd);color:var(--d)}
 .row{display:flex;gap:9px;flex-wrap:wrap}
-.tabs{display:inline-flex;gap:4px;padding:4px;margin-bottom:14px;background:var(--c);border-radius:999px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.06);flex-wrap:wrap}
-.tabs button{margin:0;background:transparent;color:var(--g3);font-weight:600;border-radius:999px;padding:7px 14px;min-height:36px;font-size:13.5px}
-.tabs button.on{background:var(--ad);color:var(--a)}
+.tabs{display:inline-flex;gap:4px;padding:4px;margin-bottom:14px;background:var(--k);border-radius:16px;flex-wrap:wrap}
+.tabs button{margin:0;background:transparent;color:var(--t);font-weight:500;border-radius:12px;padding:7px 14px;min-height:40px;font-size:14px}
+.tabs button.on{background:var(--f);box-shadow:0 1px 3px rgba(18,19,21,.14)}
 pre{background:var(--k);padding:10px;border-radius:12px;font-size:11.5px;overflow:auto;max-height:340px;white-space:pre-wrap;color:var(--t)}
 .pill{display:inline-flex;align-items:center;gap:5px;background:var(--k);border-radius:999px;padding:5px 10px;font-size:12px;font-weight:600;color:var(--g)}
-.pill.ok{background:var(--ad);color:var(--a)}.pill.warn{background:var(--wd);color:var(--w)}
+.pill.ok{background:var(--ad);color:var(--ok)}.pill.warn{background:var(--wd);color:var(--w)}
 .avert{background:var(--wd);color:var(--w);border-radius:14px;padding:10px 12px;margin-bottom:12px;font-size:12.5px;line-height:1.45}
 #connexion,#creation{position:fixed;inset:0;background:var(--f);display:flex;align-items:center;justify-content:center;padding:16px;z-index:9}
 #connexion .card,#creation .card{width:100%;max-width:360px}#connexion[hidden],#creation[hidden]{display:none}
 h3{font-size:13px;margin:14px 0 2px;color:var(--g);font-weight:600}
-progress{width:100%;height:9px}a{color:var(--a)}
-.zone{display:flex;align-items:center;gap:6px;color:var(--g);font-size:12.5px;font-weight:600}
+progress{width:100%;height:9px}a{color:inherit}
+.zone{display:flex;align-items:center;gap:6px;color:var(--g);font-size:13px;font-weight:500}
 .zone::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--z1)}.zone.z2::before{background:var(--z2)}
 .stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-top:8px}
 .stat div{background:var(--k);border-radius:12px;padding:9px 10px}.stat b{display:block;font-size:16px;font-weight:650}.stat span{font-size:11.5px;color:var(--g)}
@@ -58,7 +61,7 @@ progress{width:100%;height:9px}a{color:var(--a)}
 <label>Mot de passe (8 caractères au moins)</label><input class="w" id="nm" type="password" autocomplete="new-password">
 <label>Le même, encore une fois</label><input class="w" id="nm2" type="password" autocomplete="new-password">
 <div class="bad" id="nerr"></div><button type="submit">Créer et se connecter</button></form></div>
-<h1>Thermostat terrarium</h1><div class="sub" id="entete">…</div>
+<div class="marque"><b>PAGE LOCALE</b>sans Internet</div><h1>Socle chauffant</h1><div class="sub" id="entete">…</div>
 <div id="avertissements"></div>
 <div class="tabs">
 <button class="on" onclick="onglet('vue',this)">Vue</button>
@@ -92,7 +95,10 @@ ni les mots de passe ne sont dans le fichier, mais l'URL d'alerte y est (une URL
 <div id="log" style="display:none"><div class="card"><pre id="jtxt">…</pre>
 <button class="s" onclick="fetch('/api/journal',{method:'DELETE',headers:{'X-Terrarium':'1'}}).then(charge)">Effacer le journal</button></div></div>
 <script>
-const C=['#d95f0a','#0b7fb9'];let S=null;
+// Couleurs des zones, celles de la feuille de style (clair ou sombre).
+const C=['--z1','--z2'].map(v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#e0661c');let S=null;
+// Une décimale, virgule française : « 30,6 ».
+const fr=(v,d=1)=>Number(v).toFixed(d).replace('.',',');
 // Toutes les requêtes portent X-Terrarium (preuve qu'elles viennent de cette
 // page, et non d'un site tiers) ; un 401 ouvre le formulaire de connexion.
 function F(u,o={}){return fetch(u,Object.assign({},o,{headers:Object.assign({'X-Terrarium':'1'},o.headers||{})})).then(r=>{if(r.status===401)connexion();else if(r.status===428)creation();return r;});}
@@ -184,10 +190,11 @@ async function maj(){
   (S.sante&&S.sante.otaEnAttente?`<span class="pill warn">mise à jour à valider</span>`:'')+
   `<span class="pill">v${esc(S.version||'?')}</span>`;
  document.getElementById('zones').innerHTML=S.zones.map((z,i)=>
-  `<div class="card"><div class="zone${i?' z2':''}">${esc(z.nom)} — cible ${z.consigne.toFixed(1)} °C${z.autotune?' · AUTOTUNE':''}</div>
-   <div class="big" style="color:${C[i]}">${z.defaut?'—':z.temp.toFixed(2)+' °C'}</div>
+  `<div class="card"><div class="zone${i?' z2':''}">${esc(z.nom)}${z.autotune?' · AUTOTUNE':''}</div>
+   <div class="big">${z.defaut?'—':fr(z.temp)+'°'}</div>
    ${z.defaut?`<div class="bad">DÉFAUT : ${esc(z.defaut)}</div><button onclick="post('/api/reset')">Lever</button>`
-    :`<div class="g">demande ${z.demande} % · charge ${z.duty} % ${z.chauffe?'· <b class="warn">CHAUFFE</b>':''}${z.derive?' · <span class="warn">dérive</span>':''}${z.tropChaud?' · <span class="warn">trop chaud</span>':''}</div>`}
+    :`<div class="et${z.chauffe?' ch':''}${i?' z2':''}">${z.chauffe?'CHAUFFE':'Au repos'} · cible ${fr(z.consigne)}°</div>
+      <div class="g">demande ${z.demande} % · charge ${z.duty} %${z.derive?' · <span class="warn">dérive</span>':''}${z.tropChaud?' · <span class="warn">trop chaud</span>':''}</div>`}
    </div>`).join('');
  durees(S.histHeures||24);
  // L'OTA ouverte est le defaut de configuration le plus couteux : n'importe qui

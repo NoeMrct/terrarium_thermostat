@@ -195,7 +195,7 @@ const dernier = (socle, chemin, methode) =>
 
   v('l\'entête affiche l\'heure et la version', p.html('#entete').includes('3.3.0'), p.texte('#entete').slice(0, 46));
   v('les deux zones sont affichées', (p.html('#zones').match(/class="card"/g) || []).length === 2);
-  v('la température apparaît', p.html('#zones').includes('30.25'));
+  v('la température apparaît, virgule française', p.html('#zones').includes('30,3°') || p.html('#zones').includes('30,2°'), (p.texte('#zones').match(/\d+,\d°/) || [''])[0]);
   v('la zone qui chauffe est signalée', p.html('#zones').includes('CHAUFFE'));
   v('un nom piégeux est échappé, pas injecté',
     !p.html('#zones').includes('<b>') && p.html('#zones').includes('&lt;b&gt;'),
