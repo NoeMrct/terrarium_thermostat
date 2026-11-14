@@ -539,7 +539,6 @@ const STYLE = lire('style.css').replace('url(polices/inter-latin-wght.woff2)', `
 // ce qui est précisément ce que ce fichier contient : elle est retirée ici.
 html = html
   .replace('<link rel="stylesheet" href="style.css">', () => `<style>\n${STYLE}\n</style>`)
-  .replace(/<link rel="preload"[^>]*>\s*/, '')
   .replace('<link rel="manifest" href="manifest.json">', '')
   .replace('<link rel="icon" href="icone.svg">', '')
   .replace(/<link rel="apple-touch-icon"[^>]*>\s*/, '')

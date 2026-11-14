@@ -106,7 +106,7 @@ function creerApp(adressePage) {
     $('#a-id').value = 'terraA1B2C3'; $('#a-jeton').value = JETON; $('#a-nom').value = 'Salon';
     App.ajouterSocle();
     verifier('le bon code rattache le socle', await jusqua(() => /rattaché/.test(texte('#message'))), texte('#message').slice(0, 60));
-    verifier('…et ses températures arrivent (abonnement accordé)', await jusqua(() => /30\.5/.test($('#socles').innerHTML)));
+    verifier('…et ses températures arrivent (abonnement accordé)', await jusqua(() => /30[.,]5/.test($('#socles').innerHTML)));
     const moi = await appel('GET', '/api/moi', undefined, JSON.parse(w.localStorage.getItem('terrarium.config.v1')).serveur.jeton);
     verifier('le serveur a enregistré le rattachement', Array.isArray(moi.socles) && moi.socles.includes('terraA1B2C3'));
 
