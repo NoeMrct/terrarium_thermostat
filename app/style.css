@@ -258,8 +258,8 @@ button { font: inherit; }
 /* ----------------------------------------------------------------- onglets */
 .onglets {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px;
-  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px;
+  padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
   background: var(--carte);
   background: color-mix(in oklab, var(--carte) 92%, transparent);
   -webkit-backdrop-filter: var(--flou); backdrop-filter: var(--flou);
@@ -365,7 +365,7 @@ dialog.feuille[open] { animation: apparition .16s ease-out; }
 dialog.feuille:not([open]) { display: none; }
 @keyframes apparition { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .boutons.fin { justify-content: flex-end; margin-top: 18px; }
-.rapport {
+.rapport, .bloc-texte {
   margin: 12px 0 0; padding: 12px; max-height: 50vh; overflow: auto;
   background: var(--creux); border-radius: var(--rayon-petit);
   font: 11.5px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word;
@@ -397,6 +397,18 @@ table.minmax th { font-weight: 600; color: var(--texte-2); font-size: 11.5px; }
 table.minmax th:first-child, table.minmax td:first-child { text-align: left; }
 table.minmax th.z1::before, table.minmax th.z2::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--zone-1); margin-right: 4px; vertical-align: 1px; }
 table.minmax th.z2::before { background: var(--zone-2); }
+
+/* ----------------------------------------------------------------- Service */
+.liste-sondes { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; font-size: 13.5px; }
+.liste-sondes b { font-weight: 600; overflow-wrap: anywhere; }
+.sonde { grid-template-columns: minmax(0, 1fr) auto; margin-top: 10px; }
+.sonde .bas .btn { margin-top: 0; }
+.tableau-defile { overflow-x: auto; margin-top: 10px; }
+table.tableau { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+table.tableau th, table.tableau td { padding: 6px 5px; text-align: right; border-bottom: 1px solid var(--ligne); white-space: nowrap; }
+table.tableau thead th { color: var(--texte-2); font-weight: 600; font-size: 11.5px; }
+table.tableau th[scope="row"], table.tableau thead th:first-child { text-align: left; font-weight: 600; }
+table.tableau tr.avec-defaut td { color: var(--danger); }
 
 /* ----------------------------------------------------------------- démonstration */
 html #bandeau-demo {

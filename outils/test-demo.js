@@ -110,6 +110,40 @@ const attendre = ms => new Promise(r => setTimeout(r, ms));
   v('5 A débloquent deux zones', $('#message').textContent.includes('2 zone'),
     $('#message').textContent);
 
+  console.log('\n== Service (protocole 4)');
+  App.ouvrir('terraDEMO001');
+  App.panneau('service');
+  await attendre(1600);
+  const det = () => $('#detail').innerHTML;
+  v('l\'onglet Service se charge avec les sondes', det().includes('Sondes') && det().includes('28FF4C1D61160301'));
+  v('la surveillance montre le serveur, pas l\'adresse', det().includes('ntfy.sh') && !det().includes('exemple-demo'));
+  $('[data-sv="identifier"][data-z="0"]').click();
+  await attendre(1200);
+  v('identification lancée et suivie', /serre sa sonde/.test(det()), ($('#message').textContent || '').slice(0, 50));
+  $('[data-sv="stop-identifier"]').click();
+  await attendre(1000);
+  v('identification annulée', !/serre sa sonde/.test(det()));
+  $('[data-sv="essai"][data-z="1"]').click();
+  await attendre(300);
+  const oui = $('#dlg-confirm [data-dlg="oui"]');
+  v('un essai de chauffe demande confirmation', !!oui);
+  if (oui) oui.click();
+  await attendre(1500);
+  v('essai lancé et suivi', /Zone 2 en essai/.test(det()));
+  $('[data-sv="stop-essai"]').click();
+  await attendre(1000);
+  $('[data-sv="jours"]').click();
+  await attendre(1000);
+  v('résumés journaliers en tableau, avec le coût', !!$('#detail table.tableau') && det().includes('kWh') && det().includes('<th scope="col">€</th>'));
+  $('[data-sv="journal"]').click();
+  await attendre(1000);
+  v('le journal s\'affiche', det().includes('Demarrage') && det().includes('Essai de chauffe'));
+  $('#sv-ua').value = 'https://ntfy.sh/autre-sujet-secret';
+  $('[data-form="sv-surveillance"]').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+  await attendre(1000);
+  v('nouvelle adresse d\'alerte enregistrée', $('#message').textContent.includes('Enregistré'), $('#message').textContent);
+  v('…et effacée du champ : elle ne se relit plus', $('#sv-ua').value === '' && !det().includes('autre-sujet-secret'));
+
   console.log('\n== Notifications');
   // Le socle 2 démarre avec une zone en défaut : la lever doit produire une
   // notification de rétablissement, et une seule.

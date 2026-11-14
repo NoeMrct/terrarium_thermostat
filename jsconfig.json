@@ -20,6 +20,7 @@
   "include": [
     "app/app.js",
     "app/mqtt.js",
-    "app/sw.js"
+    "app/sw.js",
+    "app/service.js"
   ]
 }

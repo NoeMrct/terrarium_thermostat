@@ -109,6 +109,18 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   }
   await page.setViewportSize({ width: 390, height: 844 });
 
+  console.log('\n== Onglet Service (module importé à la demande)');
+  await page.click('.onglets button[data-nom=service]');
+  await page.waitForFunction(() => document.querySelector('#detail').textContent.includes('28FF0000000000A1'), null, { timeout: 8000 }).catch(() => {});
+  v('le module Service s\'importe et liste les sondes', (await page.innerHTML('#detail')).includes('28FF0000000000A1'));
+  const barre = await page.evaluate(() => {
+    const b = [...document.querySelectorAll('.onglets button')];
+    return { n: b.length, deborde: b.some(x => x.getBoundingClientRect().right > window.innerWidth + 1 || x.scrollWidth > x.clientWidth + 1) };
+  });
+  v('cinq onglets tiennent dans un écran de téléphone', barre.n === 5 && !barre.deborde, `${barre.n} onglets`);
+  await page.click('.onglets button[data-nom=general]');
+  await page.waitForTimeout(300);
+
   console.log('\n== Dialogues');
   await page.click('[data-action="redemarrer"]');
   await page.waitForTimeout(300);

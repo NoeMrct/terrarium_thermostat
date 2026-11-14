@@ -32,7 +32,7 @@ const App = (() => {
 
   const CLE_CONFIG = 'terrarium.config.v1';
   const CLE_LANGUE = 'terrarium.langue';
-  const PROTO_APP = 3;              // version du protocole que cette application comprend
+  const PROTO_APP = 4;              // version du protocole que cette application comprend (4 : signées, à distance)
   const CLE_VERROU_MIN = 'terrarium.verrou.min';   // minutes d'inactivité avant verrouillage (0 = au lancement seulement)
   const PBKDF2_ITERATIONS = 300000; // dérivation du code de verrouillage (≈ 0,3 s sur un téléphone)
   const DELAI_COMMANDE = 8000;      // au-delà, on considère le socle injoignable
@@ -40,7 +40,8 @@ const App = (() => {
   const DUREES = [6, 24, 168, 720]; // heures proposées pour les courbes
   const ONGLETS = [
     ['etat', 'ongletEtat', 'i-etat'], ['reglages', 'ongletReglages', 'i-reglages'],
-    ['courbes', 'ongletCourbes', 'i-courbes'], ['general', 'ongletAppareil', 'i-appareil']
+    ['courbes', 'ongletCourbes', 'i-courbes'], ['general', 'ongletAppareil', 'i-appareil'],
+    ['service', 'ongletService', 'i-outil']
   ];
 
   // ------------------------------------------------------------------ textes
@@ -69,7 +70,13 @@ const App = (() => {
       alertesAttente: '{n} alerte(s) en attente', majAppli: 'mets à jour l\'application', majSocle: 'firmware à mettre à jour',
       socleNeRepondPas: 'Ce socle ne répond pas. Il continue de réguler tout seul : seule la commande à distance est indisponible.',
       socleSilencieux: 'Ce socle est annoncé en ligne mais n\'a rien publié depuis {m} min. Vérifie son réseau.',
-      ongletEtat: 'État', ongletReglages: 'Réglages', ongletCourbes: 'Courbes', ongletAppareil: 'Appareil', sectionsSocle: 'Sections du socle',
+      ongletEtat: 'État', ongletReglages: 'Réglages', ongletCourbes: 'Courbes', ongletAppareil: 'Appareil', ongletService: 'Service',
+      ecranCout: 'Écran, coût et rapport', prixKwh: 'Prix du kWh (€)', ecranNuit: 'Écran la nuit', ecranAttenue: 'Atténué', ecranNormal: 'Normal', ecranEteint: 'Éteint',
+      zonePrioritaire: 'Zone prioritaire', aucune: 'Aucune', aideZonePrio: 'Quand l\'alimentation ne suffit pas pour tout, la zone prioritaire chauffe deux fois plus souvent.',
+      ledEteinte: 'LED de la carte éteinte', rapportActif: 'Rapport quotidien avec les alertes', heureRapport: 'Heure du rapport',
+      soleil: 'Jour et nuit au soleil', aideSoleil: 'Le jour commence au lever du soleil et finit à son coucher, calculés pour ta position (une décimale suffit). Le décalage, en minutes, s\'ajoute aux deux.',
+      soleilActif: 'Suivre le soleil', latitude: 'Latitude', longitude: 'Longitude', decalageSoleil: 'Décalage (min)',
+      sectionsSocle: 'Sections du socle',
       consigneJour: 'Consigne jour (°C)', consigneNuit: 'Consigne nuit (°C)', inchange: 'inchangé', enregistrer: 'Enregistrer',
       attentePremieresMesures: 'En attente des premières mesures du socle…', arreterAutotune: 'Arrêter l\'autotune', autotuneBtn: 'Autotune',
       actions: 'Actions', entretienEnCours: 'Entretien en cours : chauffage coupé, reprise automatique dans {m} min.',
@@ -217,7 +224,7 @@ const App = (() => {
   let client = null;
   let vueCourante = 'broker';
   let socleOuvert = null;
-  let panneauActif = 'etat';        // etat | reglages | courbes | general
+  let panneauActif = 'etat';        // etat | reglages | courbes | general | service
   const etats = {};                 // id -> { enLigne, zones, uptime, entretienS, sante, … }
   const attentes = {};              // req -> { resoudre, rejeter, minuteur }
   const courbes = {};               // id -> { heures, points, chargement, erreur }
@@ -611,6 +618,7 @@ const App = (() => {
   function oublierSocle(id) {
     if (client && client.connected) { try { client.unsubscribe(sujets(id)); } catch (e) { /* déjà parti */ } }
     [etats, courbes, stats, generaux, alertesVues].forEach(o => { delete o[id]; });
+    if (serviceMod) serviceMod.oublier(id);
     config.socles = config.socles.filter(x => x.id !== id);
     sauver();
   }
@@ -1087,6 +1095,7 @@ const App = (() => {
     const zonesConnues = (e.zones || []).filter(Boolean).length;
     let cle = `${panneauActif}|${zonesConnues}`;
     if (panneauActif === 'general') cle += `|${generaux[s.id] ? 1 : 0}|${stats[s.id] ? 1 : 0}`;
+    if (panneauActif === 'service') cle += `|${serviceMod ? 1 : 0}|${e.enLigne ? 1 : 0}|${e.proto || 0}`;
     if (conteneur.dataset.cle !== cle) {
       conteneur.dataset.cle = cle;
       html(conteneur, construirePanneau(s, e));
@@ -1100,8 +1109,34 @@ const App = (() => {
       case 'etat': return structureEtat(zones);
       case 'reglages': return structureReglages(zones);
       case 'courbes': return structureCourbes(zones);
+      case 'service': return structureService(s, e);
       default: return structureGeneral(s);
     }
+  }
+
+  // --- Service : module importé à la demande (service.js), la première fois
+  // qu'on ouvre l'onglet. La démonstration, ouverte en file://, le fournit
+  // d'avance (window.SERVICE).
+  let serviceMod = null, serviceCharge = null;
+  const outilsService = {
+    langue: () => langue, esc, icone, peindre, commander, message, confirmer, telecharger, lireFichier,
+    socleOuvert: () => socleOuvert, etat: id => etats[id], racine: () => $('#detail [data-r="panneau"]'),
+    ouvert: () => vueCourante === 'socle' && panneauActif === 'service'
+  };
+  function chargerService() {
+    if (!serviceCharge) {
+      const fourni = /** @type {any} */ (window).SERVICE;
+      serviceCharge = (fourni ? Promise.resolve({ default: fourni }) : import('./service.js'))
+        .then(m => { serviceMod = m.default(outilsService); invalider(); },
+              err => { serviceCharge = null; message(err.message, true); });
+    }
+    return serviceCharge;
+  }
+  function structureService(s, e) {
+    if (serviceMod) return serviceMod.structure(s, e);
+    chargerService();
+    return `<section class="carte"><div class="squelette-bloc" aria-busy="true"><span class="sr-only">${t('chargementReglages')}</span>
+      <span class="os os-1"></span><span class="os os-3"></span></div></section>`;
   }
 
   function patcherPanneau(s, e) {
@@ -1122,6 +1157,7 @@ const App = (() => {
           z.defaut ? t('defautLib', { d: z.defaut }) : t('etatZoneCourt', { t: fixe1(z.temp), c: fixe1(z.consigne) })));
         break;
       case 'courbes': patcherCourbes(s.id); break;
+      case 'service': if (serviceMod) serviceMod.patcher(); break;
       default:
         peindre(conteneur.querySelector('[data-r="sante"]'), vivantSante(e));
         peindre(conteneur.querySelector('[data-r="maj"]'), vivantMaj(e));
@@ -1294,7 +1330,7 @@ const App = (() => {
           </div>
           <p class="aide">${g.saisonActive ? t('decalageApplique', { v: Number(g.decalageActuel).toFixed(2) }) : t('aucunDecalage')}</p>
           <button class="btn" type="submit">${t('enregistrer')}</button>
-        </section>
+        </section>${g.prixKwh === undefined ? '' : structureGeneraux35(g, champ)}
       </form>`;
     }
     h += `<section class="carte" data-r="sante"></section>
@@ -1320,6 +1356,37 @@ const App = (() => {
         <button type="button" class="btn btn-danger btn-plein mt" data-action="retirerSocle">${t('retirerSocle')}</button>
       </section>`;
     return h;
+  }
+
+  // Réglages du firmware 3.5, à distance depuis le protocole 4 : coût, écran la
+  // nuit, LED, zone prioritaire, rapport quotidien, jour et nuit au soleil.
+  function structureGeneraux35(g, champ) {
+    const option = (v, cle, actuel) => `<option value="${v}"${actuel === v ? ' selected' : ''}>${cle}</option>`;
+    const bascule = (id, cle, actif) => `<label class="interrupteur mt" for="${id}">${t(cle)}
+      <input type="checkbox" id="${id}" role="switch"${actif ? ' checked' : ''}></label>`;
+    return `<section class="carte">
+        <h2>${t('ecranCout')}</h2>
+        <div class="rangee">
+          ${champ('gPK', t('prixKwh'), g.prixKwh)}
+          <div><label for="gEN">${t('ecranNuit')}</label><select id="gEN">${option(0, t('ecranAttenue'), g.ecranNuit)}${option(1, t('ecranNormal'), g.ecranNuit)}${option(2, t('ecranEteint'), g.ecranNuit)}</select></div>
+          <div><label for="gZP">${t('zonePrioritaire')}</label><select id="gZP">${option(0, t('aucune'), g.zonePrioritaire)}${option(1, t('zoneN', { n: 1 }), g.zonePrioritaire)}${option(2, t('zoneN', { n: 2 }), g.zonePrioritaire)}</select></div>
+        </div>
+        <p class="aide">${t('aideZonePrio')}</p>
+        ${bascule('gLE', 'ledEteinte', g.ledEteinte)}
+        ${bascule('gRA', 'rapportActif', g.rapportActif)}
+        <div class="rangee">${champ('gRH', t('heureRapport'), enHHMM(g.rapportMinutes), 'numeric')}</div>
+      </section>
+      <section class="carte">
+        <h2>${t('soleil')}</h2>
+        <p class="aide">${t('aideSoleil')}</p>
+        ${bascule('gSO', 'soleilActif', g.soleilActif)}
+        <div class="rangee">
+          ${champ('gLat', t('latitude'), g.latitude)}
+          ${champ('gLon', t('longitude'), g.longitude)}
+          ${champ('gSDec', t('decalageSoleil'), g.soleilDecalageMin, 'numeric')}
+        </div>
+        <button class="btn" type="submit">${t('enregistrer')}</button>
+      </section>`;
   }
 
   const qualiteSignal = dbm => dbm >= -60 ? 'sigExcellent' : dbm >= -70 ? 'sigBon' : dbm >= -80 ? 'sigFaible' : 'sigTresFaible';
@@ -1712,6 +1779,7 @@ const App = (() => {
         case 'diagnostic':        api.diagnostic(); break;
         case 'fermerDiag':        fermerDialogue($('#diag')); break;
         case 'copierRapport':     api.copierRapport(); break;
+        case 'sv':                if (serviceMod) serviceMod.clic(d.sv, el); break;
       }
     });
     // Les cartes de socle sont des boutons : clavier compris.
@@ -1733,6 +1801,7 @@ const App = (() => {
         case 'zone-complet': api.reglerZoneComplet(+f.dataset.z); break;
         case 'generaux':     api.reglerGeneraux(); break;
         case 'verrou':       api.deverrouiller(); break;
+        case 'sv-surveillance': if (serviceMod) serviceMod.soumettre(f); break;
       }
     });
     doc.addEventListener('change', ev => {
@@ -1741,6 +1810,7 @@ const App = (() => {
       if (el.id === 'fichier-config' && el.files && el.files[0]) { api.importerConfig(el.files[0]); el.value = ''; }
       if (el.id === 'verrou-min') api.changerVerrouMin(el.value);
       if (el.id === 'fichier-reglages' && el.files && el.files[0]) { api.importerReglages(el.files[0]); el.value = ''; }
+      if (el.id === 'sv-fichier' && el.files && el.files[0] && serviceMod) { serviceMod.fichier(el.files[0]); el.value = ''; }
       if (el.id === 'langue' || el.id === 'langue-liste') api.changerLangue(el.value);
     });
     // Au retour sur l'application, l'état affiché peut dater : on le redemande.
@@ -2251,6 +2321,21 @@ const App = (() => {
       }
       const sa = /** @type {HTMLInputElement|null} */ (doc.getElementById('gSA'));
       if (sa) params.saisonActive = !!sa.checked;
+      // Firmware 3.5 (protocole 4) : présents seulement si le socle les a rendus.
+      if (doc.getElementById('gPK')) {
+        for (const [id, cle] of [['gPK', 'prixKwh'], ['gLat', 'latitude'], ['gLon', 'longitude']]) {
+          const v = champNombre(id);
+          if (v !== undefined) params[cle] = v;
+        }
+        const dec = champNombre('gSDec');
+        if (dec !== undefined) params.soleilDecalageMin = Math.round(dec);
+        const heure = depuisHHMM(/** @type {any} */ (doc.getElementById('gRH')).value);
+        if (heure !== null) params.rapportMinutes = heure;
+        for (const [id, cle] of [['gEN', 'ecranNuit'], ['gZP', 'zonePrioritaire']])
+          params[cle] = +(/** @type {any} */ (doc.getElementById(id)).value);
+        for (const [id, cle] of [['gLE', 'ledEteinte'], ['gRA', 'rapportActif'], ['gSO', 'soleilActif']])
+          params[cle] = !!(/** @type {any} */ (doc.getElementById(id)).checked);
+      }
       try {
         const r = await commander(socleOuvert, 'globaux', params);
         generaux[socleOuvert] = r;

@@ -7,7 +7,7 @@
 /** @type {ServiceWorkerGlobalScope & typeof globalThis} */
 const sw = /** @type {any} */ (self);
 const CACHE = 'terrariums-dev';
-const COQUE = ['./', './index.html', './app.js', './textes.en.js', './mqtt.js', './style.css', './icone.svg',
+const COQUE = ['./', './index.html', './app.js', './textes.en.js', './service.js', './mqtt.js', './style.css', './icone.svg',
                './manifest.json', './aide.html', './mentions-legales.html', './confidentialite.html',
                './aide.en.html', './mentions-legales.en.html', './confidentialite.en.html', './demarrage-rapide.html',
                './icones/icone-192.png', './icones/icone-512.png',

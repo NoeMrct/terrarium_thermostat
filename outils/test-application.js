@@ -81,6 +81,11 @@ function creerApp(adressePage) {
   // dans un navigateur — les gestionnaires onclick de la page la voient. Dans
   // un eval, cette liaison reste locale : on récupère donc la valeur depuis la
   // même évaluation plutôt qu'en la relisant après coup.
+  // L'onglet Service est un module importé à la demande ; jsdom n'importe pas
+  // de module : il est fourni d'avance, comme dans la démonstration.
+  const service = fs.readFileSync(path.join(DOSSIER, 'service.js'), 'utf8')
+    .replace('export default function service(app) {', 'window.SERVICE = function service(app) {');
+  w.eval('(function () {\n' + service + '\n})();\n//# sourceURL=file://' + path.join(DOSSIER, 'service.js'));
   const source = fs.readFileSync(path.join(DOSSIER, 'app.js'), 'utf8');
   const App = w.eval(source + '\n;App\n//# sourceURL=file://' + path.join(DOSSIER, 'app.js'));
   w.dispatchEvent(new w.Event('load'));
@@ -426,6 +431,56 @@ function creerApp(adressePage) {
     verifier('aucune commande ne porte le code en clair', vues.length > 0 && !vues.some(v => v.includes(JETON)), `${vues.length} commande(s)`);
     verifier('…et le socle l\'a acceptée', texte('#message').includes('acceptée') || texte('#message').length > 0, texte('#message').slice(0, 40));
     espion.end(true);
+  }
+
+  titre('21. Onglet Service (protocole 4) : sondes, surveillance, sauvegarde');
+  {
+    App.ouvrir(ID);
+    App.panneau('service');
+    const det = () => $('#detail').innerHTML;
+    verifier('l\'onglet Service liste les sondes du socle', await jusqua(() => det().includes('28FF0000000000A1'), 6000));
+    verifier('la surveillance est lue, sans adresse en clair', await jusqua(() => det().includes('Alertes et surveillance') && /Wi-Fi : Maison/.test(det()), 6000));
+    $('[data-sv="relire"]').click();
+    verifier('relire le bus répond', await jusqua(() => det().includes('28FF0000000000B2'), 6000));
+    $('#sv-z1').value = '0';
+    $('[data-sv="lier"][data-i="1"]').click();
+    verifier('lier une sonde à une zone', await jusqua(() => texte('#message').includes('liee a la zone 1'), 6000), texte('#message').slice(0, 50));
+    $('[data-sv="rapport"]').click();
+    verifier('le rapport du jour se lit', await jusqua(() => det().includes('Rapport du'), 6000));
+    $('#sv-ua').value = 'https://ntfy.sh/sujet-tres-secret';
+    $('#sv-hm').value = '12';
+    $('[data-form="sv-surveillance"]').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+    verifier('nouvelle adresse d\'alerte : enregistrée, seul le serveur revient',
+             await jusqua(() => texte('#message').includes('Enregistré') && det().includes('Alertes envoyées à ntfy.sh'), 6000) &&
+             !det().includes('sujet-tres-secret') && $('#sv-ua').value === '');
+    $('[data-sv="jours"]').click();
+    verifier('les résumés journaliers forment un tableau', await jusqua(() => !!$('#detail table.tableau'), 6000));
+    App.panneau('etat');
+  }
+
+  titre('22. Panneau Appareil : réglages du firmware 3.5 (protocole 4)');
+  {
+    App.ouvrir(ID);
+    App.panneau('general');
+    verifier('les réglages 3.5 apparaissent quand le socle les rend', await jusqua(() => !!$('#gPK') && !!$('#gSO'), 6000));
+    $('#gPK').value = '0,2516';
+    $('#gEN').value = '2';
+    $('#gZP').value = '1';
+    $('#gRH').value = '21:30';
+    $('#gSO').checked = true;
+    $('#gLat').value = '';
+    $('#gLon').value = '';
+    await App.reglerGeneraux();
+    verifier('le soleil sans position est refusé par le socle', await jusqua(() => /Position inconnue/.test(texte('#message')), 4000), texte('#message').slice(0, 50));
+    $('#gSO').checked = false;
+    await App.reglerGeneraux();
+    await jusqua(() => /enregistr/i.test(texte('#message')), 4000);
+    App.panneau('etat');          // le formulaire se reconstruit d'après la réponse du socle
+    App.panneau('general');
+    verifier('prix, écran, zone prioritaire et heure du rapport enregistrés',
+             await jusqua(() => !!$('#gPK') && $('#gPK').value === '0.2516' && $('#gEN').value === '2' && $('#gZP').value === '1' && $('#gRH').value === '21:30', 6000),
+             $('#gPK') ? `${$('#gPK').value} ${$('#gEN').value} ${$('#gZP').value} ${$('#gRH').value}` : '');
+    App.panneau('etat');
   }
 
   console.log(`\n=== ${echecs ? 'DES TESTS ONT ECHOUE' : 'TOUS LES TESTS PASSENT'}` +

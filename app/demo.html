@@ -274,8 +274,8 @@ button { font: inherit; }
 /* ----------------------------------------------------------------- onglets */
 .onglets {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px;
-  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px;
+  padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
   background: var(--carte);
   background: color-mix(in oklab, var(--carte) 92%, transparent);
   -webkit-backdrop-filter: var(--flou); backdrop-filter: var(--flou);
@@ -381,7 +381,7 @@ dialog.feuille[open] { animation: apparition .16s ease-out; }
 dialog.feuille:not([open]) { display: none; }
 @keyframes apparition { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .boutons.fin { justify-content: flex-end; margin-top: 18px; }
-.rapport {
+.rapport, .bloc-texte {
   margin: 12px 0 0; padding: 12px; max-height: 50vh; overflow: auto;
   background: var(--creux); border-radius: var(--rayon-petit);
   font: 11.5px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word;
@@ -413,6 +413,18 @@ table.minmax th { font-weight: 600; color: var(--texte-2); font-size: 11.5px; }
 table.minmax th:first-child, table.minmax td:first-child { text-align: left; }
 table.minmax th.z1::before, table.minmax th.z2::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--zone-1); margin-right: 4px; vertical-align: 1px; }
 table.minmax th.z2::before { background: var(--zone-2); }
+
+/* ----------------------------------------------------------------- Service */
+.liste-sondes { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; font-size: 13.5px; }
+.liste-sondes b { font-weight: 600; overflow-wrap: anywhere; }
+.sonde { grid-template-columns: minmax(0, 1fr) auto; margin-top: 10px; }
+.sonde .bas .btn { margin-top: 0; }
+.tableau-defile { overflow-x: auto; margin-top: 10px; }
+table.tableau { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+table.tableau th, table.tableau td { padding: 6px 5px; text-align: right; border-bottom: 1px solid var(--ligne); white-space: nowrap; }
+table.tableau thead th { color: var(--texte-2); font-weight: 600; font-size: 11.5px; }
+table.tableau th[scope="row"], table.tableau thead th:first-child { text-align: left; font-weight: 600; }
+table.tableau tr.avec-defaut td { color: var(--danger); }
 
 /* ----------------------------------------------------------------- démonstration */
 html #bandeau-demo {
@@ -643,9 +655,28 @@ main.page > * + * { margin-top: 14px; }
     if (s.historique.length > 2000) s.historique.shift();
   }
 
-  // Santé du socle : ce que publie un firmware 3.4 sur <id>/sante.
+  // Protocole 4 : sondes, essai, surveillance et journal du socle simulé.
+  function f1(s) {
+    if (!s.f1) {
+      const presentes = ['28FF4C1D61160301', '28FF9A0362160417'];
+      s.f1 = { presentes, liaisons: presentes.slice(), ident: null, identResultat: '',
+        essai: { zone: 0, fin: 0, resultat: '' },
+        reseau: { urlAlertes: 'https://ntfy.sh/exemple-demo', urlHeartbeat: '', heartbeatMinutes: 5, formatAlertes: 1 },
+        journal: ['08:00:02 Demarrage (mise sous tension), firmware 3.5.0', '08:00:05 Wi-Fi connecte', '08:00:07 MQTT connecte'],
+        g: { prixKwh: 0.2516, rapportActif: true, rapportMinutes: 1200, ledEteinte: false, ecranNuit: 0, soleilActif: false,
+          soleilDecalageMin: 0, latitude: 0, longitude: 0, zonePrioritaire: 0 } };
+    }
+    return s.f1;
+  }
+  function noter(s, texte) {
+    const j = f1(s).journal;
+    j.push(new Date().toTimeString().slice(0, 8) + ' ' + texte);
+    if (j.length > 60) j.shift();
+  }
+
+  // Santé du socle : ce que publie un firmware 3.5 sur <id>/sante.
   const majs = {};
-  const sante = id => ({ proto: 3, version: '3.4.0-demo', uptime: 128400 + Math.floor((Date.now() - debut) / 1000),
+  const sante = id => ({ proto: 4, version: '3.5.0-demo', uptime: 128400 + Math.floor((Date.now() - debut) / 1000),
     rssi: id === 'terraDEMO001' ? -58 : -76, heap: 171000, heapMin: 142000, blocMax: 98000,
     reset: 'mise sous tension', otaEnAttente: false, hote: id + '.local', ip: id === 'terraDEMO001' ? '192.168.1.41' : '192.168.1.42',
     ...(majs[id] ? { maj: majs[id] } : {}) });
@@ -669,6 +700,9 @@ main.page > * + * { margin-top: 14px; }
   function traiter(id, texte) {
     const s = socles[id];
     let d; try { d = JSON.parse(texte); } catch (e) { return; }
+    // Protocole 4 : commande signée {"c": "<commande>", "sig": "…"}. La
+    // démonstration n'a pas de secret à défendre : elle lit la commande.
+    if (typeof d.c === 'string') { try { d = JSON.parse(d.c); d.jeton = 'DEMONSTRATION0000000001'; } catch (e) { return; } }
     const rep = (ok, corps) =>
       publier(`terrarium/${id}/reponse`, JSON.stringify({ req: d.req, ok, ...corps }), false);
 
@@ -677,7 +711,7 @@ main.page > * + * { margin-top: 14px; }
     if (!lecture && d.jeton !== 'DEMONSTRATION0000000001') return rep(false, { erreur: 'jeton invalide' });
 
     switch (d.action) {
-      case 'version': return rep(true, { version: '3.4.0-demo', compile: 'demonstration', proto: 3 });
+      case 'version': return rep(true, { version: '3.5.0-demo', compile: 'demonstration', proto: 4 });
       case 'etat': return rep(true, {
         zones: s.zones.map(z => ({
           nom: z.nom, temp: +z.temp.toFixed(2), consigne: +consigne(z).toFixed(2),
@@ -689,10 +723,10 @@ main.page > * + * { margin-top: 14px; }
         uptime: 128400,
         entretienS: Math.max(0, Math.floor((s.entretienFin - Date.now()) / 1000)),
         zonesSimultanees: zonesSimultanees(s), saison: 0, alertesEnAttente: 0,
-        proto: 3, sante: sante(id)
+        proto: 4, sante: sante(id)
       });
       case 'stats': return rep(true, {
-        version: '3.4.0-demo', compile: 'demonstration',
+        version: '3.5.0-demo', compile: 'demonstration',
         zonesSimultanees: zonesSimultanees(s), saison: 0, maintenanceRestanteS: 0,
         zones: s.zones.map(z => ({
           nom: z.nom, min: +(z.temp - 1.4).toFixed(2), max: +(z.temp + 1.1).toFixed(2),
@@ -727,14 +761,24 @@ main.page > * + * { margin-top: 14px; }
         if (d.saisonPlateauJ  !== undefined) s.saison.plateau  = d.saisonPlateauJ;
         if (d.saisonRemonteeJ !== undefined) s.saison.remontee = d.saisonRemonteeJ;
         if (d.saisonActive    !== undefined) s.saison.active   = !!d.saisonActive;
-        return rep(true, {
+        const g = f1(s).g;
+        const g2 = Object.assign({}, g);
+        ['prixKwh', 'rapportActif', 'rapportMinutes', 'ledEteinte', 'ecranNuit', 'soleilActif', 'soleilDecalageMin',
+         'latitude', 'longitude', 'zonePrioritaire'].forEach(k => { if (d[k] !== undefined) g2[k] = d[k]; });
+        if (g2.soleilActif && !g2.latitude && !g2.longitude) return rep(false, { erreur: 'Position inconnue : renseigner latitude et longitude' });
+        if (!(g2.prixKwh >= 0 && g2.prixKwh <= 5)) return rep(false, { erreur: 'Prix du kWh hors 0-5 EUR' });
+        if (!(g2.ecranNuit >= 0 && g2.ecranNuit <= 2)) return rep(false, { erreur: "Mode nuit de l'ecran inconnu" });
+        if (!(g2.latitude >= -65 && g2.latitude <= 65)) return rep(false, { erreur: 'Latitude hors -65..65' });
+        if (!(g2.soleilDecalageMin >= -180 && g2.soleilDecalageMin <= 180)) return rep(false, { erreur: 'Decalage solaire hors -180..180 min' });
+        Object.assign(g, g2);
+        return rep(true, Object.assign({}, g, {
           amperes: s.alim, watts: 20, volts: 12, zonesSimultanees: zonesSimultanees(s),
           entretienMin: 10, ecranVeilleMin: 10,
           saisonActive: s.saison.active, saisonDelta: s.saison.delta,
           saisonDescenteJ: s.saison.descente, saisonPlateauJ: s.saison.plateau,
           saisonRemonteeJ: s.saison.remontee,
           decalageActuel: s.saison.active ? -s.saison.delta : 0
-        });
+        }));
       }
       case 'stop-autotune':
         if (!s.zones[d.z]) return rep(false, { erreur: 'zone invalide' });
@@ -749,15 +793,15 @@ main.page > * + * { margin-top: 14px; }
         // Mise à jour tirée, simulée : progression puis « redémarrage » et santé.
         const cible = d.version || ((d.url || '').match(/v([0-9]+[.][0-9]+[.][0-9]+)/) || [])[1] || '?';
         if (!d.url && !d.version) return rep(false, { erreur: 'url ou version attendue' });
-        if (d.version === '3.4.0' && !d.forcer) return rep(false, { erreur: 'deja en 3.4.0' });
+        if (d.version === '3.5.0' && !d.forcer) return rep(false, { erreur: 'deja en 3.5.0' });
         rep(true, { maj: 'telechargement' });
         majs[id] = { etape: 'en validation', version: cible, detail: 'telechargement en cours' };
         let pct = 0;
         const tic = setInterval(() => {
           pct += 20;
-          if (pct < 100) { publier(`terrarium/${id}/maj`, JSON.stringify({ etat: 'telechargement', pct, version: '3.4.0-demo' })); return; }
+          if (pct < 100) { publier(`terrarium/${id}/maj`, JSON.stringify({ etat: 'telechargement', pct, version: '3.5.0-demo' })); return; }
           clearInterval(tic);
-          publier(`terrarium/${id}/maj`, JSON.stringify({ etat: 'redemarrage', pct: 100, version: '3.4.0-demo' }));
+          publier(`terrarium/${id}/maj`, JSON.stringify({ etat: 'redemarrage', pct: 100, version: '3.5.0-demo' }));
           majs[id] = { etape: 'en validation', version: cible, detail: 'demarree, validation dans 90 s' };
           publierEtat(id);
           setTimeout(() => { majs[id] = { etape: 'validee', version: cible, detail: 'validee' }; publierEtat(id); }, 4000);
@@ -796,6 +840,123 @@ main.page > * + * { margin-top: 14px; }
         if (!(d.amperes >= 0.5 && d.amperes <= 40)) return rep(false, { erreur: 'amperage hors 0.5-40 A' });
         s.alim = d.amperes;
         return rep(true, { zonesSimultanees: zonesSimultanees(s) });
+      }
+      // ---- protocole 4 : à distance, ce que la page locale faisait seule ----
+      case 'sondes': {
+        const f = f1(s);
+        if (d.relire) noter(s, 'Bus 1-Wire relu');
+        const reste = f.ident ? Math.max(0, 120 - Math.round((Date.now() - f.ident.debut) / 1000)) : 0;
+        if (f.ident && !reste) f.ident = null;
+        return rep(true, { sondes: {
+          sondes: f.presentes.map(r => ({ rom: r, temp: +(s.zones[f.liaisons.indexOf(r)] || s.zones[0]).temp.toFixed(2), zone: f.liaisons.indexOf(r) })),
+          parasite: false,
+          liaisons: f.liaisons.map(r => (r ? { rom: r, presente: f.presentes.indexOf(r) >= 0 } : null)),
+          identification: f.ident ? { zone: f.ident.zone + 1, restantS: reste } : null,
+          resultat: f.identResultat
+        } });
+      }
+      case 'lier': {
+        const f = f1(s);
+        if (!s.zones[d.z]) return rep(false, { erreur: 'zone invalide' });
+        const rom = String(d.rom || '').toUpperCase();
+        if (f.presentes.indexOf(rom) < 0) return rep(false, { erreur: 'Sonde absente du bus (scan pour relire le bus)' });
+        f.liaisons = f.liaisons.map(r => (r === rom ? '' : r));
+        f.liaisons[d.z] = rom;
+        noter(s, 'Sonde ' + rom + ' liee a la zone ' + (d.z + 1));
+        return rep(true, { message: 'Sonde ' + rom + ' liee a la zone ' + (d.z + 1) });
+      }
+      case 'identifier': {
+        const f = f1(s);
+        if (!s.zones[d.z]) return rep(false, { erreur: 'zone invalide' });
+        f.ident = { zone: d.z, debut: Date.now() };
+        // Démonstration : la sonde « serrée » est reconnue au bout de 6 s.
+        setTimeout(() => {
+          if (!f.ident || f.ident.zone !== d.z) return;
+          f.ident = null;
+          f.identResultat = 'Zone ' + (d.z + 1) + ' : sonde ' + f.presentes[d.z] + ' reconnue et liee';
+          noter(s, f.identResultat);
+        }, 6000);
+        return rep(true, { message: 'Zone ' + (d.z + 1) + ' : serrez sa sonde dans la main (ou refroidissez-la) ; chauffe suspendue, 120 s maximum' });
+      }
+      case 'stop-identifier':
+        f1(s).ident = null;
+        return rep(true, { message: 'Identification annulee' });
+      case 'essai': {
+        const f = f1(s);
+        if (d.z === undefined) {
+          const reste = Math.max(0, Math.round((f.essai.fin - Date.now()) / 1000));
+          return rep(true, { essai: { zone: reste ? f.essai.zone + 1 : 0, restantS: reste, resultat: f.essai.resultat } });
+        }
+        if (!s.zones[d.z]) return rep(false, { erreur: 'zone invalide' });
+        if (f.essai.fin > Date.now()) return rep(false, { erreur: 'Essai deja en cours (zone ' + (f.essai.zone + 1) + ')' });
+        f.essai = { zone: d.z, fin: Date.now() + 8000, resultat: '' };
+        setTimeout(() => { if (f.essai.zone === d.z) f.essai.resultat = 'zone ' + (d.z + 1) + ' : +0.5 C en 7 s, le tapis chauffe et la sonde suit'; }, 7500);
+        noter(s, 'Essai de chauffe lance sur la zone ' + (d.z + 1));
+        return rep(true, { message: 'Zone ' + (d.z + 1) + ' : chauffe seule a pleine puissance, verdict des que sa sonde gagne 0.5 C (10 min au plus). Ne pas laisser sans surveillance.' });
+      }
+      case 'stop-essai': {
+        const f = f1(s);
+        if (f.essai.fin > Date.now()) f.essai.resultat = 'zone ' + (f.essai.zone + 1) + ' : essai arrete a la demande';
+        f.essai.fin = 0;
+        return rep(true, { message: 'Essai arrete' });
+      }
+      case 'calibrer': {
+        const ecart = s.zones[0].temp - s.zones[1].temp;
+        if (Math.abs(ecart) > 3) return rep(false, { erreur: 'Sondes trop ecartees (' + ecart.toFixed(1) + ' C) : les poser cote a cote quelques minutes' });
+        return rep(true, { message: 'Zone 2 decalee de ' + ecart.toFixed(2) + ' C pour suivre la zone 1' });
+      }
+      case 'rapport':
+        if (d.envoyer) { noter(s, 'Rapport envoye'); return rep(true, { message: 'Rapport envoye vers les alertes' }); }
+        return rep(true, { texte: 'Rapport du ' + new Date().toISOString().slice(0, 10) + ' — ' + s.nom + '\n' +
+          s.zones.map(z => z.nom + ' : ' + z.temp.toFixed(1) + ' C (consigne ' + consigne(z).toFixed(1) + ' C), ' + (z.defaut ? 'defaut ' + z.defaut : 'sans defaut')).join('\n') });
+      case 'jours': {
+        const n = Math.max(1, Math.min(30, d.n || 7));
+        const jours = [];
+        for (let i = 0; i < n; i++) {
+          const date = new Date(Date.now() - (i + 1) * 86400000).toISOString().slice(0, 10);
+          jours.push({ date, zones: s.zones.map((z, k) => {
+            const h = 4.5 + ((i * 7 + k * 3) % 10) / 4;
+            return { min: +(consigne(z) - 1.6).toFixed(1), max: +(consigne(z) + 0.9).toFixed(1), moyenne: +(consigne(z) - 0.3).toFixed(1),
+              heures: +h.toFixed(2), kWh: +(h * 0.02).toFixed(3), euros: +(h * 0.02 * f1(s).g.prixKwh).toFixed(3), defauts: z.defaut && i === 0 ? 1 : 0 };
+          }) });
+        }
+        return rep(true, { jours: { prixKwh: f1(s).g.prixKwh, jours } });
+      }
+      case 'journal':
+        return rep(true, { texte: f1(s).journal.join('\n') });
+      case 'sauvegarde': {
+        const f = f1(s);
+        return rep(true, { sauvegarde: { format: 'terrarium-sauvegarde', version: '3.5.0-demo', appareil: id, date: new Date().toISOString(),
+          zones: s.zones.map(z => ({ nom: z.nom, consigneJour: z.consigneJour, consigneNuit: z.consigneNuit, tempMax: z.tempMax })),
+          globaux: Object.assign({ courantAlimA: s.alim }, f.g), sondes: f.liaisons.slice(),
+          reseau: { formatAlertes: f.reseau.formatAlertes, heartbeatMinutes: f.reseau.heartbeatMinutes } } });
+      }
+      case 'restaurer': {
+        const v = d.sauvegarde;
+        if (!v || typeof v !== 'object') return rep(false, { erreur: 'sauvegarde attendue' });
+        if (v.format !== 'terrarium-sauvegarde') return rep(false, { erreur: "Ce n'est pas une sauvegarde de socle" });
+        (v.zones || []).forEach((z, i) => { if (s.zones[i] && z && typeof z.nom === 'string') s.zones[i].nom = z.nom; });
+        if (Array.isArray(v.sondes)) f1(s).liaisons = s.zones.map((_, i) => v.sondes[i] || '');
+        noter(s, 'Configuration de ' + (v.appareil || '?') + ' restauree');
+        publierEtat(id);
+        return rep(true, { message: 'Configuration de ' + (v.appareil || '?') + ' restauree (zones, reglages, sondes, alertes).' });
+      }
+      case 'reseau': {
+        const f = f1(s);
+        if (['ssid', 'ssid2', 'wifiPass', 'wifiPass2'].some(k => d[k] !== undefined)) return rep(false, { erreur: 'Wi-Fi : a regler sur la page locale du socle' });
+        const r = Object.assign({}, f.reseau);
+        let ok = true;
+        ['urlAlertes', 'urlHeartbeat'].forEach(k => {
+          if (typeof d[k] !== 'string') return;
+          if (d[k] && !/^https?:[/][/]/.test(d[k])) ok = false; else r[k] = d[k];
+        });
+        if (d.heartbeatMinutes !== undefined) { if (d.heartbeatMinutes >= 1 && d.heartbeatMinutes <= 1440) r.heartbeatMinutes = d.heartbeatMinutes; else ok = false; }
+        if (d.formatAlertes !== undefined) { if (d.formatAlertes === 0 || d.formatAlertes === 1) r.formatAlertes = d.formatAlertes; else ok = false; }
+        if (!ok) return rep(false, { erreur: 'reseau : valeur invalide (URL http(s)://, 1-1440 min, format 0 ou 1)' });
+        f.reseau = r;
+        const hote = u => { if (!u) return ''; try { return new URL(u).hostname || 'definie'; } catch (e) { return 'definie'; } };
+        return rep(true, { ssid: 'Maison', ssid2: '', alertes: hote(r.urlAlertes), heartbeat: hote(r.urlHeartbeat),
+          heartbeatMinutes: r.heartbeatMinutes, formatAlertes: r.formatAlertes });
       }
       default: return rep(false, { erreur: 'action inconnue' });
     }
@@ -893,7 +1054,13 @@ window.TEXTES_EN = {
     alertesAttente: '{n} pending alert(s)', majAppli: 'update the app', majSocle: 'firmware update advised',
     socleNeRepondPas: 'This base is not answering. It keeps regulating on its own: only remote control is unavailable.',
     socleSilencieux: 'This base is announced online but has published nothing for {m} min. Check its network.',
-    ongletEtat: 'Status', ongletReglages: 'Settings', ongletCourbes: 'Charts', ongletAppareil: 'Device', sectionsSocle: 'Base sections',
+    ongletEtat: 'Status', ongletReglages: 'Settings', ongletCourbes: 'Charts', ongletAppareil: 'Device', ongletService: 'Service',
+    ecranCout: 'Display, cost and report', prixKwh: 'Price per kWh (€)', ecranNuit: 'Display at night', ecranAttenue: 'Dimmed', ecranNormal: 'Normal', ecranEteint: 'Off',
+    zonePrioritaire: 'Priority zone', aucune: 'None', aideZonePrio: 'When the power supply cannot feed everything, the priority zone heats twice as often.',
+    ledEteinte: 'Board LED off', rapportActif: 'Daily report with the alerts', heureRapport: 'Report time',
+    soleil: 'Day and night with the sun', aideSoleil: 'Day starts at sunrise and ends at sunset, computed for your position (one decimal is enough). The offset, in minutes, is added to both.',
+    soleilActif: 'Follow the sun', latitude: 'Latitude', longitude: 'Longitude', decalageSoleil: 'Offset (min)',
+    sectionsSocle: 'Base sections',
     consigneJour: 'Day setpoint (°C)', consigneNuit: 'Night setpoint (°C)', inchange: 'unchanged', enregistrer: 'Save',
     attentePremieresMesures: 'Waiting for the first readings from the base…', arreterAutotune: 'Stop autotune', autotuneBtn: 'Autotune',
     actions: 'Actions', entretienEnCours: 'Maintenance in progress: heating off, resumes automatically in {m} min.',
@@ -1001,6 +1168,419 @@ window.TEXTES_EN = {
 
 </script>
 <script>
+(function () {
+/* =============================================================================
+   service.js — l'onglet Service : ce que seule la page locale savait faire,
+   à distance (protocole 4, firmware 3.5).
+   -----------------------------------------------------------------------------
+   Module importé à la demande, la première fois qu'on ouvre l'onglet : qui ne
+   s'en sert jamais ne le télécharge pas. Il apporte ses textes (français et
+   anglais) et ne touche au DOM que par les outils que l'application lui passe
+   (peindre, esc…), donc sous la même politique de sécurité qu'elle.
+
+   Sondes (inventaire, liaison, identification), essai de chauffe, calibration,
+   rapport du jour, journal, résumés journaliers, alertes et surveillance,
+   sauvegarde du socle. Rien de secret ne revient du socle : une adresse
+   d'alerte s'écrit, seul son serveur s'affiche ; le Wi-Fi reste sur la page
+   locale.
+   ============================================================================= */
+
+const TEXTES = {
+  fr: {
+    protoAncien: 'Ces outils demandent le firmware 3.5 (protocole 4). Mets le socle à jour depuis l\'onglet Appareil.',
+    horsLigne: 'Le socle est hors ligne : ces outils reviennent avec lui.',
+    chargement: 'Chargement…',
+    sondes: 'Sondes', aideSondes: 'Chaque zone suit l\'adresse de sa sonde. Après avoir branché une sonde, relis le bus.',
+    relire: 'Relire le bus', aucuneSonde: 'Aucune sonde sur le bus.', libre: 'libre', zone: 'Zone {n}',
+    lier: 'Lier', lierA: 'Lier {r} à', absente: 'absente du bus', parasite: 'Alimentation parasite détectée : préfère trois fils.',
+    sansSonde: 'Zone {n} : aucune sonde liée', lieeA: 'Zone {n} : {r}',
+    identifier: 'Identifier la zone {n}',
+    identEnCours: 'Zone {z} : serre sa sonde dans la main — encore {s} s. La chauffe est suspendue.',
+    annuler: 'Annuler', resultat: 'Dernier résultat : {r}',
+    essai: 'Essai de chauffe',
+    aideEssai: 'Une zone chauffe seule, à pleine puissance, jusqu\'à ce que sa sonde gagne 0,5 °C (10 min au plus). Reste à côté.',
+    essaiZone: 'Essai zone {n}', essaiEnCours: 'Zone {z} en essai — encore {s} s.', arreter: 'Arrêter',
+    confirmEssai: 'La zone {n} va chauffer seule à pleine puissance, 10 minutes au plus. Le tapis est-il bien en place ?',
+    calibration: 'Calibration',
+    aideCalib: 'Pose les deux sondes côte à côte quelques minutes : la zone 2 est alors alignée sur la zone 1.',
+    calibrer: 'Aligner la zone 2 sur la zone 1',
+    confirmCalib: 'Les deux sondes sont-elles côte à côte, au même endroit, depuis au moins 5 minutes ?',
+    rapport: 'Rapport du jour', aideRapport: 'Le résumé que le socle envoie chaque jour avec les alertes, si le rapport est activé.',
+    lire: 'Lire', envoyer: 'Envoyer maintenant',
+    journal: 'Journal', aideJournal: 'Les derniers événements du socle (redémarrages, défauts, réglages modifiés).',
+    afficher: 'Afficher', copier: 'Copier', copie: 'Journal copié.',
+    jours: 'Résumés journaliers', aideJours: 'Les derniers jours, du plus récent au plus ancien.',
+    chargerJours: 'Afficher les derniers jours',
+    colJour: 'Jour', colZone: 'Zone', colMin: 'Min', colMax: 'Max', colMoy: 'Moy.', colChauffe: 'Chauffe', colKwh: 'kWh', colEuros: '€',
+    aucunJour: 'Aucun résumé pour l\'instant : le premier s\'écrit à minuit.',
+    surveillance: 'Alertes et surveillance',
+    aideSurv: 'Le socle envoie ses alertes à cette adresse (ntfy, webhook). Elle n\'est jamais relue : seul son serveur s\'affiche ici.',
+    alertesVers: 'Alertes envoyées à {h}', aucuneAlerte: 'Aucune adresse d\'alerte : le socle ne prévient personne.',
+    heartbeatVers: 'Heartbeat vers {h}, toutes les {m} min', aucunHeartbeat: 'Pas de heartbeat.',
+    nouvelleAlerte: 'Nouvelle adresse des alertes', nouveauHeartbeat: 'Nouvelle adresse du heartbeat',
+    intervalle: 'Heartbeat toutes les (min)', format: 'Format des alertes',
+    formatJson: 'JSON (serveur, Home Assistant)', formatTexte: 'Texte (ntfy)',
+    videInchange: 'Vide : inchangée', effacerAdresses: 'Couper les alertes',
+    confirmCouper: 'Le socle n\'enverra plus aucune alerte ni heartbeat. Continuer ?',
+    wifi: 'Wi-Fi : {s}{s2}. Il se règle sur la page locale du socle, jamais à distance.', secours: ' (secours : {s})',
+    enregistrer: 'Enregistrer', enregistre: 'Enregistré.',
+    sauvegarde: 'Sauvegarde du socle',
+    aideSauv: 'Zones, réglages et sondes, pour remplacer une carte en une minute. Ni mot de passe, ni adresse d\'alerte.',
+    telecharger: 'Télécharger', restaurer: 'Restaurer…',
+    confirmRestaurer: 'Remplacer les réglages du socle par ceux de « {f} » ? Tout ou rien : un seul réglage refusé et rien ne change.',
+    fichierInvalide: 'Ce fichier n\'est pas une sauvegarde de socle.',
+    oui: 'Continuer'
+  },
+  en: {
+    protoAncien: 'These tools need firmware 3.5 (protocol 4). Update the base from the Device tab.',
+    horsLigne: 'The base is offline: these tools come back with it.',
+    chargement: 'Loading…',
+    sondes: 'Probes', aideSondes: 'Each zone follows its probe\'s address. After plugging a probe in, rescan the bus.',
+    relire: 'Rescan the bus', aucuneSonde: 'No probe on the bus.', libre: 'free', zone: 'Zone {n}',
+    lier: 'Link', lierA: 'Link {r} to', absente: 'missing from the bus', parasite: 'Parasite power detected: prefer three wires.',
+    sansSonde: 'Zone {n}: no probe linked', lieeA: 'Zone {n}: {r}',
+    identifier: 'Identify zone {n}',
+    identEnCours: 'Zone {z}: hold its probe in your hand — {s} s left. Heating is paused.',
+    annuler: 'Cancel', resultat: 'Last result: {r}',
+    essai: 'Heating test',
+    aideEssai: 'One zone heats alone at full power until its probe gains 0.5 °C (10 min at most). Stay nearby.',
+    essaiZone: 'Test zone {n}', essaiEnCours: 'Zone {z} under test — {s} s left.', arreter: 'Stop',
+    confirmEssai: 'Zone {n} will heat alone at full power, 10 minutes at most. Is the mat in place?',
+    calibration: 'Calibration',
+    aideCalib: 'Put both probes side by side for a few minutes: zone 2 is then aligned with zone 1.',
+    calibrer: 'Align zone 2 with zone 1',
+    confirmCalib: 'Have both probes been side by side, in the same spot, for at least 5 minutes?',
+    rapport: 'Daily report', aideRapport: 'The summary the base sends every day with its alerts, when the report is on.',
+    lire: 'Read', envoyer: 'Send now',
+    journal: 'Log', aideJournal: 'The base\'s latest events (restarts, faults, changed settings).',
+    afficher: 'Show', copier: 'Copy', copie: 'Log copied.',
+    jours: 'Daily summaries', aideJours: 'The latest days, most recent first.',
+    chargerJours: 'Show the latest days',
+    colJour: 'Day', colZone: 'Zone', colMin: 'Min', colMax: 'Max', colMoy: 'Avg', colChauffe: 'Heating', colKwh: 'kWh', colEuros: '€',
+    aucunJour: 'No summary yet: the first one is written at midnight.',
+    surveillance: 'Alerts and monitoring',
+    aideSurv: 'The base sends its alerts to this address (ntfy, webhook). It is never read back: only its server shows here.',
+    alertesVers: 'Alerts sent to {h}', aucuneAlerte: 'No alert address: the base warns nobody.',
+    heartbeatVers: 'Heartbeat to {h}, every {m} min', aucunHeartbeat: 'No heartbeat.',
+    nouvelleAlerte: 'New alert address', nouveauHeartbeat: 'New heartbeat address',
+    intervalle: 'Heartbeat every (min)', format: 'Alert format',
+    formatJson: 'JSON (server, Home Assistant)', formatTexte: 'Text (ntfy)',
+    videInchange: 'Empty: unchanged', effacerAdresses: 'Turn alerts off',
+    confirmCouper: 'The base will send no alert and no heartbeat anymore. Continue?',
+    wifi: 'Wi-Fi: {s}{s2}. It is set on the base\'s local page, never remotely.', secours: ' (backup: {s})',
+    enregistrer: 'Save', enregistre: 'Saved.',
+    sauvegarde: 'Base backup',
+    aideSauv: 'Zones, settings and probes, to replace a board in a minute. No password, no alert address.',
+    telecharger: 'Download', restaurer: 'Restore…',
+    confirmRestaurer: 'Replace the base\'s settings with those of “{f}”? All or nothing: a single refused setting and nothing changes.',
+    fichierInvalide: 'This file is not a base backup.',
+    oui: 'Continue'
+  }
+};
+
+/**
+ * @param {any} app outils de l'application : langue, esc, peindre, commander,
+ *   message, confirmer, telecharger, lireFichier, icone, socleOuvert, etat
+ */
+window.SERVICE = function service(app) {
+  const tx = (cle, p) => {
+    const tab = TEXTES[app.langue()] || TEXTES.fr;
+    let s = tab[cle] !== undefined ? tab[cle] : TEXTES.fr[cle];
+    if (p) for (const [k, v] of Object.entries(p)) s = s.split('{' + k + '}').join(String(v));
+    return s;
+  };
+  const esc = app.esc;
+  /** @type {Record<string, any>} */
+  const memoire = {};          // par socle : ce que le socle a rendu
+  const m = id => memoire[id] || (memoire[id] = {});
+  let suivi = null;            // relecture tant qu'une identification ou un essai court
+
+  const btn = (sv, libelle, classe = 'btn btn-secondaire', extra = '') =>
+    `<button type="button" class="${classe}" data-action="sv" data-sv="${sv}"${extra}>${libelle}</button>`;
+  const romCourte = r => String(r || '').slice(-6);
+
+  // Une action : la réponse est gardée, le message du socle affiché, la carte
+  // repeinte. Les erreurs du socle (refus) arrivent en clair.
+  async function faire(id, action, params, cle) {
+    try {
+      const r = await app.commander(id, action, params);
+      if (cle) m(id)[cle] = r[cle] !== undefined ? r[cle] : r;
+      if (r.message) app.message(r.message);
+      return r;
+    } catch (e) {
+      app.message(e.message, true);
+      return null;
+    } finally {
+      peindreTout();
+    }
+  }
+
+  function relireEtat(id) {
+    faire(id, 'sondes', {}, 'sondes');
+    faire(id, 'essai', {}, 'essai');
+  }
+
+  // Tant qu'une identification ou un essai court, on relit toutes les 3 s ;
+  // le suivi s'arrête de lui-même dès qu'on quitte l'onglet. Un minuteur à la
+  // fois : les repeintures (à chaque message du socle) ne le repoussent pas.
+  function suivre(id) {
+    const d = m(id);
+    const enCours = (d.sondes && d.sondes.identification) || (d.essai && d.essai.zone > 0);
+    if (!enCours || app.socleOuvert() !== id || !app.ouvert()) { clearTimeout(suivi); suivi = null; return; }
+    if (suivi) return;
+    suivi = setTimeout(() => { suivi = null; relireEtat(id); }, 3000);
+  }
+
+  // ---------------------------------------------------------------- cartes
+  function carteSondes(id, e) {
+    const d = m(id).sondes;
+    let h = `<h2>${tx('sondes')}</h2><p class="aide">${tx('aideSondes')}</p>`;
+    if (!d) return h + `<p class="aide" aria-busy="true">${tx('chargement')}</p>`;
+    const nbZones = (e.zones || []).length || 2;
+    const liaisons = d.liaisons || [];
+    h += '<ul class="liste-sondes">';
+    for (let z = 0; z < nbZones; z++) {
+      const l = liaisons[z];
+      h += `<li><b>${l ? tx('lieeA', { n: z + 1, r: esc(l.rom) }) : tx('sansSonde', { n: z + 1 })}</b>${l && !l.presente ? ` <span class="badge warn">${tx('absente')}</span>` : ''}</li>`;
+    }
+    h += '</ul>';
+    const sondes = d.sondes || [];
+    if (!sondes.length) h += `<p class="aide">${tx('aucuneSonde')}</p>`;
+    sondes.forEach((s, i) => {
+      const options = [`<option value="">${tx('libre')}</option>`]
+        .concat(Array.from({ length: nbZones }, (_, z) =>
+          `<option value="${z}"${s.zone === z ? ' selected' : ''}>${tx('zone', { n: z + 1 })}</option>`)).join('');
+      h += `<div class="rangee sonde">
+        <div><label for="sv-z${i}">${tx('lierA', { r: '…' + esc(romCourte(s.rom)) })}
+          <small class="discret">${s.temp === null || s.temp === undefined ? '—' : Number(s.temp).toFixed(1) + ' °C'}</small></label>
+          <select id="sv-z${i}" data-rom="${esc(s.rom)}">${options}</select></div>
+        <div class="bas">${btn('lier', tx('lier'), 'btn btn-secondaire', ` data-i="${i}"`)}</div>
+      </div>`;
+    });
+    if (d.parasite) h += `<p class="aide">${tx('parasite')}</p>`;
+    const id_ = d.identification;
+    if (id_) {
+      h += `<p class="aide" role="status">${tx('identEnCours', { z: id_.zone, s: id_.restantS })}</p>
+        <div class="boutons">${btn('stop-identifier', tx('annuler'), 'btn btn-danger')}</div>`;
+    } else {
+      h += `<div class="boutons">${btn('relire', app.icone('i-reglages') + tx('relire'))}${Array.from({ length: nbZones }, (_, z) =>
+        btn('identifier', tx('identifier', { n: z + 1 }), 'btn btn-secondaire', ` data-z="${z}"`)).join('')}</div>`;
+    }
+    if (d.resultat) h += `<p class="aide">${tx('resultat', { r: esc(d.resultat) })}</p>`;
+    return h;
+  }
+
+  function carteEssai(id, e) {
+    const d = m(id).essai;
+    const nbZones = (e.zones || []).length || 2;
+    let h = `<h2>${tx('essai')}</h2><p class="aide">${tx('aideEssai')}</p>`;
+    if (d && d.zone > 0) {
+      h += `<p class="aide" role="status">${tx('essaiEnCours', { z: d.zone, s: d.restantS })}</p>
+        <div class="boutons">${btn('stop-essai', tx('arreter'), 'btn btn-danger')}</div>`;
+    } else {
+      h += `<div class="boutons">${Array.from({ length: nbZones }, (_, z) =>
+        btn('essai', tx('essaiZone', { n: z + 1 }), 'btn btn-secondaire', ` data-z="${z}"`)).join('')}</div>`;
+    }
+    if (d && d.resultat) h += `<p class="aide">${tx('resultat', { r: esc(d.resultat) })}</p>`;
+    h += `<h3 class="mt">${tx('calibration')}</h3><p class="aide">${tx('aideCalib')}</p>
+      <div class="boutons">${btn('calibrer', tx('calibrer'))}</div>`;
+    return h;
+  }
+
+  function carteRapport(id) {
+    const d = m(id);
+    return `<h2>${tx('rapport')}</h2><p class="aide">${tx('aideRapport')}</p>
+      ${d.texte ? `<pre class="bloc-texte" tabindex="0">${esc(d.texte)}</pre>` : ''}
+      <div class="boutons">${btn('rapport', tx('lire'))}${btn('envoyerRapport', tx('envoyer'))}</div>`;
+  }
+
+  function carteJournal(id) {
+    const d = m(id);
+    return `<h2>${tx('journal')}</h2><p class="aide">${tx('aideJournal')}</p>
+      ${d.journal ? `<pre class="bloc-texte journal" tabindex="0">${esc(d.journal)}</pre>` : ''}
+      <div class="boutons">${btn('journal', tx('afficher'))}${d.journal ? btn('copierJournal', tx('copier')) : ''}</div>`;
+  }
+
+  function carteJours(id) {
+    const d = m(id).jours;
+    let h = `<h2>${tx('jours')}</h2><p class="aide">${tx('aideJours')}</p>`;
+    if (d) {
+      const jours = d.jours || [];
+      if (!jours.length) h += `<p class="aide">${tx('aucunJour')}</p>`;
+      else {
+        const n1 = v => (v === null || v === undefined) ? '—' : Number(v).toFixed(1);
+        const n2 = v => (v === null || v === undefined) ? '—' : Number(v).toFixed(2);
+        h += `<div class="tableau-defile" tabindex="0"><table class="tableau"><thead><tr>
+          <th scope="col">${tx('colJour')}</th><th scope="col">${tx('colZone')}</th><th scope="col">${tx('colMin')}</th>
+          <th scope="col">${tx('colMax')}</th><th scope="col">${tx('colMoy')}</th><th scope="col">${tx('colChauffe')}</th>
+          <th scope="col">${tx('colKwh')}</th>${d.prixKwh ? `<th scope="col">${tx('colEuros')}</th>` : ''}</tr></thead><tbody>`;
+        jours.forEach(j => (j.zones || []).forEach((z, i) => {
+          h += `<tr${z.defauts ? ' class="avec-defaut"' : ''}>${i === 0 ? `<th scope="row" rowspan="${j.zones.length}">${esc(j.date)}</th>` : ''}
+            <td>${i + 1}</td><td>${n1(z.min)}</td><td>${n1(z.max)}</td><td>${n1(z.moyenne)}</td>
+            <td>${z.heures === null || z.heures === undefined ? '—' : n1(z.heures) + ' h'}</td><td>${n2(z.kWh)}</td>${d.prixKwh ? `<td>${n2(z.euros)}</td>` : ''}</tr>`;
+        }));
+        h += '</tbody></table></div>';
+      }
+    }
+    return h + `<div class="boutons">${btn('jours', tx('chargerJours'))}</div>`;
+  }
+
+  function carteSurveillance(id) {
+    const r = m(id).reseau;
+    let h = `<h2>${tx('surveillance')}</h2><p class="aide">${tx('aideSurv')}</p>`;
+    if (!r) return h + `<p class="aide" aria-busy="true">${tx('chargement')}</p>`;
+    h += `<p><b>${r.alertes ? tx('alertesVers', { h: esc(r.alertes) }) : tx('aucuneAlerte')}</b></p>
+      <p class="aide">${r.heartbeat ? tx('heartbeatVers', { h: esc(r.heartbeat), m: r.heartbeatMinutes }) : tx('aucunHeartbeat')}</p>
+      <form class="pile" data-form="sv-surveillance">
+        <div><label for="sv-ua">${tx('nouvelleAlerte')}</label>
+          <input id="sv-ua" type="url" inputmode="url" autocomplete="off" spellcheck="false" maxlength="160" placeholder="${tx('videInchange')}"></div>
+        <div><label for="sv-uh">${tx('nouveauHeartbeat')}</label>
+          <input id="sv-uh" type="url" inputmode="url" autocomplete="off" spellcheck="false" maxlength="160" placeholder="${tx('videInchange')}"></div>
+        <div class="rangee">
+          <div><label for="sv-hm">${tx('intervalle')}</label><input id="sv-hm" inputmode="numeric" value="${esc(r.heartbeatMinutes)}"></div>
+          <div><label for="sv-fa">${tx('format')}</label><select id="sv-fa">
+            <option value="0"${r.formatAlertes === 0 ? ' selected' : ''}>${tx('formatJson')}</option>
+            <option value="1"${r.formatAlertes === 1 ? ' selected' : ''}>${tx('formatTexte')}</option></select></div>
+        </div>
+        <div class="boutons"><button class="btn" type="submit">${tx('enregistrer')}</button>
+          ${r.alertes || r.heartbeat ? btn('couperAlertes', tx('effacerAdresses'), 'btn btn-danger') : ''}</div>
+      </form>
+      <p class="aide">${tx('wifi', { s: esc(r.ssid || '—'), s2: r.ssid2 ? tx('secours', { s: esc(r.ssid2) }) : '' })}</p>`;
+    return h;
+  }
+
+  function carteSauvegarde() {
+    return `<h2>${tx('sauvegarde')}</h2><p class="aide">${tx('aideSauv')}</p>
+      <div class="boutons">${btn('telechargerSauvegarde', tx('telecharger'))}${btn('restaurer', tx('restaurer'))}
+        <input type="file" id="sv-fichier" accept="application/json,.json" hidden></div>`;
+  }
+
+  /** @type {Array<[string, (id: string, e: any) => string]>} */
+  const CARTES = [['sondes', carteSondes], ['essai', carteEssai], ['surv', carteSurveillance],
+                  ['rapport', carteRapport], ['journal', carteJournal], ['jours', carteJours], ['sauv', carteSauvegarde]];
+
+  function peindreTout() {
+    const id = app.socleOuvert();
+    const racine = app.racine();
+    if (!id || !racine || !app.ouvert()) return;
+    const e = app.etat(id) || {};
+    if (!(e.proto >= 4) || !e.enLigne) return;
+    CARTES.forEach(([cle, f]) => app.peindre(racine.querySelector(`[data-sv-carte="${cle}"]`), f(id, e)));
+    suivre(id);
+  }
+
+  return {
+    // L'ossature de l'onglet ; les cartes se remplissent ensuite.
+    structure(s, e) {
+      if (!e.enLigne) return `<section class="carte"><p class="aide">${tx('horsLigne')}</p></section>`;
+      if (!(e.proto >= 4)) return `<section class="carte"><p class="aide">${tx('protoAncien')}</p></section>`;
+      const d = m(s.id);
+      if (!d.lu) {        // première ouverture : ce qui est léger à lire
+        d.lu = true;
+        relireEtat(s.id);
+        faire(s.id, 'reseau', {}, 'reseau');
+      }
+      return CARTES.map(([cle]) => `<section class="carte" data-sv-carte="${cle}"></section>`).join('');
+    },
+
+    patcher: peindreTout,
+
+    async clic(nom, el) {
+      const id = app.socleOuvert();
+      if (!id) return;
+      const d = m(id);
+      const z = el.dataset.z !== undefined ? +el.dataset.z : undefined;
+      switch (nom) {
+        case 'relire': return faire(id, 'sondes', { relire: true }, 'sondes');
+        case 'lier': {
+          const sel = /** @type {any} */ (app.racine().querySelector(`#sv-z${el.dataset.i}`));
+          if (!sel || sel.value === '') return undefined;
+          await faire(id, 'lier', { z: +sel.value, rom: sel.dataset.rom });
+          return faire(id, 'sondes', {}, 'sondes');
+        }
+        case 'identifier':
+          await faire(id, 'identifier', { z });
+          return faire(id, 'sondes', {}, 'sondes');
+        case 'stop-identifier':
+          await faire(id, 'stop-identifier', {});
+          return faire(id, 'sondes', {}, 'sondes');
+        case 'essai':
+          if (!await app.confirmer({ titre: tx('essai'), texte: tx('confirmEssai', { n: z + 1 }), ok: tx('oui') })) return undefined;
+          await faire(id, 'essai', { z });
+          return faire(id, 'essai', {}, 'essai');
+        case 'stop-essai':
+          await faire(id, 'stop-essai', {});
+          return faire(id, 'essai', {}, 'essai');
+        case 'calibrer':
+          if (!await app.confirmer({ titre: tx('calibration'), texte: tx('confirmCalib'), ok: tx('calibrer') })) return undefined;
+          return faire(id, 'calibrer', {});
+        case 'rapport': return faire(id, 'rapport', {}, 'texte');
+        case 'envoyerRapport': return faire(id, 'rapport', { envoyer: true });
+        case 'journal': {
+          const r = await faire(id, 'journal', {});
+          if (r) { d.journal = r.texte; peindreTout(); }
+          return r;
+        }
+        case 'copierJournal':
+          try { await navigator.clipboard.writeText(d.journal || ''); app.message(tx('copie')); }
+          catch (e) { app.message(e.message, true); }
+          return undefined;
+        case 'jours': return faire(id, 'jours', { n: 31 }, 'jours');
+        case 'couperAlertes': {
+          if (!await app.confirmer({ titre: tx('surveillance'), texte: tx('confirmCouper'), ok: tx('effacerAdresses'), danger: true })) return undefined;
+          const r = await faire(id, 'reseau', { urlAlertes: '', urlHeartbeat: '' }, 'reseau');
+          if (r) app.message(tx('enregistre'));
+          return r;
+        }
+        case 'telechargerSauvegarde': {
+          const r = await faire(id, 'sauvegarde', {});
+          if (r && r.sauvegarde) app.telecharger(`sauvegarde-${id}.json`, JSON.stringify(r.sauvegarde, null, 2) + '\n', 'application/json');
+          return r;
+        }
+        case 'restaurer': {
+          const f = /** @type {any} */ (app.racine().querySelector('#sv-fichier'));
+          if (f) f.click();
+          return undefined;
+        }
+      }
+      return undefined;
+    },
+
+    async soumettre(form) {
+      const id = app.socleOuvert();
+      if (!id || form.dataset.form !== 'sv-surveillance') return;
+      const racine = app.racine();
+      const val = sel => String(/** @type {any} */ (racine.querySelector(sel)).value || '').trim();
+      /** @type {Record<string, any>} */
+      const p = { heartbeatMinutes: parseInt(val('#sv-hm'), 10), formatAlertes: +val('#sv-fa') };
+      if (val('#sv-ua')) p.urlAlertes = val('#sv-ua');
+      if (val('#sv-uh')) p.urlHeartbeat = val('#sv-uh');
+      const r = await faire(id, 'reseau', p, 'reseau');
+      if (!r) return;
+      // Une adresse enregistrée ne reste pas affichée : elle ne se relit plus.
+      ['#sv-ua', '#sv-uh'].forEach(sel => { const el = /** @type {any} */ (racine.querySelector(sel)); if (el) el.value = ''; });
+      app.message(tx('enregistre'));
+    },
+
+    async fichier(f) {
+      const id = app.socleOuvert();
+      if (!id || !f) return;
+      let sauvegarde;
+      try { sauvegarde = JSON.parse(await app.lireFichier(f)); } catch (e) { sauvegarde = null; }
+      if (!sauvegarde || sauvegarde.format !== 'terrarium-sauvegarde') { app.message(tx('fichierInvalide'), true); return; }
+      if (!await app.confirmer({ titre: tx('sauvegarde'), texte: tx('confirmRestaurer', { f: f.name }), ok: tx('oui'), danger: true })) return;
+      await faire(id, 'restaurer', { sauvegarde });
+      relireEtat(id);
+    },
+
+    // Socle oublié ou rechargé : ce qui a été lu ne vaut plus.
+    oublier(id) { delete memoire[id]; }
+  };
+}
+
+})();
+</script>
+<script>
 /* =============================================================================
    Application de pilotage des socles chauffants.
    -----------------------------------------------------------------------------
@@ -1035,7 +1615,7 @@ const App = (() => {
 
   const CLE_CONFIG = 'terrarium.config.v1';
   const CLE_LANGUE = 'terrarium.langue';
-  const PROTO_APP = 3;              // version du protocole que cette application comprend
+  const PROTO_APP = 4;              // version du protocole que cette application comprend (4 : signées, à distance)
   const CLE_VERROU_MIN = 'terrarium.verrou.min';   // minutes d'inactivité avant verrouillage (0 = au lancement seulement)
   const PBKDF2_ITERATIONS = 300000; // dérivation du code de verrouillage (≈ 0,3 s sur un téléphone)
   const DELAI_COMMANDE = 8000;      // au-delà, on considère le socle injoignable
@@ -1043,7 +1623,8 @@ const App = (() => {
   const DUREES = [6, 24, 168, 720]; // heures proposées pour les courbes
   const ONGLETS = [
     ['etat', 'ongletEtat', 'i-etat'], ['reglages', 'ongletReglages', 'i-reglages'],
-    ['courbes', 'ongletCourbes', 'i-courbes'], ['general', 'ongletAppareil', 'i-appareil']
+    ['courbes', 'ongletCourbes', 'i-courbes'], ['general', 'ongletAppareil', 'i-appareil'],
+    ['service', 'ongletService', 'i-outil']
   ];
 
   // ------------------------------------------------------------------ textes
@@ -1072,7 +1653,13 @@ const App = (() => {
       alertesAttente: '{n} alerte(s) en attente', majAppli: 'mets à jour l\'application', majSocle: 'firmware à mettre à jour',
       socleNeRepondPas: 'Ce socle ne répond pas. Il continue de réguler tout seul : seule la commande à distance est indisponible.',
       socleSilencieux: 'Ce socle est annoncé en ligne mais n\'a rien publié depuis {m} min. Vérifie son réseau.',
-      ongletEtat: 'État', ongletReglages: 'Réglages', ongletCourbes: 'Courbes', ongletAppareil: 'Appareil', sectionsSocle: 'Sections du socle',
+      ongletEtat: 'État', ongletReglages: 'Réglages', ongletCourbes: 'Courbes', ongletAppareil: 'Appareil', ongletService: 'Service',
+      ecranCout: 'Écran, coût et rapport', prixKwh: 'Prix du kWh (€)', ecranNuit: 'Écran la nuit', ecranAttenue: 'Atténué', ecranNormal: 'Normal', ecranEteint: 'Éteint',
+      zonePrioritaire: 'Zone prioritaire', aucune: 'Aucune', aideZonePrio: 'Quand l\'alimentation ne suffit pas pour tout, la zone prioritaire chauffe deux fois plus souvent.',
+      ledEteinte: 'LED de la carte éteinte', rapportActif: 'Rapport quotidien avec les alertes', heureRapport: 'Heure du rapport',
+      soleil: 'Jour et nuit au soleil', aideSoleil: 'Le jour commence au lever du soleil et finit à son coucher, calculés pour ta position (une décimale suffit). Le décalage, en minutes, s\'ajoute aux deux.',
+      soleilActif: 'Suivre le soleil', latitude: 'Latitude', longitude: 'Longitude', decalageSoleil: 'Décalage (min)',
+      sectionsSocle: 'Sections du socle',
       consigneJour: 'Consigne jour (°C)', consigneNuit: 'Consigne nuit (°C)', inchange: 'inchangé', enregistrer: 'Enregistrer',
       attentePremieresMesures: 'En attente des premières mesures du socle…', arreterAutotune: 'Arrêter l\'autotune', autotuneBtn: 'Autotune',
       actions: 'Actions', entretienEnCours: 'Entretien en cours : chauffage coupé, reprise automatique dans {m} min.',
@@ -1220,7 +1807,7 @@ const App = (() => {
   let client = null;
   let vueCourante = 'broker';
   let socleOuvert = null;
-  let panneauActif = 'etat';        // etat | reglages | courbes | general
+  let panneauActif = 'etat';        // etat | reglages | courbes | general | service
   const etats = {};                 // id -> { enLigne, zones, uptime, entretienS, sante, … }
   const attentes = {};              // req -> { resoudre, rejeter, minuteur }
   const courbes = {};               // id -> { heures, points, chargement, erreur }
@@ -1614,6 +2201,7 @@ const App = (() => {
   function oublierSocle(id) {
     if (client && client.connected) { try { client.unsubscribe(sujets(id)); } catch (e) { /* déjà parti */ } }
     [etats, courbes, stats, generaux, alertesVues].forEach(o => { delete o[id]; });
+    if (serviceMod) serviceMod.oublier(id);
     config.socles = config.socles.filter(x => x.id !== id);
     sauver();
   }
@@ -2090,6 +2678,7 @@ const App = (() => {
     const zonesConnues = (e.zones || []).filter(Boolean).length;
     let cle = `${panneauActif}|${zonesConnues}`;
     if (panneauActif === 'general') cle += `|${generaux[s.id] ? 1 : 0}|${stats[s.id] ? 1 : 0}`;
+    if (panneauActif === 'service') cle += `|${serviceMod ? 1 : 0}|${e.enLigne ? 1 : 0}|${e.proto || 0}`;
     if (conteneur.dataset.cle !== cle) {
       conteneur.dataset.cle = cle;
       html(conteneur, construirePanneau(s, e));
@@ -2103,8 +2692,34 @@ const App = (() => {
       case 'etat': return structureEtat(zones);
       case 'reglages': return structureReglages(zones);
       case 'courbes': return structureCourbes(zones);
+      case 'service': return structureService(s, e);
       default: return structureGeneral(s);
     }
+  }
+
+  // --- Service : module importé à la demande (service.js), la première fois
+  // qu'on ouvre l'onglet. La démonstration, ouverte en file://, le fournit
+  // d'avance (window.SERVICE).
+  let serviceMod = null, serviceCharge = null;
+  const outilsService = {
+    langue: () => langue, esc, icone, peindre, commander, message, confirmer, telecharger, lireFichier,
+    socleOuvert: () => socleOuvert, etat: id => etats[id], racine: () => $('#detail [data-r="panneau"]'),
+    ouvert: () => vueCourante === 'socle' && panneauActif === 'service'
+  };
+  function chargerService() {
+    if (!serviceCharge) {
+      const fourni = /** @type {any} */ (window).SERVICE;
+      serviceCharge = (fourni ? Promise.resolve({ default: fourni }) : import('./service.js'))
+        .then(m => { serviceMod = m.default(outilsService); invalider(); },
+              err => { serviceCharge = null; message(err.message, true); });
+    }
+    return serviceCharge;
+  }
+  function structureService(s, e) {
+    if (serviceMod) return serviceMod.structure(s, e);
+    chargerService();
+    return `<section class="carte"><div class="squelette-bloc" aria-busy="true"><span class="sr-only">${t('chargementReglages')}</span>
+      <span class="os os-1"></span><span class="os os-3"></span></div></section>`;
   }
 
   function patcherPanneau(s, e) {
@@ -2125,6 +2740,7 @@ const App = (() => {
           z.defaut ? t('defautLib', { d: z.defaut }) : t('etatZoneCourt', { t: fixe1(z.temp), c: fixe1(z.consigne) })));
         break;
       case 'courbes': patcherCourbes(s.id); break;
+      case 'service': if (serviceMod) serviceMod.patcher(); break;
       default:
         peindre(conteneur.querySelector('[data-r="sante"]'), vivantSante(e));
         peindre(conteneur.querySelector('[data-r="maj"]'), vivantMaj(e));
@@ -2297,7 +2913,7 @@ const App = (() => {
           </div>
           <p class="aide">${g.saisonActive ? t('decalageApplique', { v: Number(g.decalageActuel).toFixed(2) }) : t('aucunDecalage')}</p>
           <button class="btn" type="submit">${t('enregistrer')}</button>
-        </section>
+        </section>${g.prixKwh === undefined ? '' : structureGeneraux35(g, champ)}
       </form>`;
     }
     h += `<section class="carte" data-r="sante"></section>
@@ -2323,6 +2939,37 @@ const App = (() => {
         <button type="button" class="btn btn-danger btn-plein mt" data-action="retirerSocle">${t('retirerSocle')}</button>
       </section>`;
     return h;
+  }
+
+  // Réglages du firmware 3.5, à distance depuis le protocole 4 : coût, écran la
+  // nuit, LED, zone prioritaire, rapport quotidien, jour et nuit au soleil.
+  function structureGeneraux35(g, champ) {
+    const option = (v, cle, actuel) => `<option value="${v}"${actuel === v ? ' selected' : ''}>${cle}</option>`;
+    const bascule = (id, cle, actif) => `<label class="interrupteur mt" for="${id}">${t(cle)}
+      <input type="checkbox" id="${id}" role="switch"${actif ? ' checked' : ''}></label>`;
+    return `<section class="carte">
+        <h2>${t('ecranCout')}</h2>
+        <div class="rangee">
+          ${champ('gPK', t('prixKwh'), g.prixKwh)}
+          <div><label for="gEN">${t('ecranNuit')}</label><select id="gEN">${option(0, t('ecranAttenue'), g.ecranNuit)}${option(1, t('ecranNormal'), g.ecranNuit)}${option(2, t('ecranEteint'), g.ecranNuit)}</select></div>
+          <div><label for="gZP">${t('zonePrioritaire')}</label><select id="gZP">${option(0, t('aucune'), g.zonePrioritaire)}${option(1, t('zoneN', { n: 1 }), g.zonePrioritaire)}${option(2, t('zoneN', { n: 2 }), g.zonePrioritaire)}</select></div>
+        </div>
+        <p class="aide">${t('aideZonePrio')}</p>
+        ${bascule('gLE', 'ledEteinte', g.ledEteinte)}
+        ${bascule('gRA', 'rapportActif', g.rapportActif)}
+        <div class="rangee">${champ('gRH', t('heureRapport'), enHHMM(g.rapportMinutes), 'numeric')}</div>
+      </section>
+      <section class="carte">
+        <h2>${t('soleil')}</h2>
+        <p class="aide">${t('aideSoleil')}</p>
+        ${bascule('gSO', 'soleilActif', g.soleilActif)}
+        <div class="rangee">
+          ${champ('gLat', t('latitude'), g.latitude)}
+          ${champ('gLon', t('longitude'), g.longitude)}
+          ${champ('gSDec', t('decalageSoleil'), g.soleilDecalageMin, 'numeric')}
+        </div>
+        <button class="btn" type="submit">${t('enregistrer')}</button>
+      </section>`;
   }
 
   const qualiteSignal = dbm => dbm >= -60 ? 'sigExcellent' : dbm >= -70 ? 'sigBon' : dbm >= -80 ? 'sigFaible' : 'sigTresFaible';
@@ -2715,6 +3362,7 @@ const App = (() => {
         case 'diagnostic':        api.diagnostic(); break;
         case 'fermerDiag':        fermerDialogue($('#diag')); break;
         case 'copierRapport':     api.copierRapport(); break;
+        case 'sv':                if (serviceMod) serviceMod.clic(d.sv, el); break;
       }
     });
     // Les cartes de socle sont des boutons : clavier compris.
@@ -2736,6 +3384,7 @@ const App = (() => {
         case 'zone-complet': api.reglerZoneComplet(+f.dataset.z); break;
         case 'generaux':     api.reglerGeneraux(); break;
         case 'verrou':       api.deverrouiller(); break;
+        case 'sv-surveillance': if (serviceMod) serviceMod.soumettre(f); break;
       }
     });
     doc.addEventListener('change', ev => {
@@ -2744,6 +3393,7 @@ const App = (() => {
       if (el.id === 'fichier-config' && el.files && el.files[0]) { api.importerConfig(el.files[0]); el.value = ''; }
       if (el.id === 'verrou-min') api.changerVerrouMin(el.value);
       if (el.id === 'fichier-reglages' && el.files && el.files[0]) { api.importerReglages(el.files[0]); el.value = ''; }
+      if (el.id === 'sv-fichier' && el.files && el.files[0] && serviceMod) { serviceMod.fichier(el.files[0]); el.value = ''; }
       if (el.id === 'langue' || el.id === 'langue-liste') api.changerLangue(el.value);
     });
     // Au retour sur l'application, l'état affiché peut dater : on le redemande.
@@ -3254,6 +3904,21 @@ const App = (() => {
       }
       const sa = /** @type {HTMLInputElement|null} */ (doc.getElementById('gSA'));
       if (sa) params.saisonActive = !!sa.checked;
+      // Firmware 3.5 (protocole 4) : présents seulement si le socle les a rendus.
+      if (doc.getElementById('gPK')) {
+        for (const [id, cle] of [['gPK', 'prixKwh'], ['gLat', 'latitude'], ['gLon', 'longitude']]) {
+          const v = champNombre(id);
+          if (v !== undefined) params[cle] = v;
+        }
+        const dec = champNombre('gSDec');
+        if (dec !== undefined) params.soleilDecalageMin = Math.round(dec);
+        const heure = depuisHHMM(/** @type {any} */ (doc.getElementById('gRH')).value);
+        if (heure !== null) params.rapportMinutes = heure;
+        for (const [id, cle] of [['gEN', 'ecranNuit'], ['gZP', 'zonePrioritaire']])
+          params[cle] = +(/** @type {any} */ (doc.getElementById(id)).value);
+        for (const [id, cle] of [['gLE', 'ledEteinte'], ['gRA', 'rapportActif'], ['gSO', 'soleilActif']])
+          params[cle] = !!(/** @type {any} */ (doc.getElementById(id)).checked);
+      }
       try {
         const r = await commander(socleOuvert, 'globaux', params);
         generaux[socleOuvert] = r;

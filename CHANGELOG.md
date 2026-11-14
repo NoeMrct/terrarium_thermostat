@@ -78,6 +78,18 @@ jour.
   seulement quand il sert (et gardé hors ligne par l'agent de service). Tout le
   monde télécharge 4 Ko de moins : `app.js` passe de 30,0 à 26,0 Ko compressés.
   Le budget de poids sépare désormais le démarrage des modules à la demande.
+- **Onglet Service dans l'application** (firmware 3.5) : sondes (inventaire,
+  liaison, identification suivie en direct), essai de chauffe et calibration
+  avec confirmation, rapport du jour, journal, résumés journaliers en tableau,
+  alertes et surveillance (seul le serveur des adresses s'affiche ; une adresse
+  enregistrée quitte aussitôt le champ), sauvegarde du socle à télécharger ou
+  restaurer. C'est un module à part (`service.js`, 6 Ko compressés), importé à
+  la première ouverture de l'onglet et gardé hors ligne par l'agent de
+  service : le démarrage n'en paie rien. La démonstration le montre, avec un
+  socle simulé en protocole 4.
+- **Réglages 3.5 dans l'onglet Appareil** : prix du kWh, écran la nuit, zone
+  prioritaire, LED, rapport quotidien et son heure, jour et nuit au soleil
+  (position, décalage) ; affichés seulement si le socle les rend.
 - **À distance (protocole 4).** L'application peut faire ce que seule la page
   locale savait faire : inventaire et liaison des sondes, assistant
   d'identification, essai de chauffe, calibration, rapport du jour (lu ou
@@ -89,6 +101,8 @@ jour.
   hôte se relit, et la sauvegarde envoyée par le broker omet ces adresses
   (restaurée, elle garde celles du socle). Les résumés s'arrêtent à ce que
   tient un message. Le simulateur, le schéma et `test-protocole.js` suivent.
+- Application : `PROTO_APP` passe à 4. Restée à 3 avec les commandes
+  signées, elle affichait « mets à jour l'application » face à un socle 3.5.
 - **Commandes signées (protocole 4).** Le code d'appairage ne circule plus sur
   le broker : l'application (et le serveur, pour la preuve de propriété)
   envoie `{"c": "<commande>", "sig": HMAC-SHA256(code, c)}`, horodatée ; le

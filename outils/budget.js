@@ -38,10 +38,11 @@ const TOTAL = terser ? 44000 : 58000;
 // Chargés à la demande (C2), hors du poids de démarrage : chacun a son budget,
 // mais ils ne comptent pas dans le total, qui est ce que tout le monde télécharge.
 const A_LA_DEMANDE = {
-  'textes.en.js': [6500, 7500]         // l'anglais, importé seulement quand il sert
+  'textes.en.js': [6500, 7500],        // l'anglais, importé seulement quand il sert
+  'service.js': [7000, 8000]           // l'onglet Service, importé à sa première ouverture
 };
-const MINIFIES = ['app.js', 'mqtt.js', 'sw.js', 'textes.en.js'];
-const MODULES = ['textes.en.js'];      // modules ES : minifiés comme tels
+const MINIFIES = ['app.js', 'mqtt.js', 'sw.js', 'textes.en.js', 'service.js'];
+const MODULES = ['textes.en.js', 'service.js'];   // modules ES : minifiés comme tels
 
 (async () => {
   let total = 0, echec = false;

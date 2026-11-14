@@ -30,6 +30,7 @@ const ECRANS = [
   ['reglages', () => App.panneau('reglages')],
   ['courbes', () => App.panneau('courbes')],
   ['appareil', () => App.panneau('general')],
+  ['service', () => App.panneau('service')],
   ['diagnostic', () => App.diagnostic()],
   ['verrou', () => App.montrer('verrou')],
   ['broker', () => { localStorage.clear(); App.montrer('broker'); }]
@@ -66,7 +67,7 @@ let violationsGraves = 0, total = 0;
     await page.addScriptTag({ content: AXE });
     for (const [ecran, action] of ECRANS) {
       await page.evaluate(action);
-      await page.waitForTimeout(ecran === 'courbes' || ecran === 'appareil' ? 1200 : 500);
+      await page.waitForTimeout(ecran === 'courbes' || ecran === 'appareil' || ecran === 'service' ? 1500 : 500);
       await analyser(page, nom + ' / ' + ecran);
     }
     await ctx.close();

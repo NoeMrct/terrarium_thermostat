@@ -74,6 +74,9 @@ be sure, in the local interface, **Settings → Probes**:
 3. **Calibrate** (or `calibrer`): probes laid side by side for a few minutes, the other zones are
    aligned on zone 1.
 
+With firmware 3.5, the app does all this remotely, in the **Service** tab: bus inventory,
+linking to a zone, identification, heating test and calibration.
+
 **Re-read the bus** after plugging in a probe; "to zone 1" / "to zone 2" links by hand. If only
 one probe shows up, it is the wiring (see troubleshooting), not the software. While running, the
 base also checks that heating a zone raises its own probe: if another zone's probe rises instead,
@@ -123,7 +126,8 @@ stable, it makes the zone oscillate for about an hour, then saves what it learne
 **Device** tab: the power supply (available amps, power of one mat), seasonal cycling,
 statistics, the base's health, settings backups.
 
-In the local interface, **Settings → General settings** adds:
+With firmware 3.5, the app's Device tab also sets what follows; in the local interface, it is
+**Settings → General settings**:
 
 - **Day and night following the sun**: latitude and longitude (two decimals are enough), and an
   optional offset; sunrise and sunset then replace the fixed times, through the seasons.
@@ -131,6 +135,7 @@ In the local interface, **Settings → General settings** adds:
   of heating time.
 - **Price per kWh**: the heating cost appears in the statistics and the report.
 - **Screen at night** (dimmed, normal or off) and **board LED**.
+- **Daily report**: a summary of the day, sent with the alerts at the chosen time.
 
 ## 8. Reading the status
 
@@ -194,7 +199,14 @@ whether a terrarium **holds** its values, not only whether it reaches them.
   alerts in one file, to restore on a replacement board. Wi-Fi and passwords are not in it; the
   alert URL is.
 - **Daily summaries** (local interface, Device tab, or `jours`): a year of days — temperatures,
-  heating hours, kWh and cost.
+  heating hours, kWh and cost. The app's **Service** tab shows the last month, the base's log and
+  the daily report.
+- **Remote base backup** (Service tab): the same backup, downloaded or restored from the app, but
+  without the alert and heartbeat addresses, which never leave the base over the Internet
+  (restored, it keeps the base's own).
+- **Alerts and monitoring** (Service tab): the alert and heartbeat addresses can be replaced from
+  the app; only their server shows afterwards (`ntfy.sh`), never the whole address. Wi-Fi is set
+  on the local interface only.
 - **Export configuration** (bottom of the list): the whole app — broker and bases — to change
   phones. The file contains the pairing codes and the broker password: keep it to yourself.
 - **Restart**, **Erase history**: Device tab. The app's local history is erased at the same time.

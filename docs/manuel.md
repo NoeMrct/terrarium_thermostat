@@ -73,6 +73,9 @@ celui des plaques. Pour en être sûr, dans l'interface locale, onglet **Réglag
 3. **Calibrer** (ou `calibrer`) : sondes posées côte à côte quelques minutes, les autres zones
    sont alignées sur la zone 1.
 
+Avec le firmware 3.5, l'application fait tout cela à distance, onglet **Service** : inventaire
+du bus, liaison à une zone, identification, essai de chauffe et calibration.
+
 **Relire le bus** après avoir branché une sonde ; « vers zone 1 » / « vers zone 2 » lie à la main.
 Si une seule sonde apparaît, c'est le câblage (voir le dépannage), pas le logiciel. En
 fonctionnement, le socle vérifie aussi que la chauffe d'une zone fait monter sa propre sonde : si
@@ -122,7 +125,8 @@ il fait osciller la zone pendant environ une heure, puis enregistre ce qu'il a a
 Onglet **Appareil** : l'alimentation (ampères disponibles, puissance d'un tapis), le cyclage
 saisonnier, les statistiques, la santé du socle, les sauvegardes de réglages.
 
-Dans l'interface locale, **Réglages → Réglages généraux** ajoute :
+Avec le firmware 3.5, l'onglet Appareil de l'application règle aussi ce qui suit ; dans
+l'interface locale, c'est **Réglages → Réglages généraux** :
 
 - **Jour et nuit calés sur le soleil** : latitude et longitude (deux décimales suffisent), et un
   décalage éventuel ; le lever et le coucher remplacent alors les horaires fixes, au fil des saisons.
@@ -130,6 +134,7 @@ Dans l'interface locale, **Réglages → Réglages généraux** ajoute :
   plus grande part du temps de chauffe.
 - **Prix du kWh** : le coût de la chauffe apparaît dans les statistiques et le rapport.
 - **Écran la nuit** (atténué, normal ou éteint) et **LED de la carte**.
+- **Rapport quotidien** : un résumé de la journée, envoyé avec les alertes à l'heure choisie.
 
 ## 8. Lire l'état
 
@@ -193,7 +198,14 @@ disent si un terrarium **tient** ses valeurs, pas seulement s'il les atteint.
   sondes liées et alertes dans un fichier, à restaurer sur une carte de remplacement. Le Wi-Fi et
   les mots de passe n'y sont pas ; l'URL d'alerte, si.
 - **Résumés journaliers** (interface locale, onglet Appareil, ou `jours`) : un an de journées —
-  températures, heures de chauffe, kWh et coût.
+  températures, heures de chauffe, kWh et coût. L'onglet **Service** de l'application montre le
+  dernier mois, le journal du socle et le rapport du jour.
+- **Sauvegarde du socle à distance** (onglet Service) : la même sauvegarde, téléchargée ou
+  restaurée depuis l'application, mais sans les adresses d'alerte et de heartbeat, qui ne quittent
+  jamais le socle par Internet (restaurée, elle garde celles du socle).
+- **Alertes et surveillance** (onglet Service) : l'adresse des alertes et celle du heartbeat se
+  remplacent depuis l'application ; seul leur serveur s'affiche ensuite (`ntfy.sh`), jamais
+  l'adresse entière. Le Wi-Fi, lui, ne se règle que sur l'interface locale.
 - **Exporter la configuration** (bas de la liste) : l'application entière — broker et socles — pour
   changer de téléphone. Le fichier contient les codes d'appairage et le mot de passe du broker :
   garde-le pour toi.

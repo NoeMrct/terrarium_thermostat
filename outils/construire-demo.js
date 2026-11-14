@@ -138,9 +138,28 @@ const FAUX_MQTT = `
     if (s.historique.length > 2000) s.historique.shift();
   }
 
-  // Santé du socle : ce que publie un firmware 3.4 sur <id>/sante.
+  // Protocole 4 : sondes, essai, surveillance et journal du socle simulé.
+  function f1(s) {
+    if (!s.f1) {
+      const presentes = ['28FF4C1D61160301', '28FF9A0362160417'];
+      s.f1 = { presentes, liaisons: presentes.slice(), ident: null, identResultat: '',
+        essai: { zone: 0, fin: 0, resultat: '' },
+        reseau: { urlAlertes: 'https://ntfy.sh/exemple-demo', urlHeartbeat: '', heartbeatMinutes: 5, formatAlertes: 1 },
+        journal: ['08:00:02 Demarrage (mise sous tension), firmware 3.5.0', '08:00:05 Wi-Fi connecte', '08:00:07 MQTT connecte'],
+        g: { prixKwh: 0.2516, rapportActif: true, rapportMinutes: 1200, ledEteinte: false, ecranNuit: 0, soleilActif: false,
+          soleilDecalageMin: 0, latitude: 0, longitude: 0, zonePrioritaire: 0 } };
+    }
+    return s.f1;
+  }
+  function noter(s, texte) {
+    const j = f1(s).journal;
+    j.push(new Date().toTimeString().slice(0, 8) + ' ' + texte);
+    if (j.length > 60) j.shift();
+  }
+
+  // Santé du socle : ce que publie un firmware 3.5 sur <id>/sante.
   const majs = {};
-  const sante = id => ({ proto: 3, version: '3.4.0-demo', uptime: 128400 + Math.floor((Date.now() - debut) / 1000),
+  const sante = id => ({ proto: 4, version: '3.5.0-demo', uptime: 128400 + Math.floor((Date.now() - debut) / 1000),
     rssi: id === 'terraDEMO001' ? -58 : -76, heap: 171000, heapMin: 142000, blocMax: 98000,
     reset: 'mise sous tension', otaEnAttente: false, hote: id + '.local', ip: id === 'terraDEMO001' ? '192.168.1.41' : '192.168.1.42',
     ...(majs[id] ? { maj: majs[id] } : {}) });
@@ -164,6 +183,9 @@ const FAUX_MQTT = `
   function traiter(id, texte) {
     const s = socles[id];
     let d; try { d = JSON.parse(texte); } catch (e) { return; }
+    // Protocole 4 : commande signée {"c": "<commande>", "sig": "…"}. La
+    // démonstration n'a pas de secret à défendre : elle lit la commande.
+    if (typeof d.c === 'string') { try { d = JSON.parse(d.c); d.jeton = 'DEMONSTRATION0000000001'; } catch (e) { return; } }
     const rep = (ok, corps) =>
       publier(\`terrarium/\${id}/reponse\`, JSON.stringify({ req: d.req, ok, ...corps }), false);
 
@@ -172,7 +194,7 @@ const FAUX_MQTT = `
     if (!lecture && d.jeton !== 'DEMONSTRATION0000000001') return rep(false, { erreur: 'jeton invalide' });
 
     switch (d.action) {
-      case 'version': return rep(true, { version: '3.4.0-demo', compile: 'demonstration', proto: 3 });
+      case 'version': return rep(true, { version: '3.5.0-demo', compile: 'demonstration', proto: 4 });
       case 'etat': return rep(true, {
         zones: s.zones.map(z => ({
           nom: z.nom, temp: +z.temp.toFixed(2), consigne: +consigne(z).toFixed(2),
@@ -184,10 +206,10 @@ const FAUX_MQTT = `
         uptime: 128400,
         entretienS: Math.max(0, Math.floor((s.entretienFin - Date.now()) / 1000)),
         zonesSimultanees: zonesSimultanees(s), saison: 0, alertesEnAttente: 0,
-        proto: 3, sante: sante(id)
+        proto: 4, sante: sante(id)
       });
       case 'stats': return rep(true, {
-        version: '3.4.0-demo', compile: 'demonstration',
+        version: '3.5.0-demo', compile: 'demonstration',
         zonesSimultanees: zonesSimultanees(s), saison: 0, maintenanceRestanteS: 0,
         zones: s.zones.map(z => ({
           nom: z.nom, min: +(z.temp - 1.4).toFixed(2), max: +(z.temp + 1.1).toFixed(2),
@@ -222,14 +244,24 @@ const FAUX_MQTT = `
         if (d.saisonPlateauJ  !== undefined) s.saison.plateau  = d.saisonPlateauJ;
         if (d.saisonRemonteeJ !== undefined) s.saison.remontee = d.saisonRemonteeJ;
         if (d.saisonActive    !== undefined) s.saison.active   = !!d.saisonActive;
-        return rep(true, {
+        const g = f1(s).g;
+        const g2 = Object.assign({}, g);
+        ['prixKwh', 'rapportActif', 'rapportMinutes', 'ledEteinte', 'ecranNuit', 'soleilActif', 'soleilDecalageMin',
+         'latitude', 'longitude', 'zonePrioritaire'].forEach(k => { if (d[k] !== undefined) g2[k] = d[k]; });
+        if (g2.soleilActif && !g2.latitude && !g2.longitude) return rep(false, { erreur: 'Position inconnue : renseigner latitude et longitude' });
+        if (!(g2.prixKwh >= 0 && g2.prixKwh <= 5)) return rep(false, { erreur: 'Prix du kWh hors 0-5 EUR' });
+        if (!(g2.ecranNuit >= 0 && g2.ecranNuit <= 2)) return rep(false, { erreur: "Mode nuit de l'ecran inconnu" });
+        if (!(g2.latitude >= -65 && g2.latitude <= 65)) return rep(false, { erreur: 'Latitude hors -65..65' });
+        if (!(g2.soleilDecalageMin >= -180 && g2.soleilDecalageMin <= 180)) return rep(false, { erreur: 'Decalage solaire hors -180..180 min' });
+        Object.assign(g, g2);
+        return rep(true, Object.assign({}, g, {
           amperes: s.alim, watts: 20, volts: 12, zonesSimultanees: zonesSimultanees(s),
           entretienMin: 10, ecranVeilleMin: 10,
           saisonActive: s.saison.active, saisonDelta: s.saison.delta,
           saisonDescenteJ: s.saison.descente, saisonPlateauJ: s.saison.plateau,
           saisonRemonteeJ: s.saison.remontee,
           decalageActuel: s.saison.active ? -s.saison.delta : 0
-        });
+        }));
       }
       case 'stop-autotune':
         if (!s.zones[d.z]) return rep(false, { erreur: 'zone invalide' });
@@ -244,15 +276,15 @@ const FAUX_MQTT = `
         // Mise à jour tirée, simulée : progression puis « redémarrage » et santé.
         const cible = d.version || ((d.url || '').match(/v([0-9]+[.][0-9]+[.][0-9]+)/) || [])[1] || '?';
         if (!d.url && !d.version) return rep(false, { erreur: 'url ou version attendue' });
-        if (d.version === '3.4.0' && !d.forcer) return rep(false, { erreur: 'deja en 3.4.0' });
+        if (d.version === '3.5.0' && !d.forcer) return rep(false, { erreur: 'deja en 3.5.0' });
         rep(true, { maj: 'telechargement' });
         majs[id] = { etape: 'en validation', version: cible, detail: 'telechargement en cours' };
         let pct = 0;
         const tic = setInterval(() => {
           pct += 20;
-          if (pct < 100) { publier(\`terrarium/\${id}/maj\`, JSON.stringify({ etat: 'telechargement', pct, version: '3.4.0-demo' })); return; }
+          if (pct < 100) { publier(\`terrarium/\${id}/maj\`, JSON.stringify({ etat: 'telechargement', pct, version: '3.5.0-demo' })); return; }
           clearInterval(tic);
-          publier(\`terrarium/\${id}/maj\`, JSON.stringify({ etat: 'redemarrage', pct: 100, version: '3.4.0-demo' }));
+          publier(\`terrarium/\${id}/maj\`, JSON.stringify({ etat: 'redemarrage', pct: 100, version: '3.5.0-demo' }));
           majs[id] = { etape: 'en validation', version: cible, detail: 'demarree, validation dans 90 s' };
           publierEtat(id);
           setTimeout(() => { majs[id] = { etape: 'validee', version: cible, detail: 'validee' }; publierEtat(id); }, 4000);
@@ -291,6 +323,123 @@ const FAUX_MQTT = `
         if (!(d.amperes >= 0.5 && d.amperes <= 40)) return rep(false, { erreur: 'amperage hors 0.5-40 A' });
         s.alim = d.amperes;
         return rep(true, { zonesSimultanees: zonesSimultanees(s) });
+      }
+      // ---- protocole 4 : à distance, ce que la page locale faisait seule ----
+      case 'sondes': {
+        const f = f1(s);
+        if (d.relire) noter(s, 'Bus 1-Wire relu');
+        const reste = f.ident ? Math.max(0, 120 - Math.round((Date.now() - f.ident.debut) / 1000)) : 0;
+        if (f.ident && !reste) f.ident = null;
+        return rep(true, { sondes: {
+          sondes: f.presentes.map(r => ({ rom: r, temp: +(s.zones[f.liaisons.indexOf(r)] || s.zones[0]).temp.toFixed(2), zone: f.liaisons.indexOf(r) })),
+          parasite: false,
+          liaisons: f.liaisons.map(r => (r ? { rom: r, presente: f.presentes.indexOf(r) >= 0 } : null)),
+          identification: f.ident ? { zone: f.ident.zone + 1, restantS: reste } : null,
+          resultat: f.identResultat
+        } });
+      }
+      case 'lier': {
+        const f = f1(s);
+        if (!s.zones[d.z]) return rep(false, { erreur: 'zone invalide' });
+        const rom = String(d.rom || '').toUpperCase();
+        if (f.presentes.indexOf(rom) < 0) return rep(false, { erreur: 'Sonde absente du bus (scan pour relire le bus)' });
+        f.liaisons = f.liaisons.map(r => (r === rom ? '' : r));
+        f.liaisons[d.z] = rom;
+        noter(s, 'Sonde ' + rom + ' liee a la zone ' + (d.z + 1));
+        return rep(true, { message: 'Sonde ' + rom + ' liee a la zone ' + (d.z + 1) });
+      }
+      case 'identifier': {
+        const f = f1(s);
+        if (!s.zones[d.z]) return rep(false, { erreur: 'zone invalide' });
+        f.ident = { zone: d.z, debut: Date.now() };
+        // Démonstration : la sonde « serrée » est reconnue au bout de 6 s.
+        setTimeout(() => {
+          if (!f.ident || f.ident.zone !== d.z) return;
+          f.ident = null;
+          f.identResultat = 'Zone ' + (d.z + 1) + ' : sonde ' + f.presentes[d.z] + ' reconnue et liee';
+          noter(s, f.identResultat);
+        }, 6000);
+        return rep(true, { message: 'Zone ' + (d.z + 1) + ' : serrez sa sonde dans la main (ou refroidissez-la) ; chauffe suspendue, 120 s maximum' });
+      }
+      case 'stop-identifier':
+        f1(s).ident = null;
+        return rep(true, { message: 'Identification annulee' });
+      case 'essai': {
+        const f = f1(s);
+        if (d.z === undefined) {
+          const reste = Math.max(0, Math.round((f.essai.fin - Date.now()) / 1000));
+          return rep(true, { essai: { zone: reste ? f.essai.zone + 1 : 0, restantS: reste, resultat: f.essai.resultat } });
+        }
+        if (!s.zones[d.z]) return rep(false, { erreur: 'zone invalide' });
+        if (f.essai.fin > Date.now()) return rep(false, { erreur: 'Essai deja en cours (zone ' + (f.essai.zone + 1) + ')' });
+        f.essai = { zone: d.z, fin: Date.now() + 8000, resultat: '' };
+        setTimeout(() => { if (f.essai.zone === d.z) f.essai.resultat = 'zone ' + (d.z + 1) + ' : +0.5 C en 7 s, le tapis chauffe et la sonde suit'; }, 7500);
+        noter(s, 'Essai de chauffe lance sur la zone ' + (d.z + 1));
+        return rep(true, { message: 'Zone ' + (d.z + 1) + ' : chauffe seule a pleine puissance, verdict des que sa sonde gagne 0.5 C (10 min au plus). Ne pas laisser sans surveillance.' });
+      }
+      case 'stop-essai': {
+        const f = f1(s);
+        if (f.essai.fin > Date.now()) f.essai.resultat = 'zone ' + (f.essai.zone + 1) + ' : essai arrete a la demande';
+        f.essai.fin = 0;
+        return rep(true, { message: 'Essai arrete' });
+      }
+      case 'calibrer': {
+        const ecart = s.zones[0].temp - s.zones[1].temp;
+        if (Math.abs(ecart) > 3) return rep(false, { erreur: 'Sondes trop ecartees (' + ecart.toFixed(1) + ' C) : les poser cote a cote quelques minutes' });
+        return rep(true, { message: 'Zone 2 decalee de ' + ecart.toFixed(2) + ' C pour suivre la zone 1' });
+      }
+      case 'rapport':
+        if (d.envoyer) { noter(s, 'Rapport envoye'); return rep(true, { message: 'Rapport envoye vers les alertes' }); }
+        return rep(true, { texte: 'Rapport du ' + new Date().toISOString().slice(0, 10) + ' — ' + s.nom + '\\n' +
+          s.zones.map(z => z.nom + ' : ' + z.temp.toFixed(1) + ' C (consigne ' + consigne(z).toFixed(1) + ' C), ' + (z.defaut ? 'defaut ' + z.defaut : 'sans defaut')).join('\\n') });
+      case 'jours': {
+        const n = Math.max(1, Math.min(30, d.n || 7));
+        const jours = [];
+        for (let i = 0; i < n; i++) {
+          const date = new Date(Date.now() - (i + 1) * 86400000).toISOString().slice(0, 10);
+          jours.push({ date, zones: s.zones.map((z, k) => {
+            const h = 4.5 + ((i * 7 + k * 3) % 10) / 4;
+            return { min: +(consigne(z) - 1.6).toFixed(1), max: +(consigne(z) + 0.9).toFixed(1), moyenne: +(consigne(z) - 0.3).toFixed(1),
+              heures: +h.toFixed(2), kWh: +(h * 0.02).toFixed(3), euros: +(h * 0.02 * f1(s).g.prixKwh).toFixed(3), defauts: z.defaut && i === 0 ? 1 : 0 };
+          }) });
+        }
+        return rep(true, { jours: { prixKwh: f1(s).g.prixKwh, jours } });
+      }
+      case 'journal':
+        return rep(true, { texte: f1(s).journal.join('\\n') });
+      case 'sauvegarde': {
+        const f = f1(s);
+        return rep(true, { sauvegarde: { format: 'terrarium-sauvegarde', version: '3.5.0-demo', appareil: id, date: new Date().toISOString(),
+          zones: s.zones.map(z => ({ nom: z.nom, consigneJour: z.consigneJour, consigneNuit: z.consigneNuit, tempMax: z.tempMax })),
+          globaux: Object.assign({ courantAlimA: s.alim }, f.g), sondes: f.liaisons.slice(),
+          reseau: { formatAlertes: f.reseau.formatAlertes, heartbeatMinutes: f.reseau.heartbeatMinutes } } });
+      }
+      case 'restaurer': {
+        const v = d.sauvegarde;
+        if (!v || typeof v !== 'object') return rep(false, { erreur: 'sauvegarde attendue' });
+        if (v.format !== 'terrarium-sauvegarde') return rep(false, { erreur: "Ce n'est pas une sauvegarde de socle" });
+        (v.zones || []).forEach((z, i) => { if (s.zones[i] && z && typeof z.nom === 'string') s.zones[i].nom = z.nom; });
+        if (Array.isArray(v.sondes)) f1(s).liaisons = s.zones.map((_, i) => v.sondes[i] || '');
+        noter(s, 'Configuration de ' + (v.appareil || '?') + ' restauree');
+        publierEtat(id);
+        return rep(true, { message: 'Configuration de ' + (v.appareil || '?') + ' restauree (zones, reglages, sondes, alertes).' });
+      }
+      case 'reseau': {
+        const f = f1(s);
+        if (['ssid', 'ssid2', 'wifiPass', 'wifiPass2'].some(k => d[k] !== undefined)) return rep(false, { erreur: 'Wi-Fi : a regler sur la page locale du socle' });
+        const r = Object.assign({}, f.reseau);
+        let ok = true;
+        ['urlAlertes', 'urlHeartbeat'].forEach(k => {
+          if (typeof d[k] !== 'string') return;
+          if (d[k] && !/^https?:[/][/]/.test(d[k])) ok = false; else r[k] = d[k];
+        });
+        if (d.heartbeatMinutes !== undefined) { if (d.heartbeatMinutes >= 1 && d.heartbeatMinutes <= 1440) r.heartbeatMinutes = d.heartbeatMinutes; else ok = false; }
+        if (d.formatAlertes !== undefined) { if (d.formatAlertes === 0 || d.formatAlertes === 1) r.formatAlertes = d.formatAlertes; else ok = false; }
+        if (!ok) return rep(false, { erreur: 'reseau : valeur invalide (URL http(s)://, 1-1440 min, format 0 ou 1)' });
+        f.reseau = r;
+        const hote = u => { if (!u) return ''; try { return new URL(u).hostname || 'definie'; } catch (e) { return 'definie'; } };
+        return rep(true, { ssid: 'Maison', ssid2: '', alertes: hote(r.urlAlertes), heartbeat: hote(r.urlHeartbeat),
+          heartbeatMinutes: r.heartbeatMinutes, formatAlertes: r.formatAlertes });
       }
       default: return rep(false, { erreur: 'action inconnue' });
     }
@@ -374,6 +523,11 @@ let html = lire('index.html');
 const ANGLAIS = lire('textes.en.js').replace('export default {', 'window.TEXTES_EN = {');
 if (!ANGLAIS.includes('window.TEXTES_EN = {')) { console.error('textes.en.js : « export default { » introuvable'); process.exit(1); }
 
+// Même chose pour l'onglet Service, module importé à la demande par le site.
+const SERVICE_SRC = lire('service.js');
+if (!SERVICE_SRC.includes('export default function service(app) {')) { console.error('service.js : « export default function service(app) { » introuvable'); process.exit(1); }
+const SERVICE = '(function () {\n' + SERVICE_SRC.replace('export default function service(app) {', 'window.SERVICE = function service(app) {') + '\n})();';
+
 // Tout est mis en ligne dans le fichier : ouvert en file://, aucune requête ne
 // pourrait aboutir de toute façon.
 // La politique de sécurité (CSP) de la vraie page interdit les scripts en ligne,
@@ -385,7 +539,7 @@ html = html
   .replace(/<link rel="apple-touch-icon"[^>]*>\s*/, '')
   .replace(/<meta http-equiv="Content-Security-Policy"[^>]*>\s*/, '')
   .replace('<script src="mqtt.js" defer></script>', `<script>${FAUX_MQTT}</script>`)
-  .replace('<script src="app.js" defer></script>', () => `<script>\n${ANGLAIS}\n</script>\n<script>\n${lire('app.js')}\n</script>`)
+  .replace('<script src="app.js" defer></script>', () => `<script>\n${ANGLAIS}\n</script>\n<script>\n${SERVICE}\n</script>\n<script>\n${lire('app.js')}\n</script>`)
   .replace('<header id="entete">', `${BANDEAU}\n<header id="entete">`)
   .replace('<title>Terrariums</title>', '<title>Terrariums — démonstration</title>');
 
