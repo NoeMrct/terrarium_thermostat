@@ -25,6 +25,8 @@ const BROKER  = arg('broker', 'mqtt://localhost:1883');
 const ID      = arg('id', 'terraSIM001');
 const JETON   = arg('jeton', 'SIMULATIONTESTJETON00001');
 const PREFIXE = arg('prefixe', 'terrarium');
+// Dernière version publiée par le manifeste simulé (mises à jour automatiques).
+const PUBLIEE = arg('publiee', '3.6.0');
 const base    = `${PREFIXE}/${ID}`;
 
 // ----------------------------------------------------------------- l'appareil
@@ -37,7 +39,9 @@ const socle = {
     saisonActive: false, saisonDelta: 5,
     saisonDescenteJ: 21, saisonPlateauJ: 60, saisonRemonteeJ: 21, saisonDebutEpoch: 0,
     rapportActif: false, rapportMinutes: 1200, prixKwh: 0, ledEteinte: false, ecranNuit: 0,
-    soleilActif: false, soleilDecalageMin: 0, latitude: 0, longitude: 0, zonePrioritaire: 0
+    soleilActif: false, soleilDecalageMin: 0, latitude: 0, longitude: 0, zonePrioritaire: 0,
+    // Mises à jour automatiques (F15) : activées par défaut, la nuit de 03:00 à 05:00.
+    majAutoCoupee: false, majPlageDebut: 180, majPlageFin: 300
   },
   // Protocole 4 (F1) : ce que la page locale réglait seule.
   sondes: [
@@ -97,7 +101,17 @@ function validerGlobaux(g) {
   if (!(fini(g.longitude) && g.longitude >= -180 && g.longitude <= 180)) e('Longitude hors -180..180');
   if (g.soleilActif && g.latitude === 0 && g.longitude === 0) e('Position inconnue : renseigner latitude et longitude');
   if (!(g.zonePrioritaire >= 0 && g.zonePrioritaire <= 2))    e('Zone prioritaire inconnue');
+  if (!(g.majPlageDebut >= 0 && g.majPlageDebut <= 1439 && g.majPlageFin >= 0 && g.majPlageFin <= 1439))
+    e('Plage de mise a jour : heures de 00:00 a 23:59');
+  if (g.majPlageDebut === g.majPlageFin && g.majPlageDebut !== 0) e('Plage de mise a jour vide : debut et fin identiques');
 }
+
+// Versions X.Y.Z, comme MajAuto::comparerVersions.
+const comparerVersions = (a, b) => {
+  const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);
+  for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0);
+  return 0;
+};
 
 // Hôte d'une URL : seul relu à distance, comme hoteUrl() dans protocole.cpp.
 function hoteUrl(u) {
@@ -192,13 +206,30 @@ socle.maj = null;
 // Accès support : la session ouverte par le propriétaire (comme la NVS du socle).
 socle.service = null;
 const serviceActif = () => !!socle.service && Date.now() / 1000 < socle.service.jusqua;
+// Mises à jour automatiques : le manifeste simulé publie PUBLIEE ; report en mémoire.
+socle.majAuto = { reporteeJusqua: 0, verifiee: Math.floor(Date.now() / 1000) };
+const versionCourante = () => VERSION_SIM.replace('-simule', '');
+function majAuto() {
+  const g = socle.globaux, maintenant = Math.floor(Date.now() / 1000);
+  const dispo = comparerVersions(PUBLIEE, versionCourante()) > 0;
+  const reportee = socle.majAuto.reporteeJusqua > maintenant;
+  const attente = !dispo ? 'a-jour' : g.majAutoCoupee ? 'desactivee' : reportee ? 'reportee' : 'plage';
+  return {
+    actif: !g.majAutoCoupee, signee: true, plageDebut: g.majPlageDebut, plageFin: g.majPlageFin, attente, rang: 42,
+    publiee: PUBLIEE,
+    ...(dispo ? { disponible: PUBLIEE, notes: 'Mises à jour automatiques la nuit, images signées exigées.', securite: false, ouvert: 100 } : {}),
+    verifiee: socle.majAuto.verifiee,
+    ...(reportee ? { reporteeJusqua: socle.majAuto.reporteeJusqua } : {})
+  };
+}
 const sante = () => ({
   proto: PROTO_SIM, version: VERSION_SIM, uptime: Math.floor((Date.now() - socle.demarre) / 1000),
   rssi: -58 - Math.round(Math.random() * 6), heap: 171000, heapMin: 142000, blocMax: 98000,
   reset: 'mise sous tension', otaEnAttente: false, signatureOta: false,
   hote: `${ID}.local`, ip: '192.168.1.42',
   ...(socle.maj ? { maj: socle.maj } : {}),
-  ...(serviceActif() ? { service: { actif: true, jusqua: socle.service.jusqua } } : {})
+  ...(serviceActif() ? { service: { actif: true, jusqua: socle.service.jusqua } } : {}),
+  majAuto: (({ actif, attente, disponible }) => ({ actif, attente, ...(disponible ? { disponible } : {}) }))(majAuto())
 });
 
 function publier() {
@@ -374,10 +405,11 @@ client.on('message', (sujet, charge) => {
                        rapportActif: 'rapportActif', rapportMinutes: 'rapportMinutes', prixKwh: 'prixKwh',
                        ledEteinte: 'ledEteinte', ecranNuit: 'ecranNuit', soleilActif: 'soleilActif',
                        soleilDecalageMin: 'soleilDecalageMin', latitude: 'latitude', longitude: 'longitude',
-                       zonePrioritaire: 'zonePrioritaire' };
+                       zonePrioritaire: 'zonePrioritaire', majPlageDebut: 'majPlageDebut', majPlageFin: 'majPlageFin' };
       let ecriture = false;
       for (const [k, v] of Object.entries(champs))
         if (d[k] !== undefined) { g[v] = d[k]; ecriture = true; }
+      if (typeof d.majAuto === 'boolean') { g.majAutoCoupee = !d.majAuto; ecriture = true; }
       if (d.saisonActive !== undefined) {
         if (d.saisonActive && !g.saisonActive) g.saisonDebutEpoch = Math.floor(Date.now() / 1000);
         g.saisonActive = !!d.saisonActive;
@@ -398,8 +430,29 @@ client.on('message', (sujet, charge) => {
         prixKwh: c.prixKwh, rapportActif: c.rapportActif, rapportMinutes: c.rapportMinutes,
         ledEteinte: c.ledEteinte, ecranNuit: c.ecranNuit, soleilActif: c.soleilActif,
         soleilDecalageMin: c.soleilDecalageMin, latitude: c.latitude, longitude: c.longitude,
-        zonePrioritaire: c.zonePrioritaire
+        zonePrioritaire: c.zonePrioritaire,
+        majAuto: !c.majAutoCoupee, majPlageDebut: c.majPlageDebut, majPlageFin: c.majPlageFin
       });
+    }
+
+    // Mises à jour automatiques (F15) : état, « vérifier maintenant », report.
+    case 'majauto': {
+      const op = d.op || 'etat';
+      if (op === 'verifier') {
+        socle.majAuto.verifiee = Math.floor(Date.now() / 1000);
+        journal('Manifeste de mise a jour lu (simulation)');
+      } else if (op === 'reporter') {
+        const jours = Number.isInteger(d.jours) ? d.jours : -1;
+        if (jours !== 0 && (jours < 1 || jours > 30)) return repondre(d.req, false, { erreur: 'jours : 0 (annuler) a 30' });
+        socle.majAuto.reporteeJusqua = jours ? Math.floor(Date.now() / 1000) + jours * 86400 : 0;
+        journal(jours ? 'Mises a jour automatiques reportees via le canal de commande'
+                      : 'Report des mises a jour automatiques annule via le canal de commande');
+      } else if (op !== 'etat') {
+        return repondre(d.req, false, { erreur: 'op : etat, verifier ou reporter' });
+      }
+      repondre(d.req, true, { majAuto: majAuto() });
+      client.publish(`${base}/sante`, JSON.stringify(sante()), { retain: true });
+      return;
     }
 
     case 'stop-autotune': {
@@ -452,14 +505,20 @@ client.on('message', (sujet, charge) => {
       return;
 
     // Mise à jour tirée : mêmes refus que le firmware (version déjà installée,
-    // hôte hors liste, cible absente), puis une progression sur <id>/maj, un
-    // « redémarrage » et une santé qui raconte la validation. Une version
-    // « 0.0.0 » simule un téléchargement qui échoue.
+    // hôte hors liste, cible absente, version plus ancienne), puis une
+    // progression sur <id>/maj, un « redémarrage » et une santé qui raconte la
+    // validation. Une version « 9.4.4 » simule un téléchargement qui échoue.
     case 'maj': {
       const url = d.url || '', version = d.version || '';
       if (!url && !version) return repondre(d.req, false, { erreur: 'url ou version attendue' });
-      if (version === VERSION_SIM.replace('-simule', '') && !d.forcer) return repondre(d.req, false, { erreur: `deja en ${version}` });
-      if (!url && !/^\d+\.\d+\.\d+$/.test(version)) return repondre(d.req, false, { erreur: 'version invalide' });
+      if (version && !/^\d+\.\d+\.\d+$/.test(version)) return repondre(d.req, false, { erreur: 'version X.Y.Z attendue' });
+      // Anti-retour (S4), comme MajAuto::cibleAcceptable : jamais plus ancienne,
+      // la même seulement avec « forcer ».
+      const visee = version || (url.match(/\/download\/v(\d+\.\d+\.\d+)\//) || [])[1] || '';
+      if (visee && comparerVersions(visee, versionCourante()) < 0)
+        return repondre(d.req, false, { erreur: `${visee} plus ancienne que ${versionCourante()} : retour refuse` });
+      if (visee && comparerVersions(visee, versionCourante()) === 0 && !d.forcer)
+        return repondre(d.req, false, { erreur: `deja en ${versionCourante()}` });
       if (url && !/^https:\/\/(github\.com\/NoeMrct\/|objects\.githubusercontent\.com\/|release-assets\.githubusercontent\.com\/)/.test(url))
         return repondre(d.req, false, { erreur: 'hote non autorise' });
       repondre(d.req, true, { maj: 'telechargement' });
@@ -468,7 +527,7 @@ client.on('message', (sujet, charge) => {
       let pct = 0;
       const tic = setInterval(() => {
         pct += 25;
-        if (version === '0.0.0' && pct >= 50) {
+        if (version === '9.4.4' && pct >= 50) {
           clearInterval(tic);
           socle.maj = { etape: 'echec', version: cible, detail: 'HTTP 404' };
           client.publish(`${base}/maj`, JSON.stringify({ etat: 'erreur', detail: 'HTTP 404', version: VERSION_SIM }));

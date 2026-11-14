@@ -13,6 +13,7 @@ Preferences prefs;
 ReglagesReseau g_reseau;
 ReglagesGlobaux g_globaux;
 EtatMaj g_maj;
+MajAuto::Etat g_majAuto;
 Protocole::SessionService g_service;
 bool g_fsPret = false;
 
@@ -207,8 +208,12 @@ void demarrer() {
   const size_t lu = lireStructure("reseau", &g_reseau, sizeof g_reseau);
   const size_t luG = lireStructure("globaux", &g_globaux, sizeof g_globaux);
   lireStructure("maj", &g_maj, sizeof g_maj);
+  lireStructure("majauto", &g_majAuto, sizeof g_majAuto);
   lireStructure("service", &g_service, sizeof g_service);
   prefs.end();
+  assainirTexte(g_majAuto.versionEssayee, sizeof g_majAuto.versionEssayee);
+  assainirTexte(g_majAuto.versionRefusee, sizeof g_majAuto.versionRefusee);
+  assainirTexte(g_majAuto.versionAnnoncee, sizeof g_majAuto.versionAnnoncee);
   // Une session relue doit être entière : sinon, aucune (fermée).
   g_service.cle[sizeof g_service.cle - 1] = '\0';
   if (strlen(g_service.cle) != 64 || g_service.jusqua <= g_service.ouvert)
@@ -299,6 +304,15 @@ EtatMaj &etatMaj() { return g_maj; }
 void sauverEtatMaj() {
   prefs.begin("thermo", false);
   prefs.putBytes("maj", &g_maj, sizeof g_maj);
+  prefs.end();
+}
+
+// --- mises à jour automatiques -------------------------------------------------
+MajAuto::Etat &etatMajAuto() { return g_majAuto; }
+
+void sauverEtatMajAuto() {
+  prefs.begin("thermo", false);
+  prefs.putBytes("majauto", &g_majAuto, sizeof g_majAuto);
   prefs.end();
 }
 

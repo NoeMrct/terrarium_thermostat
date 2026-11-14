@@ -55,9 +55,11 @@ struct SocleFactice : public Protocole::Socle {
   }
   void corpsGlobaux(char *out, size_t taille) override {
     snprintf(out, taille,
-             "\"amperes\":%.1f,\"watts\":%.0f,\"volts\":%.1f,\"zonesSimultanees\":%u,\"entretienMin\":%u",
+             "\"amperes\":%.1f,\"watts\":%.0f,\"volts\":%.1f,\"zonesSimultanees\":%u,\"entretienMin\":%u,"
+             "\"majAuto\":%s,\"majPlageDebut\":%u,\"majPlageFin\":%u",
              (double)glob.courantAlimA, (double)glob.puissanceTapisW, (double)glob.tensionV,
-             (unsigned)Stockage::zonesSimultanees(glob), (unsigned)glob.maintenanceMin);
+             (unsigned)Stockage::zonesSimultanees(glob), (unsigned)glob.maintenanceMin,
+             glob.majAutoCoupee ? "false" : "true", (unsigned)glob.majPlageDebut, (unsigned)glob.majPlageFin);
   }
   ReglagesZone &zone(uint8_t z) override { return zones[z]; }
   void sauverZone(uint8_t z) override {
@@ -85,12 +87,11 @@ struct SocleFactice : public Protocole::Socle {
   void arreterAutotune(uint8_t z) override { actions.push_back("stop-autotune " + std::to_string(z)); }
   void effacerHistorique() override { actions.push_back("effacerHistorique"); }
   void redemarrer() override { actions.push_back("redemarrer"); }
+  const char *versionFirmware() override { return "9.9.9"; }
   bool majAcceptable(const char *url, const char *version, bool forcer, char *erreur,
                      size_t taille) override {
-    if (version[0] && strcmp(version, "9.9.9") == 0 && !forcer) {
-      snprintf(erreur, taille, "deja en 9.9.9");
-      return false;
-    }
+    (void)version;
+    (void)forcer;
     if (url[0] && strncmp(url, "https://github.com/", 19) != 0) {
       snprintf(erreur, taille, "hote non autorise");
       return false;
@@ -101,7 +102,21 @@ struct SocleFactice : public Protocole::Socle {
     }
     return true;
   }
-  void lancerMaj(const char *cible) override { actions.push_back(std::string("maj ") + cible); }
+  void lancerMaj(const char *cible, bool forcer) override {
+    actions.push_back(std::string("maj ") + cible + (forcer ? " forcer" : ""));
+  }
+  MajAuto::Etat majAuto{};
+  int verifications = 0, majAutoSauves = 0;
+  void corpsMajAuto(char *out, size_t taille) override {
+    snprintf(out, taille, "\"majAuto\":{\"actif\":%s,\"reporteeJusqua\":%lu,\"verifications\":%d}",
+             glob.majAutoCoupee ? "false" : "true", (unsigned long)majAuto.reporteeJusqua, verifications);
+  }
+  void verifierMaj() override {
+    verifications++;
+    actions.push_back("verifierMaj");
+  }
+  MajAuto::Etat &etatMajAuto() override { return majAuto; }
+  void sauverEtatMajAuto() override { majAutoSauves++; }
   void journal(const char *texte) override { actions.push_back(std::string("journal ") + texte); }
 
   // Protocole 4 (F1)

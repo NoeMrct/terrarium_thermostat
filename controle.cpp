@@ -35,6 +35,7 @@ const char *nomNotification(TypeNotif t) {
     case NOTIF_INFO: return "INFO";
     case NOTIF_RAPPORT: return "RAPPORT";
     case NOTIF_TROP_CHAUD: return "TROP_CHAUD";
+    case NOTIF_MAJ: return "MAJ";
     default: return "INCONNU";
   }
 }

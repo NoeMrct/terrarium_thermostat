@@ -79,7 +79,7 @@ Avec un préfixe `terrarium` et un identifiant d'appareil `terraA1B2C3` :
 | `terrarium/terraA1B2C3/statut` | socle → app | `en ligne` / `hors ligne` (persistant) |
 | `terrarium/terraA1B2C3/zone1/etat` | socle → app | JSON d'état (persistant), **dès que quelque chose change** — au plus toutes les 2 s — et de toute façon toutes les 60 s ; depuis la 3.5, avec `autotune`, `derive` et `trop_chaud` (`"0"`/`"1"`) |
 | `terrarium/terraA1B2C3/zone2/etat` | socle → app | idem |
-| `terrarium/terraA1B2C3/sante` | socle → app | JSON de santé (persistant), toutes les 60 s : `proto`, `version`, `uptime`, `rssi`, `heap`, `heapMin`, `blocMax`, `reset`, `otaEnAttente`, `signatureOta`, `hote` (`terraA1B2C3.local`), `ip`, `maj` (dernière mise à jour tirée : `etape`, `version`, `detail` — absent si aucune), `plantage` (si un coredump existe), `courantA`/`energieWh` (avec INA219), `mqtt` (état de la connexion au broker, en clair) et `webProtege` (l'interface locale demande un mot de passe), depuis la 3.5 |
+| `terrarium/terraA1B2C3/sante` | socle → app | JSON de santé (persistant), toutes les 60 s : `proto`, `version`, `uptime`, `rssi`, `heap`, `heapMin`, `blocMax`, `reset`, `otaEnAttente`, `signatureOta`, `hote` (`terraA1B2C3.local`), `ip`, `maj` (dernière mise à jour tirée : `etape`, `version`, `detail` — absent si aucune), `plantage` (si un coredump existe), `courantA`/`energieWh` (avec INA219), `mqtt` (état de la connexion au broker, en clair) et `webProtege` (l'interface locale demande un mot de passe), depuis la 3.5, `service` pendant un accès support et `majAuto` (mises à jour automatiques : `actif`, `attente`, `disponible`, `securite` — voir « Mises à jour automatiques ») |
 | `terrarium/terraA1B2C3/rapport` | socle → app | rapport quotidien en texte (persistant), à l'heure choisie, si le rapport est activé — depuis la 3.5 |
 | `terrarium/terraA1B2C3/maj` | socle → app | progression d'une mise à jour tirée (non persistant) : `etat` (`telechargement`, `redemarrage`, `erreur`), `pct`, `detail`, `version` |
 | `terrarium/terraA1B2C3/cmd` | app → socle | requête JSON (l'application l'envoie en QoS 1) |
@@ -198,7 +198,7 @@ est retirée d'elle-même. Le propriétaire la ferme aussi depuis la page locale
 | `stats` | non | — | Min / max / moyenne sur 24 h, temps hors plage, énergie, compteurs de défauts |
 | `historique` | non | `heures` (1-400, défaut 24), `max` (1-200, défaut 120) | Points de courbe, échantillonnés |
 | `zone` | **oui** | `z`, et `nom`, `jour`, `nuit`, `bande`, `ki`, `max`, `offset`, `rampe`, `debutJour`, `debutNuit`, `deriveSeuil`, `deriveMin`, `inefficaceMin`, `inefficaceDelta`, `chuteSeuil`, `chuteSecondes` | Modifie une zone |
-| `globaux` | **oui** | aucun (lecture), ou `amperes`, `watts`, `volts`, `entretienMin`, `ecranVeilleMin`, `saisonActive`, `saisonDelta`, `saisonDescenteJ`, `saisonPlateauJ`, `saisonRemonteeJ` ; depuis le protocole 4 : `prixKwh` (0-5 €), `rapportActif`, `rapportMinutes` (heure d'envoi, 0-1439), `ledEteinte`, `ecranNuit` (0 atténué, 1 normal, 2 éteint), `soleilActif`, `soleilDecalageMin` (-180-180), `latitude` (-65-65), `longitude`, `zonePrioritaire` (0 aucune, 1 ou 2) | Lit ou modifie les réglages de l'appareil |
+| `globaux` | **oui** | aucun (lecture), ou `amperes`, `watts`, `volts`, `entretienMin`, `ecranVeilleMin`, `saisonActive`, `saisonDelta`, `saisonDescenteJ`, `saisonPlateauJ`, `saisonRemonteeJ` ; depuis le protocole 4 : `prixKwh` (0-5 €), `rapportActif`, `rapportMinutes` (heure d'envoi, 0-1439), `ledEteinte`, `ecranNuit` (0 atténué, 1 normal, 2 éteint), `soleilActif`, `soleilDecalageMin` (-180-180), `latitude` (-65-65), `longitude`, `zonePrioritaire` (0 aucune, 1 ou 2), `majAuto` (mises à jour automatiques, `true` par défaut), `majPlageDebut` et `majPlageFin` (plage d'installation en minutes depuis minuit, 180 et 300 par défaut ; fin avant début : elle passe minuit ; début = fin refusé) | Lit ou modifie les réglages de l'appareil |
 | `reset` | **oui** | — | Lève les défauts verrouillés |
 | `entretien` | **oui** | `minutes` (0-240, 0 annule) | Coupe le chauffage temporairement, reprise automatique |
 | `autotune` | **oui** | `z` | Lance la calibration automatique |
@@ -206,7 +206,8 @@ est retirée d'elle-même. Le propriétaire la ferme aussi depuis la page locale
 | `effacer-historique` | **oui** | — | Vide les courbes |
 | `alim` | **oui** | `amperes`, `watts` | Raccourci historique de `globaux` |
 | `redemarrer` | **oui** | — | Redémarre le socle |
-| `maj` | **oui** | `version` (`X.Y.Z`, release GitHub) ou `url` (`https://`, releases du dépôt seulement), `forcer` | Le socle télécharge et installe l'image, publie sa progression sur `maj`, redémarre ; la réponse `{"ok":true,"maj":"telechargement"}` part avant le téléchargement. Refus : `deja en X.Y.Z` (sans `forcer`), `hote non autorise`, `hors ligne` |
+| `maj` | **oui** | `version` (`X.Y.Z`, release GitHub) ou `url` (`https://`, releases du dépôt seulement), `forcer` | Le socle télécharge et installe l'image, publie sa progression sur `maj`, redémarre ; la réponse `{"ok":true,"maj":"telechargement"}` part avant le téléchargement. Refus : `X.Y.Z plus ancienne que … : retour refuse` (même avec `forcer` : anti-retour, version lue dans `version` ou dans l'étiquette de l'URL, puis dans l'en-tête de l'image avant toute écriture), `deja en X.Y.Z` (sans `forcer`), `version X.Y.Z attendue`, `hote non autorise`, `hors ligne` |
+| `majauto` | **oui** | `op` (`etat` par défaut, `verifier`, `reporter`), `jours` (0-30, 0 annule le report) | Mises à jour automatiques : voir ci-dessous. Réponse `"majAuto":{…}` |
 | `sondes` | **oui** | `relire` (relit le bus 1-Wire d'abord) | `"sondes":{…}` : les sondes du bus (`rom`, `temp`, `zone` comptée depuis 0, -1 si libre), `liaisons` de chaque zone (`rom`, `presente`), `identification` en cours, `resultat` de la dernière |
 | `lier` | **oui** | `z`, `rom` (16 chiffres hexadécimaux) | Lie une sonde présente à une zone (et la retire d'une autre) ; `message` |
 | `identifier` / `stop-identifier` | **oui** | `z` / — | Lance l'assistant (chauffe suspendue, 2 min au plus : la sonde qu'on serre dans la main se lie à la zone) ou l'annule ; l'avancement se lit avec `sondes` |
@@ -222,6 +223,55 @@ est retirée d'elle-même. Le propriétaire la ferme aussi depuis la page locale
 
 Les horaires (`debutJour`, `debutNuit`) sont en minutes depuis minuit :
 `8:00` s'écrit `480`.
+
+### Mises à jour automatiques (firmware 3.5)
+
+Chaque jour (trois minutes après la connexion, puis toutes les 24 h, six
+heures après un échec), le socle lit le **manifeste** de la dernière release,
+`https://github.com/NoeMrct/terrarium_thermostat/releases/latest/download/terrarium-version.json`
+(`MAJ_MANIFESTE` dans `config.h`), joint par le workflow de publication :
+
+```json
+{"version":"3.6.0","date":"2026-11-20","notes":"…","securite":false,
+ "image":{"taille":1558928,"sha256":"…"},"signee":{"taille":1559010,"sha256":"…"},
+ "deploiement":{"debut":1763596800,"jours":7,"pause":false}}
+```
+
+**Déploiement progressif** : chaque socle tire de son identifiant un rang
+stable de 0 à 99 (FNV-1a) ; le jour *d* de la montée en charge, la version est
+ouverte aux rangs inférieurs à 100 × (*d* + 1) / (`jours` + 1). `pause`
+suspend tout ; le workflow « Déploiement du firmware » pilote ces champs.
+
+Quand une version plus récente lui est ouverte, le socle l'**annonce une fois**
+(alerte de type `MAJ` vers l'adresse des alertes ; le serveur Terrariums
+prévient aussi les propriétaires), puis l'**installe seul la nuit**, dans la
+plage réglée, si tout est réuni — sinon `attente` dit pourquoi :
+
+| `attente` | Signification |
+|---|---|
+| `plage` | Prévue la nuit, à la prochaine plage |
+| `prete` | Installation en cours |
+| `a-jour` | Rien de plus récent |
+| `a-verifier` | Manifeste pas encore lu depuis le démarrage |
+| `desactivee` | Coupées par le propriétaire (`globaux` `majAuto:false`) : installation manuelle |
+| `non-signee` | Aucune clé compilée (`OTA_CLE_PUBLIQUE` vide) : rien ne s'installe seul |
+| `refusee` | Cette version est revenue en arrière sur ce socle : plus jamais installée seule |
+| `echecs` | Trois tentatives ratées pour cette version |
+| `reportee` | Report en cours (`majauto` `reporter`) |
+| `pause` / `deploiement` | Déploiement suspendu / pas encore le tour de ce socle |
+| `tentee` | Déjà tentée cette nuit (une tentative par nuit) |
+| `heure`, `hors-ligne`, `demarrage`, `validation` | Heure inconnue, hors ligne, démarré depuis moins de 10 min, image courante pas encore validée |
+| `defaut`, `autotune`, `essai`, `entretien`, `support` | Jamais pendant un défaut, un autotune, un essai ou une identification, un entretien, un accès support |
+
+Réponse de `majauto` : `"majAuto":{"actif","signee","plageDebut","plageFin",
+"attente","rang","publiee","disponible","notes","securite","ouvert",
+"verifiee","erreur","reporteeJusqua","refusee","essais"}` (les champs sans
+objet sont absents). `sante` en porte un résumé : `actif`, `attente`,
+`disponible`, `securite`. L'image installée seule suit le chemin de `maj` :
+signature vérifiée, anti-retour, chauffage coupé pendant l'écriture,
+validation après 90 s ou retour arrière (et la version est alors refusée pour
+l'installation automatique). Une installation réussie est annoncée après sa
+validation.
 
 ### Format de l'historique
 
@@ -336,7 +386,9 @@ et l'application doit le présenter comme tel plutôt que de rester bloquée.
 | Aucun secret relu par le broker (protocole 4) | Ni mot de passe Wi-Fi (refusé dans `reseau`), ni adresse d'alerte ou de heartbeat (seul l'hôte revient, la sauvegarde les omet) : lire le broker ne donne pas de quoi entrer sur le réseau ni écrire dans tes notifications |
 | Validation dans le cœur de régulation | Aucune commande ne peut créer un réglage dangereux |
 | OTA réseau désactivée sans mot de passe | Personne sur le réseau local ne réécrit le firmware |
-| Images signées (ECDSA P-256) exigées par `/api/maj` et par la mise à jour tirée quand une clé publique est compilée | Même avec le mot de passe de l'interface ou le jeton, pas de firmware étranger |
+| Images signées (ECDSA P-256) exigées par `/api/maj`, la mise à jour tirée et l'installation automatique quand une clé publique est compilée ; ArduinoOTA coupée dans ce cas | Même avec le mot de passe de l'interface, le jeton ou un accès au réseau local, pas de firmware étranger |
+| Anti-retour de version : jamais plus ancienne par les chemins distants (version visée, puis en-tête de l'image lu avant toute écriture) ; la page locale l'admet sur une case cochée par le propriétaire | Une image ancienne, même signée et vulnérable, ne se réinstalle pas à distance |
+| Mises à jour automatiques signées, la nuit, en déploiement progressif suspendable | Les correctifs arrivent sans attendre le propriétaire, et une version qui pose problème s'arrête avant d'atteindre tout le parc |
 | Mise à jour tirée limitée aux releases du dépôt (HTTPS, certificat vérifié, redirections bornées aux serveurs de GitHub) | Un jeton volé ne fait pas charger un binaire hébergé ailleurs |
 | Interface locale : connexion par défi/réponse, session `HttpOnly` 24 h, pause après cinq échecs | Le mot de passe ne circule pas, et ne se devine pas en boucle |
 | Retour arrière automatique après une mise à jour | Une image qui plante ne prive pas le terrarium de régulation |

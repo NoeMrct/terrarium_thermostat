@@ -58,7 +58,7 @@ function creerSocle(options = {}) {
       heure: '2026-09-10 19:00:00', zones: [zone(0), zone(1)],
       sante: { proto: 3, version: '3.4.0', uptime: 7200, rssi: -63, heap: 171000, heapMin: 142000,
                blocMax: 98000, reset: 'mise sous tension', otaEnAttente: !!options.otaEnAttente,
-               signatureOta: false, plantage: options.plantage || undefined,
+               signatureOta: !!options.signatureOta, plantage: options.plantage || undefined,
                hote: 'terraA1B2C3.local', ip: '192.168.1.42', maj: options.maj || undefined,
                mqtt: options.mqtt || 'connecte', webProtege: options.webProtege !== false,
                service: options.service || undefined }
@@ -90,6 +90,11 @@ function creerSocle(options = {}) {
       identification: null, resultat: ''
     },
     essai: { zone: 0, restantS: 0, resultat: '' },
+    majAuto: options.majAuto || {
+      actif: true, signee: true, plageDebut: 180, plageFin: 300, attente: 'plage', rang: 42,
+      publiee: '3.6.0', disponible: '3.6.0', notes: 'Nuits <b>calmes</b>', securite: true, ouvert: 100,
+      verifiee: maintenant - 3600
+    },
     jours: { prixKwh: 0.2516, jours: [
       { date: '2026-09-09', zones: [{ min: 29.5, max: 33.1, moyenne: 31.2, heures: 9.5, kWh: 0.19, euros: 0.048, defauts: 0 },
                                     { min: 24.1, max: 27.9, moyenne: 26.0, heures: 6.25, kWh: 0.125, euros: 0.031, defauts: 2 }] },
@@ -169,6 +174,7 @@ function creerPage(socle) {
     }
     if (chemin === '/api/calibrer') { socle.status.zones[1].offset = -0.31; return rendre('Calibration : zone 2 decalee de -0.31 C'); }
     if (chemin === '/api/jours') return rendre(socle.jours);
+    if (chemin === '/api/majauto') return opts.method === 'POST' ? rendre('Mises a jour reportees.') : rendre(socle.majAuto);
     if (chemin === '/api/rapport') return opts.method === 'POST' ? rendre('Rapport envoye') : rendre('Rapport du 10/09 (temperatures sur 24 h)');
     if (chemin === '/api/sauvegarde') return rendre('Configuration de terraA1B2C3 restauree');
     if (chemin === '/api/service' && opts.method === 'DELETE') { socle.status.sante.service = undefined; return rendre('Acces support ferme'); }
@@ -380,6 +386,36 @@ const dernier = (socle, chemin, methode) =>
     await q.w.eval('majDistante()'); await attendre(300);
     const m2 = dernier(s7, '/api/maj-distante', 'POST');
     v('…ou l\'URL complète', m2 && /^url=https%3A%2F%2Fgithub\.com/.test(m2.corps));
+    // Mises à jour automatiques (F15).
+    v('mises à jour automatiques : version disponible, correctif, prévue la nuit',
+      q.html('#majAutoEtat').includes('3.6.0') && q.html('#majAutoEtat').includes('sécurité') &&
+      q.html('#majAutoEtat').includes('prévue la nuit'));
+    v('…les notes de version sont échappées', q.html('#majAutoEtat').includes('&lt;b&gt;calmes') && !q.html('#majAutoEtat').includes('<b>calmes'));
+    v('…réglages lus : activée, 03:00 → 05:00',
+      q.$('#majAuto').value === '1' && q.$('#majDebut').value === '03:00' && q.$('#majFin').value === '05:00');
+    q.$('#majAuto').value = '0'; q.$('#majDebut').value = '22:30'; q.$('#majFin').value = '01:00';
+    await q.w.eval('enregMajAuto()'); await attendre(300);
+    const g = dernier(s7, '/api/globaux', 'POST') || { corps: '' };
+    v('« Enregistrer » : coupées, plage 22:30-01:00 vers /api/globaux',
+      g.corps === 'majAuto=0&majDebut=22%3A30&majFin=01%3A00', g.corps);
+    await q.w.eval("majAutoOp('reporter',7)"); await attendre(300);
+    v('« Reporter de 7 jours »', (dernier(s7, '/api/majauto', 'POST') || {}).corps === 'op=reporter&jours=7');
+    await q.w.eval("majAutoOp('verifier')"); await attendre(300);
+    v('« Vérifier maintenant »', (dernier(s7, '/api/majauto', 'POST') || {}).corps === 'op=verifier');
+  }
+  {
+    const sSig = creerSocle({ otaProtegee: false, signatureOta: true });
+    const q = creerPage(sSig);
+    await attendre(900);
+    v('images signées exigées : pas d\'avertissement « OTA sans mot de passe »', !q.html('#avertissements').includes('sans fil désactivée'));
+  }
+  {
+    const sNs = creerSocle({ majAuto: { actif: true, signee: false, plageDebut: 180, plageFin: 300, attente: 'non-signee', rang: 3,
+                                        publiee: '3.6.0', disponible: '3.6.0', ouvert: 100 } });
+    const q = creerPage(sNs);
+    await attendre(900);
+    v('sans clé compilée : installation manuelle annoncée', q.html('#majAutoEtat').includes('non signées') &&
+      q.html('#majAutoEtat').includes('rien ne s\'installe seul'));
   }
 
   titre('12. Firmware 3.5 : sondes, essai, rapport, soleil, sauvegarde');

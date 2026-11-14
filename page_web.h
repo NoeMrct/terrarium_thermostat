@@ -204,7 +204,9 @@ async function maj(){
  // desactivee tant qu'aucun mot de passe n'est defini — on le dit franchement,
  // plutot que de laisser croire que la mise a jour sans fil fonctionne.
  const av=[];
- if(S.otaProtegee===false)av.push(
+ // Avec une clé de signature compilée, ArduinoOTA reste coupée de toute façon :
+ // rien à signaler, la mise à jour passe par les images signées.
+ if(S.otaProtegee===false&&!(S.sante&&S.sante.signatureOta))av.push(
   `<b>Mise à jour sans fil désactivée.</b> Aucun mot de passe OTA n'est défini, donc
    ArduinoOTA n'est pas démarrée — sans quoi n'importe quel appareil du réseau local
    pourrait réécrire ce firmware. Définis-en un dans l'onglet Réseau pour l'activer ;
@@ -354,6 +356,7 @@ function formulaires(){
    (ou le fichier signé de la release). Le chauffage est coupé pendant l'écriture, et l'appareil
    redémarre ensuite. Ne coupe pas l'alimentation. <span id="sig"></span></div>
    <input class="w" type="file" id="binaire" accept=".bin">
+   <label>Version plus ancienne ou inconnue</label><select id="retourMaj"><option value="0">refusée (anti-retour)</option><option value="1">autorisée cette fois (retour arrière)</option></select>
    <progress id="progMaj" value="0" max="100" hidden></progress>
    <div class="g" id="etatMaj"></div>
    <button onclick="envoyerMaj()">Téléverser et redémarrer</button>
@@ -361,10 +364,25 @@ function formulaires(){
    <div class="g">Le socle télécharge lui-même l'image de la release (HTTPS, signature vérifiée si exigée),
    l'installe et redémarre ; elle n'est validée qu'après 90 s de fonctionnement, sinon il revient
    à cette version. Version actuelle : <b id="vact">?</b>.</div>
-   <label>Version à installer (X.Y.Z) ou URL https</label><input class="w" id="majCible" placeholder="3.4.1">
-   <button onclick="majDistante()">Télécharger et installer</button></div>`;
+   <label>Version à installer (X.Y.Z) ou URL https</label><input class="w" id="majCible" placeholder="3.6.0">
+   <button onclick="majDistante()">Télécharger et installer</button>
+   <h3>Mises à jour automatiques</h3>
+   <div class="g">Chaque jour, le socle regarde si une version est publiée. Il l'installe seul la nuit,
+   dans la plage choisie, jamais pendant un défaut, un autotune, un essai, un entretien ou un accès
+   support, et seulement si elle est signée. Il prévient avant (alerte) et revient seul en arrière
+   si elle plante.</div>
+   <div class="g" id="majAutoEtat">…</div>
+   <div class="row">
+    <div><label>Installation automatique</label><select id="majAuto"><option value="1">activée</option><option value="0">désactivée</option></select></div>
+    <div><label>De (HH:MM)</label><input id="majDebut"></div>
+    <div><label>À (HH:MM)</label><input id="majFin"></div></div>
+   <button onclick="enregMajAuto()">Enregistrer</button>
+   <button onclick="majAutoOp('verifier')">Vérifier maintenant</button>
+   <button onclick="majAutoOp('reporter',7)">Reporter de 7 jours</button>
+   <button onclick="majAutoOp('reporter',0)">Annuler le report</button></div>`;
  chargeRes();
  chargeGlobaux();
+ chargeMajAuto();
  scan();
  etatEssai();
 }
@@ -430,7 +448,7 @@ function envoyerMaj(){
  p.hidden=false;p.value=0;e.textContent='Envoi…';
  const d=new FormData();d.append('firmware',f);
  const x=new XMLHttpRequest();
- x.open('POST','/api/maj');
+ x.open('POST','/api/maj'+(document.getElementById('retourMaj').value==='1'?'?retour=1':''));
  x.setRequestHeader('X-Terrarium','1');
  x.upload.onprogress=ev=>{if(ev.lengthComputable){p.value=Math.round(ev.loaded/ev.total*100);
   e.textContent='Envoi : '+p.value+' %';}};
@@ -438,6 +456,41 @@ function envoyerMaj(){
   if(x.status===200)setTimeout(()=>location.reload(),20000);};
  x.onerror=()=>{e.textContent='Envoi interrompu — vérifie la liaison, puis recommence.';p.hidden=true;};
  x.send(d);}
+// Mises à jour automatiques : état en clair, réglages, vérifier, reporter.
+const ATTENTES={'a-jour':'à jour','a-verifier':'pas encore vérifié depuis le démarrage','prete':'installation en cours',
+ 'refusee':'cette version est revenue en arrière ici : installation manuelle seulement',
+ 'desactivee':'désactivées : installation manuelle','non-signee':'images non signées (aucune clé compilée) : installation manuelle',
+ 'echecs':'trois tentatives ratées : installation manuelle','heure':'heure inconnue','reportee':'reportée',
+ 'pause':'déploiement suspendu par le mainteneur','deploiement':'déploiement progressif : pas encore le tour de ce socle',
+ 'tentee':'déjà tentée cette nuit','plage':'prévue la nuit, dans la plage','hors-ligne':'hors ligne',
+ 'demarrage':'socle démarré depuis moins de 10 min','validation':'l\'image actuelle attend sa validation',
+ 'defaut':'en attente : une zone est en défaut','autotune':'en attente : autotune en cours','essai':'en attente : essai en cours',
+ 'entretien':'en attente : entretien en cours','support':'en attente : accès support ouvert','sans-manifeste':'aucun manifeste compilé'};
+async function chargeMajAuto(){
+ const m=await J('/api/majauto');if(!m)return;
+ document.getElementById('majAuto').value=m.actif?'1':'0';
+ document.getElementById('majDebut').value=hm(m.plageDebut);
+ document.getElementById('majFin').value=hm(m.plageFin);
+ const d=t=>new Date(t*1e3).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'});
+ let t=m.disponible?`<b>${esc(m.disponible)}</b> disponible${m.securite?' (correctif de sécurité)':''} : `
+  :(m.publiee?`Dernière version publiée : ${esc(m.publiee)}. `:'');
+ t+=esc(ATTENTES[m.attente]||m.attente);
+ if(m.reporteeJusqua)t+=` jusqu'au ${d(m.reporteeJusqua)}`;
+ t+='.';
+ if(m.notes)t+=`<br>${esc(m.notes)}`;
+ if(m.verifiee)t+=`<br>Vérifié le ${d(m.verifiee)}.`;
+ if(m.erreur)t+=`<br>Dernière vérification en échec : ${esc(m.erreur)}.`;
+ if(!m.signee)t+='<br>Sans clé de signature compilée, rien ne s\'installe seul : la mise à jour reste à lancer ici ou depuis l\'application.';
+ document.getElementById('majAutoEtat').innerHTML=t;}
+async function enregMajAuto(){
+ const v=id=>encodeURIComponent(document.getElementById(id).value.trim());
+ const r=await F('/api/globaux',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Terrarium':'1'},
+  body:`majAuto=${v('majAuto')}&majDebut=${v('majDebut')}&majFin=${v('majFin')}`});
+ alert(await r.text());chargeMajAuto();}
+async function majAutoOp(op,jours){
+ const r=await F('/api/majauto',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Terrarium':'1'},
+  body:'op='+op+(jours!==undefined?'&jours='+jours:'')});
+ alert(await r.text());setTimeout(chargeMajAuto,op==='verifier'?6000:0);}
 async function majDistante(){
  const c=document.getElementById('majCible').value.trim();
  if(!c){alert('Indique une version (3.4.1) ou une URL https.');return;}

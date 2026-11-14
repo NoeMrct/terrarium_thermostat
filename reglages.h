@@ -43,6 +43,12 @@ struct ReglagesGlobaux {
   float latitude;             // degrés, positive au nord
   float longitude;            // degrés, positive à l'est
   uint8_t zonePrioritaire;    // 0 = aucune, sinon numéro de zone (1..NB_ZONES)
+  // Mises à jour automatiques (F15), activées par défaut : zéro les laisse
+  // actives, d'où « coupée ». Plage d'installation en minutes depuis minuit ;
+  // 0 et 0 (mémoire d'avant ces champs) valent la plage par défaut, 03:00-05:00.
+  bool majAutoCoupee;
+  uint16_t majPlageDebut;
+  uint16_t majPlageFin;
 };
 
 enum EcranNuit : uint8_t { ECRAN_NUIT_ATTENUE = 0, ECRAN_NUIT_NORMAL = 1, ECRAN_NUIT_ETEINT = 2 };
@@ -128,6 +134,8 @@ bool assainirGlobaux(ReglagesGlobaux &g);
 uint8_t zonesSimultanees(const ReglagesGlobaux &g);
 // Décalage de consigne du jour, en °C (négatif). 0 si le cyclage est inactif.
 float decalageSaisonnier(const ReglagesGlobaux &g, uint32_t maintenantEpoch);
+// Plage des mises à jour automatiques, celle par défaut si elle n'est pas réglée.
+void plageMaj(const ReglagesGlobaux &g, uint16_t &debut, uint16_t &fin);
 
 // Mot de passe du point d'accès de secours, propre à chaque socle : avec un
 // mot de passe commun, imprimé dans la documentation, n'importe qui à portée

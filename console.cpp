@@ -291,12 +291,61 @@ void traiter(String cmd) {
   if (v == "maj") {
     if (n < 2) {
       const EtatMaj &m = Stockage::etatMaj();
-      Serial.printf("Derniere mise a jour : %s %s (%s)\nUsage : maj <version X.Y.Z | url https://...>\n",
-                    nomEtapeMaj(m.etape), m.version, m.detail);
+      Serial.printf("Derniere mise a jour : %s %s (%s)\n", nomEtapeMaj(m.etape), m.version, m.detail);
+      Serial.printf("Mises a jour automatiques : %s\n", Reseau::etatMajAuto().c_str());
+      Serial.println(
+          F("Usage : maj <version X.Y.Z | url https://...> [forcer] | maj auto <oui|non> | maj plage <HH:MM> "
+            "<HH:MM> | maj reporter <jours|non> | maj verifier"));
+      return;
+    }
+    // Mises à jour automatiques (F15).
+    if (j[1] == "auto" && n >= 3) {
+      ReglagesGlobaux g = Stockage::globaux();
+      g.majAutoCoupee = !(j[2] == "oui" || j[2] == "on");
+      if (!appliquerGlobaux(g)) return;
+      Serial.println(g.majAutoCoupee
+                         ? F("Mises a jour automatiques desactivees : installation manuelle.")
+                         : F("Mises a jour automatiques activees (la nuit, dans la plage reglee)."));
+      return;
+    }
+    if (j[1] == "plage" && n >= 4) {
+      ReglagesGlobaux g = Stockage::globaux();
+      uint16_t debut = 0, fin = 0;
+      if (!parseHHMM(j[2], debut) || !parseHHMM(j[3], fin) || debut == fin) {
+        Serial.println(F("Usage : maj plage <HH:MM debut> <HH:MM fin> (deux heures differentes)"));
+        return;
+      }
+      g.majPlageDebut = debut;
+      g.majPlageFin = fin;
+      if (!appliquerGlobaux(g)) return;
+      Serial.printf("Plage des mises a jour automatiques : %s - %s\n", j[2].c_str(), j[3].c_str());
+      return;
+    }
+    if (j[1] == "reporter" && n >= 3) {
+      const long jours = j[2] == "non" ? 0 : j[2].toInt();
+      if (jours != 0 && !heureFiable()) {
+        Serial.println(F("Heure inconnue : report indatable."));
+        return;
+      }
+      if (!MajAuto::reporter(Stockage::etatMajAuto(), (uint32_t)time(nullptr), jours)) {
+        Serial.println(F("Usage : maj reporter <1-30 jours | non>"));
+        return;
+      }
+      Stockage::sauverEtatMajAuto();
+      if (jours)
+        Serial.printf("Mises a jour automatiques reportees de %ld jour(s).\n", jours);
+      else
+        Serial.println(F("Report annule."));
+      return;
+    }
+    if (j[1] == "verifier") {
+      Reseau::verifierMaj();
+      Serial.println(F("Lecture du manifeste demandee : `maj` dans quelques secondes pour le resultat."));
       return;
     }
     char erreur[96];
-    Reseau::mettreAJour(j[1], erreur, sizeof erreur);  // ne revient qu'en cas de refus
+    Reseau::mettreAJour(j[1], n >= 3 && j[2] == "forcer", erreur,
+                        sizeof erreur);  // ne revient qu'en cas de refus
     Serial.printf("Mise a jour refusee : %s\n", erreur);
     return;
   }
@@ -648,6 +697,9 @@ void traiter(String cmd) {
     }
     Stockage::sauverReseau();
     Serial.println(F("Enregistre. `redemarrer` pour appliquer."));
+    if (j[1] == "ota" && OTA_CLE_PUBLIQUE[0])
+      Serial.println(
+          F("Images signees exigees : l'OTA reseau (ArduinoOTA) reste coupee, mot de passe ou non."));
     return;
   }
   if (v == "url" && n >= 3) {
@@ -800,7 +852,8 @@ void aide() {
       F("\nCommandes (z = numero de zone) :\n"
         "  status | stats | version | sante | scan | journal | reseau | jours [n] | help\n"
         "  appairage                  QR et code d'appairage sur l'ecran (60 s)\n"
-        "  maj [version|url]          mise a jour tiree depuis GitHub (ou etat de la derniere)\n"
+        "  maj [version|url] [forcer] mise a jour tiree depuis GitHub (ou etat de la derniere)\n"
+        "  maj auto|plage|reporter|verifier  mises a jour automatiques (la nuit, signees)\n"
         "  test usine [oui]           auto-test ecran, sondes, memoire, WiFi ; `oui` = MOSFET aussi\n"
         "  coredump [effacer]         resume du dernier plantage, ou effacement\n"
         "  entretien [min]            coupure temporaire, reprise automatique\n"

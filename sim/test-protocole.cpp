@@ -246,20 +246,89 @@ int main() {
   cmd(s,
       "{\"req\":\"61\",\"action\":\"maj\",\"version\":\"9.9.9\",\"forcer\":true,\"jeton\":"
       "\"SIMULATIONTESTJETON00001\"}");
-  VERIFIE(contient(s.derniere(), "\"maj\":\"telechargement\"") && s.actions.back() == "maj 9.9.9",
+  VERIFIE(contient(s.derniere(), "\"maj\":\"telechargement\"") && s.actions.back() == "maj 9.9.9 forcer",
           "maj : forcer réinstalle la même version");
+  s.vider();
+  cmd(s,
+      "{\"req\":\"66\",\"action\":\"maj\",\"version\":\"9.9.8\",\"forcer\":true,\"jeton\":"
+      "\"SIMULATIONTESTJETON00001\"}");
+  VERIFIE(contient(s.derniere(), "plus ancienne que 9.9.9 : retour refuse") && s.actions.empty(),
+          "maj : version plus ancienne refusée, même avec forcer (anti-retour)");
+  cmd(s, "{\"req\":\"67\",\"action\":\"maj\",\"version\":\"9.9\",\"jeton\":\"SIMULATIONTESTJETON00001\"}");
+  VERIFIE(contient(s.derniere(), "version X.Y.Z attendue") && s.actions.empty(),
+          "maj : version malformée refusée");
+  cmd(s,
+      "{\"req\":\"68\",\"action\":\"maj\",\"url\":\"https://github.com/NoeMrct/terrarium_thermostat/releases/"
+      "download/v3.4.1/"
+      "terrarium-3.4.1-firmware.bin\",\"forcer\":true,\"jeton\":\"SIMULATIONTESTJETON00001\"}");
+  VERIFIE(contient(s.derniere(), "3.4.1 plus ancienne") && s.actions.empty(),
+          "maj : URL d'une release plus ancienne refusée (étiquette lue)");
   cmd(s,
       "{\"req\":\"62\",\"action\":\"maj\",\"url\":\"https://pirate.example/"
       "fw.bin\",\"jeton\":\"SIMULATIONTESTJETON00001\"}");
   VERIFIE(contient(s.derniere(), "hote non autorise"), "maj : URL hors des hôtes autorisés refusée");
   cmd(s,
       "{\"req\":\"63\",\"action\":\"maj\",\"url\":\"https://github.com/NoeMrct/terrarium_thermostat/releases/"
-      "download/v3.4.1/terrarium-3.4.1-firmware.bin\",\"jeton\":\"SIMULATIONTESTJETON00001\"}");
-  VERIFIE(contient(s.actions.back(), "maj https://github.com/"), "maj : URL GitHub acceptée");
+      "download/v10.0.0/terrarium-10.0.0-firmware.bin\",\"jeton\":\"SIMULATIONTESTJETON00001\"}");
+  VERIFIE(!s.actions.empty() && contient(s.actions.back(), "maj https://github.com/"),
+          "maj : URL GitHub d'une release plus récente acceptée");
   cmd(s, "{\"req\":\"64\",\"action\":\"maj\",\"jeton\":\"SIMULATIONTESTJETON00001\"}");
   VERIFIE(contient(s.derniere(), "url ou version attendue"), "maj : sans cible");
   cmd(s, "{\"req\":\"65\",\"action\":\"maj\",\"version\":\"3.5.0\"}");
   VERIFIE(contient(s.derniere(), "jeton invalide"), "maj : exige le jeton");
+
+  // --- mises à jour automatiques (F15) ---------------------------------------
+  s.vider();
+  cmd(s, "{\"req\":\"90\",\"action\":\"majauto\",\"jeton\":\"SIMULATIONTESTJETON00001\"}");
+  VERIFIE(contient(s.derniere(), "\"majAuto\":{\"actif\":true") && s.actions.empty(),
+          "majauto : état, actives par défaut");
+  cmd(s, "{\"req\":\"91\",\"action\":\"majauto\"}");
+  VERIFIE(contient(s.derniere(), "jeton invalide"), "majauto : exige le jeton");
+  cmd(s,
+      "{\"req\":\"92\",\"action\":\"majauto\",\"op\":\"verifier\",\"jeton\":\"SIMULATIONTESTJETON00001\"}");
+  VERIFIE(s.verifications == 1 && contient(s.derniere(), "\"verifications\":1"),
+          "majauto verifier : lecture du manifeste demandée");
+  cmd(s,
+      "{\"req\":\"93\",\"action\":\"majauto\",\"op\":\"reporter\",\"jours\":7,\"jeton\":"
+      "\"SIMULATIONTESTJETON00001\"}");
+  VERIFIE(s.majAuto.reporteeJusqua == s.maintenant + 7 * 86400u && s.majAutoSauves == 1 &&
+              contient(s.derniere(), "\"ok\":true"),
+          "majauto reporter 7 : report enregistré");
+  cmd(s,
+      "{\"req\":\"94\",\"action\":\"majauto\",\"op\":\"reporter\",\"jours\":31,\"jeton\":"
+      "\"SIMULATIONTESTJETON00001\"}");
+  VERIFIE(contient(s.derniere(), "0 (annuler) a 30") && s.majAuto.reporteeJusqua == s.maintenant + 7 * 86400u,
+          "majauto reporter 31 : refusé, report inchangé");
+  cmd(s,
+      "{\"req\":\"95\",\"action\":\"majauto\",\"op\":\"reporter\",\"jeton\":\"SIMULATIONTESTJETON00001\"}");
+  VERIFIE(contient(s.derniere(), "0 (annuler) a 30"), "majauto reporter sans durée : refusé");
+  cmd(s,
+      "{\"req\":\"96\",\"action\":\"majauto\",\"op\":\"reporter\",\"jours\":0,\"jeton\":"
+      "\"SIMULATIONTESTJETON00001\"}");
+  VERIFIE(s.majAuto.reporteeJusqua == 0, "majauto reporter 0 : report annulé");
+  s.heure = false;
+  cmd(s,
+      "{\"req\":\"97\",\"action\":\"majauto\",\"op\":\"reporter\",\"jours\":3,\"jeton\":"
+      "\"SIMULATIONTESTJETON00001\"}");
+  VERIFIE(contient(s.derniere(), "heure inconnue") && s.majAuto.reporteeJusqua == 0,
+          "majauto reporter sans heure fiable : refusé");
+  s.heure = true;
+  cmd(s,
+      "{\"req\":\"98\",\"action\":\"majauto\",\"op\":\"installer\",\"jeton\":\"SIMULATIONTESTJETON00001\"}");
+  VERIFIE(contient(s.derniere(), "op : etat, verifier ou reporter"), "majauto : op inconnue refusée");
+  cmd(s,
+      "{\"req\":\"99\",\"action\":\"globaux\",\"majAuto\":false,\"majPlageDebut\":1320,\"majPlageFin\":120,"
+      "\"jeton\":\"SIMULATIONTESTJETON00001\"}");
+  VERIFIE(s.glob.majAutoCoupee && s.glob.majPlageDebut == 1320 && s.glob.majPlageFin == 120 &&
+              contient(s.derniere(), "\"majAuto\":false"),
+          "globaux : mises à jour automatiques coupées, plage 22:00-02:00");
+  cmd(s,
+      "{\"req\":\"100\",\"action\":\"globaux\",\"majPlageDebut\":120,\"jeton\":"
+      "\"SIMULATIONTESTJETON00001\"}");
+  VERIFIE(contient(s.derniere(), "Plage de mise a jour vide") && s.glob.majPlageDebut == 1320,
+          "globaux : plage vide refusée, rien de changé");
+  cmd(s, "{\"req\":\"101\",\"action\":\"globaux\",\"majAuto\":true,\"jeton\":\"SIMULATIONTESTJETON00001\"}");
+  VERIFIE(!s.glob.majAutoCoupee, "globaux : mises à jour automatiques réactivées");
 
   // --- charges hostiles --------------------------------------------------------
   s.vider();

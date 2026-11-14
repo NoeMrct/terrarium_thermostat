@@ -1,4 +1,5 @@
 #include "reglages.h"
+#include "majauto.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -27,6 +28,9 @@ void reglagesGlobauxParDefaut(ReglagesGlobaux &g) {
   g.latitude = 0.0f;
   g.longitude = 0.0f;
   g.zonePrioritaire = 0;
+  g.majAutoCoupee = false;  // activées par défaut (CRA, annexe I)
+  g.majPlageDebut = MajAuto::PLAGE_DEBUT_DEFAUT;
+  g.majPlageFin = MajAuto::PLAGE_FIN_DEFAUT;
 }
 
 bool globauxValides(const ReglagesGlobaux &g, char *erreur, size_t taille) {
@@ -60,6 +64,9 @@ bool globauxValides(const ReglagesGlobaux &g, char *erreur, size_t taille) {
   if (g.soleilActif && g.latitude == 0.0f && g.longitude == 0.0f)
     ECHEC("Position inconnue : renseigner latitude et longitude");
   if (g.zonePrioritaire > NB_ZONES) ECHEC("Zone prioritaire inconnue");
+  if (g.majPlageDebut > 1439 || g.majPlageFin > 1439) ECHEC("Plage de mise a jour : heures de 00:00 a 23:59");
+  if (g.majPlageDebut == g.majPlageFin && g.majPlageDebut != 0)
+    ECHEC("Plage de mise a jour vide : debut et fin identiques");
 #undef ECHEC
   return true;
 }
@@ -90,6 +97,12 @@ bool assainirGlobaux(ReglagesGlobaux &g) {
   REPARE(latitude, isfinite(g.latitude) && g.latitude >= -65.0f && g.latitude <= 65.0f)
   REPARE(longitude, isfinite(g.longitude) && g.longitude >= -180.0f && g.longitude <= 180.0f)
   REPARE(zonePrioritaire, g.zonePrioritaire <= NB_ZONES)
+  if (g.majPlageDebut > 1439 || g.majPlageFin > 1439 ||
+      (g.majPlageDebut == g.majPlageFin && g.majPlageDebut)) {
+    g.majPlageDebut = d.majPlageDebut;  // plage abîmée : celle par défaut
+    g.majPlageFin = d.majPlageFin;
+    corrige = true;
+  }
 #undef REPARE
   if (g.soleilActif && g.latitude == 0.0f && g.longitude == 0.0f) {
     g.soleilActif = false;  // position perdue : retour aux horaires fixes
@@ -125,6 +138,15 @@ float decalageSaisonnier(const ReglagesGlobaux &g, uint32_t maintenantEpoch) {
   if (jours < d + p) return -g.saisonDelta;
   if (r > 0 && jours < d + p + r) return -g.saisonDelta * (1.0f - (float)(jours - d - p) / r);
   return 0.0f;  // cycle terminé
+}
+
+void plageMaj(const ReglagesGlobaux &g, uint16_t &debut, uint16_t &fin) {
+  debut = g.majPlageDebut;
+  fin = g.majPlageFin;
+  if (debut == fin) {  // 0 et 0 : mémoire d'avant la plage réglable
+    debut = MajAuto::PLAGE_DEBUT_DEFAUT;
+    fin = MajAuto::PLAGE_FIN_DEFAUT;
+  }
 }
 
 void genererMotDePasseAp(char *dest, size_t taille, uint32_t (*alea)()) {

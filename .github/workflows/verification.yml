@@ -4,7 +4,7 @@
 #
 # Jobs indépendants :
 #   banc-dessai  bancs C++ (régulation, anneau, formatage, QR, canal de commande,
-#                migration, liaisons des sondes, soleil), sanitizers, fuzzing court, cppcheck + clang-tidy,
+#                migration, liaisons des sondes, soleil, mises à jour), sanitizers, fuzzing court, cppcheck + clang-tidy,
 #                couverture gcov, clang-format sur tout le C++
 #   reseau       lint et types de l'application, protocole (schéma compris),
 #                client MQTT, application dans jsdom puis dans un vrai Chromium,
@@ -55,7 +55,7 @@ jobs:
                    --suppress=missingIncludeSystem --suppress=unusedFunction \
                    --suppress=checkersReport --suppress=memsetClassFloat \
                    --suppress=unmatchedSuppression --suppress=useStlAlgorithm \
-                   --quiet controle.cpp anneau.cpp format.cpp qr.cpp protocole.cpp reglages.cpp liaisons.cpp soleil.cpp signature.cpp
+                   --quiet controle.cpp anneau.cpp format.cpp qr.cpp protocole.cpp reglages.cpp liaisons.cpp soleil.cpp signature.cpp majauto.cpp
           make -C sim tidy
 
       - name: Couverture des bancs C++ (gcov), seuil dans sim/Makefile

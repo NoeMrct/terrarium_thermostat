@@ -2,8 +2,10 @@
    horaires (format.cpp), l'index d'anneau (anneau.cpp), l'encodeur QR (qr.cpp)
    le cœur de régulation (controle.cpp) nourri de mesures arbitraires — NaN,
    infinis, dents de scie — et de réglages tirés au hasard, les liaisons
-   sonde-zone (liaisons.cpp, dont la lecture d'une adresse saisie ou restaurée)
-   et le calcul du soleil (soleil.cpp) aux latitudes et jours quelconques.
+   sonde-zone (liaisons.cpp, dont la lecture d'une adresse saisie ou restaurée),
+   le calcul du soleil (soleil.cpp) aux latitudes et jours quelconques, et ce
+   que le socle lit d'Internet ou d'une image avant de l'installer (majauto.cpp :
+   manifeste, en-tête, remorque de signature, versions).
 
    Ce que l'on cherche : un plantage, un débordement, un comportement indéfini
    (AddressSanitizer et UndefinedBehaviorSanitizer sont actifs), ou une
@@ -18,6 +20,7 @@
 #include "../controle.h"
 #include "../liaisons.h"
 #include "../soleil.h"
+#include "../majauto.h"
 #include "socle-factice.h"
 #include <cstdint>
 #include <cstring>
@@ -295,17 +298,57 @@ void fuzzSoleil(const uint8_t *d, size_t n) {
   if (Soleil::dansLaJournee((int32_t)r.u32()) >= 1440) ECHEC("dansLaJournee hors bornes");
 }
 
+// Mises à jour : le manifeste vient d'Internet, l'en-tête et la remorque d'une
+// image quelconque. Rien ne doit déborder, et ce qui est lu reste dans ses
+// bornes : version valide, notes sans caractère de contrôle, pourcentage <= 100.
+void fuzzMajAuto(const uint8_t *d, size_t n) {
+  char texte[700];
+  const size_t l = n < sizeof texte - 1 ? n : sizeof texte - 1;
+  memcpy(texte, d, l);
+  texte[l] = '\0';
+  MajAuto::Manifeste m;
+  char err[96];
+  if (MajAuto::lireManifeste(texte, l, m, err, sizeof err)) {
+    if (!MajAuto::versionValide(m.version)) ECHEC("manifeste accepte sans version valide");
+    if (strlen(m.notes) >= sizeof m.notes) ECHEC("notes hors bornes");
+    for (const char *p = m.notes; *p; p++)
+      if ((unsigned char)*p < 0x20) ECHEC("caractere de controle dans les notes");
+    Lecteur r(d, n);
+    if (MajAuto::pourcentageOuvert(m, r.u32()) > 100) ECHEC("pourcentage > 100");
+  }
+  char version[16], projet[33];
+  if (MajAuto::lireEnteteImage(d, n, version, sizeof version, projet, sizeof projet)) {
+    if (strlen(version) >= sizeof version || strlen(projet) >= sizeof projet) ECHEC("en-tete hors bornes");
+    MajAuto::imageAcceptable(version, projet, "3.5.0", d[0] & 1, d[0] & 2, err, sizeof err);
+  }
+  const char *raison = nullptr;
+  const size_t sig = MajAuto::lireRemorque(d, n, &raison);
+  if (sig && (sig < 8 || sig > 80 || sig + 10 > n)) ECHEC("remorque hors bornes");
+  if (!sig && !raison) ECHEC("remorque refusee sans raison");
+  char v[16];
+  if (MajAuto::versionDepuisUrl(texte, v, sizeof v) && !MajAuto::versionValide(v))
+    ECHEC("version d'URL invalide");
+  // Comparaison antisymétrique sur deux moitiés de l'entrée.
+  const size_t moitie = l / 2;
+  char a[24], b[24];
+  snprintf(a, sizeof a, "%.*s", (int)(moitie < 23 ? moitie : 23), texte);
+  snprintf(b, sizeof b, "%s", texte + moitie);
+  const int ab = MajAuto::comparerVersions(a, b), ba = MajAuto::comparerVersions(b, a);
+  if ((ab > 0) != (ba < 0) || (ab == 0) != (ba == 0)) ECHEC("comparaison non antisymetrique");
+}
+
 }  // namespace
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *d, size_t n) {
   if (n == 0) return 0;
-  switch (d[0] % 7) {
+  switch (d[0] % 8) {
     case 0: fuzzFormat(d + 1, n - 1); break;
     case 1: fuzzAnneau(d + 1, n - 1); break;
     case 2: fuzzQr(d + 1, n - 1); break;
     case 3: fuzzProtocole(d + 1, n - 1); break;
     case 5: fuzzLiaisons(d + 1, n - 1); break;
     case 6: fuzzSoleil(d + 1, n - 1); break;
+    case 7: fuzzMajAuto(d + 1, n - 1); break;
     default: fuzzControle(d + 1, n - 1); break;
   }
   return 0;

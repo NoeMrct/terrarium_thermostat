@@ -161,6 +161,8 @@ void traiterGlobaux(Socle &socle, JsonDocument &doc, const char *req) {
   CHAMP16("saisonPlateauJ", saisonPlateauJ)
   CHAMP16("saisonRemonteeJ", saisonRemonteeJ)
   CHAMP16("rapportMinutes", rapportMinutes)
+  CHAMP16("majPlageDebut", majPlageDebut)
+  CHAMP16("majPlageFin", majPlageFin)
 #undef CHAMP16
 #define CHAMP8(cle, membre)                                  \
   if (doc[cle].is<int>()) {                                  \
@@ -171,6 +173,11 @@ void traiterGlobaux(Socle &socle, JsonDocument &doc, const char *req) {
   CHAMP8("ecranNuit", ecranNuit)
   CHAMP8("zonePrioritaire", zonePrioritaire)
 #undef CHAMP8
+  // Mises à jour automatiques : activées par défaut, stockées « coupées ».
+  if (doc["majAuto"].is<bool>()) {
+    n.majAutoCoupee = !doc["majAuto"].as<bool>();
+    ecriture = true;
+  }
   if (doc["soleilDecalageMin"].is<int>()) {
     const long v = doc["soleilDecalageMin"].as<long>();
     n.soleilDecalageMin = (int16_t)(v < -720 ? -720 : (v > 720 ? 720 : v));
@@ -690,12 +697,46 @@ void traiterCommande(Socle &socle, const char *charge, size_t taille) {
       return;
     }
     char err[96];
-    if (!socle.majAcceptable(url, version, forcer, err, sizeof err)) {
+    // Anti-retour (S4) : jamais plus ancien, la même version seulement avec
+    // « forcer ». L'en-tête de l'image tranche ensuite, avant toute écriture.
+    if (!MajAuto::cibleAcceptable(url, version, socle.versionFirmware(), forcer, err, sizeof err) ||
+        !socle.majAcceptable(url, version, forcer, err, sizeof err)) {
       erreur(socle, req, err);
       return;
     }
     repondre(socle, req, true, "\"maj\":\"telechargement\"");
-    socle.lancerMaj(url[0] ? url : version);  // ne revient qu'en cas de refus
+    socle.lancerMaj(url[0] ? url : version, forcer);  // ne revient qu'en cas de refus
+    return;
+  }
+
+  // Mises à jour automatiques (F15) :
+  //   {"action":"majauto"}                            -> "majAuto":{…}
+  //   {"action":"majauto","op":"verifier"}            -> manifeste relu au prochain tour
+  //   {"action":"majauto","op":"reporter","jours":7}  -> report (0 l'annule)
+  // Activer, couper et régler la plage passent par « globaux ».
+  if (strcmp(action, "majauto") == 0) {
+    const char *op = doc["op"] | "etat";
+    if (strcmp(op, "verifier") == 0) {
+      socle.verifierMaj();
+    } else if (strcmp(op, "reporter") == 0) {
+      const long jours = doc["jours"].is<long>() ? doc["jours"].as<long>() : -1L;
+      if (jours != 0 && !socle.heureFiable()) {
+        erreur(socle, req, "heure inconnue : report indatable");
+        return;
+      }
+      if (!MajAuto::reporter(socle.etatMajAuto(), socle.epoch(), jours)) {
+        erreur(socle, req, "jours : 0 (annuler) a 30");
+        return;
+      }
+      socle.sauverEtatMajAuto();
+      socle.journal(jours ? "Mises a jour automatiques reportees via le canal de commande"
+                          : "Report des mises a jour automatiques annule via le canal de commande");
+    } else if (strcmp(op, "etat") != 0) {
+      erreur(socle, req, "op : etat, verifier ou reporter");
+      return;
+    }
+    socle.corpsMajAuto(g_corps, sizeof g_corps);
+    repondre(socle, req, true, g_corps);
     return;
   }
 

@@ -6,6 +6,7 @@
 #include "config.h"
 #include "reglages.h"   // structures de réglages et leurs règles, testables sur PC
 #include "protocole.h"  // session d'accès support (Protocole::SessionService)
+#include "majauto.h"    // état des mises à jour automatiques (MajAuto::Etat)
 
 namespace Stockage {
 
@@ -57,6 +58,10 @@ bool assurerMotDePasseAp();
 // --- dernière mise à jour du firmware (NVS) ---
 EtatMaj &etatMaj();
 void sauverEtatMaj();
+
+// --- mises à jour automatiques (NVS) : report, annonce, tentatives, refus ---
+MajAuto::Etat &etatMajAuto();
+void sauverEtatMajAuto();
 
 // --- accès support (NVS) : la session tient à travers un redémarrage ---
 Protocole::SessionService &service();

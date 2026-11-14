@@ -280,12 +280,45 @@ client.on('connect', async () => {
                santeRecue && santeRecue.maj && santeRecue.maj.version === '3.9.9' && ['en validation', 'validee'].includes(santeRecue.maj.etape),
                santeRecue && santeRecue.maj ? santeRecue.maj.etape : 'absent');
       progressions.length = 0;
-      const echec = await commander('maj', { version: '0.0.0' });
+      const ancienne = await commander('maj', { version: '3.3.9', forcer: true });
+      verifier('maj : version plus ancienne refusée, même avec forcer (anti-retour)',
+               ancienne.ok === false && /retour refuse/.test(ancienne.erreur || ''), ancienne.erreur || '');
+      const urlAncienne = await commander('maj', { url: 'https://github.com/NoeMrct/terrarium_thermostat/releases/download/v3.0.0/terrarium-3.0.0-firmware.bin' });
+      verifier('maj : URL d\'une release plus ancienne refusée', urlAncienne.ok === false && /plus ancienne/.test(urlAncienne.erreur || ''), urlAncienne.erreur || '');
+      const echec = await commander('maj', { version: '9.4.4' });
       verifier('un téléchargement qui échoue est accepté puis signalé', echec.ok === true);
       await attendre(2500);
       verifier('…par un message « erreur » sur « maj » et une santé en « echec »',
                progressions.some(m => m.etat === 'erreur') && santeRecue && santeRecue.maj && santeRecue.maj.etape === 'echec',
                santeRecue && santeRecue.maj ? santeRecue.maj.detail : '');
+    }
+
+    titre('13 ter bis. Mises à jour automatiques (F15)');
+    {
+      verifier('la santé résume les mises à jour automatiques (actives, version disponible)',
+               santeRecue && santeRecue.majAuto && santeRecue.majAuto.actif === true && /^\d+\.\d+\.\d+$/.test(santeRecue.majAuto.disponible || ''),
+               santeRecue && santeRecue.majAuto ? JSON.stringify(santeRecue.majAuto) : 'absent');
+      const etat = await commander('majauto');
+      verifier('majauto : état complet (plage, attente, notes)',
+               etat.ok && etat.majAuto && etat.majAuto.plageDebut === 180 && etat.majAuto.plageFin === 300 && etat.majAuto.attente === 'plage' && !!etat.majAuto.notes,
+               etat.majAuto ? etat.majAuto.attente : etat.erreur || '');
+      const sansJeton = await commander('majauto', {}, false);
+      verifier('majauto exige le jeton', sansJeton.ok === false);
+      const rep = await commander('majauto', { op: 'reporter', jours: 7 });
+      verifier('majauto reporter 7 : reportée', rep.ok && rep.majAuto.attente === 'reportee' && rep.majAuto.reporteeJusqua > Date.now() / 1000 + 6 * 86400);
+      const trop = await commander('majauto', { op: 'reporter', jours: 45 });
+      verifier('majauto reporter 45 : refusé', trop.ok === false && /0 \(annuler\) a 30/.test(trop.erreur || ''), trop.erreur || '');
+      const annule = await commander('majauto', { op: 'reporter', jours: 0 });
+      verifier('majauto reporter 0 : report annulé', annule.ok && annule.majAuto.attente === 'plage' && !annule.majAuto.reporteeJusqua);
+      const verif = await commander('majauto', { op: 'verifier' });
+      verifier('majauto verifier : accepté', verif.ok === true);
+      const coupe = await commander('globaux', { majAuto: false, majPlageDebut: 1320, majPlageFin: 120 });
+      verifier('globaux : mises à jour automatiques coupées, plage 22:00-02:00',
+               coupe.ok && coupe.majAuto === false && coupe.majPlageDebut === 1320 && coupe.majPlageFin === 120);
+      const vide = await commander('globaux', { majPlageDebut: 120 });
+      verifier('globaux : plage vide refusée', vide.ok === false && /vide/.test(vide.erreur || ''), vide.erreur || '');
+      const remet = await commander('globaux', { majAuto: true, majPlageDebut: 180, majPlageFin: 300 });
+      verifier('globaux : réactivées, plage par défaut', remet.ok && remet.majAuto === true);
     }
 
     titre('13 quater. Protocole 4 : à distance, ce que la page locale faisait seule');

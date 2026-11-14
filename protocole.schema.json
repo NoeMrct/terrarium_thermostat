@@ -181,6 +181,54 @@
             }
           },
           "description": "Présent seulement pendant un accès support ouvert par le propriétaire (firmware 3.5)."
+        },
+        "majAuto": {
+          "type": "object",
+          "required": [
+            "actif",
+            "attente"
+          ],
+          "properties": {
+            "actif": {
+              "type": "boolean"
+            },
+            "attente": {
+              "enum": [
+                "prete",
+                "a-jour",
+                "refusee",
+                "desactivee",
+                "non-signee",
+                "echecs",
+                "heure",
+                "reportee",
+                "pause",
+                "deploiement",
+                "tentee",
+                "plage",
+                "hors-ligne",
+                "demarrage",
+                "validation",
+                "defaut",
+                "autotune",
+                "essai",
+                "entretien",
+                "support",
+                "a-verifier"
+              ],
+              "description": "Pourquoi rien ne s'installe (encore) : « plage » = prévue la nuit, « prete » = installation en cours, « a-verifier » = manifeste pas encore lu depuis le démarrage."
+            },
+            "disponible": {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d+\\.\\d+$",
+              "description": "Version publiée plus récente que celle qui tourne."
+            },
+            "securite": {
+              "const": true,
+              "description": "La version disponible est un correctif de sécurité."
+            }
+          },
+          "description": "Mises à jour automatiques (firmware 3.5, F15) ; le détail (notes, plage, report) est dans la réponse à « majauto »."
         }
       },
       "additionalProperties": true
@@ -316,18 +364,21 @@
             "sauvegarde",
             "restaurer",
             "reseau",
-            "service"
+            "service",
+            "majauto"
           ],
-          "description": "Les actions du protocole 4 qui suivent « maj » (sondes … reseau) font à distance ce que la page locale faisait seule. « service » ouvre, prolonge ou ferme l'accès support (V11)."
+          "description": "Les actions du protocole 4 qui suivent « maj » (sondes … reseau) font à distance ce que la page locale faisait seule. « service » ouvre, prolonge ou ferme l'accès support (V11). « majauto » lit l'état des mises à jour automatiques, demande une vérification ou les reporte (F15)."
         },
         "op": {
           "enum": [
             "ouvrir",
             "prolonger",
             "fermer",
-            "etat"
+            "etat",
+            "verifier",
+            "reporter"
           ],
-          "description": "Pour « service » : « ouvrir » (signé avec le code d'appairage seulement), « prolonger » (au plus 7 jours après l'ouverture), « fermer », « etat » (défaut)."
+          "description": "Pour « service » : « ouvrir » (signé avec le code d'appairage seulement), « prolonger » (au plus 7 jours après l'ouverture), « fermer », « etat » (défaut). Pour « majauto » : « etat » (défaut), « verifier » (manifeste relu au prochain tour de boucle), « reporter » (avec jours)."
         },
         "cle": {
           "type": "string",
@@ -378,7 +429,29 @@
         },
         "forcer": {
           "type": "boolean",
-          "description": "Pour « maj » : réinstaller même si la version est déjà celle qui tourne."
+          "description": "Pour « maj » : réinstaller la version qui tourne déjà. Jamais une version plus ancienne (anti-retour) : refusée par le canal, puis par l'en-tête de l'image."
+        },
+        "jours": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 30,
+          "description": "Pour « majauto reporter » : report des mises à jour automatiques, en jours ; 0 l'annule."
+        },
+        "majAuto": {
+          "type": "boolean",
+          "description": "Pour « globaux » : mises à jour automatiques activées (par défaut) ou coupées."
+        },
+        "majPlageDebut": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1439,
+          "description": "Pour « globaux » : début de la plage d'installation automatique, en minutes depuis minuit (180 par défaut)."
+        },
+        "majPlageFin": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1439,
+          "description": "Pour « globaux » : fin de la plage (300 par défaut) ; avant le début, elle passe minuit."
         },
         "ts": {
           "type": "integer",

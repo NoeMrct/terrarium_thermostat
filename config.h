@@ -54,6 +54,15 @@
 #define MAJ_HOTES_AUTORISES                                                     \
   "https://github.com/NoeMrct/,https://objects.githubusercontent.com/,https://" \
   "release-assets.githubusercontent.com/"
+// Mises à jour automatiques (F15) : chaque jour, le socle lit ce manifeste,
+// joint à chaque release par le workflow de publication (version, résumé,
+// correctif de sécurité, déploiement progressif). GitHub redirige « latest »
+// vers la dernière release publiée, jamais vers une pré-version ; les
+// redirections ne sont suivies que vers MAJ_HOTES_AUTORISES. L'installation
+// automatique exige OTA_CLE_PUBLIQUE (images signées). Vide : ni lecture, ni
+// installation automatique.
+#define MAJ_MANIFESTE \
+  "https://github.com/NoeMrct/terrarium_thermostat/releases/latest/download/terrarium-version.json"
 
 // ------------------------------ Brochage ------------------------------------
 static const uint8_t PIN_TAPIS[NB_TAPIS] = { 16, 17 };
@@ -77,9 +86,14 @@ static const uint8_t PIN_TAPIS[NB_TAPIS] = { 16, 17 };
 #define INA219_ADDR 0x40
 #define INA219_SHUNT_OHM 0.1f
 
-// Clé publique ECDSA P-256 (PEM) qui doit avoir signé toute image envoyée par
-// /api/maj (téléversement depuis le navigateur). Vide : aucune signature exigée.
-// Générer la paire et signer : outils/signer-firmware.js.
+// Clé publique ECDSA P-256 (PEM) qui doit avoir signé toute image installée sans
+// câble : téléversée par le navigateur (/api/maj) ou téléchargée par le socle
+// (action « maj », mises à jour automatiques). Compilée, elle coupe aussi l'OTA
+// réseau d'ArduinoOTA, qui ne vérifie aucune signature, et elle permet les
+// mises à jour automatiques. Vide : aucune signature exigée, installation
+// automatique impossible. La paire se génère UNE fois, chez le mainteneur :
+//   node outils/signer-firmware.js --generer-cles <hors du dépôt>/cle-privee.pem --config config.h
+// (docs/publication.md : la clé privée va dans le secret CLE_SIGNATURE_FIRMWARE).
 #define OTA_CLE_PUBLIQUE ""
 
 // ------------------------------ Cadences ------------------------------------

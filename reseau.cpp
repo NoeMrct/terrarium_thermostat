@@ -11,6 +11,7 @@
 #include "liaisons.h"
 #include "sauvegarde.h"
 #include "affichage.h"
+#include "majauto.h"
 
 #include <WiFi.h>
 #include <esp_mac.h>
@@ -96,7 +97,7 @@ String g_id;
 // retombait sur la case de NOTIF_DEFAUT — les messages d'entretien étaient
 // étouffés pendant 30 min après un défaut, et ils repoussaient au passage
 // l'horodatage de ce dernier.
-const uint8_t NB_TYPES_NOTIF = (uint8_t)NOTIF_TROP_CHAUD + 1;
+const uint8_t NB_TYPES_NOTIF = (uint8_t)NOTIF_MAJ + 1;
 uint32_t g_derniereAlerte[NB_ZONES + 1][NB_TYPES_NOTIF] = { { 0 } };
 
 // Temporisation des envois : sans elle, un serveur d'alertes injoignable était
@@ -112,6 +113,7 @@ const uint8_t MAX_ECHECS_ALERTE = 8;
 
 String ssidPointAcces();
 String echapperJson(const char *s);
+String majAutoSante();  // résumé des mises à jour automatiques pour « sante » (plus bas)
 
 bool texteEnRom(const String &s, uint8_t rom[8]) {
   if (s.length() != 16) return false;
@@ -462,6 +464,7 @@ String corpsSante() {
   const Protocole::SessionService &sv = Stockage::service();
   if (sv.cle[0] && ::heureFiable() && (uint32_t)time(nullptr) < sv.jusqua)
     j += ",\"service\":{\"actif\":true,\"jusqua\":" + String(sv.jusqua) + "}";
+  j += majAutoSante();
   if (Courant::actif()) {
     j += ",\"courantA\":" + String(Courant::amperes(), 2);
     j += ",\"tensionV\":" + String(Courant::volts(), 1);
@@ -829,6 +832,10 @@ void routeGlobauxGet() {
   j += ",\"latitude\":" + String(g.latitude, 4);
   j += ",\"longitude\":" + String(g.longitude, 4);
   j += ",\"zonePrioritaire\":" + String(g.zonePrioritaire);
+  uint16_t majDebut, majFin;
+  Stockage::plageMaj(g, majDebut, majFin);
+  j += ",\"majAuto\":" + String(g.majAutoCoupee ? "false" : "true");
+  j += ",\"majPlageDebut\":" + String(majDebut) + ",\"majPlageFin\":" + String(majFin);
   if (ctrl.soleilActif())
     j += ",\"soleilJour\":" + String(ctrl.debutJour(0)) + ",\"soleilNuit\":" + String(ctrl.debutNuit(0));
   j += ",\"heureFiable\":" + String(heureFiable() ? "true" : "false") + "}";
@@ -869,6 +876,20 @@ void routeGlobauxPost() {
   if (serveur.hasArg("latitude")) n.latitude = serveur.arg("latitude").toFloat();
   if (serveur.hasArg("longitude")) n.longitude = serveur.arg("longitude").toFloat();
   if (serveur.hasArg("zonePrioritaire")) n.zonePrioritaire = (uint8_t)serveur.arg("zonePrioritaire").toInt();
+  if (serveur.hasArg("majAuto")) n.majAutoCoupee = serveur.arg("majAuto").toInt() == 0;
+  if (serveur.hasArg("majDebut") || serveur.hasArg("majFin")) {
+    uint16_t debut = 0, fin = 0;
+    if (!parseHHMM(serveur.arg("majDebut"), debut) || !parseHHMM(serveur.arg("majFin"), fin)) {
+      serveur.send(400, "text/plain", "Plage de mise a jour invalide (HH:MM et HH:MM)");
+      return;
+    }
+    if (debut == fin) {
+      serveur.send(400, "text/plain", "Plage de mise a jour vide : debut et fin identiques");
+      return;
+    }
+    n.majPlageDebut = debut;
+    n.majPlageFin = fin;
+  }
 
   char erreur[100];
   if (!Stockage::globauxValides(n, erreur, sizeof erreur)) {
@@ -924,7 +945,7 @@ void routeRedemarrer() {
 // sans espota ni IDE. Le mot de passe OTA ne s'applique pas ici — c'est
 // l'authentification de l'interface web qui protège la route, exactement comme
 // /api/reseau, qui permet déjà de changer ce mot de passe et de redémarrer.
-char g_majErreur[80] = "";
+char g_majErreur[112] = "";
 bool g_majAutorisee = false;
 
 // --- signature des images -------------------------------------------------
@@ -935,6 +956,7 @@ bool g_majAutorisee = false;
 // on garde les derniers octets en réserve, on écrit et hache le reste au fil de
 // l'eau, et c'est à la fin que la réserve révèle la signature.
 const size_t RESERVE_SIG = 96;
+static_assert(RESERVE_SIG >= MajAuto::REMORQUE_MAX, "la reserve doit contenir la plus longue remorque");
 struct VerifSignature {
   bool active = false;
   mbedtls_sha256_context sha;
@@ -982,16 +1004,13 @@ const char *signatureFin() {
   if (!g_sig.active) return Update.end(true) ? nullptr : Update.errorString();
   const uint8_t *r = g_sig.reserve;
   const size_t n = g_sig.nReserve;
-  if (n < 10 || memcmp(r + n - 8, "TERRASIG", 8) != 0) {
+  const char *raison = nullptr;
+  const size_t tailleSig = MajAuto::lireRemorque(r, n, &raison);
+  if (!tailleSig) {
     Update.abort();
-    return "image non signee : refusee (cle publique compilee)";
+    return raison;
   }
-  const size_t tailleSig = (size_t)r[n - 10] | ((size_t)r[n - 9] << 8);
   const size_t remorque = tailleSig + 10;
-  if (tailleSig < 8 || tailleSig > 80 || remorque > n) {
-    Update.abort();
-    return "signature malformee";
-  }
   if (!ecrireEtHacher(r, n - remorque)) {
     Update.abort();
     return Update.errorString();
@@ -1016,6 +1035,63 @@ const char *signatureFin() {
   return Update.end(true) ? nullptr : Update.errorString();
 }
 
+// --- en-tête de l'image : anti-retour (S4) ------------------------------------
+// Les premiers octets d'une image disent sa version et son projet
+// (version_image.cpp). Ils sont gardés de côté jusqu'à en avoir assez pour
+// décider : une version plus ancienne, la même sans « forcer », une image sans
+// version ou d'un autre firmware sont refusées avant que le moindre octet
+// n'atteigne la flash. La page locale peut tout admettre (case « autoriser le
+// retour », cochée par le propriétaire) ; jamais les chemins distants.
+struct VerifEntete {
+  bool decide;
+  bool meme;    // réinstaller la même version (« forcer »)
+  bool retour;  // version plus ancienne ou inconnue admise (page locale)
+  size_t n;
+  uint8_t tampon[MajAuto::TAILLE_ENTETE_IMAGE];
+  char version[16];
+  char raison[96];
+} g_entete;
+
+void imageDebut(bool meme, bool retour) {
+  memset(&g_entete, 0, sizeof g_entete);
+  g_entete.meme = meme;
+  g_entete.retour = retour;
+  signatureDebut();
+}
+
+// nullptr si tout va bien, sinon la raison du refus (rien n'est alors écrit).
+const char *imageEcrire(const uint8_t *b, size_t n) {
+  if (!g_entete.decide) {
+    const size_t manque = sizeof g_entete.tampon - g_entete.n;
+    const size_t k = n < manque ? n : manque;
+    memcpy(g_entete.tampon + g_entete.n, b, k);
+    g_entete.n += k;
+    b += k;
+    n -= k;
+    if (g_entete.n < sizeof g_entete.tampon) return nullptr;  // pas encore de quoi décider
+    char projet[33];
+    const bool image = MajAuto::lireEnteteImage(g_entete.tampon, g_entete.n, g_entete.version,
+                                                sizeof g_entete.version, projet, sizeof projet);
+    if (!image && !g_entete.retour) return "pas une image de firmware ESP32 : refusee";
+    if (!MajAuto::imageAcceptable(g_entete.version, projet, FW_VERSION, g_entete.meme, g_entete.retour,
+                                  g_entete.raison, sizeof g_entete.raison))
+      return g_entete.raison;
+    g_entete.decide = true;
+    if (!signatureEcrire(g_entete.tampon, g_entete.n)) return Update.errorString();
+  }
+  if (n && !signatureEcrire(b, n)) return Update.errorString();
+  return nullptr;
+}
+
+// Fin du flux : signature (si une clé est compilée), puis validation de l'image.
+const char *imageFin() {
+  if (!g_entete.decide) {
+    Update.abort();
+    return "image trop courte";
+  }
+  return signatureFin();
+}
+
 void routeMajFin() {
   if (!g_majAutorisee) {
     serveur.sendHeader("WWW-Authenticate", "Basic realm=\"Terrarium\"");
@@ -1029,7 +1105,8 @@ void routeMajFin() {
                  String("Mise a jour refusee : ") + (g_majErreur[0] ? g_majErreur : "ecriture refusee"));
     return;
   }
-  journal("Mise a jour par le navigateur ecrite, redemarrage");
+  journal("Mise a jour par le navigateur ecrite (%s), redemarrage",
+          g_entete.version[0] ? g_entete.version : "version inconnue");
   serveur.send(200, "text/plain", "Mise a jour ecrite. Redemarrage, la page reviendra dans ~20 s.");
   delay(400);
   ESP.restart();
@@ -1065,7 +1142,8 @@ void routeMajFragment() {
       snprintf(g_majErreur, sizeof g_majErreur, "%s", Update.errorString());
       couperChauffagePourMaj(false);
     }
-    signatureDebut();
+    // ?retour=1 : case « autoriser une version plus ancienne » de la page.
+    imageDebut(serveur.arg("forcer") == "1", serveur.arg("retour") == "1");
     return;
   }
 
@@ -1075,10 +1153,13 @@ void routeMajFragment() {
     // Écrire un mégaoctet prend plusieurs secondes : sans cela le chien de garde
     // redémarrerait la carte au milieu de la mise à jour.
     esp_task_wdt_reset();
-    if (!signatureEcrire(u.buf, u.currentSize))
-      snprintf(g_majErreur, sizeof g_majErreur, "%s", Update.errorString());
+    const char *refus = imageEcrire(u.buf, u.currentSize);
+    if (refus) {
+      snprintf(g_majErreur, sizeof g_majErreur, "%s", refus);
+      Update.abort();
+    }
   } else if (u.status == UPLOAD_FILE_END) {
-    const char *refus = signatureFin();
+    const char *refus = imageFin();
     if (refus) snprintf(g_majErreur, sizeof g_majErreur, "%s", refus);
   } else if (u.status == UPLOAD_FILE_ABORTED) {
     Update.abort();
@@ -1543,21 +1624,6 @@ bool hoteAutorise(const String &url, const char *liste) {
   return false;
 }
 
-// Chiffres et points seulement : c'est ce qui est injecté dans MAJ_URL_MODELE.
-bool versionValide(const String &v) {
-  if (v.length() < 5 || v.length() > 15) return false;
-  uint8_t points = 0;
-  for (unsigned i = 0; i < v.length(); i++) {
-    const char c = v[i];
-    if (c == '.') {
-      points++;
-      continue;
-    }
-    if (c < '0' || c > '9') return false;
-  }
-  return points == 2 && v[0] != '.' && v[v.length() - 1] != '.';
-}
-
 void noterMaj(uint8_t etape, const char *version, const char *detail) {
   EtatMaj &m = Stockage::etatMaj();
   m.etape = etape;
@@ -1566,49 +1632,27 @@ void noterMaj(uint8_t etape, const char *version, const char *detail) {
   Stockage::sauverEtatMaj();
 }
 
-// Télécharge et écrit une image. Bloquant (quelques dizaines de secondes, le
-// chien de garde est nourri à chaque bloc) : le chauffage est coupé avant,
-// l'appareil redémarre après. false et `erreur` renseignée en cas de refus.
-bool majDepuisUrl(const String &url, char *erreur, size_t taille) {
-  erreur[0] = '\0';
-  if (!g_connecte || g_ap) {
-    snprintf(erreur, taille, "hors ligne");
-    return false;
-  }
-  if (otaEnCours) {
-    snprintf(erreur, taille, "mise a jour deja en cours");
-    return false;
-  }
-  if (!url.startsWith("https://")) {
-    snprintf(erreur, taille, "URL https exigee");
-    return false;
-  }
-  if (!hoteAutorise(url, MAJ_ORIGINES_AUTORISEES)) {
-    snprintf(erreur, taille, "hote non autorise (MAJ_ORIGINES_AUTORISEES)");
-    return false;
-  }
-
-  WiFiClientSecure securise;
+// Ouvre une URL https des releases du dépôt : magasin d'autorités du paquet
+// ESP32 (si la vérification TLS est active), redirections suivies à la main et
+// seulement vers MAJ_HOTES_AUTORISES (cinq au plus) — HTTPClient irait
+// n'importe où. Chaque saut tient sous le chien de garde (WDT_SECONDES), nourri
+// avant lui : connexion 4 s + négociation 5 s + réponse 4 s, comme les alertes.
+// true : réponse 200, prête à lire dans `http` ; sinon `erreur` dit pourquoi.
+bool ouvrirRelease(HTTPClient &http, WiFiClientSecure &securise, const String &url, char *erreur,
+                   size_t taille) {
   if (Stockage::reseau().verifierTls)
     securise.setCACertBundle(rootca_crt_bundle_start,
                              (size_t)(rootca_crt_bundle_end - rootca_crt_bundle_start));
   else
     securise.setInsecure();
-  // Connexion et négociation TLS bornées sous le watchdog (WDT_SECONDES) : la
-  // négociation attendait jusqu'à 120 s par défaut avec le cœur 3.x.
-  securise.setHandshakeTimeout(6);
-  HTTPClient http;
-  http.setConnectTimeout(6000);
-  http.setTimeout(10000);
-  // Les redirections sont suivies à la main : HTTPClient irait n'importe où,
-  // alors que seuls les serveurs d'objets de GitHub sont admis.
+  // La négociation attendait jusqu'à 120 s par défaut avec le cœur 3.x.
+  securise.setHandshakeTimeout(5);
+  http.setConnectTimeout(4000);
+  http.setTimeout(4000);
   http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
   const char *entetesSuivis[] = { "Location" };
   http.collectHeaders(entetesSuivis, 1);
   http.setUserAgent("terrarium/" FW_VERSION);
-
-  journal("Mise a jour distante : %s", url.c_str());
-  publierMaj("telechargement", 0, nullptr);
   String courante = url;
   int code = 0;
   for (uint8_t saut = 0;; saut++) {
@@ -1616,6 +1660,7 @@ bool majDepuisUrl(const String &url, char *erreur, size_t taille) {
       snprintf(erreur, taille, "URL illisible");
       return false;
     }
+    esp_task_wdt_reset();
     code = http.GET();
     const bool redirection = code == HTTP_CODE_MOVED_PERMANENTLY || code == HTTP_CODE_FOUND ||
                              code == HTTP_CODE_SEE_OTHER || code == HTTP_CODE_TEMPORARY_REDIRECT ||
@@ -1638,6 +1683,38 @@ bool majDepuisUrl(const String &url, char *erreur, size_t taille) {
     snprintf(erreur, taille, "HTTP %d", code);
     return false;
   }
+  return true;
+}
+
+// Télécharge et écrit une image. Bloquant (quelques dizaines de secondes, le
+// chien de garde est nourri à chaque bloc) : le chauffage est coupé avant,
+// l'appareil redémarre après. false et `erreur` renseignée en cas de refus.
+// `forcer` admet la même version ; jamais une plus ancienne (en-tête lu avant
+// toute écriture).
+bool majDepuisUrl(const String &url, bool forcer, char *erreur, size_t taille) {
+  erreur[0] = '\0';
+  if (!g_connecte || g_ap) {
+    snprintf(erreur, taille, "hors ligne");
+    return false;
+  }
+  if (otaEnCours) {
+    snprintf(erreur, taille, "mise a jour deja en cours");
+    return false;
+  }
+  if (!url.startsWith("https://")) {
+    snprintf(erreur, taille, "URL https exigee");
+    return false;
+  }
+  if (!hoteAutorise(url, MAJ_ORIGINES_AUTORISEES)) {
+    snprintf(erreur, taille, "hote non autorise (MAJ_ORIGINES_AUTORISEES)");
+    return false;
+  }
+
+  WiFiClientSecure securise;
+  HTTPClient http;
+  journal("Mise a jour distante : %s", url.c_str());
+  publierMaj("telechargement", 0, nullptr);
+  if (!ouvrirRelease(http, securise, url, erreur, taille)) return false;
   const int longueur = http.getSize();  // -1 si le serveur ne la donne pas
 
   couperChauffagePourMaj(true);
@@ -1647,7 +1724,7 @@ bool majDepuisUrl(const String &url, char *erreur, size_t taille) {
     couperChauffagePourMaj(false);
     return false;
   }
-  signatureDebut();
+  imageDebut(forcer, false);
 
   WiFiClient *flux = http.getStreamPtr();
   uint8_t tampon[2048];
@@ -1668,8 +1745,9 @@ bool majDepuisUrl(const String &url, char *erreur, size_t taille) {
     const size_t n = flux->readBytes(tampon, dispo < sizeof tampon ? dispo : sizeof tampon);
     if (!n) continue;
     dernierOctet = millis();
-    if (!signatureEcrire(tampon, n)) {
-      snprintf(erreur, taille, "%s", Update.errorString());
+    const char *refus = imageEcrire(tampon, n);
+    if (refus) {
+      snprintf(erreur, taille, "%s", refus);
       break;
     }
     recu += n;
@@ -1694,24 +1772,24 @@ bool majDepuisUrl(const String &url, char *erreur, size_t taille) {
     snprintf(erreur, taille, "image incomplete (%u/%d octets)", (unsigned)recu, longueur);
     return false;
   }
-  const char *refus = signatureFin();
+  const char *refus = imageFin();
   if (refus) {
     couperChauffagePourMaj(false);
     snprintf(erreur, taille, "%s", refus);
     return false;
   }
-  journal("Mise a jour distante ecrite (%u octets), redemarrage", (unsigned)recu);
+  journal("Mise a jour distante ecrite (%s, %u octets), redemarrage", g_entete.version, (unsigned)recu);
   return true;
 }
 
 // Point d'entrée commun aux trois chemins (commande MQTT, console, route HTTP).
 // Ne revient que si la mise à jour est refusée : sinon l'appareil redémarre.
-void lancerMaj(const String &urlOuVersion, char *erreur, size_t taille) {
+void lancerMaj(const String &urlOuVersion, bool forcer, char *erreur, size_t taille) {
   String url = urlOuVersion;
   String version = "";
   if (!url.startsWith("https://")) {
     version = url;
-    if (!versionValide(version)) {
+    if (!MajAuto::versionValide(version.c_str())) {
       snprintf(erreur, taille, "url https ou version X.Y.Z attendue");
       return;
     }
@@ -1725,8 +1803,14 @@ void lancerMaj(const String &urlOuVersion, char *erreur, size_t taille) {
              version.c_str());
     url = b;
   }
+  // Anti-retour avant de télécharger quoi que ce soit ; l'en-tête de l'image
+  // tranche ensuite, avant toute écriture.
+  if (!MajAuto::cibleAcceptable(url.c_str(), version.c_str(), FW_VERSION, forcer, erreur, taille)) {
+    journal("Mise a jour refusee : %s", erreur);
+    return;
+  }
   noterMaj(MAJ_EN_VALIDATION, version.length() ? version.c_str() : "?", "telechargement en cours");
-  if (!majDepuisUrl(url, erreur, taille)) {
+  if (!majDepuisUrl(url, forcer, erreur, taille)) {
     noterMaj(MAJ_ECHEC, version.length() ? version.c_str() : "?", erreur);
     journal("Mise a jour distante refusee : %s", erreur);
     publierMaj("erreur", -1, erreur);
@@ -1754,7 +1838,249 @@ void routeMajDistante() {
   serveur.client().flush();
   delay(50);
   char erreur[96];
-  lancerMaj(cible, erreur, sizeof erreur);
+  lancerMaj(cible, serveur.arg("forcer") == "1", erreur, sizeof erreur);
+}
+
+// ------------------------ mises à jour automatiques (F15) --------------------
+// Chaque jour, le socle lit le manifeste de la dernière release (MAJ_MANIFESTE).
+// Quand une version plus récente lui est ouverte (déploiement progressif), il
+// l'annonce une fois, puis l'installe seul la nuit, dans la plage réglée, si
+// rien ne s'y oppose (MajAuto::decider) : images signées exigées, ni défaut, ni
+// autotune, ni essai, ni entretien, ni accès support, une tentative par nuit,
+// trois au plus par version. Désactivables, reportables : réglages globaux et
+// action « majauto ».
+MajAuto::Manifeste g_manifeste = {};  // version vide : rien de lu depuis le démarrage
+uint32_t g_majVerifiee = 0;           // epoch de la dernière lecture réussie
+char g_majErreurVerif[72] = "";       // raison du dernier échec de lecture
+uint32_t g_prochaineVerifMs = 0;
+bool g_verifProgrammee = false, g_verifDemandee = false, g_controleMajImmediat = true;
+uint32_t g_dernierControleMaj = 0;
+MajAuto::Attente g_attenteMaj = MajAuto::A_JOUR;
+
+bool lireManifesteDistant(char *erreur, size_t taille) {
+  WiFiClientSecure securise;
+  HTTPClient http;
+  if (!ouvrirRelease(http, securise, MAJ_MANIFESTE, erreur, taille)) return false;
+  // Quelques centaines d'octets : lus d'un bloc, bornés.
+  const int longueur = http.getSize();
+  if (longueur > 4096) {
+    http.end();
+    snprintf(erreur, taille, "manifeste trop gros (%d octets)", longueur);
+    return false;
+  }
+  const String corps = http.getString();
+  http.end();
+  if (corps.length() > 4096) {
+    snprintf(erreur, taille, "manifeste trop gros");
+    return false;
+  }
+  MajAuto::Manifeste m;
+  if (!MajAuto::lireManifeste(corps.c_str(), corps.length(), m, erreur, taille)) return false;
+  g_manifeste = m;
+  g_majVerifiee = (uint32_t)time(nullptr);
+  return true;
+}
+
+MajAuto::Contexte contexteMaj() {
+  MajAuto::Contexte c;
+  memset(&c, 0, sizeof c);
+  const ReglagesGlobaux &g = Stockage::globaux();
+  c.courante = FW_VERSION;
+  c.id = g_id.c_str();
+  c.actif = !g.majAutoCoupee;
+  c.signee = OTA_CLE_PUBLIQUE[0] != '\0';
+  Stockage::plageMaj(g, c.plageDebut, c.plageFin);
+  c.heureFiable = heureFiable();
+  const time_t t = time(nullptr);
+  c.epoch = (uint32_t)t;
+  struct tm local;
+  localtime_r(&t, &local);
+  c.minutesLocales = (uint16_t)(local.tm_hour * 60 + local.tm_min);
+  c.enLigne = g_connecte && !g_ap;
+  c.uptimeS = millis() / 1000;
+  c.validation = otaEnAttenteValidation();
+  for (uint8_t z = 0; z < NB_ZONES; z++) {
+    if (ctrl.zone[z].defaut != DEF_AUCUN) c.defaut = true;
+    if (ctrl.zone[z].autotune != AT_INACTIF) c.autotune = true;
+  }
+  c.essai = Essai::zoneEnCours() >= 0 || Sondes::zoneEnIdentification() >= 0;
+  c.entretien = ctrl.enMaintenance();
+  const Protocole::SessionService &sv = Stockage::service();
+  c.support = sv.cle[0] && c.heureFiable && c.epoch < sv.jusqua;
+  return c;
+}
+
+// Annonce d'une version, une fois : résumé et ce qui va se passer.
+void annoncerMaj(MajAuto::Attente a) {
+  uint16_t debut, fin;
+  Stockage::plageMaj(Stockage::globaux(), debut, fin);
+  char suite[150];
+  if (a == MajAuto::DESACTIVEE || a == MajAuto::NON_SIGNEE || a == MajAuto::ECHECS)
+    snprintf(suite, sizeof suite, "A installer depuis l'application (%s).", MajAuto::texteAttente(a));
+  else
+    snprintf(suite, sizeof suite,
+             "Installation automatique la nuit entre %02u:%02u et %02u:%02u%s ; reporter ou couper depuis "
+             "l'application.",
+             (unsigned)(debut / 60), (unsigned)(debut % 60), (unsigned)(fin / 60), (unsigned)(fin % 60),
+             a == MajAuto::REPORTEE ? ", apres le report" : "");
+  String t = String("Mise a jour ") + g_manifeste.version +
+             (g_manifeste.securite ? " (correctif de securite)" : "") + " disponible. ";
+  if (g_manifeste.notes[0]) t += String(g_manifeste.notes) + " ";
+  t += suite;
+  journal("%s", t.c_str());
+  Reseau::alerter(NOTIF_MAJ, NB_ZONES, t);
+}
+
+void gererMajAuto(uint32_t maintenant) {
+  if (!MAJ_MANIFESTE[0] || !g_connecte || g_ap) return;
+  if (!g_verifProgrammee) {  // première lecture 3 min après la connexion
+    g_verifProgrammee = true;
+    g_prochaineVerifMs = maintenant + 180000UL;
+  }
+  if (g_verifDemandee || (int32_t)(maintenant - g_prochaineVerifMs) >= 0) {
+    // Sans heure, TLS ne sait pas juger un certificat : on attend NTP.
+    if (!heureFiable()) {
+      g_prochaineVerifMs = maintenant + 300000UL;
+      if (g_verifDemandee)
+        snprintf(g_majErreurVerif, sizeof g_majErreurVerif, "heure inconnue : lecture reportee");
+      g_verifDemandee = false;
+      return;
+    }
+    g_verifDemandee = false;
+    char err[72];
+    const bool ok = lireManifesteDistant(err, sizeof err);
+    // Une fois par jour ; six heures après un échec (pas encore de release,
+    // réseau absent) : chaque lecture bloque la boucle quelques secondes.
+    g_prochaineVerifMs = millis() + (ok ? 86400000UL : 6UL * 3600000UL);
+    if (ok) {
+      g_majErreurVerif[0] = '\0';
+      journal("Manifeste de mise a jour lu : %s publiee%s", g_manifeste.version,
+              g_manifeste.securite ? " (correctif de securite)" : "");
+    } else {
+      snprintf(g_majErreurVerif, sizeof g_majErreurVerif, "%s", err);
+      journal("Lecture du manifeste de mise a jour en echec : %s", err);
+    }
+    g_controleMajImmediat = true;
+    g_santeAPublier = true;
+    return;
+  }
+  if (!g_controleMajImmediat && maintenant - g_dernierControleMaj < 60000UL) return;
+  g_controleMajImmediat = false;
+  g_dernierControleMaj = maintenant;
+  if (!g_manifeste.version[0]) return;
+  const MajAuto::Contexte c = contexteMaj();
+  MajAuto::Etat &e = Stockage::etatMajAuto();
+  const MajAuto::Attente a = MajAuto::decider(c, g_manifeste, e);
+  if (MajAuto::aAnnoncer(c, g_manifeste, e)) {
+    annoncerMaj(a);
+    MajAuto::noterAnnonce(e, g_manifeste);
+    Stockage::sauverEtatMajAuto();
+  }
+  if (a != g_attenteMaj) {
+    g_attenteMaj = a;
+    g_santeAPublier = true;
+  }
+  if (a != MajAuto::PRETE) return;
+  journal("Mise a jour automatique vers %s (tentative %u/%u)", g_manifeste.version, (unsigned)(e.essais + 1),
+          (unsigned)MajAuto::ESSAIS_MAX);
+  MajAuto::noterTentative(e, g_manifeste.version, c.epoch);
+  Stockage::sauverEtatMajAuto();
+  char erreur[96];
+  lancerMaj(String(g_manifeste.version), false, erreur, sizeof erreur);  // ne revient qu'en cas d'échec
+  journal("Mise a jour automatique en echec (%u/%u) : %s", (unsigned)e.essais, (unsigned)MajAuto::ESSAIS_MAX,
+          erreur);
+  if (e.essais >= MajAuto::ESSAIS_MAX)
+    Reseau::alerter(NOTIF_MAJ, NB_ZONES,
+                    String("Mise a jour automatique vers ") + g_manifeste.version +
+                        " abandonnee apres trois echecs (" + erreur + "). L'installer depuis l'application.");
+  g_attenteMaj = MajAuto::decider(contexteMaj(), g_manifeste, e);
+  g_santeAPublier = true;
+}
+
+// Résumé pour « sante » (une fois par minute) : de quoi afficher l'état sans
+// relire le manifeste ; le détail est dans l'action « majauto ».
+String majAutoSante() {
+  if (!MAJ_MANIFESTE[0]) return "";
+  String j = ",\"majAuto\":{\"actif\":" + String(Stockage::globaux().majAutoCoupee ? "false" : "true");
+  j += ",\"attente\":\"" +
+       String(g_manifeste.version[0] ? MajAuto::codeAttente(g_attenteMaj) : "a-verifier") + "\"";
+  if (g_manifeste.version[0] && MajAuto::comparerVersions(g_manifeste.version, FW_VERSION) > 0) {
+    j += ",\"disponible\":\"" + String(g_manifeste.version) + "\"";
+    if (g_manifeste.securite) j += ",\"securite\":true";
+  }
+  return j + "}";
+}
+
+// État complet (page locale, console, action « majauto »), en JSON.
+String majAutoJson() {
+  const ReglagesGlobaux &g = Stockage::globaux();
+  const MajAuto::Etat &e = Stockage::etatMajAuto();
+  const uint32_t maintenant = heureFiable() ? (uint32_t)time(nullptr) : 0;
+  uint16_t debut, fin;
+  Stockage::plageMaj(g, debut, fin);
+  const char *attente = !MAJ_MANIFESTE[0]
+                            ? "sans-manifeste"
+                            : (g_manifeste.version[0] ? MajAuto::codeAttente(g_attenteMaj) : "a-verifier");
+  String j = "{\"actif\":" + String(g.majAutoCoupee ? "false" : "true");
+  j += ",\"signee\":" + String(OTA_CLE_PUBLIQUE[0] ? "true" : "false");
+  j += ",\"plageDebut\":" + String(debut) + ",\"plageFin\":" + String(fin);
+  j += ",\"attente\":\"" + String(attente) + "\"";
+  j += ",\"rang\":" + String(MajAuto::rang(g_id.c_str()));
+  if (g_manifeste.version[0]) {
+    j += ",\"publiee\":\"" + String(g_manifeste.version) + "\"";
+    if (MajAuto::comparerVersions(g_manifeste.version, FW_VERSION) > 0) {
+      j += ",\"disponible\":\"" + String(g_manifeste.version) + "\"";
+      j += ",\"notes\":\"" + echapperJson(g_manifeste.notes) + "\"";
+      j += ",\"securite\":" + String(g_manifeste.securite ? "true" : "false");
+      j += ",\"ouvert\":" + String(MajAuto::pourcentageOuvert(g_manifeste, maintenant));
+    }
+  }
+  if (g_majVerifiee) j += ",\"verifiee\":" + String(g_majVerifiee);
+  if (g_majErreurVerif[0]) j += ",\"erreur\":\"" + echapperJson(g_majErreurVerif) + "\"";
+  if (e.reporteeJusqua && maintenant < e.reporteeJusqua)
+    j += ",\"reporteeJusqua\":" + String(e.reporteeJusqua);
+  if (e.versionRefusee[0]) j += ",\"refusee\":\"" + String(e.versionRefusee) + "\"";
+  if (e.versionEssayee[0]) j += ",\"essais\":" + String(e.essais);
+  return j + "}";
+}
+
+// Page locale : état des mises à jour automatiques, « vérifier maintenant » et
+// report (activer, couper et la plage passent par /api/globaux).
+void routeMajAutoGet() {
+  if (!autorise()) return;
+  serveur.send(200, "application/json", majAutoJson());
+}
+
+void routeMajAutoPost() {
+  if (!autorise()) return;
+  if (!origineSure()) return;
+  const String op = serveur.arg("op");
+  if (op == "verifier") {
+    g_verifDemandee = true;
+    serveur.send(200, "text/plain", "Lecture du manifeste demandee : resultat dans quelques secondes.");
+    return;
+  }
+  if (op == "reporter") {
+    const long jours = serveur.hasArg("jours") ? serveur.arg("jours").toInt() : -1;
+    if (jours != 0 && !heureFiable()) {
+      serveur.send(409, "text/plain", "Heure inconnue : report indatable");
+      return;
+    }
+    if (!MajAuto::reporter(Stockage::etatMajAuto(), (uint32_t)time(nullptr), jours)) {
+      serveur.send(400, "text/plain", "jours : 0 (annuler) a 30");
+      return;
+    }
+    Stockage::sauverEtatMajAuto();
+    g_controleMajImmediat = true;
+    g_santeAPublier = true;
+    if (jours)
+      journal("Mises a jour automatiques reportees de %ld jour(s) via l'interface web", jours);
+    else
+      journal("Report des mises a jour automatiques annule via l'interface web");
+    serveur.send(200, "text/plain", jours ? "Mises a jour reportees." : "Report annule.");
+    return;
+  }
+  serveur.send(400, "text/plain", "op : verifier ou reporter");
 }
 
 // Canal de commande générique : une seule paire de sujets transporte du JSON,
@@ -1868,6 +2194,10 @@ public:
     d += ",\"soleilActif\":" + String(g.soleilActif ? "true" : "false");
     d += ",\"soleilDecalageMin\":" + String(g.soleilDecalageMin);
     d += ",\"latitude\":" + String(g.latitude, 4) + ",\"longitude\":" + String(g.longitude, 4);
+    uint16_t majDebut, majFin;
+    Stockage::plageMaj(g, majDebut, majFin);
+    d += ",\"majAuto\":" + String(g.majAutoCoupee ? "false" : "true");
+    d += ",\"majPlageDebut\":" + String(majDebut) + ",\"majPlageFin\":" + String(majFin);
     d += ",\"zonePrioritaire\":" + String(g.zonePrioritaire);
     copier(out, taille, d);
   }
@@ -1904,16 +2234,13 @@ public:
     ESP.restart();
   }
 
+  // La version visée est déjà contrôlée par le canal (anti-retour) : reste ce
+  // que seul le socle sait.
+  const char *versionFirmware() override { return FW_VERSION; }
   bool majAcceptable(const char *url, const char *version, bool forcer, char *erreur,
                      size_t taille) override {
-    if (version[0] && strcmp(version, FW_VERSION) == 0 && !forcer) {
-      snprintf(erreur, taille, "deja en " FW_VERSION);
-      return false;
-    }
-    if (!url[0] && !versionValide(version)) {
-      snprintf(erreur, taille, "version invalide");
-      return false;
-    }
+    (void)version;
+    (void)forcer;
     if (url[0] && !hoteAutorise(url, MAJ_ORIGINES_AUTORISEES)) {
       snprintf(erreur, taille, "hote non autorise");
       return false;
@@ -1924,10 +2251,20 @@ public:
     }
     return true;
   }
-  void lancerMaj(const char *cible) override {
+  void lancerMaj(const char *cible, bool forcer) override {
     mqtt.loop();
     char erreur[96];
-    ::lancerMaj(String(cible), erreur, sizeof erreur);  // ne revient qu'en cas de refus
+    ::lancerMaj(String(cible), forcer, erreur, sizeof erreur);  // ne revient qu'en cas de refus
+  }
+  void corpsMajAuto(char *out, size_t taille) override {
+    copier(out, taille, "\"majAuto\":" + majAutoJson());
+  }
+  void verifierMaj() override { g_verifDemandee = true; }
+  MajAuto::Etat &etatMajAuto() override { return Stockage::etatMajAuto(); }
+  void sauverEtatMajAuto() override {
+    Stockage::sauverEtatMajAuto();
+    g_controleMajImmediat = true;  // la décision change (report) : la refaire tout de suite
+    g_santeAPublier = true;
   }
   void journal(const char *texte) override { ::journal("%s", texte); }
 
@@ -2443,6 +2780,8 @@ void lancerServices() {
   serveur.on("/api/redemarrer", HTTP_POST, routeRedemarrer);
   serveur.on("/api/maj", HTTP_POST, routeMajFin, routeMajFragment);
   serveur.on("/api/maj-distante", HTTP_POST, routeMajDistante);
+  serveur.on("/api/majauto", HTTP_GET, routeMajAutoGet);
+  serveur.on("/api/majauto", HTTP_POST, routeMajAutoPost);
   serveur.on("/api/sondes", HTTP_GET, routeSondesGet);
   serveur.on("/api/sondes", HTTP_POST, routeSondesPost);
   serveur.on("/api/identifier", HTTP_POST, routeIdentifierPost);
@@ -2507,8 +2846,15 @@ void lancerServices() {
   // compromise. Il reste toujours un chemin pour la remettre en service sans
   // câble : /api/maj téléverse un firmware depuis le navigateur, protégé par
   // l'authentification de l'interface web.
+  // Avec une clé de signature compilée, ArduinoOTA reste éteinte quel que soit
+  // le mot de passe : elle écrit l'image telle quelle, sans vérifier de
+  // signature, et contournerait donc l'exigence. Restent /api/maj et la mise à
+  // jour tirée, qui vérifient la signature et la version.
   g_otaLancee = false;
-  if (r.otaMotDePasse[0]) {
+  if (OTA_CLE_PUBLIQUE[0]) {
+    if (r.otaMotDePasse[0])
+      journal("OTA reseau (ArduinoOTA) coupee : images signees exigees, elle ne verifie pas les signatures");
+  } else if (r.otaMotDePasse[0]) {
     ArduinoOTA.setHostname(g_id.c_str());
     ArduinoOTA.setPassword(r.otaMotDePasse);
     // Une mise à jour interrompue laisserait sinon un tapis alimenté sans
@@ -2617,6 +2963,7 @@ void boucle(uint32_t maintenant) {
   }
   gererMqtt(maintenant);
   gererEnvois(maintenant);
+  gererMajAuto(maintenant);
   // Accès support échu : la session est retirée (écran, NVS, santé).
   if (maintenant - g_dernierControleService >= 10000) {
     g_dernierControleService = maintenant;
@@ -2686,7 +3033,12 @@ String adresse() {
 String nomHote() { return g_id + ".local"; }
 String ssidConfiguration() { return ssidPointAcces(); }
 
-void mettreAJour(const String &cible, char *erreur, size_t taille) { lancerMaj(cible, erreur, taille); }
+void mettreAJour(const String &cible, bool forcer, char *erreur, size_t taille) {
+  lancerMaj(cible, forcer, erreur, taille);
+}
+
+void verifierMaj() { g_verifDemandee = true; }
+String etatMajAuto() { return majAutoJson(); }
 
 // Improv Wi-Fi et commande « wifi » : on tente la connexion tout de suite, en
 // gardant le point d'accès ouvert s'il l'était (AP+STA), pour pouvoir dire si
@@ -2724,8 +3076,10 @@ void alerter(TypeNotif type, uint8_t zone, const String &texte) {
   const uint8_t it = (type < NB_TYPES_NOTIF) ? (uint8_t)type : (uint8_t)NOTIF_INFO;
   const uint32_t maintenant = millis();
   // Un défaut ou un rétablissement passe toujours : ce sont les seuls messages
-  // qu'on ne peut pas se permettre de perdre. Le reste est limité en cadence.
-  const bool prioritaire = (type == NOTIF_DEFAUT || type == NOTIF_RETABLI);
+  // qu'on ne peut pas se permettre de perdre. Une mise à jour aussi : annoncée,
+  // installée ou abandonnée une fois par version, sa cadence est déjà bornée.
+  // Le reste est limité en cadence.
+  const bool prioritaire = (type == NOTIF_DEFAUT || type == NOTIF_RETABLI || type == NOTIF_MAJ);
   if (!prioritaire && g_derniereAlerte[iz][it] != 0 && maintenant - g_derniereAlerte[iz][it] < ANTISPAM_MS)
     return;
   g_derniereAlerte[iz][it] = maintenant;

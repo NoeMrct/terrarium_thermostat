@@ -31,12 +31,18 @@ String nomHote();            // « terraA1B2C3.local » : l'interface locale de 
 String ssidConfiguration();  // SSID du point d'accès de configuration de ce socle
 // Mise à jour tirée depuis une URL https (ou une version X.Y.Z, résolue par
 // MAJ_URL_MODELE). Ne revient qu'en cas de refus, avec `erreur` renseignée :
-// sinon l'image est écrite et l'appareil redémarre.
-void mettreAJour(const String &cible, char *erreur, size_t taille);
+// sinon l'image est écrite et l'appareil redémarre. Jamais une version plus
+// ancienne ; la même seulement avec `forcer`.
+void mettreAJour(const String &cible, bool forcer, char *erreur, size_t taille);
+// Mises à jour automatiques (F15) : manifeste relu au prochain tour de boucle,
+// état complet en JSON (celui de l'action « majauto »).
+void verifierMaj();
+String etatMajAuto();
 // Tentative de connexion bloquante à un réseau (Improv Wi-Fi, console) : true si
 // connecté dans le délai, les identifiants sont alors enregistrés.
 bool essayerWifi(const char *ssid, const char *motDePasse, uint32_t delaiMs);
-// L'OTA réseau ne démarre que si elle est protégée par un mot de passe.
+// L'OTA réseau ne démarre que si elle est protégée par un mot de passe, et
+// jamais quand une clé de signature est compilée (elle ne vérifie rien).
 bool otaActive();
 
 // Empile une alerte : elle est persistée puis envoyée dès que le réseau revient.

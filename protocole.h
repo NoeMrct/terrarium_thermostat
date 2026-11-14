@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include "controle.h"
 #include "reglages.h"
+#include "majauto.h"
 
 namespace Protocole {
 
@@ -69,12 +70,21 @@ public:
   virtual void arreterAutotune(uint8_t z) = 0;
   virtual void effacerHistorique() = 0;
   virtual void redemarrer() = 0;
-  // Mise à jour tirée : validation de la cible (hôte autorisé, version
-  // plausible, pas déjà installée), puis lancement — qui ne revient pas sur
-  // la carte si l'image est acceptée.
+  // Mise à jour tirée. Le canal vérifie la version visée (anti-retour,
+  // MajAuto::cibleAcceptable) contre versionFirmware() ; majAcceptable() ajoute
+  // ce que seul le socle sait (hôte autorisé, en ligne), puis lancerMaj() — qui
+  // ne revient pas sur la carte si l'image est acceptée. `forcer` : réinstaller
+  // la même version, jamais une plus ancienne.
+  virtual const char *versionFirmware() = 0;
   virtual bool majAcceptable(const char *url, const char *version, bool forcer, char *erreur,
                              size_t taille) = 0;
-  virtual void lancerMaj(const char *cible) = 0;
+  virtual void lancerMaj(const char *cible, bool forcer) = 0;
+  // Mises à jour automatiques (F15) : état ("majAuto":{…}), lecture du
+  // manifeste demandée pour le prochain tour de boucle, report (NVS).
+  virtual void corpsMajAuto(char *out, size_t taille) = 0;
+  virtual void verifierMaj() = 0;
+  virtual MajAuto::Etat &etatMajAuto() = 0;
+  virtual void sauverEtatMajAuto() = 0;
   virtual void journal(const char *texte) = 0;
 
   // Protocole 4 (F1) : à distance, ce que seule la page locale savait faire.

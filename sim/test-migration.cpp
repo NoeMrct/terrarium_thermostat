@@ -7,6 +7,7 @@
 
      make migration */
 #include "../reglages.h"
+#include "../majauto.h"
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
@@ -73,7 +74,10 @@ static_assert(offsetof(ReglagesReseau, jeton) == offsetof(ReglagesReseau32, jeto
 static_assert(offsetof(ReglagesReseau, sondeRom) == offsetof(ReglagesReseau32, sondeRom),
               "les sondes liées ne bougent pas");
 static_assert(offsetof(ReglagesGlobaux, rapportActif) == 36, "3.5 ajoute ses reglages apres l'image 3.4");
-static_assert(sizeof(ReglagesGlobaux) == 64, "taille de ReglagesGlobaux en 3.5");
+static_assert(offsetof(ReglagesGlobaux, majAutoCoupee) == 61,
+              "les mises a jour automatiques s'ajoutent apres la zone prioritaire");
+static_assert(sizeof(ReglagesGlobaux) == 68, "taille de ReglagesGlobaux en 3.5 (avec F15)");
+static_assert(sizeof(MajAuto::Etat) == 60, "taille de l'etat des mises a jour automatiques");
 static_assert(sizeof(EtatMaj) == 97, "taille de EtatMaj");
 static_assert(sizeof(StatsZone) == 16, "taille de StatsZone");
 static_assert(sizeof(ReglagesZone) == 72, "taille de ReglagesZone");
@@ -147,6 +151,22 @@ int main() {
               !g2.soleilActif && g2.zonePrioritaire == 0,
           "…les réglages 3.5 valent zéro : pas de rapport, coût inconnu, LED allumée, écran atténué la nuit");
   VERIFIE(!Stockage::assainirGlobaux(g2), "…et jugés sains tels quels");
+  {
+    uint16_t debut = 0, fin = 0;
+    Stockage::plageMaj(g2, debut, fin);
+    VERIFIE(!g2.majAutoCoupee && debut == 180 && fin == 300,
+            "…mises à jour automatiques actives, plage par défaut 03:00-05:00");
+  }
+  // Une mémoire 3.5 d'avant F15 (64 octets) : même résultat.
+  {
+    ReglagesGlobaux g3;
+    const size_t l3 = Stockage::relireTolerant((const uint8_t *)&g, 61, &g3, sizeof g3);
+    uint16_t debut = 0, fin = 0;
+    Stockage::plageMaj(g3, debut, fin);
+    VERIFIE(l3 == 61 && g3.courantAlimA == 5.0f && !g3.majAutoCoupee && debut == 180 && fin == 300 &&
+                !Stockage::assainirGlobaux(g3),
+            "globaux 3.5 d'avant les mises à jour automatiques : actives, plage par défaut");
+  }
   g2.courantAlimA = 1e9f;
   VERIFIE(Stockage::assainirGlobaux(g2) && g2.courantAlimA == 3.0f,
           "une valeur aberrante est ramenée à la valeur par défaut");
@@ -221,6 +241,18 @@ int main() {
   VERIFIE(!Stockage::globauxValides(r, err, sizeof err), "mode d'écran inconnu refusé");
   VERIFIE(Stockage::assainirGlobaux(r) && r.ecranNuit == ECRAN_NUIT_ATTENUE && r.zonePrioritaire == 1,
           "…assaini sans toucher au reste");
+  Stockage::reglagesGlobauxParDefaut(r);
+  VERIFIE(!r.majAutoCoupee && r.majPlageDebut == 180 && r.majPlageFin == 300,
+          "mises à jour automatiques activées par défaut, la nuit de 03:00 à 05:00");
+  r.majPlageDebut = 22 * 60;
+  r.majPlageFin = 2 * 60;
+  VERIFIE(Stockage::globauxValides(r, err, sizeof err), "plage 22:00-02:00 (passe minuit) acceptée");
+  r.majPlageFin = 22 * 60;
+  VERIFIE(!Stockage::globauxValides(r, err, sizeof err) && strstr(err, "vide"), "plage vide refusée");
+  r.majPlageFin = 1440;
+  VERIFIE(!Stockage::globauxValides(r, err, sizeof err), "fin à 24:00 refusée");
+  VERIFIE(Stockage::assainirGlobaux(r) && r.majPlageDebut == 180 && r.majPlageFin == 300,
+          "…plage abîmée ramenée à 03:00-05:00");
 
   // Mot de passe du point d'accès, propre à chaque socle.
   {

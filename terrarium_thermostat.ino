@@ -123,12 +123,26 @@ void verifierImageEnAttente() {
     Stockage::sauverEtatMaj();
   } else if (m.etape == MAJ_EN_VALIDATION) {
     // On avait note une image en validation, et ce n'est pas elle qui tourne :
-    // elle a plante avant d'etre confirmee, le chargeur a relance celle-ci.
-    if (strcmp(m.version, FW_VERSION) != 0) {
+    // elle a plante avant d'etre confirmee, le chargeur a relance celle-ci —
+    // sauf si le socle s'est arrete pendant le telechargement (coupure de
+    // courant, chien de garde) : la nouvelle image n'a alors jamais demarre.
+    if (strcmp(m.version, FW_VERSION) != 0 && strncmp(m.detail, "telechargement", 14) == 0) {
+      m.etape = MAJ_ECHEC;
+      snprintf(m.detail, sizeof m.detail, "telechargement interrompu par un redemarrage");
+      journal("Mise a jour vers %s interrompue pendant le telechargement", m.version);
+    } else if (strcmp(m.version, FW_VERSION) != 0) {
       m.etape = MAJ_RETOUR_ARRIERE;
       snprintf(m.detail, sizeof m.detail, "%s a plante avant validation, retour en " FW_VERSION, m.version);
       journal("RETOUR ARRIERE : %s", m.detail);
-      Reseau::alerter(NOTIF_INFO, NB_ZONES, String("Mise a jour annulee : ") + m.detail);
+      // Une version qui plante ici ne sera plus installée automatiquement
+      // (une installation à la main reste possible).
+      if (MajAuto::versionValide(m.version)) {
+        MajAuto::noterRetourArriere(Stockage::etatMajAuto(), m.version);
+        Stockage::sauverEtatMajAuto();
+      }
+      Reseau::alerter(
+          NOTIF_MAJ, NB_ZONES,
+          String("Mise a jour annulee : ") + m.detail + " (elle ne sera plus installee automatiquement)");
     } else {
       m.etape = MAJ_VALIDEE;  // validee, mais la note n'avait pas ete ecrite
       snprintf(m.detail, sizeof m.detail, "validee");
@@ -145,6 +159,11 @@ void validerImage() {
     m.etape = MAJ_VALIDEE;
     snprintf(m.version, sizeof m.version, "%s", FW_VERSION);
     snprintf(m.detail, sizeof m.detail, "validee le %s", horodatage().c_str());
+    // Installée seule cette nuit : on le dit, une fois (F15).
+    if (MajAuto::noterValidation(Stockage::etatMajAuto(), FW_VERSION))
+      Reseau::alerter(NOTIF_MAJ, NB_ZONES,
+                      "Mise a jour automatique vers " FW_VERSION " installee et validee.");
+    Stockage::sauverEtatMajAuto();
   } else {
     journal("Validation de l'image refusee par le chargeur");
     m.etape = MAJ_ECHEC;

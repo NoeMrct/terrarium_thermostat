@@ -121,8 +121,9 @@ enum TypeNotif : uint8_t {
   NOTIF_CHUTE,
   NOTIF_SANS_EFFET,
   NOTIF_INFO,
-  NOTIF_RAPPORT,    // rapport quotidien : priorité basse, jamais étouffé par une autre info
-  NOTIF_TROP_CHAUD  // au-dessus de la consigne sans chauffer : la chauffe n'y peut rien
+  NOTIF_RAPPORT,     // rapport quotidien : priorité basse, jamais étouffé par une autre info
+  NOTIF_TROP_CHAUD,  // au-dessus de la consigne sans chauffer : la chauffe n'y peut rien
+  NOTIF_MAJ          // mise à jour du firmware : annoncée, installée, abandonnée
 };
 
 struct Notification {

@@ -7,6 +7,7 @@ sim/test-protocole
 sim/test-migration
 sim/test-liaisons
 sim/test-soleil
+sim/test-majauto
 sim/san_*
 sim/run.csv
 sim/fuzz
@@ -62,3 +63,8 @@ outils/provisionnement/
 
 # Fichiers livrés par Claude (Cowork) : copies de travail, pas des sources
 Claude outputs/
+
+# Clés de signature du firmware : la clé privée ne vit jamais dans le dépôt
+# (outils/signer-firmware.js refuse d'ailleurs de l'y écrire).
+*.pem
+cle-privee*
