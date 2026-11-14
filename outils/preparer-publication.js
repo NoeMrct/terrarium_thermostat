@@ -96,11 +96,11 @@ async function minifier() {
   let terser;
   try { terser = require('terser'); }
   catch (e) { console.log('minification : terser absent (npm ci dans outils/), fichiers laissés tels quels'); return; }
-  for (const nom of ['app.js', 'mqtt.js', 'sw.js']) {
+  for (const nom of ['app.js', 'mqtt.js', 'sw.js', 'textes.en.js']) {
     const chemin = path.join(APP, nom);
     const source = fs.readFileSync(chemin, 'utf8');
     const r = await terser.minify({ [nom]: source }, {
-      compress: { passes: 2, drop_debugger: true }, mangle: true, ecma: 2020,
+      compress: { passes: 2, drop_debugger: true }, mangle: true, ecma: 2020, module: nom.startsWith('textes.'),
       format: { comments: false, preamble: `/* ${nom} — minifié au déploiement, source : ${nom}.map */` },
       sourceMap: { filename: nom, url: nom + '.map', includeSources: true }
     });

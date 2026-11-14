@@ -74,6 +74,10 @@ jour.
   de la page locale pour chaque nouveauté.
 
 ### Modifié
+- Application : l'anglais vit dans `textes.en.js`, importé au démarrage
+  seulement quand il sert (et gardé hors ligne par l'agent de service). Tout le
+  monde télécharge 4 Ko de moins : `app.js` passe de 30,0 à 26,0 Ko compressés.
+  Le budget de poids sépare désormais le démarrage des modules à la demande.
 - **Point d'accès de secours : un mot de passe propre à chaque socle.** Fini le
   mot de passe commun `terrarium1234`, imprimé dans la documentation : le socle
   tire le sien (10 caractères, sans i, l, o, 0 ni 1) à la première ouverture du

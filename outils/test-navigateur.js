@@ -267,6 +267,16 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   v('après « Tout effacer », plus aucun point local', apres === 0, `${apres} point(s)`);
   v('…et l\'application repart de l\'écran du broker', await page.isVisible('#vue-broker'));
 
+  // L'anglais n'est plus dans app.js (C2) : il arrive par import(), ce que la
+  // CSP (script-src 'self') et les Trusted Types doivent laisser passer.
+  console.log('\n== Anglais chargé à la demande');
+  await page.evaluate(() => localStorage.setItem('terrarium.langue', 'en'));
+  await page.reload();
+  await page.waitForFunction(() => document.documentElement.lang === 'en' && /Connection/.test(document.querySelector('#vue-broker').textContent), null, { timeout: 8000 }).catch(() => {});
+  const lien = await page.textContent('#lien');
+  v('l\'anglais arrive à la demande (page et textes de l\'application)', /Connection/.test(await page.textContent('#vue-broker')) && /not connected/i.test(lien), lien);
+  await page.evaluate(() => localStorage.setItem('terrarium.langue', 'fr'));
+
 
   await navigateur.close();
   serveur.close();

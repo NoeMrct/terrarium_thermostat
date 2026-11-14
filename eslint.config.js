@@ -36,7 +36,7 @@ module.exports = [
     }
   },
   {
-    files: ['app/installer.js'],
+    files: ['app/installer.js', 'app/textes.*.js'],
     languageOptions: { ecmaVersion: 2022, sourceType: 'module', globals: navigateur }
   },
   {

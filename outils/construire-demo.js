@@ -369,6 +369,11 @@ const BANDEAU = `
 // ------------------------------------------------------------------ assemblage
 let html = lire('index.html');
 
+// L'anglais est un module que le site importe à la demande ; ouverte en
+// file://, la démonstration ne pourrait pas l'importer : il est fourni d'avance.
+const ANGLAIS = lire('textes.en.js').replace('export default {', 'window.TEXTES_EN = {');
+if (!ANGLAIS.includes('window.TEXTES_EN = {')) { console.error('textes.en.js : « export default { » introuvable'); process.exit(1); }
+
 // Tout est mis en ligne dans le fichier : ouvert en file://, aucune requête ne
 // pourrait aboutir de toute façon.
 // La politique de sécurité (CSP) de la vraie page interdit les scripts en ligne,
@@ -380,7 +385,7 @@ html = html
   .replace(/<link rel="apple-touch-icon"[^>]*>\s*/, '')
   .replace(/<meta http-equiv="Content-Security-Policy"[^>]*>\s*/, '')
   .replace('<script src="mqtt.js" defer></script>', `<script>${FAUX_MQTT}</script>`)
-  .replace('<script src="app.js" defer></script>', `<script>\n${lire('app.js')}\n</script>`)
+  .replace('<script src="app.js" defer></script>', () => `<script>\n${ANGLAIS}\n</script>\n<script>\n${lire('app.js')}\n</script>`)
   .replace('<header id="entete">', `${BANDEAU}\n<header id="entete">`)
   .replace('<title>Terrariums</title>', '<title>Terrariums — démonstration</title>');
 
