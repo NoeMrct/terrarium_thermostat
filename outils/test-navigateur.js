@@ -18,7 +18,7 @@
    IndexedDB, WebCrypto, Pointer Events).
    ============================================================================= */
 
-/* global document, navigator, caches, window, localStorage, indexedDB, App */
+/* global document, navigator, caches, window, localStorage, indexedDB, App, ServiceWorkerRegistration, Notification */
 const { servirApp } = require('./servir-app');
 let playwright;
 try { playwright = require('playwright'); }
@@ -219,13 +219,22 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
     await new Promise((ok, ko) => { espion.once('connect', ok); espion.once('error', ko); });
     const zone2 = tropChaud => espion.publish(`terrarium/${ID}/zone2/etat`, JSON.stringify({
       temp: 31, consigne: 26, chauffe: '0', defaut: '0', defaut_libelle: 'OK', derive: '0', trop_chaud: tropChaud, jour: 26, nuit: 22 }));
+    // Le Chromium sans interface de la CI n'affiche pas les notifications
+    // (getNotifications() reste vide) : on note aussi les appels eux-mêmes.
+    await page.evaluate(() => {
+      const proto = ServiceWorkerRegistration.prototype, montrer = proto.showNotification;
+      window.__notifsAgent = [];
+      proto.showNotification = function (titre, options) { window.__notifsAgent.push(titre); return montrer.call(this, titre, options); };
+    });
     zone2('1');
     await page.waitForTimeout(1500);
     const titres = await page.evaluate(async () => {
       const reg = await navigator.serviceWorker.getRegistration();
-      return reg ? (await reg.getNotifications()).map(n => n.title) : null;
+      const affichees = reg ? (await reg.getNotifications()).map(n => n.title) : [];
+      return [...new Set([...window.__notifsAgent, ...affichees])];
     });
-    v('« trop chaud » est affichée par l\'agent de service', Array.isArray(titres) && titres.some(t => /trop chaud/.test(t)), titres ? titres.join(' | ') || 'aucune' : 'pas d\'agent');
+    const permission = await page.evaluate(() => Notification.permission);
+    v('« trop chaud » passe par l\'agent de service (showNotification)', titres.some(t => /trop chaud/.test(t)), titres.join(' | ') || `aucune (permission ${permission})`);
     zone2('0');
     espion.end(true);
   }
