@@ -112,6 +112,13 @@ jour.
   plus aucun jeton de session en clair sur le disque (empreintes SHA-256,
   anciennes sessions migrées). Limites : trois codes par adresse et dix par IP
   et par quart d'heure, cinq essais par code.
+- Application : **connexion par e-mail et clé d'accès**. L'adresse `https://`
+  d'un serveur Terrariums suffit : e-mail, code à six chiffres, puis clé
+  d'accès proposée ; « Mon compte » liste les clés, exporte les données et
+  supprime le compte ; une session expirée ramène à l'écran de connexion,
+  adresse remplie. Le jeton de session est le mot de passe du broker. Testé de
+  bout en bout dans Chromium avec un authentificateur virtuel
+  (`test-compte`).
 - Console : `wifi off` oublie le réseau enregistré (point d'accès de
   configuration au démarrage suivant), pour qu'un socle rodé à l'atelier ne
   cherche pas le Wi-Fi du banc chez l'acheteur.

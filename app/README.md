@@ -128,9 +128,13 @@ sur `localhost`.
 
 ## 4. Première utilisation
 
-1. Ouvrir l'application : l'accueil propose de se connecter à son serveur
-   (adresse du broker et identifiants), d'essayer la démo, ou explique la page
-   locale du socle (« chez moi seulement »).
+1. Ouvrir l'application : l'accueil propose de se connecter à son serveur,
+   d'essayer la démo, ou explique la page locale du socle (« chez moi
+   seulement »). Avec un serveur Terrariums, son adresse `https://…` suffit :
+   un code reçu par e-mail ouvre le compte, puis une clé d'accès (passkey)
+   remplace le code ; le jeton de session sert de mot de passe au broker.
+   « Mon compte » (bas de la liste) gère les clés, exporte et supprime le
+   compte. Avec un broker MQTT : son adresse `wss://…` et ses identifiants.
 2. **+** ouvre l'assistant d'installation : l'étiquette (scan ou saisie de la
    référence et du code), le Wi-Fi (rejoindre `terrarium-config-…`, choisir son
    réseau sur la page qui s'ouvre ; l'application coche Wi-Fi, serveur, heure et

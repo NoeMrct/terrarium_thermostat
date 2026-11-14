@@ -18,7 +18,8 @@ const navigateur = {
   Date: 'readonly', Number: 'readonly', String: 'readonly', Object: 'readonly', Array: 'readonly',
   Error: 'readonly', Symbol: 'readonly', encodeURIComponent: 'readonly', decodeURIComponent: 'readonly',
   escape: 'readonly', unescape: 'readonly', mqtt: 'readonly', alert: 'readonly',
-  crypto: 'readonly', btoa: 'readonly', atob: 'readonly', URLSearchParams: 'readonly', trustedTypes: 'readonly'
+  crypto: 'readonly', btoa: 'readonly', atob: 'readonly', URLSearchParams: 'readonly', trustedTypes: 'readonly',
+  AbortController: 'readonly'
 };
 
 module.exports = [

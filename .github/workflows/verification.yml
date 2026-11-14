@@ -242,6 +242,13 @@ jobs:
       - name: L'application réelle face au serveur réel
         run: cd outils && npm ci && node test-serveur.js
 
+      - name: Compte par e-mail et clé d'accès, dans Chromium (authentificateur virtuel)
+        working-directory: outils
+        run: |
+          npm install --no-save playwright@1.56.0
+          npx playwright install --with-deps chromium
+          node test-compte.js
+
   installateur:
     name: Intégrité de l'installateur web
     runs-on: ubuntu-latest

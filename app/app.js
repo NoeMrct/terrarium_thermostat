@@ -139,6 +139,22 @@ const App = (() => {
       activerNotifs: 'Activer les notifications', notifsIndispoPage: 'Notifications indisponibles sur cette page.',
       notifsActivees: 'Notifications activées.', notifsRefusees: 'Notifications refusées.', notifsIndispo2: 'Notifications indisponibles : {m}',
       wssRequis: 'L\'adresse doit commencer par wss:// — sans chiffrement, tes codes d\'appairage circuleraient en clair.',
+      serveurIntrouvable: 'Pas de serveur Terrariums à cette adresse. Pour un broker MQTT, son adresse commence par wss://.',
+      serveurSansComptes: 'Ce serveur n\'ouvre pas de comptes par e-mail : donne son adresse wss://…/mqtt, ton identifiant et ton mot de passe.',
+      compteServeur: 'Serveur {h}', emailInvalide: 'Adresse e-mail invalide.', code6: 'Le code a six chiffres.',
+      codeEnvoye: 'Code envoyé à {e}, valable 10 minutes. Pense à regarder dans les indésirables.', nouveauCodeEnvoye: 'Nouveau code envoyé.',
+      codeCompteRefuse: 'Code incorrect ou expiré.', tropDeDemandes: 'Trop de demandes : réessaie dans un quart d\'heure.',
+      cleAccesRefusee: 'Clé d\'accès refusée : {m}', cleAccesAnnulee: 'Clé d\'accès annulée.',
+      proposerCle: 'La prochaine fois, connecte-toi sans code : crée une clé d\'accès sur cet appareil.', creerCle: 'Créer',
+      cleCreee: 'Clé d\'accès créée : la prochaine connexion se fera d\'un geste.', cleImpossible: 'Clé d\'accès non créée : {m}',
+      sessionExpiree: 'Ta session a expiré : reconnecte-toi.', monCompte: 'Mon compte', clesAcces: 'Clés d\'accès',
+      aucuneCle: 'Aucune clé d\'accès : la connexion se fait par un code envoyé par e-mail.', ajouterCle: 'Ajouter une clé sur cet appareil',
+      cleCreeeLe: 'créée le {d}', cleUtiliseeLe: 'dernière connexion le {d}', retirerCle: 'Retirer', cleRetiree: 'Clé d\'accès retirée.',
+      mesDonnees: 'Mes données', exporterDonnees: 'Exporter mes données', aideExportDonnees: 'Tout ce que le serveur garde de ton compte, dans un fichier JSON.',
+      supprimerCompte: 'Supprimer mon compte', aideSuppression: 'Efface le compte, ses sessions et ses clés d\'accès. L\'historique d\'un socle qui n\'a plus d\'autre propriétaire est effacé aussi. Les socles continuent de chauffer.',
+      recopierEmail: 'Pour confirmer, recopie {e}', compteSupprime: 'Compte supprimé.', confirmationDifferente: 'Recopie exactement {e}.',
+      seDeconnecter: 'Se déconnecter', deconnecte: 'Déconnecté.', compteSans: 'Compte {e} · serveur {h}',
+      cettAppareil: 'cet appareil', cleAcces1: 'Clé d\'accès',
       testEnCours: 'Test de connexion…', testOk: 'Connexion réussie en {ms} ms.', testKo: 'Connexion impossible : {m}',
       oublierBrokerQ: 'Oublier ce broker ?', oublierBrokerTexte: 'Les socles enregistrés seront conservés.', oublier: 'Oublier',
       idManquant: 'Identifiant manquant.', jeton24: 'Le code d\'appairage fait 24 caractères.', dejaEnregistre: 'Ce socle est déjà enregistré.',
@@ -257,7 +273,7 @@ const App = (() => {
   let vueCourante = 'broker';
   let socleOuvert = null;
   let panneauActif = 'etat';        // etat (accueil) ou la feuille ouverte : zone, reglages, programme…
-  let etapeAccueil = 'bienvenue';   // écran sans broker : bienvenue, connexion ou chezMoi
+  let etapeAccueil = 'bienvenue';   // écran sans broker : bienvenue, connexion, compte ou chezMoi
   let installation = null;          // assistant d'installation en cours (voir plus bas)
   let etiquetteLue = null;          // { id, jeton } lus dans l'adresse (étiquette scannée par l'appareil photo)
   let minuteurCible = null;
@@ -405,6 +421,19 @@ const App = (() => {
     async ouvrirSession() {
       const o = serveur.origine(), b = config.broker;
       if (!o || !b || !b.user) return false;
+      // Compte ouvert par e-mail : le mot de passe du broker est le jeton de
+      // session lui-même ; on vérifie seulement qu'il vaut encore.
+      if (b.compte) {
+        try {
+          const r = await fetch(o + '/api/moi', { headers: { Authorization: 'Bearer ' + b.pass } });
+          if (r.status === 401) { api.sessionExpiree(); return false; }
+          if (!r.ok) return false;
+          const d = await r.json();
+          config.serveur = Object.assign(config.serveur || {}, { jeton: b.pass, login: d.login, socles: d.socles || [] });
+          sauver();
+          return true;
+        } catch (e) { return false; }
+      }
       try {
         const r = await fetch(o + '/api/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: b.user, motDePasse: b.pass }) });
         if (!r.ok) return false;
@@ -457,6 +486,84 @@ const App = (() => {
 
   const sujetServeur = () => `${config.broker.prefixe}/serveur`;
 
+  // ------------------------------------------------------------- compte
+  // Serveur Terrariums aux comptes en libre-service : un code par e-mail, puis
+  // une clé d'accès (passkey). Le jeton de session devient le mot de passe du
+  // broker, l'adresse e-mail son identifiant ; rien d'autre à retenir.
+  let compteEnCours = null;   // { origine, ws, prefixe, push, cles, email, etape: 'email' | 'code' }
+  const versB64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const deB64u = s_ => Uint8Array.from(atob(String(s_).replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(String(s_).length / 4) * 4, '=')), c => c.charCodeAt(0));
+  const clesAccesPossibles = () => typeof window.PublicKeyCredential === 'function' && !!(navigator.credentials && navigator.credentials.get);
+  // https://hote, ou wss://hote/mqtt → https://hote (http et ws en local seulement).
+  function origineServeur(url) {
+    let u;
+    try { u = new URL(url); } catch (e) { return null; }
+    const local = ['localhost', '127.0.0.1'].includes(u.hostname);
+    if (u.protocol === 'https:' || (local && u.protocol === 'http:')) return u.origin;
+    if ((u.protocol === 'wss:' || (local && u.protocol === 'ws:')) && u.pathname === '/mqtt') return (u.protocol === 'wss:' ? 'https://' : 'http://') + u.host;
+    return null;
+  }
+  async function infosServeur(origine) {
+    // Une adresse qui ne répond pas ne doit pas figer l'écran de connexion.
+    const abandon = typeof AbortController === 'function' ? new AbortController() : null;
+    const minuteur = abandon ? setTimeout(() => abandon.abort(), 6000) : 0;
+    try {
+      const r = await fetch(origine + '/api/infos', { cache: 'no-store', signal: abandon ? abandon.signal : undefined });
+      const i = r.ok ? await r.json() : null;
+      return i && i.serveur === 'terrariums' ? i : null;
+    } finally { clearTimeout(minuteur); }
+  }
+  async function postServeur(origine, chemin, corps) {
+    const r = await fetch(origine + chemin, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corps || {}) });
+    let d = null;
+    try { d = await r.json(); } catch (e) { /* vide */ }
+    if (!r.ok) throw Object.assign(new Error((d && d.erreur) || ('HTTP ' + r.status)), { statut: r.status });
+    return d;
+  }
+  // Nom donné à une clé d'accès : de quoi la reconnaître dans « Mon compte ».
+  function nomAppareil() {
+    const ua = navigator.userAgent || '';
+    const a = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android' : /Macintosh/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : t('cettAppareil');
+    return `${t('cleAcces1')} — ${a}`;
+  }
+  function dessinerCompte() {
+    const c = compteEnCours;
+    if (!c) return;
+    let h = c.origine;
+    try { h = new URL(c.origine).host; } catch (e) { /* adresse brute */ }
+    texte($('#compte-serveur'), t('compteServeur', { h }));
+    doc.querySelectorAll('[data-etape-compte]').forEach((/** @type {any} */ el) => { el.hidden = el.dataset.etapeCompte !== c.etape; });
+    $('#btn-cle-acces').hidden = !c.cles;
+    if (c.etape === 'code') texte($('#compte-code-aide'), t('codeEnvoye', { e: c.email }));
+  }
+  function connecterCompte(r) {
+    const c = compteEnCours;
+    config.broker = { url: c.ws, user: r.login, pass: r.jeton, prefixe: c.prefixe, compte: 'email' };
+    config.serveur = { push: c.push, jeton: r.jeton, login: r.login, socles: r.socles || [] };
+    sauver();
+    compteEnCours = null;
+    $('#c-code').value = '';
+    texte($('#compte-erreur'), '');
+    $('#b-url').value = c.origine;
+    $('#b-user').value = '';
+    if (client) { try { client.end(true); } catch (e) { /* déjà fermé */ } client = null; }
+    connecter();
+    montrer('liste');
+    if (etiquetteLue) { const lue = etiquetteLue; etiquetteLue = null; api.nouveauSocle(lue); }
+    else if (!r.clesAcces && c.cles) message(t('proposerCle'), false, { libelle: t('creerCle'), faire: () => api.creerCle() }, 20000);
+  }
+  // Une clé d'accès pour ce compte, sur cet appareil.
+  async function creerCleAcces() {
+    const o = await serveur.appel('POST', '/api/cles/options-creation', {});
+    const cred = await navigator.credentials.create({ publicKey: {
+      ...o, challenge: deB64u(o.challenge), user: { ...o.user, id: deB64u(o.user.id) },
+      excludeCredentials: (o.excludeCredentials || []).map(x => ({ ...x, id: deB64u(x.id) }))
+    } });
+    const r = /** @type {any} */ (cred).response;
+    return serveur.appel('POST', '/api/cles', { defi: o.challenge, id: cred.id, nom: nomAppareil(),
+      clientDataJSON: versB64u(r.clientDataJSON), attestationObject: versB64u(r.attestationObject) });
+  }
+
   function connecter() {
     if (!config.broker || !config.broker.url) { montrer('broker'); return; }
     // Serveur déjà connu de cette configuration : session rouverte tout de
@@ -478,7 +585,12 @@ const App = (() => {
     client.on('reconnect', () => lien(t('reconnexion'), 'attente'));
     client.on('offline',   () => lien(t('horsLigne'), 'ko'));
     client.on('close',     () => lien(t('horsLigne'), 'ko'));
-    client.on('error', e => { lien(t('erreurLien', { m: e.message }), 'ko'); noterErreur('broker : ' + e.message); });
+    client.on('error', e => {
+      lien(t('erreurLien', { m: e.message }), 'ko');
+      noterErreur('broker : ' + e.message);
+      // Un compte par e-mail refusé par le broker : sa session a expiré.
+      if (config.broker && config.broker.compte && /identifiants incorrects|non autorisé/.test(e.message)) api.sessionExpiree();
+    });
     client.on('message', recevoir);
   }
 
@@ -1142,8 +1254,10 @@ const App = (() => {
     if (hote && config.broker) {
       let h = config.broker.url;
       try { h = new URL(config.broker.url).host; } catch (e) { /* adresse brute */ }
-      texte(hote, t('brokerAffiche', { h }));
+      texte(hote, config.broker.compte ? t('compteSans', { e: config.broker.user, h }) : t('brokerAffiche', { h }));
     }
+    const bc = $('#btn-mon-compte');
+    if (bc) bc.hidden = !serveur.actif();
 
     if (!config.socles.length) {
       cartes.forEach(c => c.remove()); cartes.clear();
@@ -1927,6 +2041,10 @@ const App = (() => {
         case 'scanner':           api.scanner(); break;
         case 'fermerScan':        fermerScanner(); break;
         case 'testerBroker':      api.testerBroker(); break;
+        case 'cleAcces':          api.cleAcces(); break;
+        case 'compteRenvoyer':    api.compteRenvoyer(); break;
+        case 'compteMotDePasse':  api.compteMotDePasse(); break;
+        case 'monCompte':         api.monCompte(); break;
         case 'oublierBroker':     api.oublierBroker(); break;
         case 'definirCode':       api.definirCode(); break;
         case 'activerPush':       api.activerPush(); break;
@@ -1978,6 +2096,7 @@ const App = (() => {
       ev.preventDefault();
       switch (f.dataset.form) {
         case 'broker':       api.enregistrerBroker(); break;
+        case 'compte':       api.compteSoumettre(); break;
         case 'socle':        api.ajouterSocle(); break;
         case 'instReglages': api.instReglages(); break;
         case 'zone':         api.reglerZone(+f.dataset.z); break;
@@ -2446,10 +2565,12 @@ const App = (() => {
   // ---- écran sans broker : bienvenue, connexion, « chez moi seulement »
   function dessinerAccueil() {
     const e = etapeAccueil;
-    const b = $('#bienvenue'), c = $('#chez-moi'), f = $('#form-broker');
+    const b = $('#bienvenue'), c = $('#chez-moi'), f = $('#form-broker'), fc = $('#form-compte');
     if (b) b.hidden = e !== 'bienvenue';
     if (c) c.hidden = e !== 'chezMoi';
     if (f) f.hidden = e !== 'connexion';
+    if (fc) fc.hidden = e !== 'compte';
+    if (e === 'compte') dessinerCompte();
     doc.body.dataset.accueil = e;
     if (e === 'bienvenue') peindre($('#bienvenue-ill'), illustration({ enLigne: true, zones: [{ chauffe: true }, { chauffe: true }] }, 'b'));
     const lue = $('#bienvenue-etiquette');
@@ -2492,8 +2613,8 @@ const App = (() => {
     lancerSession() {
       if (config.broker && config.broker.url) {
         // Le formulaire reste pré-rempli pour « Changer de broker ».
-        $('#b-url').value = config.broker.url;
-        $('#b-user').value = config.broker.user || '';
+        $('#b-url').value = config.broker.compte ? (origineServeur(config.broker.url) || config.broker.url) : config.broker.url;
+        $('#b-user').value = config.broker.compte ? '' : (config.broker.user || '');
         $('#b-prefixe').value = config.broker.prefixe || 'terrarium';
         if (!client) connecter();
         montrer('liste');
@@ -2529,8 +2650,20 @@ const App = (() => {
       location.reload();
     },
 
-    enregistrerBroker() {
+    async enregistrerBroker() {
       const url = $('#b-url').value.trim();
+      // Adresse web (https://…) : celle d'un serveur Terrariums, dont les comptes
+      // en libre-service prennent la main. Un broker (wss://…) n'est jamais
+      // sondé en HTTP : il répondrait par une erreur CORS, ou pas du tout.
+      const origine = origineServeur(url);
+      if (origine && /^https?:\/\//.test(url)) {
+        let i;
+        try { i = await infosServeur(origine); } catch (e) { i = null; }
+        if (i && i.comptes && i.comptes.email) { api.ouvrirCompte(origine, i); return; }
+        if (i) $('#b-url').value = origine.replace(/^http/, 'ws') + ((i.mqtt && i.mqtt.ws) || '/mqtt');
+        message(t(i ? 'serveurSansComptes' : 'serveurIntrouvable'), true);
+        return;
+      }
       // ws:// n'est toléré qu'en développement local : sur un vrai réseau, une
       // liaison non chiffrée exposerait les codes d'appairage en clair.
       const local = ['localhost', '127.0.0.1'].includes(location.hostname);
@@ -2570,6 +2703,175 @@ const App = (() => {
       essai.on('connect', () => terminer(true));
       essai.on('error', e => terminer(false, e.message));
       setTimeout(() => terminer(false, t('pasDeReponse')), 9000);
+    },
+
+    // ---- compte sur un serveur Terrariums ------------------------------------
+    ouvrirCompte(origine, i, email = '') {
+      compteEnCours = { origine, ws: origine.replace(/^http/, 'ws') + ((i.mqtt && i.mqtt.ws) || '/mqtt'), prefixe: i.prefixe || 'terrarium',
+        push: !!i.push, cles: !!(i.comptes && i.comptes.clesAcces) && clesAccesPossibles(), email, etape: 'email' };
+      $('#c-email').value = email;
+      texte($('#compte-erreur'), '');
+      etapeAccueil = 'compte';
+      if (vueCourante !== 'broker') montrer('broker'); else dessiner();
+      try { $('#c-email').focus(); } catch (e) { /* hors écran */ }
+    },
+
+    async compteSoumettre() {
+      const c = compteEnCours;
+      if (!c) { api.accueil('connexion'); return; }
+      const err = $('#compte-erreur');
+      texte(err, '');
+      const bouton = $(`#form-compte [data-etape-compte="${c.etape}"] [type="submit"]`);
+      if (bouton) bouton.disabled = true;
+      try {
+        if (c.etape === 'email') {
+          const email = $('#c-email').value.trim().toLowerCase();
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { texte(err, t('emailInvalide')); return; }
+          await postServeur(c.origine, '/api/compte/code', { email });
+          c.email = email;
+          c.etape = 'code';
+          dessinerCompte();
+          try { $('#c-code').focus(); } catch (e) { /* hors écran */ }
+        } else {
+          const code = $('#c-code').value.replace(/\s/g, '');
+          if (!/^\d{6}$/.test(code)) { texte(err, t('code6')); return; }
+          connecterCompte(await postServeur(c.origine, '/api/compte/verifier', { email: c.email, code }));
+        }
+      } catch (e) {
+        texte(err, e.statut === 429 ? t('tropDeDemandes') : e.statut === 401 ? t('codeCompteRefuse') : e.statut === 503 ? t('serveurSansComptes') : (e.message || String(e)));
+      } finally { if (bouton) bouton.disabled = false; }
+    },
+
+    async compteRenvoyer() {
+      const c = compteEnCours;
+      if (!c || !c.email) return;
+      try { await postServeur(c.origine, '/api/compte/code', { email: c.email }); texte($('#compte-erreur'), ''); message(t('nouveauCodeEnvoye')); }
+      catch (e) { texte($('#compte-erreur'), e.statut === 429 ? t('tropDeDemandes') : (e.message || String(e))); }
+    },
+
+    // Revenir au formulaire du broker : identifiant et mot de passe d'un compte
+    // créé par l'administrateur du serveur.
+    compteMotDePasse() {
+      const c = compteEnCours;
+      if (c) $('#b-url').value = c.ws;
+      api.accueil('connexion');
+    },
+
+    async cleAcces() {
+      const c = compteEnCours;
+      if (!c) return;
+      texte($('#compte-erreur'), '');
+      try {
+        const o = await postServeur(c.origine, '/api/cles/options-connexion', {});
+        const cred = await navigator.credentials.get({ publicKey: { challenge: deB64u(o.challenge), rpId: o.rpId, timeout: o.timeout,
+          userVerification: o.userVerification, allowCredentials: [] } });
+        const r = /** @type {any} */ (cred).response;
+        connecterCompte(await postServeur(c.origine, '/api/cles/connexion', { defi: o.challenge, id: cred.id,
+          clientDataJSON: versB64u(r.clientDataJSON), authenticatorData: versB64u(r.authenticatorData),
+          signature: versB64u(r.signature), userHandle: r.userHandle ? versB64u(r.userHandle) : null }));
+      } catch (e) {
+        texte($('#compte-erreur'), e && e.name === 'NotAllowedError' ? t('cleAccesAnnulee') : t('cleAccesRefusee', { m: e.message || String(e) }));
+      }
+    },
+
+    async creerCle() {
+      try { await creerCleAcces(); message(t('cleCreee')); if ($('#dlg-compte') && $('#dlg-compte').open) api.monCompte(); }
+      catch (e) { message(e && e.name === 'NotAllowedError' ? t('cleAccesAnnulee') : t('cleImpossible', { m: e.message || String(e) }), true); }
+    },
+
+    // La session d'un compte par e-mail a expiré (30 jours sans usage) : on
+    // revient à l'écran de connexion de ce serveur, adresse déjà remplie.
+    async sessionExpiree() {
+      const b = config.broker;
+      if (!b || !b.compte || vueCourante === 'broker') return;
+      const origine = origineServeur(b.url), email = b.user;
+      if (client) { try { client.end(true); } catch (e) { /* déjà fermé */ } client = null; }
+      config.broker = null;
+      config.serveur = null;
+      sauver();
+      lien(t('nonConnecte'), 'ko');
+      let i;
+      try { i = await infosServeur(origine); } catch (e) { i = null; }
+      if (i && i.comptes && i.comptes.email) api.ouvrirCompte(origine, i, email);
+      else { $('#b-url').value = origine || ''; api.accueil('connexion'); }
+      message(t('sessionExpiree'), true);
+    },
+
+    // « Mon compte » : clés d'accès, export des données, suppression, déconnexion.
+    async monCompte() {
+      if (!serveur.actif()) return;
+      let dlg = $('#dlg-compte');
+      if (!dlg) {
+        dlg = doc.createElement('dialog');
+        dlg.id = 'dlg-compte'; dlg.className = 'feuille';
+        dlg.setAttribute('aria-labelledby', 'compte-titre-dlg');
+        doc.body.appendChild(dlg);
+        dlg.addEventListener('click', ev => {
+          const b = /** @type {any} */ (ev.target).closest('[data-compte]');
+          if (b) api.actionCompte(b.dataset.compte, b.dataset.id);
+        });
+      }
+      let moi, cles;
+      try { [moi, cles] = await Promise.all([serveur.appel('GET', '/api/moi'), serveur.appel('GET', '/api/cles').then(d => d.cles || [])]); }
+      catch (e) { message(e.message, true); return; }
+      let h = '';
+      try { h = new URL(serveur.origine()).host; } catch (e) { /* adresse brute */ }
+      const date = d => (d ? new Date(d).toLocaleDateString(langue === 'en' ? 'en-GB' : 'fr-FR') : '');
+      html(dlg, `<h2 id="compte-titre-dlg">${t('monCompte')}</h2>
+        <p class="aide">${esc(t('compteSans', { e: moi.email || moi.login, h }))}</p>
+        <h3 class="mt">${t('clesAcces')}</h3>
+        ${cles.length ? `<ul class="liste-cles">${cles.map(c => `<li><span><b>${esc(c.nom)}</b><small class="discret">${esc(t('cleCreeeLe', { d: date(c.cree) }))}${c.vu ? ' · ' + esc(t('cleUtiliseeLe', { d: date(c.vu) })) : ''}</small></span>
+          <button type="button" class="btn btn-fantome btn-petit" data-compte="retirerCle" data-id="${attr(c.id)}">${t('retirerCle')}</button></li>`).join('')}</ul>`
+          : `<p class="aide">${t('aucuneCle')}</p>`}
+        ${clesAccesPossibles() ? `<button type="button" class="btn btn-secondaire btn-petit" data-compte="ajouterCle">${icone('i-cadenas')}${t('ajouterCle')}</button>` : ''}
+        <h3 class="mt">${t('mesDonnees')}</h3>
+        <p class="aide">${t('aideExportDonnees')}</p>
+        <button type="button" class="btn btn-secondaire btn-petit" data-compte="exporter">${icone('i-telecharger')}${t('exporterDonnees')}</button>
+        <h3 class="mt">${t('supprimerCompte')}</h3>
+        <p class="aide">${t('aideSuppression')}</p>
+        <label for="compte-confirmation">${esc(t('recopierEmail', { e: moi.login }))}</label>
+        <input id="compte-confirmation" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button type="button" class="btn btn-danger btn-petit mt" data-compte="supprimer">${t('supprimerCompte')}</button>
+        <div class="boutons fin"><button type="button" class="btn btn-secondaire" data-compte="deconnexion">${t('seDeconnecter')}</button>
+          <button type="button" class="btn" data-compte="fermer">${t('fermer')}</button></div>`);
+      dlg._login = moi.login;
+      ouvrirDialogue(dlg);
+    },
+
+    async actionCompte(quoi, id) {
+      const dlg = $('#dlg-compte');
+      try {
+        if (quoi === 'fermer') fermerDialogue(dlg);
+        else if (quoi === 'ajouterCle') await api.creerCle();
+        else if (quoi === 'retirerCle') { await serveur.appel('DELETE', '/api/cles/' + encodeURIComponent(id)); message(t('cleRetiree')); api.monCompte(); }
+        else if (quoi === 'exporter') {
+          const d = await serveur.appel('GET', '/api/moi/export');
+          telecharger('terrariums-compte.json', JSON.stringify(d, null, 2), 'application/json');
+        } else if (quoi === 'supprimer') {
+          const saisi = $('#compte-confirmation').value.trim().toLowerCase();
+          if (saisi !== String(dlg._login).toLowerCase()) { message(t('confirmationDifferente', { e: dlg._login }), true); return; }
+          await serveur.appel('DELETE', '/api/moi', { confirmation: saisi });
+          fermerDialogue(dlg);
+          api.finCompte(t('compteSupprime'));
+        } else if (quoi === 'deconnexion') {
+          try { await serveur.appel('DELETE', '/api/session'); } catch (e) { /* session déjà close */ }
+          fermerDialogue(dlg);
+          api.finCompte(t('deconnecte'));
+        }
+      } catch (e) { message(e.message || String(e), true); }
+    },
+
+    // Après déconnexion ou suppression : retour à l'accueil, socles gardés.
+    finCompte(texteMessage) {
+      if (client) { try { client.end(true); } catch (e) { /* déjà fermé */ } client = null; }
+      config.broker = null;
+      config.serveur = null;
+      sauver();
+      lien(t('nonConnecte'), 'ko');
+      finirInstallation();
+      etapeAccueil = 'bienvenue';
+      montrer('broker');
+      message(texteMessage);
     },
 
     // ---- code de verrouillage --------------------------------------------------
@@ -2827,7 +3129,7 @@ const App = (() => {
     },
 
     accueil(etape) {
-      etapeAccueil = ['bienvenue', 'connexion', 'chezMoi'].includes(etape) ? etape : 'bienvenue';
+      etapeAccueil = ['bienvenue', 'connexion', 'chezMoi'].includes(etape) || (etape === 'compte' && compteEnCours) ? etape : 'bienvenue';
       if (vueCourante !== 'broker') montrer('broker'); else dessiner();
       const cible = etapeAccueil === 'connexion' ? $('#b-url') : doc.querySelector(etapeAccueil === 'chezMoi' ? '#chez-moi h2' : '#bienvenue h2');
       if (cible) { try { cible.focus(); } catch (e) { /* hors écran */ } }

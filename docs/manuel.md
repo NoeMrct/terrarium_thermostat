@@ -90,10 +90,18 @@ thermomètre infrarouge avant d'installer un animal.
 
 ## 6. Appairer dans l'application
 
-À la première ouverture, l'application accueille : **Se connecter à mon serveur** (adresse du broker
-`wss://…:8884/mqtt`, identifiant et mot de passe fournis par ton broker ; **Tester la connexion** dit
-tout de suite si c'est bon), **Essayer la démo**, ou **Sans serveur, chez moi seulement**, qui
-explique la page locale du socle.
+À la première ouverture, l'application accueille : **Se connecter à mon serveur**, **Essayer la
+démo**, ou **Sans serveur, chez moi seulement**, qui explique la page locale du socle.
+
+Pour se connecter, deux cas :
+
+- **Un serveur Terrariums** : son adresse `https://…` suffit. Donne ton adresse e-mail, recopie le
+  code à six chiffres reçu (valable dix minutes) : le compte s'ouvre, sans mot de passe. L'application
+  propose ensuite une **clé d'accès** (passkey) : les fois suivantes, un geste suffit (empreinte,
+  visage ou code du téléphone), sans e-mail. **Mon compte** (bas de la liste des socles) liste les
+  clés, exporte les données du compte et le supprime.
+- **Un broker MQTT** : son adresse `wss://…:8884/mqtt`, l'identifiant et le mot de passe qu'il t'a
+  donnés ; **Tester la connexion** dit tout de suite si c'est bon.
 
 Le bouton **+** lance l'**installation d'un socle**, en trois étapes :
 

@@ -91,10 +91,18 @@ Check with an infrared thermometer before putting an animal in.
 
 ## 6. Pairing in the app
 
-At first launch, the app welcomes you: **Connect to my server** (broker address
-`wss://…:8884/mqtt`, username and password from your broker; **Test the connection** tells you right
-away whether it works), **Try the demo**, or **No server, at home only**, which explains the base's
-local page.
+At first launch, the app welcomes you: **Connect to my server**, **Try the demo**, or **No server, at
+home only**, which explains the base's local page.
+
+To connect, two cases:
+
+- **A Terrariums server**: its `https://…` address is enough. Enter your e-mail address, type the
+  six-digit code you receive (valid ten minutes): the account opens, with no password. The app then
+  offers a **passkey**: next time, one gesture is enough (fingerprint, face or phone PIN), no e-mail.
+  **My account** (bottom of the base list) lists the passkeys, exports the account data and deletes
+  the account.
+- **An MQTT broker**: its `wss://…:8884/mqtt` address, the username and password it gave you;
+  **Test the connection** tells you right away whether it works.
 
 The **+** button starts **installing a base**, in three steps:
 

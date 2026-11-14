@@ -754,6 +754,11 @@ main.page > * + * { margin-top: 14px; }
 .verrou label { text-align: left; }
 .verrou input { text-align: center; letter-spacing: 6px; font-size: 20px; }
 .erreur-code { color: var(--danger); min-height: 1.2em; }
+
+/* ---- compte sur un serveur Terrariums ---------------------------------------- */
+.liste-cles { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.liste-cles li { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--carte); border-radius: var(--rayon-petit); padding: 8px 10px; }
+.liste-cles li > span { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
 .erreur-code:empty { display: none; }
 
 /* ---- mise à jour du firmware ---------------------------------------------- */

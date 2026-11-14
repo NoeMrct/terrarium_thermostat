@@ -32,6 +32,7 @@
     "couverture": "cd .. && outils/node_modules/.bin/c8 --reporter=text-summary --reporter=lcov --report-dir=outils/couverture --include=app/app.js --include=app/mqtt.js --check-coverage --lines 70 --functions 60 bash -c \"node outils/test-application.js --broker ws://localhost:9001/mqtt --id terraSIM001 --jeton SIMULATIONTESTJETON00001 && node outils/test-mqtt.js --broker ws://localhost:9001/mqtt --tcp mqtt://localhost:1883\"",
     "hooks": "git -C .. config core.hooksPath .githooks && echo \"Hooks git actives (.githooks/pre-commit)\"",
     "test:serveur": "node test-serveur.js",
+    "test:compte": "node test-compte.js",
     "pdf": "node construire-pdf.js"
   },
   "dependencies": {

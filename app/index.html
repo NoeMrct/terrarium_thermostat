@@ -103,8 +103,9 @@
     <h2 tabindex="-1" data-i18n="connexion-titre">Connexion</h2>
     <p class="aide" data-i18n="connexion-aide">Ces informations viennent de ton fournisseur MQTT. Elles restent sur cet
       appareil et ne sont envoyées à personne d'autre qu'au broker.</p>
-    <label for="b-url" data-i18n="b-url">Adresse du broker (WebSocket sécurisé)</label>
-    <input id="b-url" type="url" inputmode="url" placeholder="wss://xxxx.hivemq.cloud:8884/mqtt" autocomplete="url" spellcheck="false">
+    <label for="b-url" data-i18n="b-url">Adresse du serveur ou du broker</label>
+    <input id="b-url" type="url" inputmode="url" placeholder="https://… ou wss://…/mqtt" autocomplete="url" spellcheck="false" aria-describedby="b-url-aide">
+    <p class="aide" id="b-url-aide" data-i18n="b-url-aide">Serveur Terrariums : son adresse https:// suffit, la connexion se fait ensuite par e-mail. Broker MQTT : wss://…, avec son utilisateur et son mot de passe.</p>
     <label for="b-user" data-i18n="b-user">Utilisateur</label>
     <input id="b-user" autocomplete="username" autocapitalize="off" spellcheck="false">
     <label for="b-pass" data-i18n="b-pass">Mot de passe</label>
@@ -116,6 +117,32 @@
       <button class="btn btn-secondaire" type="button" data-action="testerBroker" data-i18n="tester">Tester la connexion</button>
     </div>
     <button class="btn btn-fantome btn-petit mt" type="button" id="connexion-retour" data-action="accueil" data-etape="bienvenue" data-i18n="retour">Retour</button>
+  </form>
+  <form class="carte" id="form-compte" data-form="compte" novalidate hidden>
+    <h2 tabindex="-1" data-i18n="compte-titre">Se connecter</h2>
+    <p class="aide" id="compte-serveur"></p>
+    <div data-etape-compte="email">
+      <label for="c-email" data-i18n="c-email">Adresse e-mail</label>
+      <input id="c-email" type="email" inputmode="email" autocomplete="username" autocapitalize="off" spellcheck="false">
+      <div class="boutons">
+        <button class="btn" type="submit" data-i18n="recevoir-code">Recevoir un code</button>
+        <button class="btn btn-secondaire" type="button" data-action="cleAcces" id="btn-cle-acces" hidden><svg class="ico" aria-hidden="true"><use href="#i-cadenas"/></svg><span data-i18n="cle-acces">Clé d'accès</span></button>
+      </div>
+    </div>
+    <div data-etape-compte="code" hidden>
+      <p class="aide" id="compte-code-aide"></p>
+      <label for="c-code" data-i18n="c-code">Code reçu par e-mail</label>
+      <input id="c-code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" spellcheck="false">
+      <div class="boutons">
+        <button class="btn" type="submit" data-i18n="valider">Valider</button>
+        <button class="btn btn-secondaire" type="button" data-action="compteRenvoyer" data-i18n="renvoyer-code">Renvoyer un code</button>
+      </div>
+    </div>
+    <p class="erreur-code" id="compte-erreur" role="alert"></p>
+    <div class="boutons">
+      <button class="btn btn-fantome btn-petit" type="button" data-action="compteMotDePasse" data-i18n="identifiant-mdp">Identifiant et mot de passe</button>
+      <button class="btn btn-fantome btn-petit" type="button" data-action="accueil" data-etape="connexion" data-i18n="retour">Retour</button>
+    </div>
   </form>
   <footer class="pied colonne">
     <div class="pied-ligne">
@@ -142,6 +169,7 @@
   <footer class="pied colonne">
     <div class="pied-ligne">
       <span class="discret" id="broker-hote"></span>
+      <button class="btn btn-fantome btn-petit" type="button" data-action="monCompte" id="btn-mon-compte" hidden data-i18n="mon-compte">Mon compte</button>
       <button class="btn btn-fantome btn-petit" type="button" data-action="oublierBroker" data-i18n="changer-broker">Changer de broker</button>
     </div>
     <div class="pied-ligne">

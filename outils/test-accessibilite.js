@@ -45,6 +45,7 @@ const ECRANS = [
   ['verrou', () => { App.instQuitter(); App.montrer('verrou'); }],
   ['broker', () => { localStorage.clear(); App.montrer('broker'); }],
   ['connexion', () => App.accueil('connexion')],
+  ['compte', () => App.ouvrirCompte('https://terrariums.exemple.fr', { serveur: 'terrariums', prefixe: 'terrarium', mqtt: { ws: '/mqtt' }, comptes: { email: true, clesAcces: true } })],
   ['chez-moi', () => App.accueil('chezMoi')]
 ];
 
