@@ -602,6 +602,17 @@ void traiter(String cmd) {
     return;
   }
 
+  if (v == "wifi" && n == 2 && j[1] == "off") {
+    // Fin de ligne à l'atelier : le socle oublie le Wi-Fi du banc et ouvre son
+    // point d'accès de configuration dès le démarrage chez l'acheteur, au lieu
+    // de chercher trois minutes un réseau qu'il ne trouvera jamais.
+    ReglagesReseau &r = Stockage::reseau();
+    r.ssid[0] = '\0';
+    r.motDePasse[0] = '\0';
+    Stockage::sauverReseau();
+    Serial.println(F("WiFi oublie : point d'acces de configuration au prochain demarrage."));
+    return;
+  }
   if (v == "wifi" && n >= 2) {
     // Essai immédiat : on sait tout de suite si les identifiants sont bons, et
     // ils ne sont enregistrés que dans ce cas.
@@ -666,6 +677,14 @@ void traiter(String cmd) {
   if (v == "mqtt" && n >= 2) {
     ReglagesReseau &r = Stockage::reseau();
     snprintf(r.mqttHote, sizeof r.mqttHote, "%s", j[1] == "off" ? "" : j[1].c_str());
+    if (j[1] == "off") {
+      // Les identifiants d'un broker abandonné n'ont plus à rester en mémoire
+      // (un socle rodé sur le broker de l'atelier part sans eux).
+      r.mqttUtilisateur[0] = '\0';
+      r.mqttMotDePasse[0] = '\0';
+      r.mqttPort = 1883;
+      r.mqttTls = false;
+    }
     if (n >= 3) r.mqttPort = (uint16_t)j[2].toInt();
     if (n >= 6) r.mqttTls = (j[5] == "tls" || j[5] == "1");
     if (n >= 5) {
@@ -812,7 +831,7 @@ void aide() {
         "  identifier <z> | stop      lier la sonde que l'on chauffe dans la main\n"
         "  essai <z> | stop           essai de chauffe de mise en service (verdict)\n"
         "  calibrer                   sondes cote a cote : aligner sur la zone 1\n"
-        "  wifi <ssid> [mdp]          essaie le reseau et l'enregistre s'il repond\n"
+        "  wifi <ssid> [mdp] | off    essaie le reseau et l'enregistre s'il repond ; off = l'oublier\n"
         "  wifi2 <ssid> [mdp] | off   reseau de secours, essaye en alternance\n"
         "  motdepasse web <mdp> [user] | motdepasse ota <mdp> | motdepasse ap <mdp>\n"
         "  url alertes <url> | url heartbeat <url>\n"

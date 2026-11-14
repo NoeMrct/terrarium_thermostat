@@ -2,7 +2,7 @@
   "name": "terrarium-outils",
   "version": "3.4.0",
   "private": true,
-  "description": "Socle simulé, tests (protocole et schéma, client MQTT, application dans jsdom et Chromium, interface web, démonstration, accessibilité, QR), lint et types, page compressée, aide, icônes, captures, étiquette QR, signature du firmware, préparation de la publication (minification), régression visuelle, test de charge, couverture, provisionnement.",
+  "description": "Socle simulé, tests (protocole et schéma, client MQTT, application dans jsdom et Chromium, interface web, démonstration, accessibilité, QR, atelier), lint et types, page compressée, aide, icônes, captures, étiquette QR, signature du firmware, préparation de la publication (minification), régression visuelle, test de charge, couverture, provisionnement.",
   "license": "MIT",
   "scripts": {
     "socle": "node socle-simule.js --broker mqtt://localhost:1883 --id terraSIM001",
@@ -17,6 +17,7 @@
     "test:navigateur": "node test-navigateur.js --broker ws://localhost:9001/mqtt --id terraSIM001 --jeton SIMULATIONTESTJETON00001",
     "test:accessibilite": "node test-accessibilite.js",
     "test:qr": "make -C ../sim test-qr && node test-qr.js",
+    "test:atelier": "node test-atelier.js",
     "lighthouse": "cd .. && node outils/preparer-publication.js --sans-firmware && outils/node_modules/.bin/lhci autorun --config=.lighthouserc.json ; git checkout -- app/app.js app/mqtt.js app/sw.js app/textes.en.js app/service.js && rm -f app/*.map app/version.json",
     "page:gz": "node compresser-page.js",
     "icones": "node generer-icones.js",

@@ -343,8 +343,9 @@ Ou le **serveur Terrariums** du dépôt (`serveur/`, un processus Node ou un
 conteneur Docker, derrière un reverse proxy TLS) : il fait broker, applique
 les droits par socle tout seul, garde l'historique application fermée et
 envoie des notifications push sur le téléphone. `serveur/README.md` pour le
-démarrer ; `outils/provisionner.js` crée le compte d'un socle et le configure
-en une commande.
+démarrer ; la page **Atelier** du site (`docs/atelier.md`) crée le compte d'un socle,
+le configure, le rode et imprime son étiquette ; `outils/provisionner.js` fait
+l'essentiel en une commande, sans navigateur.
 
 ## 2. Configurer le socle
 

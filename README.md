@@ -734,7 +734,7 @@ sont dans des zones de mémoire que le téléversement ne touche pas.
 | `autotune 1` | Lancer la calibration automatique |
 | `stop-autotune 1` | L'interrompre |
 | `lier 0 1` | Associer la sonde n°0 à la zone 1 |
-| `wifi SSID motdepasse` | Identifiants réseau — essayés tout de suite, enregistrés si le réseau répond |
+| `wifi SSID motdepasse` | Identifiants réseau — essayés tout de suite, enregistrés si le réseau répond ; `wifi off` les oublie (point d'accès de configuration au démarrage suivant) |
 | `wifi2 SSID [motdepasse]` | Réseau de secours, essayé en alternance (`wifi2 off`) |
 | `maj [version\|url]` | Faire télécharger et installer une release par le socle lui-même |
 | `test usine [oui]` | Auto-test : écran, sondes, mémoire, partitions, Wi-Fi, heure ; `oui` actionne aussi chaque MOSFET une fraction de seconde |
@@ -744,7 +744,7 @@ sont dans des zones de mémoire que le téléversement ne touche pas.
 | `url alertes <url>` | Où envoyer les alertes (POST JSON) |
 | `url heartbeat <url>` | Où envoyer le signe de vie |
 | `url jeton <secret\|off>` | Jeton joint aux alertes (`Authorization: Bearer`) |
-| `mqtt <serveur> [port] [user] [mdp]` | Configurer MQTT (`mqtt off` pour couper) |
+| `mqtt <serveur> [port] [user] [mdp]` | Configurer MQTT (`mqtt off` pour couper, identifiants oubliés) |
 | `reset` | Lever les défauts verrouillés |
 | `off` | Tout couper et verrouiller |
 | `effacer-historique` | Vider les courbes |

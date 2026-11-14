@@ -93,12 +93,31 @@ jour.
   ombre, commandes noires, onglets segmentés, zones en orange et bleu,
   températures en grands chiffres fins à la française (« 30,6° »), bandeau
   « PAGE LOCALE · sans Internet ». Sombre automatique, comme l'application.
+- **Atelier** (`atelier.html`, `docs/atelier.md`) : montage en série dans le
+  navigateur, par lots. Console série (USB) : identité, `test usine`, mot de
+  passe de la page locale tiré dans le navigateur, Wi-Fi du banc, compte
+  d'appareil sur le serveur Terrariums ou broker de l'atelier. Banc (MQTT,
+  commandes signées) : sondes identifiées à la main, essai de chauffe de
+  chaque zone, rodage qui note coupures, défauts et redémarrages et conclut sur
+  la durée de marche du socle. Étiquette : identité relue avant impression,
+  Wi-Fi du banc oublié, historique vidé, QR à lien encodé dans le navigateur
+  (`qr.js`), impression à 62 mm ; à l'expédition, code et mot de passe
+  effacés de l'atelier. Mise de côté avec raison, registre CSV sans secret.
+- Console : `wifi off` oublie le réseau enregistré (point d'accès de
+  configuration au démarrage suivant), pour qu'un socle rodé à l'atelier ne
+  cherche pas le Wi-Fi du banc chez l'acheteur.
+- Tests : `test-atelier` (console et banc simulés, signatures vérifiées, du
+  nouveau socle à l'expédition, échecs compris), l'atelier dans `axe` à chaque
+  étape ; le socle simulé termine désormais identification et essai de chauffe
+  avec les textes du firmware.
 - Tests : bancs `test-liaisons` et `test-soleil`, scénarios 21 à 28 du
   simulateur (sondes inversées, couplage légitime, pic isolé, canicule,
   priorité, essai de chauffe, soleil), fuzzing des liaisons et du soleil, tests
   de la page locale pour chaque nouveauté.
 
 ### Modifié
+- Console : `mqtt off` oublie aussi l'utilisateur, le mot de passe et le
+  chiffrement du broker (ils restaient en mémoire).
 - Application : l'anglais vit dans `textes.en.js`, importé au démarrage
   seulement quand il sert (et gardé hors ligne par l'agent de service). Tout le
   monde télécharge 4 Ko de moins : `app.js` passe de 30,0 à 26,0 Ko compressés.

@@ -47,20 +47,29 @@
 
 <section class="carte">
   <h2>Et ensuite</h2>
-  <p class="aide">Au premier démarrage, le socle ouvre un réseau Wi-Fi <code>terrarium-config</code>
-    (mot de passe affiché sur son écran, propre à chaque socle). Connecte-toi dessus, ouvre <code>http://192.168.4.1</code>,
-    renseigne ton Wi-Fi et, si tu veux le piloter de loin, ton broker MQTT. Le code d'appairage
-    s'affiche ensuite sur l'écran du socle, en toutes lettres et en QR code.</p>
+  <p class="aide">Au premier démarrage, le socle ouvre un réseau Wi-Fi <code>terrarium-config-XXXXXX</code>
+    (mot de passe affiché sur son écran, propre à chaque socle). Connecte-toi dessus : une page s'ouvre
+    d'elle-même (sinon <code>http://192.168.4.1</code>) avec les réseaux que voit le socle ; choisis le tien.
+    L'application guide ces gestes pas à pas. Le code d'appairage s'affiche sur l'écran du socle, en
+    toutes lettres et en QR code.</p>
   <p class="aide">Si la carte n'est pas détectée : maintiens le bouton <b>BOOT</b> de la carte pendant que
     tu cliques sur « Installer », puis relâche-le une fois l'écriture commencée. Sous Windows, un
     pilote CP210x peut être nécessaire — la boîte de dialogue le propose.</p>
   <p class="aide">Pour une installation complète, lis <a href="aide.html">l'aide</a>.</p>
 </section>
 
+<section class="carte">
+  <h2>Monter des socles en série</h2>
+  <p class="aide">L'<a href="atelier.html">atelier</a> suit chaque socle du flashage à l'étiquette :
+    auto-test usine, mot de passe de la page locale, sondes, essai de chauffe, rodage, puis
+    étiquette à lien imprimée et registre par lot.</p>
+</section>
+
 <footer class="pied colonne">
   <div class="pied-ligne liens">
     <a href="index.html">Application</a>
     <a href="aide.html">Aide</a>
+    <a href="atelier.html">Atelier</a>
     <a href="mentions-legales.html">Mentions légales</a>
     <a href="confidentialite.html">Confidentialité</a>
   </div>

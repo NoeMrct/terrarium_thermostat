@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Atelier — socles chauffants</title>
+<meta name="description" content="Montage en série des socles chauffants : flashage, auto-test, sondes, essai de chauffe, rodage et étiquette, depuis le navigateur.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="icone.svg">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d0e10" media="(prefers-color-scheme: dark)">
+<!-- Même politique que l'application : broker en wss:, serveur Terrariums en https: (ws et http
+     en local, pour un banc de développement), aucun style ni script en ligne. Le DOM ne s'écrit
+     qu'élément par élément : aucune politique Trusted Types n'est permise, innerHTML est refusé. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' wss: https: ws://localhost:* ws://127.0.0.1:* http://localhost:* http://127.0.0.1:*; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; base-uri 'self'; form-action 'self'; require-trusted-types-for 'script'; trusted-types 'none'">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="atelier.css">
+<script src="mqtt.js" defer></script>
+<script src="qr.js" defer></script>
+<script src="atelier.js" defer></script>
+</head>
+<body data-vue="atelier">
+
+<header id="entete">
+  <h1>Atelier</h1>
+  <div class="separe">
+    <span id="etat-banc" class="etat" role="status">Banc non relié</span>
+    <button type="button" class="btn btn-secondaire btn-petit" data-action="reglages" aria-controls="reglages" aria-expanded="false">Réglages</button>
+    <a class="btn btn-fantome btn-petit" href="index.html">← Application</a>
+  </div>
+</header>
+
+<main class="atelier">
+
+<p id="sans-serie" class="bandeau-attention" hidden>Ce navigateur ne sait pas parler au port série : l'atelier s'ouvre dans
+  Chrome ou Edge, sur un ordinateur, et en HTTPS (ou sur localhost).</p>
+
+<section id="reglages" class="carte" aria-labelledby="t-reglages" hidden>
+  <h2 id="t-reglages">Réglages de l'atelier</h2>
+  <p class="aide">Gardés dans ce navigateur. Les mots de passe et le jeton d'administration ne le sont que
+    jusqu'à la fermeture de l'onglet : ils sont redemandés à chaque séance.</p>
+  <form id="form-reglages" novalidate>
+    <h3 class="mt">Étiquette</h3>
+    <label for="r-url">Adresse de l'application (lien du QR code)</label>
+    <input id="r-url" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://app.exemple.fr/">
+
+    <h3 class="mt">Wi-Fi du banc</h3>
+    <p class="aide">Le socle le rejoint pour le rodage, puis l'oublie avant l'expédition. La console du socle coupe
+      aux espaces : ni le nom ni le mot de passe ne doivent en contenir.</p>
+    <div class="rangee">
+      <div><label for="r-ssid">Nom du réseau</label>
+        <input id="r-ssid" autocomplete="off" spellcheck="false" placeholder="vide : pas de Wi-Fi au banc"></div>
+      <div><label for="r-wifi-mdp">Mot de passe</label>
+        <input id="r-wifi-mdp" type="password" autocomplete="off"></div>
+    </div>
+
+    <h3 class="mt">Liaison des socles</h3>
+    <div class="segment trois" role="group" aria-label="Liaison des socles">
+      <button type="button" data-liaison="serveur" aria-pressed="false">Serveur Terrariums</button>
+      <button type="button" data-liaison="broker" aria-pressed="false">Broker de l'atelier</button>
+      <button type="button" data-liaison="aucune" aria-pressed="false">Aucune</button>
+    </div>
+
+    <div data-pour="serveur" hidden>
+      <p class="aide">Chaque socle reçoit son compte d'appareil sur le serveur (il le garde chez l'acheteur).
+        L'atelier suit le banc avec l'utilisateur MQTT « admin ». Le serveur doit accepter cette page
+        (variable ORIGINES).</p>
+      <label for="r-serveur">Adresse du serveur</label>
+      <input id="r-serveur" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://terrariums.exemple.fr">
+      <label for="r-admin">Jeton d'administration</label>
+      <input id="r-admin" type="password" autocomplete="off">
+      <div class="rangee">
+        <div><label for="r-s-hote">Hôte MQTT des socles</label>
+          <input id="r-s-hote" autocomplete="off" spellcheck="false" placeholder="celui du serveur"></div>
+        <div><label for="r-s-port">Port</label>
+          <input id="r-s-port" type="number" min="1" max="65535" inputmode="numeric" placeholder="8883"></div>
+        <div><label for="r-s-ws">Broker de cette page (wss)</label>
+          <input id="r-s-ws" type="url" autocomplete="off" spellcheck="false" placeholder="wss://…/mqtt"></div>
+      </div>
+    </div>
+
+    <div data-pour="broker" hidden>
+      <p class="aide">Les socles se rodent sur votre broker ; à l'expédition, l'atelier peut le leur faire oublier.</p>
+      <label for="r-b-ws">Adresse du broker pour cette page (wss)</label>
+      <input id="r-b-ws" type="url" autocomplete="off" spellcheck="false" placeholder="wss://broker.exemple.fr:8884/mqtt">
+      <div class="rangee">
+        <div><label for="r-b-hote">Hôte pour les socles</label>
+          <input id="r-b-hote" autocomplete="off" spellcheck="false" placeholder="broker.exemple.fr"></div>
+        <div><label for="r-b-port">Port</label>
+          <input id="r-b-port" type="number" min="1" max="65535" inputmode="numeric" placeholder="8883"></div>
+        <div><label for="r-b-prefixe">Préfixe des sujets</label>
+          <input id="r-b-prefixe" autocomplete="off" spellcheck="false" placeholder="terrarium"></div>
+      </div>
+      <div class="rangee">
+        <div><label for="r-b-user">Utilisateur</label>
+          <input id="r-b-user" autocomplete="off" spellcheck="false"></div>
+        <div><label for="r-b-mdp">Mot de passe</label>
+          <input id="r-b-mdp" type="password" autocomplete="off"></div>
+      </div>
+      <label class="interrupteur mt" for="r-b-oublier">Faire oublier ce broker aux socles expédiés
+        <input id="r-b-oublier" type="checkbox" checked></label>
+    </div>
+
+    <div data-pour="aucune" hidden>
+      <p class="aide">Sans liaison, les sondes, l'essai de chauffe et le rodage se font sur la page locale du socle
+        (Réglages → Sondes) ; l'atelier note ce que vous validez.</p>
+    </div>
+
+    <h3 class="mt">Rodage</h3>
+    <div class="rangee">
+      <div><label for="r-rodage">Durée (heures)</label>
+        <input id="r-rodage" type="number" min="1" max="168" step="1" inputmode="numeric" placeholder="24"></div>
+    </div>
+
+    <p id="reglages-erreur" class="erreur-code" role="alert" hidden></p>
+    <div class="boutons">
+      <button class="btn" type="submit">Enregistrer</button>
+      <button class="btn btn-secondaire" type="button" data-action="fermer-reglages">Fermer</button>
+    </div>
+  </form>
+</section>
+
+<div class="atelier-grille">
+  <section class="carte" aria-labelledby="t-socles">
+    <div class="carte-tete">
+      <h2 id="t-socles">Socles</h2>
+      <button type="button" class="btn btn-petit" data-action="nouveau">Nouveau socle</button>
+    </div>
+    <div class="lot-tete mt">
+      <label for="lot-courant">Lot en cours</label>
+      <button type="button" class="btn btn-fantome btn-petit" data-action="nouveau-lot">Nouveau lot</button>
+    </div>
+    <select id="lot-courant"></select>
+    <div class="filtres mt" role="group" aria-label="Afficher">
+      <button type="button" data-filtre="actifs" aria-pressed="true">En cours</button>
+      <button type="button" data-filtre="prets" aria-pressed="false">Prêts</button>
+      <button type="button" data-filtre="expedies" aria-pressed="false">Expédiés</button>
+      <button type="button" data-filtre="cote" aria-pressed="false">De côté</button>
+      <button type="button" data-filtre="tous" aria-pressed="false">Tous</button>
+    </div>
+    <ul id="liste-socles" class="liste-socles-atelier" aria-label="Socles du lot"></ul>
+    <p id="liste-vide" class="aide">Aucun socle ici. « Nouveau socle » commence par la console série.</p>
+    <div class="boutons">
+      <button type="button" class="btn btn-secondaire btn-petit" data-action="exporter">Registre (CSV)</button>
+    </div>
+  </section>
+
+  <section id="fiche" class="carte" aria-labelledby="fiche-titre" tabindex="-1">
+    <h2 id="fiche-titre">Monter un socle</h2>
+    <ol class="etapes">
+      <li><b>Console</b> (USB, 12 V débranché) : identité, auto-test usine, mot de passe de la page locale,
+        Wi-Fi du banc et liaison.</li>
+      <li><b>Sondes</b> (12 V, sur le banc) : chaque sonde serrée dans la main est liée à sa zone.</li>
+      <li><b>Chauffe</b> : essai de chaque tapis, verdict du socle.</li>
+      <li><b>Rodage</b> : le socle tourne seul, l'atelier note redémarrages et défauts.</li>
+      <li><b>Étiquette</b> (USB de nouveau) : le socle oublie le Wi-Fi du banc, l'étiquette s'imprime.</li>
+    </ol>
+    <p class="aide">Règle d'or : USB et 12 V ne sont jamais branchés en même temps.</p>
+  </section>
+</div>
+
+<section id="banc" class="carte" aria-labelledby="t-banc" hidden>
+  <h2 id="t-banc">Sur le banc</h2>
+  <div id="banc-grille" class="banc-grille"></div>
+</section>
+
+<section id="console" class="carte" aria-labelledby="t-console">
+  <div class="carte-tete">
+    <h2 id="t-console">Console série</h2>
+    <div class="separe">
+      <span id="etat-console" class="etat">Fermée</span>
+      <button type="button" class="btn btn-secondaire btn-petit" data-action="console-libre">Connecter</button>
+    </div>
+  </div>
+  <p class="aide">Les étapes 1 et 5 s'en servent seules ; « Connecter » l'ouvre pour taper des commandes (dépannage).</p>
+  <pre id="console-journal" class="console-journal" tabindex="0" role="log" aria-live="off" aria-label="Sortie de la console"></pre>
+  <form id="form-console" class="console-saisie">
+    <label for="console-ligne" class="sr-only">Commande</label>
+    <input id="console-ligne" autocomplete="off" spellcheck="false" placeholder="help, status, sante…" disabled>
+    <button class="btn btn-secondaire btn-petit" type="submit" disabled>Envoyer</button>
+  </form>
+</section>
+
+<footer class="pied colonne">
+  <div class="pied-ligne liens">
+    <a href="installer.html">Flasher un socle</a>
+    <a href="aide.html">Aide</a>
+    <a href="index.html">Application</a>
+  </div>
+</footer>
+
+</main>
+
+<div id="etiquette-impression" class="etiquette-impression" aria-hidden="true"></div>
+<div id="message" role="status" aria-live="polite" hidden></div>
+
+</body>
+</html>

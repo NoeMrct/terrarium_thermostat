@@ -80,5 +80,48 @@ try { execFileSync(process.execPath, [path.join(__dirname, 'qr-appairage.js'), '
 catch (err) { refuse = err.status === 2; }
 v('une adresse sans HTTPS est refusée', refuse);
 
+// L'encodeur du navigateur (app/qr.js), qui imprime les étiquettes depuis
+// l'atelier : toutes les tailles de version 1 à 10, version 7 et plus avec
+// leur bloc d'information de version, relues par jsQR.
+console.log('\n== Encodeur du navigateur (app/qr.js), relu par jsQR');
+const QRN = require('../app/qr.js');
+function lireMatrice(q) {
+  const marge = 4, L = (q.taille + 2 * marge) * ECHELLE;
+  const rgba = new Uint8ClampedArray(L * L * 4).fill(255);
+  for (let y = 0; y < q.taille; y++)
+    for (let x = 0; x < q.taille; x++)
+      if (q.sombre(x, y))
+        for (let dy = 0; dy < ECHELLE; dy++)
+          for (let dx = 0; dx < ECHELLE; dx++) {
+            const i = (((y + marge) * ECHELLE + dy) * L + (x + marge) * ECHELLE + dx) * 4;
+            rgba[i] = rgba[i + 1] = rgba[i + 2] = 0;
+          }
+  const r = jsQR(rgba, L, L);
+  return r ? r.data : null;
+}
+[
+  'terrarium:terraA1B2C3:K7M2QX9PL4ZB8CN3VD6HT5WR',
+  'https://app.exemple.fr/#a/terraA1B2C3/K7M2QX9PL4ZB8CN3VD6HT5WR',
+  'https://terrariums.une-adresse-plutot-longue.exemple.fr/application/#a/terraA1B2C3/K7M2QX9PL4ZB8CN3VD6HT5WR',
+  'Socle chauffant — étiquette d\'essai, accents et symboles : é è ê à ç ° € ✓',
+  'x'.repeat(150),
+  'y'.repeat(210)
+].forEach(t => {
+  const q = QRN.matrice(t);
+  const lu = lireMatrice(q);
+  v(`version ${q.version} (${t.length} car.) : ${t.slice(0, 30)}`, lu === t, lu === t ? '' : `lu : ${String(lu).slice(0, 40)}`);
+});
+// Chaque version, à sa capacité exacte en correction M (mode octet).
+const versions = [14, 26, 42, 62, 84, 106, 122, 152, 180, 213].map((n, i) => {
+  const t = Array.from({ length: n }, (_, k) => 'abcdefghij0123456789'[(k * 7 + i) % 20]).join('');
+  const q = QRN.matrice(t);
+  return q.version === i + 1 && lireMatrice(q) === t;
+});
+v('les dix versions, chacune pleine, se relisent', versions.every(Boolean), versions.map((ok, i) => (ok ? '' : 'v' + (i + 1))).join(' '));
+let trop = false;
+try { QRN.matrice('z'.repeat(300)); } catch (e) { trop = /trop long/.test(e.message); }
+v('au-delà de la version 10, une erreur claire', trop);
+v('le SVG est un chemin unique, net à l\'impression', /^<svg[^>]+viewBox="0 0 \d+ \d+"[^>]*crispEdges/.test(QRN.svg('abc')) && (QRN.svg('abc').match(/<path/g) || []).length === 1);
+
 console.log(`\n=== ${ko ? 'ECHECS' : 'QR RELU'} (${ok} reussite(s), ${ko} echec(s)) ===`);
 process.exit(ko ? 1 : 0);

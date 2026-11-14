@@ -156,6 +156,10 @@ jobs:
       - name: QR de l'écran d'appairage relu par un décodeur indépendant
         run: make -C sim test-qr && node outils/test-qr.js
 
+      - name: Atelier (console série et banc simulés, de la console à l'étiquette)
+        working-directory: outils
+        run: node test-atelier.js
+
       - name: Lighthouse (performance, accessibilité, bonnes pratiques, SEO), sur la version minifiée
         # preparer-publication.js minifie app.js, mqtt.js et sw.js en place et
         # écrit version.json et les cartes de sources : tout est remis en l'état

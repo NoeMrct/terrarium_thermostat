@@ -45,7 +45,7 @@ const socle = {
     { rom: '28FF0000000000B2', temp: 22.0 }
   ],
   liaisons: ['28FF0000000000A1', '28FF0000000000B2'],
-  identification: null,
+  identification: null, identResultat: '',
   essai: { zone: 0, finMs: 0, resultat: '' },
   reseau: {
     ssid: 'Maison', ssid2: '', urlAlertes: '', urlHeartbeat: '',
@@ -467,7 +467,7 @@ client.on('message', (sujet, charge) => {
           parasite: false,
           liaisons: socle.liaisons.map(r => (r ? { rom: r, presente: socle.sondes.some(x => x.rom === r) } : null)),
           identification: id && restantS ? { zone: id.zone + 1, restantS } : null,
-          resultat: ''
+          resultat: socle.identResultat
         }
       });
     }
@@ -488,14 +488,31 @@ client.on('message', (sujet, charge) => {
         return repondre(d.req, true, { message: `Sonde ${rom} liee a la zone ${z + 1}` });
       }
       if (d.action === 'identifier') {
-        socle.identification = { zone: z, debut: Date.now() };
+        const ident = { zone: z, debut: Date.now() };
+        socle.identification = ident;
+        // Une main serre la sonde de la zone : elle gagne plus d'1 C en quelques
+        // secondes, le socle la lie à la zone (mêmes textes que sondes.cpp).
+        setTimeout(() => {
+          if (socle.identification !== ident) return;
+          const rom = socle.sondes[z % socle.sondes.length].rom;
+          socle.liaisons = socle.liaisons.map(r => (r === rom ? '' : r));
+          socle.liaisons[z] = rom;
+          socle.identResultat = `Zone ${z + 1} : sonde ${rom} identifiee (+1.4 C). Sonde ${rom} liee a la zone ${z + 1}`;
+          socle.identification = null;
+          journal(socle.identResultat);
+        }, 4000);
         return repondre(d.req, true, { message: `Zone ${z + 1} : serrez sa sonde dans la main (ou refroidissez-la) ; chauffe suspendue, 120 s maximum` });
       }
       if (socle.essai.finMs > Date.now()) return repondre(d.req, false, { erreur: `Essai deja en cours (zone ${socle.essai.zone + 1})` });
-      socle.essai = { zone: z, finMs: Date.now() + 60000, resultat: '' };
+      socle.essai = { zone: z, finMs: Date.now() + 600000, resultat: '' };
+      // Verdict au bout de quelques secondes, rédigé comme essai.cpp : l'essai
+      // se termine dès que la sonde de la zone a pris 0,5 C.
       setTimeout(() => {
-        if (socle.essai.zone === z && socle.essai.finMs) socle.essai.resultat = `Zone ${z + 1} : +1.2 C en 60 s, le tapis chauffe`;
-      }, 3000);
+        if (socle.essai.zone !== z || !socle.essai.finMs) return;
+        socle.essai.resultat = `zone ${z + 1} OK : sa sonde a pris +0.6 C en 0 min 05 s, l'autre rien. Tapis, MOSFET et sonde de cette zone sont bien associes.`;
+        socle.essai.finMs = 0;
+        journal('Essai de chauffe : ' + socle.essai.resultat);
+      }, 5000);
       journal(`Essai de chauffe lance sur la zone ${z + 1}`);
       return repondre(d.req, true, { message: `Zone ${z + 1} : chauffe seule a pleine puissance, verdict des que sa sonde gagne 0.5 C (10 min au plus). Ne pas laisser sans surveillance.` });
     }

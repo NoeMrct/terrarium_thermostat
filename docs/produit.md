@@ -34,8 +34,11 @@ Une liste de contrôle, pas un plan : chaque point se coche avant la première v
 ## Fabrication
 
 - PCB au lieu de la breadboard (KiCad), boîtier, borniers à vis, embouts sertis.
-- Processus : `outils/provisionner.js` enchaîne l'auto-test usine
-  (`test usine`), le compte sur le serveur et l'étiquette QR en une commande ;
+- Processus : la page **Atelier** (`docs/atelier.md`) suit chaque socle du
+  flashage à l'étiquette — auto-test usine, mot de passe de la page locale,
+  liaison au serveur ou au broker, sondes identifiées, essai de chauffe,
+  rodage, oubli du Wi-Fi du banc, étiquette à lien — avec un registre par lot
+  (CSV) ; `outils/provisionner.js` en fait l'essentiel en une commande ;
   flashage par la page web ou par USB ; fiche de démarrage rapide imprimée
   (PDF de la release) dans la boîte ; `docs/securisation-serie.md` pour les
   fusibles de l'ESP32 ; `outils/test-materiel.js` sur un exécuteur avec une

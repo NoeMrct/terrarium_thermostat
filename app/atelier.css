@@ -1,0 +1,132 @@
+/* =============================================================================
+   Atelier : montage en série des socles (atelier.html). S'appuie sur les
+   jetons et les composants de style.css ; ici, la mise en page d'un poste de
+   travail sur ordinateur, la console série, le banc et l'étiquette imprimée.
+   ============================================================================= */
+
+main.atelier { max-width: 1240px; }
+main.atelier > * + * { margin-top: 14px; }
+.atelier-grille { display: grid; gap: 14px; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); align-items: start; }
+@media (max-width: 860px) { .atelier-grille { grid-template-columns: minmax(0, 1fr); } }
+
+#reglages { max-width: 760px; }
+#reglages h3 { margin-bottom: 2px; }
+.segment.trois { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 8px; }
+.segment.trois button { min-height: 44px; font-size: 14px; padding: 6px 8px; }
+
+/* ---- liste des socles ------------------------------------------------------ */
+.lot-tete { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.lot-tete label { margin: 0; }
+.lot-tete + select { margin-top: 4px; }
+/* Petit texte vert sur vert pâle : la teinte foncée tient 4,5:1 (axe). */
+.badge.ok { color: var(--ok-texte); }
+.filtres { display: flex; flex-wrap: wrap; gap: 6px; }
+.filtres button {
+  border: 0; border-radius: 999px; background: var(--creux); color: var(--texte-2);
+  font-size: 13px; font-weight: 500; padding: 7px 12px; min-height: 34px; cursor: pointer;
+}
+.filtres button[aria-pressed="true"] { background: var(--accent); color: var(--accent-texte); }
+.filtres button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.liste-socles-atelier { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.liste-socles-atelier:empty { display: none; }
+.liste-socles-atelier button {
+  width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center;
+  text-align: left; border: 0; border-radius: var(--rayon-petit); padding: 10px 12px;
+  background: var(--fond); color: var(--texte); cursor: pointer;
+}
+.liste-socles-atelier button:hover { background: var(--ligne); }
+.liste-socles-atelier button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.liste-socles-atelier button[aria-current="true"] { box-shadow: inset 0 0 0 2px var(--accent); }
+.liste-socles-atelier .id { font-weight: 600; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 14px; }
+.liste-socles-atelier .sous { grid-column: 1 / -1; font-size: 12.5px; color: var(--texte-2); }
+
+/* Les cinq étapes d'un socle, en pastilles. */
+.pastilles-etapes { display: inline-flex; gap: 3px; }
+.pastilles-etapes i { width: 9px; height: 9px; border-radius: 50%; background: var(--ligne-forte); }
+.pastilles-etapes i[data-etat="fait"] { background: var(--ok); }
+.pastilles-etapes i[data-etat="encours"] { background: var(--accent); }
+.pastilles-etapes i[data-etat="echec"] { background: var(--danger); }
+
+/* ---- fiche d'un socle ------------------------------------------------------- */
+#fiche .fiche-tete { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+#fiche .fiche-tete h2 { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 20px; }
+.badge.attention { background: var(--attention-doux); color: var(--attention); }
+.badge.danger { background: var(--danger-doux); color: var(--danger); }
+.pas-atelier { margin-top: 12px; padding: 14px 16px; border-radius: var(--rayon-petit); background: var(--fond); }
+.pas-atelier > h3 { display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--texte); }
+.pas-atelier > h3 .num {
+  display: inline-grid; place-items: center; width: 26px; height: 26px; flex: none;
+  border-radius: 50%; background: var(--creux); color: var(--texte-2); font-size: 13px;
+}
+.pas-atelier[data-etat="fait"] > h3 .num { background: var(--accent-doux); color: var(--ok-texte); }
+.pas-atelier[data-etat="encours"] > h3 .num { background: var(--accent); color: var(--accent-texte); }
+.pas-atelier[data-etat="echec"] > h3 .num { background: var(--danger); color: var(--danger-texte); }
+.pas-atelier[data-etat="avenir"] > h3 { color: var(--texte-2); }
+.pas-atelier .resume { margin-top: 6px; font-size: 13px; color: var(--texte-2); }
+.pas-atelier .pas-corps { margin-top: 10px; }
+.pas-atelier .pas-corps > * + * { margin-top: 10px; }
+
+.coches { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.coches li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; align-items: start; }
+.coches li::before {
+  content: ""; width: 14px; height: 14px; margin-top: 3px; border-radius: 50%;
+  box-shadow: inset 0 0 0 2px var(--ligne-forte);
+}
+.coches li[data-etat="fait"]::before { background: var(--ok); box-shadow: none; }
+.coches li[data-etat="encours"]::before { box-shadow: inset 0 0 0 2px var(--accent); animation: lueur 1.4s ease-in-out infinite; }
+.coches li[data-etat="echec"]::before { background: var(--danger); box-shadow: none; }
+.coches li[data-etat="attention"]::before { background: var(--attention); box-shadow: none; }
+.coches .detail { display: block; color: var(--texte-2); font-size: 12.5px; overflow-wrap: anywhere; }
+
+.verdicts { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; margin: 0; padding: 0; list-style: none; }
+.verdicts li[data-ok="false"] { color: var(--danger); font-weight: 600; }
+
+.mesures { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+.mesures div { background: var(--carte); border-radius: var(--rayon-petit); padding: 8px 10px; }
+.mesures b { display: block; font-size: 22px; font-weight: 300; letter-spacing: -.02em; }
+.mesures span { font-size: 12px; color: var(--texte-2); }
+
+.compte-a-rebours { font-size: 28px; font-weight: 200; letter-spacing: -.02em; }
+.progres-rodage { display: block; width: 100%; height: 8px; accent-color: var(--accent); }
+.incidents { margin: 0; padding-left: 18px; font-size: 13px; }
+.incidents li[data-grave="true"] { color: var(--danger); }
+.mise-de-cote { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+
+/* ---- banc ------------------------------------------------------------------- */
+.banc-grille { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); margin-top: 10px; }
+.banc-carte { background: var(--fond); border-radius: var(--rayon-petit); padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+.banc-carte .id { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 600; }
+.banc-carte .temps { display: flex; gap: 12px; font-size: 18px; font-weight: 300; }
+.banc-carte .temps span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+.banc-carte .temps span:nth-child(1)::before { background: var(--zone-1); }
+.banc-carte .temps span:nth-child(2)::before { background: var(--zone-2); }
+
+/* ---- console ---------------------------------------------------------------- */
+.console-journal {
+  margin: 10px 0 0; height: 220px; overflow: auto; padding: 10px 12px;
+  background: #121315; color: #e8e8e6; border-radius: var(--rayon-petit);
+  font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.console-journal:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.console-journal:empty { display: none; }
+.console-saisie { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-top: 8px; }
+.console-saisie input { min-height: 40px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 14px; }
+
+/* ---- étiquette -------------------------------------------------------------- */
+.etiquette-apercu { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.etiquette-apercu > div { flex: 1 1 280px; }
+.etiquette-apercu svg { width: 200px; height: auto; border-radius: 6px; box-shadow: 0 0 0 1px var(--ligne-forte); background: #fff; }
+.etiquette-impression { display: none; }
+
+@media print {
+  /* Seule l'étiquette s'imprime, à 62 mm de large (rouleau d'étiquettes
+     courant) ; sur une feuille A4, elle se découpe. */
+  body[data-vue="atelier"] > * { display: none !important; }
+  body[data-vue="atelier"] > .etiquette-impression { display: block !important; }
+  .etiquette-impression svg { width: 62mm; height: auto; }
+  @page { size: auto; margin: 6mm; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coches li[data-etat="encours"]::before { animation: none; }
+}

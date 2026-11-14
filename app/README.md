@@ -115,6 +115,15 @@ cd app && python3 -m http.server 8080
 Puis `http://localhost:8080`. L'agent de service ne s'installera pas en HTTP,
 mais tout le reste fonctionne.
 
+### L'atelier
+
+`atelier.html` (avec `atelier.js`, `atelier.css` et l'encodeur `qr.js`) est
+publiée avec l'application, sans lien depuis elle : c'est l'outil du monteur,
+pas de l'acheteur (la page « Flasher un socle » y mène, et elle n'est pas
+indexée). Montage en série, rodage et étiquettes : `docs/atelier.md`. Elle
+demande Chrome ou Edge sur ordinateur (port série du navigateur), en HTTPS ou
+sur `localhost`.
+
 ---
 
 ## 4. Première utilisation
