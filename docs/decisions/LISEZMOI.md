@@ -17,3 +17,4 @@ page qui remplace l'ancienne.
 | [0008](0008-mise-a-jour-tiree.md) | Mise à jour tirée par le socle depuis les releases GitHub |
 | [0009](0009-serveur-optionnel.md) | Un serveur auto-hébergé en option, jamais obligatoire |
 | [0010](0010-repartitionnement.md) | Repartitionnement : 1,69 Mo par image, 512 Ko de fichiers (remplace 0005) |
+| [0011](0011-mises-a-jour-automatiques.md) | Mises à jour automatiques signées, la nuit, en déploiement progressif (remplace en partie 0008) |

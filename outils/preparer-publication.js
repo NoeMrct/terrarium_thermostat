@@ -130,6 +130,18 @@ async function minifier() {
   // mise à jour tirée (action « maj ») quand elle est plus récente.
   if (/^\d+\.\d+\.\d+$/.test(versionFw)) {
     version.firmware = { version: versionFw, date: String(release.published_at || '').slice(0, 10) };
+    // Le résumé et le drapeau « sécurité » du manifeste des mises à jour
+    // automatiques : l'application les montre à côté du bouton « Mettre à jour ».
+    const pieceManifeste = (release.assets || []).find(a => a.name === 'terrarium-version.json');
+    if (pieceManifeste) {
+      try {
+        const m = JSON.parse((await telecharger(pieceManifeste.browser_download_url)).toString('utf8'));
+        if (m.version === versionFw) {
+          if (typeof m.notes === 'string' && m.notes) version.firmware.notes = m.notes.slice(0, 200);
+          if (m.securite === true) version.firmware.securite = true;
+        }
+      } catch (e) { console.log(`version.json : manifeste illisible (${e.message}), sans résumé`); }
+    }
     ecrireVersion();
     console.log(`version.json : firmware publié ${versionFw}`);
   }

@@ -1,7 +1,10 @@
 # Publication d'une version : à chaque étiquette « vX.Y.Z », le firmware est
 # compilé, signé si la clé est configurée, et attaché à une release GitHub avec
-# la section correspondante du CHANGELOG. Le site Netlify, au déploiement
-# suivant, récupère ces binaires pour la page « Flasher un socle ».
+# la section correspondante du CHANGELOG et le manifeste des mises à jour
+# automatiques (terrarium-version.json, lu chaque jour par les socles). Le site
+# Netlify, au déploiement suivant, récupère ces binaires pour la page
+# « Flasher un socle ». Le déploiement progressif se pilote ensuite avec le
+# workflow « Déploiement du firmware » (pause, reprise, tous).
 #
 #   git tag v3.3.0 && git push --tags
 #
@@ -42,6 +45,23 @@ jobs:
           grep -q "#define FW_VERSION \"$TAG\"" config.h || { echo "::error::config.h n'est pas en $TAG"; exit 1; }
           grep -q "^## \[$TAG\]" CHANGELOG.md || { echo "::error::CHANGELOG.md n'a pas de section [$TAG]"; exit 1; }
 
+      # Signature (S5) : une clé publique compilée exige des images signées. Sans
+      # le secret, la release ne servirait à aucun socle flashé avec cette clé :
+      # on s'arrête. Sans clé compilée, on publie, mais on le dit.
+      - name: Clé de signature cohérente avec config.h
+        run: |
+          set +e
+          node outils/signer-firmware.js --etat --config config.h
+          ETAT=$?
+          set -e
+          if [ "$ETAT" = 0 ] && [ -z "$CLE_SIGNATURE" ]; then
+            echo "::error::config.h exige des images signées mais le secret CLE_SIGNATURE_FIRMWARE est absent"; exit 1
+          elif [ "$ETAT" = 3 ]; then
+            echo "::warning::Aucune clé compilée (OTA_CLE_PUBLIQUE vide) : images non signées acceptées par les socles, pas d'installation automatique (S5, docs/publication.md)"
+          elif [ "$ETAT" != 0 ]; then
+            exit "$ETAT"
+          fi
+
       - uses: arduino/setup-arduino-cli@v2
         with: { version: '1.3.1' }
 
@@ -74,15 +94,29 @@ jobs:
           cp "$(arduino-cli config get directories.data)"/packages/esp32/hardware/esp32/*/tools/partitions/boot_app0.bin "sortie/terrarium-$TAG-boot_app0.bin"
           (cd sortie && sha256sum * > "terrarium-$TAG-SHA256SUMS.txt")
 
-      - name: Signer l'image pour /api/maj (si la clé est configurée)
+      - name: Signer l'image (si la clé est configurée), vérifier contre config.h
         if: ${{ env.CLE_SIGNATURE != '' }}
         run: |
           TAG="${GITHUB_REF_NAME#v}"
-          printf '%s' "$CLE_SIGNATURE" > cle-privee.pem
-          node outils/signer-firmware.js --cle cle-privee.pem \
+          umask 077
+          printf '%s' "$CLE_SIGNATURE" > "$RUNNER_TEMP/cle-privee.pem"
+          node outils/signer-firmware.js --cle "$RUNNER_TEMP/cle-privee.pem" \
             --entree "sortie/terrarium-$TAG-firmware.bin" --sortie "sortie/terrarium-$TAG-firmware.signe.bin"
-          rm -f cle-privee.pem
+          rm -f "$RUNNER_TEMP/cle-privee.pem"
+          # Une clé privée qui ne correspond pas à la clé publique compilée
+          # donnerait des images que tous les socles refusent : on le voit ici.
+          if node outils/signer-firmware.js --etat --config config.h > /dev/null; then
+            node outils/signer-firmware.js --verifier --config config.h --entree "sortie/terrarium-$TAG-firmware.signe.bin"
+          fi
           (cd sortie && sha256sum "terrarium-$TAG-firmware.signe.bin" >> "terrarium-$TAG-SHA256SUMS.txt")
+
+      - name: Manifeste des mises à jour automatiques (terrarium-version.json)
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          SIGNEE=""
+          [ -f "sortie/terrarium-$TAG-firmware.signe.bin" ] && SIGNEE="--signee sortie/terrarium-$TAG-firmware.signe.bin"
+          node outils/manifeste-version.js --version "$TAG" --changelog CHANGELOG.md \
+            --firmware "sortie/terrarium-$TAG-firmware.bin" $SIGNEE --sortie sortie/terrarium-version.json
 
       - name: Documentation imprimable (fiche de démarrage rapide, manuels) en PDF
         run: |
@@ -106,7 +140,7 @@ jobs:
           TAG="${GITHUB_REF_NAME#v}"
           awk -v v="$TAG" '/^## \[/{p = index($0, "[" v "]") > 0; next} p' CHANGELOG.md > notes.md
           echo "" >> notes.md
-          echo "Installation sans IDE : page « Flasher un socle » du site. Mise à jour d'un socle en service : depuis l'application (bouton « Mettre à jour » du socle, qui télécharge \`terrarium-$TAG-firmware.bin\` ici même), ou onglet Réseau de son interface locale avec ce fichier (ou \`.signe.bin\` si le socle exige des images signées). Compilation reproductible : \`SOURCE_DATE_EPOCH\` = date du commit, voir docs/publication.md ; provenance vérifiable avec \`gh attestation verify\`." >> notes.md
+          echo "Installation sans IDE : page « Flasher un socle » du site. Mise à jour d'un socle en service : seul, la nuit, s'il exige des images signées (mises à jour automatiques, déploiement progressif décrit par \`terrarium-version.json\`) ; depuis l'application (bouton « Mettre à jour » du socle, qui télécharge l'image ici même) ; ou onglet Réseau de son interface locale avec \`terrarium-$TAG-firmware.bin\` (\`.signe.bin\` si le socle exige des images signées). Compilation reproductible : \`SOURCE_DATE_EPOCH\` = date du commit, voir docs/publication.md ; provenance vérifiable avec \`gh attestation verify\`." >> notes.md
 
       - name: Release GitHub
         uses: softprops/action-gh-release@v2

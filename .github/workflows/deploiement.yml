@@ -1,0 +1,68 @@
+# Déploiement progressif du firmware (V9) : pilote le manifeste
+# terrarium-version.json d'une release, que les socles lisent chaque jour avant
+# de s'installer seuls une nouvelle version la nuit (mises à jour automatiques).
+#
+#   pause     plus aucune installation automatique de cette version (une
+#             version qui pose problème) ; l'installation à la main reste possible
+#   reprendre la montée en charge reprend où elle en était
+#   tous      ouverte à tous les socles dès maintenant
+#   etaler    la montée en charge repart de zéro, sur « jours » jours
+#
+# Lancement : onglet Actions → « Déploiement du firmware » → Run workflow.
+# Le manifeste est remplacé dans la release (gh release upload --clobber) ; il
+# n'entre pas dans terrarium-X.Y.Z-SHA256SUMS.txt, puisqu'il change. Les images,
+# elles, ne changent jamais et restent signées.
+name: Déploiement du firmware
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'pause, reprendre, tous ou etaler'
+        required: true
+        type: choice
+        options: [pause, reprendre, tous, etaler]
+      version:
+        description: 'Version X.Y.Z (vide : la dernière release)'
+        required: false
+        default: ''
+      jours:
+        description: 'Pour « etaler » : durée de la montée en charge, en jours (0 à 60)'
+        required: false
+        default: '7'
+
+permissions:
+  contents: write
+
+jobs:
+  manifeste:
+    name: Modifier terrarium-version.json
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+
+      # Les saisies passent par l'environnement, jamais dans le script lui-même.
+      - name: Télécharger, modifier, republier le manifeste
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTION: ${{ inputs.action }}
+          VERSION: ${{ inputs.version }}
+          JOURS: ${{ inputs.jours }}
+        run: |
+          if [ -n "$VERSION" ]; then
+            printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "::error::version X.Y.Z attendue"; exit 1; }
+            TAG="v$VERSION"
+          else
+            TAG=$(gh release view --json tagName -q .tagName)
+          fi
+          mkdir -p manifeste
+          gh release download "$TAG" -p terrarium-version.json -D manifeste
+          node outils/manifeste-version.js --modifier manifeste/terrarium-version.json --action "$ACTION" --jours "$JOURS"
+          gh release upload "$TAG" manifeste/terrarium-version.json --clobber
+          echo "### $TAG : $ACTION" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat manifeste/terrarium-version.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
