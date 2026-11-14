@@ -47,10 +47,10 @@ const attendre = ms => new Promise(r => setTimeout(r, ms));
   v('la liste s\'affiche directement', $('#vue-liste').style.display !== 'none');
   v('les deux socles sont listés', socles().includes('salon') && socles().includes('bureau'));
   v('connexion établie', $('#lien').textContent === 'connecté', $('#lien').textContent);
-  v('présence détectée', socles().includes('en ligne'));
+  v('présence détectée', socles().includes('tout va bien'));
 
   console.log('\n== Données');
-  const temps = socles().match(/(\d+\.\d)<small>/g) || [];
+  const temps = socles().match(/(\d+,\d)°/g) || [];
   v('les températures s\'affichent', temps.length >= 3, temps.join(' '));
   v('les noms de zones apparaissent', socles().includes('Point chaud'));
   // Piège classique : le socle publie « defaut: "0" » pour Home Assistant, et
@@ -61,16 +61,20 @@ const attendre = ms => new Promise(r => setTimeout(r, ms));
   v('le défaut simulé porte son vrai libellé', socles().includes('SONDE'));
   v('un conseil accompagne le défaut', socles().includes('class="conseil"') && socles().includes('4,7 kΩ'));
 
-  const t1 = (socles().match(/(\d+\.\d)<small>/) || [])[1];
+  const t1 = (socles().match(/(\d+,\d)°/) || [])[1];
   await attendre(5000);
-  const t2 = (socles().match(/(\d+\.\d)<small>/) || [])[1];
+  const t2 = (socles().match(/(\d+,\d)°/) || [])[1];
   v('les températures évoluent dans le temps', t1 !== t2, `${t1} → ${t2}`);
 
   console.log('\n== Interaction');
   const App = w.eval('App');
   App.ouvrir('terraDEMO001');
   await attendre(700);
-  v('la vue détaillée se remplit', $('#detail').innerHTML.includes('Point chaud'));
+  v('l\'accueil du socle se remplit', $('#detail').innerHTML.includes('Point chaud') && !!$('#detail .ill'));
+  v('huit rubriques sous les commandes rapides', $('#detail').querySelectorAll('.rubrique').length === 8 && $('#detail').querySelectorAll('.rond-lib').length === 4);
+  App.zone(0);
+  await attendre(500);
+  v('l\'écran de la zone affiche la cible en grand', /32,0/.test(($('#detail [data-r="zcible"]') || {}).textContent || ''));
   v('les champs de réglage sont présents', !!$('#j0'));
 
   $('#j0').value = '33.5';
@@ -83,14 +87,25 @@ const attendre = ms => new Promise(r => setTimeout(r, ms));
   await attendre(900);
   v('réglage dangereux refusé', $('#message').textContent.includes('10-45'), $('#message').textContent);
 
+  $('#j0').value = '';              // le 99 refusé plus haut ne compte plus
+  $('[data-action="cible"][data-pas="0.5"]').click();
+  $('[data-action="cible"][data-pas="0.5"]').click();
+  await attendre(400);
+  v('les chevrons montent la cible par 0,5 °C', /34,5/.test($('#detail [data-r="zcible"]').textContent), $('#detail [data-r="zcible"]').textContent);
+  await attendre(1800);
+  v('…et l\'envoient une seconde après le dernier appui', $('#message').textContent.includes('enregistr'), $('#message').textContent);
+
+  App.panneau('etat');
   await App.action('entretien', { minutes: 5 });
-  await attendre(900);
-  v('entretien visible', $('#detail').innerHTML.includes('entretien'));
+  await attendre(1600);
+  v('entretien visible sur l\'accueil', $('#detail').innerHTML.includes('entretien : 5 min'));
 
   console.log('\n== Panneaux');
   App.panneau('reglages');
   await attendre(500);
-  v('les réglages complets d\'une zone sont là', !!$('#H0') && !!$('#m0'));
+  v('les températures de chaque zone sont là', !!$('#j0') && !!$('#n1') && !!$('#N0'));
+  App.panneau('programme');
+  await attendre(500);
   v('l\'horaire est présenté en HH:MM', $('#H0') && /^\d{2}:\d{2}$/.test($('#H0').value),
     $('#H0') && $('#H0').value);
 
@@ -100,15 +115,17 @@ const attendre = ms => new Promise(r => setTimeout(r, ms));
   v('le socle a renvoyé des points', /point\(s\)/.test($('#legendeCourbe').textContent),
     $('#legendeCourbe').textContent.slice(0, 40));
 
-  App.panneau('general');
+  App.panneau('securite');
   await attendre(1200);
-  v('les réglages généraux arrivent', !!$('#gA'), $('#gA') && $('#gA').value);
-  v('les statistiques 24 h arrivent', $('#detail').innerHTML.includes('kWh'));
+  v('coupure et alimentation dans Sécurité', !!$('#m0') && !!$('#gA'), $('#gA') && $('#gA').value);
   $('#gA').value = '5';
   await App.reglerGeneraux();
   await attendre(600);
   v('5 A débloquent deux zones', $('#message').textContent.includes('2 zone'),
     $('#message').textContent);
+  App.panneau('general');
+  await attendre(1200);
+  v('les statistiques 24 h arrivent', $('#detail').innerHTML.includes('kWh'));
 
   console.log('\n== Service (protocole 4)');
   App.ouvrir('terraDEMO001');

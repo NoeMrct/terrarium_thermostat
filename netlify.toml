@@ -40,12 +40,12 @@
     # site en HTTPS ; l'en-tête empêche un premier accès en clair.
     Strict-Transport-Security = "max-age=31536000; includeSubDomains"
 
-# La démonstration embarque ses scripts et son style dans la page : elle a
+# La démonstration embarque ses scripts, son style et sa police dans la page : elle a
 # besoin d'une politique plus souple, et n'a aucun broker à joindre.
 [[headers]]
   for = "/demo.html"
   [headers.values]
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 
 # La page de flashage embarque ESP Web Tools, qui injecte ses propres styles,
 # et parle au port série : style en ligne autorisé, port série autorisé.
@@ -60,6 +60,12 @@
   for = "/version.json"
   [headers.values]
     Cache-Control = "no-cache"
+
+# La police (Inter, OFL) ne change qu'avec un nouveau nom de fichier : cache d'une semaine.
+[[headers]]
+  for = "/polices/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
 
 # Les icônes ne changent qu'avec un nouveau nom de fichier : cache d'une semaine.
 [[headers]]

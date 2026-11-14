@@ -9,8 +9,8 @@
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#f3f5f7",
-  "theme_color": "#f3f5f7",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "categories": ["utilities", "lifestyle"],
   "icons": [
     { "src": "icone.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },

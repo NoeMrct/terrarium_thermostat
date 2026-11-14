@@ -18,7 +18,7 @@ rien. Pas de QoS 2 en émission, pas de sessions persistantes, pas de MQTT 5.
 
 ## Conséquences
 
-- L'application entière pèse moins qu'une photo ; le budget de poids le garantit.
+- L'application entière pèse moins qu'une photo ; `outils/budget.js` en affiche le poids, Lighthouse surveille le chargement.
 - Le client est testé face à un vrai broker (16 vérifications : encodage,
   longueurs multi-octets, keepalive, reconnexion, refus, QoS 1 rejoué).
 - Toute fonctionnalité MQTT nouvelle s'écrit ici, pas dans une bibliothèque.

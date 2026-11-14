@@ -133,11 +133,11 @@ function creerApp(adressePage) {
   App.ajouterSocle();
   const affiche = await jusqua(() => $('#socles').innerHTML.includes('Terrarium de test'));
   verifier('le socle apparaît dans la liste', affiche);
-  const enLigne = await jusqua(() => $('#socles').innerHTML.includes('en ligne'));
+  const enLigne = await jusqua(() => $('#socles').innerHTML.includes('tout va bien'));
   verifier('sa présence est détectée', enLigne);
-  const temperatures = await jusqua(() => /\d+\.\d<small> °C<\/small>/.test($('#socles').innerHTML));
+  const temperatures = await jusqua(() => ($('#socles').innerHTML.match(/\d+,\d°/g) || []).length >= 2);
   verifier('les températures des deux zones s\'affichent', temperatures,
-           ($('#socles').innerHTML.match(/\d+\.\d<small>/g) || []).join(' '));
+           ($('#socles').innerHTML.match(/\d+,\d°/g) || []).join(' '));
 
   titre('5. Rejet des saisies incorrectes');
   $('#a-id').value = 'terraAUTRE';
@@ -155,7 +155,8 @@ function creerApp(adressePage) {
   App.ouvrir(ID);
   const detail = await jusqua(() => $('#detail').innerHTML.includes('Terrarium de test'));
   verifier('le détail du socle s\'affiche', detail);
-  verifier('les champs de réglage sont présents', !!$('#j0') && !!$('#n0'));
+  App.zone(0);
+  verifier('l\'écran de la zone a ses champs de réglage', await jusqua(() => !!$('#j0') && !!$('#n0'), 4000));
 
   // Jour ET nuit a la meme valeur : la consigne affichee par le socle est celle
   // du moment, et ce test tournait donc a l'echec une fois passe 20 h.
@@ -165,8 +166,11 @@ function creerApp(adressePage) {
   await attendre(300);
   verifier('réglage accepté par le socle',
            texte('#message').includes('enregistrés'), texte('#message'));
-  const applique = await jusqua(() => $('#detail').innerHTML.includes('cible 33.5'));
+  App.panneau('etat');
+  const applique = await jusqua(() => $('#detail').innerHTML.includes('Cible 33,5°'));
   verifier('la nouvelle consigne revient du socle', applique);
+  App.zone(0);
+  await attendre(200);
 
   titre('7. Un refus du socle est montré à l\'utilisateur');
   $('#j0').value = '99';
@@ -178,8 +182,9 @@ function creerApp(adressePage) {
            $('#message').className.includes('erreur'));
 
   titre('8. Entretien');
+  App.panneau('etat');
   await App.action('entretien', { minutes: 5 });
-  const enEntretien = await jusqua(() => $('#detail').innerHTML.includes('entretien'));
+  const enEntretien = await jusqua(() => $('#detail').innerHTML.includes('entretien : 5 min'));
   verifier('l\'entretien en cours est visible', enEntretien);
   await App.action('entretien', { minutes: 0 });
   await attendre(1200);
@@ -208,18 +213,23 @@ function creerApp(adressePage) {
   // fantôme, qui par définition n'a jamais envoyé le moindre réglage.
   App.ouvrir(ID);
   await jusqua(() => $('#detail').innerHTML.includes('Terrarium de test'));
-  App.panneau('reglages');
-  const formComplet = await jusqua(() => !!$('#H0') && !!$('#m0'));
-  verifier('les horaires et le seuil de coupure sont accessibles', formComplet);
+  App.panneau('securite');
+  verifier('le seuil de coupure est dans Sécurité', await jusqua(() => !!$('#m0')));
+  $('#m0').value = '41';
+  await App.reglerZoneComplet(0);
+  await attendre(400);
+  verifier('la coupure est enregistrée', texte('#message').includes('enregistrés'), texte('#message'));
+  App.panneau('programme');
+  const formComplet = await jusqua(() => !!$('#H0') && !!$('#R0'));
+  verifier('les horaires et la rampe sont dans Programmation', formComplet);
   verifier('l\'horaire est présenté en HH:MM', $('#H0') && /^\d{2}:\d{2}$/.test($('#H0').value),
            $('#H0') && $('#H0').value);
   $('#H0').value = '07:30';
-  $('#m0').value = '41';
   await App.reglerZoneComplet(0);
   await attendre(400);
   verifier('l\'enregistrement est accepté', texte('#message').includes('enregistrés'), texte('#message'));
   App.panneau('etat'); await attendre(200);
-  App.panneau('reglages');
+  App.panneau('programme');
   const relu = await jusqua(() => $('#H0') && $('#H0').value === '07:30', 8000);
   verifier('le socle a bien pris le nouvel horaire', relu, $('#H0') && $('#H0').value);
   $('#H0').value = '25:00';
@@ -235,10 +245,12 @@ function creerApp(adressePage) {
   const points = await jusqua(() => /point\(s\)/.test(texte('#legendeCourbe')), 12000);
   verifier('le socle renvoie son historique', points, texte('#legendeCourbe').slice(0, 48));
 
-  titre('12. Panneau appareil : alimentation, saison, statistiques');
+  titre('12. Alimentation (Sécurité), saison et statistiques (Appareil)');
   App.panneau('general');
-  const generalPret = await jusqua(() => !!$('#gA') && texte('#detail').includes('Sur 24 heures'), 12000);
-  verifier('les réglages généraux et les statistiques arrivent', generalPret);
+  const generalPret = await jusqua(() => !!$('#gSD') && texte('#detail').includes('Sur 24 heures'), 12000);
+  verifier('la saison et les statistiques arrivent dans Appareil', generalPret);
+  App.panneau('securite');
+  await jusqua(() => !!$('#gA'), 6000);
   verifier('l\'ampérage est pré-rempli', $('#gA') && parseFloat($('#gA').value) > 0, $('#gA') && $('#gA').value);
   $('#gA').value = '5';
   await App.reglerGeneraux();
@@ -262,7 +274,7 @@ function creerApp(adressePage) {
     const espion = mqtt.connect(BROKER, { clientId: 'test-stats-' + Date.now() });
     await new Promise((ok, ko) => { espion.once('connect', ok); espion.once('error', ko); });
     App.ouvrir(ID);
-    App.panneau('etat');
+    App.zone(0);
     // La réponse à l'« etat » demandé à l'ouverture d'abord : elle remettrait
     // les noms en place et masquerait l'erreur.
     await attendre(1500);
@@ -320,7 +332,7 @@ function creerApp(adressePage) {
   titre('16. Mise à jour du firmware depuis l\'application');
   {
     App.ouvrir(ID);
-    App.panneau('general');
+    App.panneau('maj');
     await attendre(600);
     verifier('sans version publiée connue, la carte le dit', texte('#detail').includes('Mise à jour du firmware') && texte('#detail').includes('publiée'));
     // Une version publiée plus récente que celle du socle : le bouton apparaît.
@@ -359,7 +371,7 @@ function creerApp(adressePage) {
     $('#a-id').value = R; $('#a-jeton').value = 'RETENU000000000000000001'; $('#a-nom').value = 'Socle éteint';
     App.ajouterSocle();
     const carte = () => (w.document.querySelector(`#socles .socle[data-id="${R}"]`) || {}).innerHTML || '';
-    verifier('les dernières valeurs connues sont affichées', await jusqua(() => carte().includes('27.4'), 6000));
+    verifier('les dernières valeurs connues sont affichées', await jusqua(() => carte().includes('27,4°'), 6000));
     await attendre(300);
     verifier('…mais le socle reste hors ligne', carte().includes('hors ligne') && !carte().includes('en ligne'),
              carte().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 50));
@@ -458,28 +470,36 @@ function creerApp(adressePage) {
     App.panneau('etat');
   }
 
-  titre('22. Panneau Appareil : réglages du firmware 3.5 (protocole 4)');
+  titre('22. Réglages du firmware 3.5 (protocole 4), là où on les cherche');
   {
     App.ouvrir(ID);
-    App.panneau('general');
-    verifier('les réglages 3.5 apparaissent quand le socle les rend', await jusqua(() => !!$('#gPK') && !!$('#gSO'), 6000));
-    $('#gPK').value = '0,2516';
-    $('#gEN').value = '2';
-    $('#gZP').value = '1';
-    $('#gRH').value = '21:30';
+    App.panneau('programme');
+    verifier('le soleil est dans Programmation', await jusqua(() => !!$('#gSO') && !!$('#gLat'), 6000));
     $('#gSO').checked = true;
     $('#gLat').value = '';
     $('#gLon').value = '';
     await App.reglerGeneraux();
     verifier('le soleil sans position est refusé par le socle', await jusqua(() => /Position inconnue/.test(texte('#message')), 4000), texte('#message').slice(0, 50));
-    $('#gSO').checked = false;
+    App.panneau('general');
+    verifier('prix, écran, LED et rapport sont dans Appareil', await jusqua(() => !!$('#gPK') && !!$('#gEN') && !!$('#gRH'), 6000));
+    $('#gPK').value = '0,2516';
+    $('#gEN').value = '2';
+    $('#gRH').value = '21:30';
     await App.reglerGeneraux();
     await jusqua(() => /enregistr/i.test(texte('#message')), 4000);
-    App.panneau('etat');          // le formulaire se reconstruit d'après la réponse du socle
+    App.panneau('securite');
+    await jusqua(() => !!$('#gZP'), 6000);
+    verifier('la zone prioritaire est dans Sécurité', !!$('#gZP'));
+    $('#gZP').value = '1';
+    await App.reglerGeneraux();
+    await jusqua(() => /enregistr/i.test(texte('#message')), 4000);
+    App.panneau('etat');          // les feuilles se reconstruisent d'après la réponse du socle
     App.panneau('general');
-    verifier('prix, écran, zone prioritaire et heure du rapport enregistrés',
-             await jusqua(() => !!$('#gPK') && $('#gPK').value === '0.2516' && $('#gEN').value === '2' && $('#gZP').value === '1' && $('#gRH').value === '21:30', 6000),
-             $('#gPK') ? `${$('#gPK').value} ${$('#gEN').value} ${$('#gZP').value} ${$('#gRH').value}` : '');
+    verifier('prix, écran et heure du rapport enregistrés',
+             await jusqua(() => !!$('#gPK') && $('#gPK').value === '0.2516' && $('#gEN').value === '2' && $('#gRH').value === '21:30', 6000),
+             $('#gPK') ? `${$('#gPK').value} ${$('#gEN').value} ${$('#gRH').value}` : '');
+    App.panneau('securite');
+    verifier('zone prioritaire enregistrée', await jusqua(() => !!$('#gZP') && $('#gZP').value === '1', 6000));
     App.panneau('etat');
   }
 

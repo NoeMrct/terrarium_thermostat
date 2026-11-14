@@ -8,13 +8,14 @@
 <meta name="description" content="Pilotage à distance des socles chauffants de terrarium">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icone.svg">
-<meta name="theme-color" content="#f3f5f7" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d0e10" media="(prefers-color-scheme: dark)">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' wss: https: ws://localhost:* ws://127.0.0.1:* http://localhost:* http://127.0.0.1:*; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; worker-src 'self'; manifest-src 'self'; media-src 'self' blob:; base-uri 'self'; form-action 'self'; require-trusted-types-for 'script'; trusted-types terrarium">
 <link rel="apple-touch-icon" href="icones/apple-touch-icon.png">
+<link rel="preload" href="polices/inter-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="style.css">
 <script src="mqtt.js" defer></script>
 <script src="app.js" defer></script>
@@ -40,6 +41,13 @@
   <symbol id="i-cible" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></symbol>
   <symbol id="i-aide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .8-1 1.5M12 17h.01"/></symbol>
   <symbol id="i-outil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5a4 4 0 0 0-5.3 5.3L4 16l-1 3 3-1 5.2-5.2a4 4 0 0 0 5.3-5.3L14 9.5l-2-2 2.5-2z"/></symbol>
+  <symbol id="i-suite" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-horloge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-bouclier" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l7 2.6v5.5c0 4.2-2.9 7.4-7 8.9-4.1-1.5-7-4.7-7-8.9V6.1z"/></symbol>
+  <symbol id="i-reprendre" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.6-5.9L20 8.5M20 4v4.5h-4.5"/></symbol>
+  <symbol id="i-soleil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
+  <symbol id="i-lune" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M20 13.5A8 8 0 1 1 10.5 4a7 7 0 0 0 9.5 9.5z"/></symbol>
+  <symbol id="i-alerte" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l9 16H3zM12 10v4.5M12 17.5v.5"/></symbol>
   <symbol id="i-telecharger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 19h14"/></symbol>
 </svg>
 
@@ -99,8 +107,11 @@
 </section>
 
 <section id="vue-liste" class="vue" aria-label="Mes socles">
+  <div class="titre-page"><h2 data-i18n="mes-socles">Mes socles</h2>
+    <button type="button" class="rond" data-action="ajoutSocle"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg><span class="sr-only" data-i18n="ajouter-titre">Ajouter un socle</span></button></div>
+  <div id="bandeau-liste"></div>
   <div id="socles"></div>
-  <form class="carte" data-form="socle" novalidate>
+  <form class="carte" id="form-socle" data-form="socle" novalidate hidden>
     <h2 data-i18n="ajouter-titre">Ajouter un socle</h2>
     <p class="aide" data-i18n="ajouter-aide">L'identifiant et le code d'appairage s'affichent à l'écran du socle au premier
       démarrage, et se retrouvent avec la commande <code>jeton</code>.</p>

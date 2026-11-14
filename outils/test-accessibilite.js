@@ -27,7 +27,10 @@ const DEMO = 'file://' + path.resolve(__dirname, '..', 'app', 'demo.html');
 const ECRANS = [
   ['liste', () => { localStorage.setItem('terrarium.langue', 'fr'); App.montrer('liste'); }],
   ['etat', () => App.ouvrir('terraDEMO002')],
+  ['zone', () => App.zone(1)],
   ['reglages', () => App.panneau('reglages')],
+  ['programme', () => App.panneau('programme')],
+  ['securite', () => App.panneau('securite')],
   ['courbes', () => App.panneau('courbes')],
   ['appareil', () => App.panneau('general')],
   ['service', () => App.panneau('service')],
@@ -67,7 +70,7 @@ let violationsGraves = 0, total = 0;
     await page.addScriptTag({ content: AXE });
     for (const [ecran, action] of ECRANS) {
       await page.evaluate(action);
-      await page.waitForTimeout(ecran === 'courbes' || ecran === 'appareil' || ecran === 'service' ? 1500 : 500);
+      await page.waitForTimeout(['courbes', 'appareil', 'service', 'programme', 'securite'].includes(ecran) ? 1500 : 500);
       await analyser(page, nom + ' / ' + ecran);
     }
     await ctx.close();

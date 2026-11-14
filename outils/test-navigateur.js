@@ -73,18 +73,25 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   await page.fill('#a-jeton', JETON);
   await page.fill('#a-nom', 'Banc réel');
   await page.click('#vue-liste form[data-form=socle] button[type=submit]');
-  await page.waitForFunction(() => /\d+\.\d<small>/.test(document.querySelector('#socles').innerHTML), null, { timeout: 8000 }).catch(() => {});
-  v('températures affichées', /\d+\.\d<small>/.test(await page.innerHTML('#socles')));
+  await page.waitForFunction(() => /\d+,\d°/.test(document.querySelector('#socles').innerHTML), null, { timeout: 8000 }).catch(() => {});
+  v('températures affichées', /\d+,\d°/.test(await page.innerHTML('#socles')));
+  const police = await page.evaluate(() => document.fonts.check('200 60px Inter'));
+  v('la police Inter est chargée', police);
   await page.click('#socles .socle');
   await page.waitForTimeout(600);
-  v('vue détaillée ouverte', (await page.innerHTML('#detail')).includes('Banc réel'));
-  await page.fill('#j0', '31,5');
-  await page.click('#detail form[data-form=zone][data-z="0"] button[type=submit]');
-  await page.waitForTimeout(900);
-  v('consigne avec virgule acceptée (commande en QoS 1)', (await page.textContent('#message')).includes('enregistrés'), await page.textContent('#message'));
+  v('accueil du socle ouvert', (await page.innerHTML('#detail')).includes('Banc réel') && await page.isVisible('#detail .ill'));
+  await page.click('#detail .zone-accueil[data-z="0"]');
+  await page.waitForTimeout(400);
+  const cibleAvant = await page.textContent('#detail [data-r="zcible"]');
+  await page.click('#detail [data-action="cible"][data-pas="0.5"]');
+  await page.waitForTimeout(1800);
+  v('un chevron envoie la nouvelle cible (commande signée, en QoS 1)', (await page.textContent('#message')).includes('enregistrés'), `${cibleAvant} → ${await page.textContent('#detail [data-r="zcible"]')}`);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  v('Échap revient à l\'accueil, le focus sur la zone', await page.evaluate(() => document.activeElement && document.activeElement.matches('.zone-accueil[data-z="0"]')));
 
   console.log('\n== Panneaux');
-  await page.click('.onglets button[data-nom=courbes]');
+  await page.click('.rubrique[data-nom=courbes]');
   await page.waitForFunction(() => /point\(s\)/.test(document.querySelector('#legendeCourbe').textContent), null, { timeout: 8000 }).catch(() => {});
   v('courbes chargées', /point\(s\)/.test(await page.textContent('#legendeCourbe')));
   const [telechargement] = await Promise.all([
@@ -92,9 +99,10 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
     page.click('[data-action="exporterCsv"]')
   ]);
   v('export CSV téléchargé', !!telechargement && /\.csv$/.test(telechargement.suggestedFilename()), telechargement ? telechargement.suggestedFilename() : 'aucun');
-  await page.click('.onglets button[data-nom=general]');
-  await page.waitForFunction(() => !!document.querySelector('#gA') && document.querySelector('#detail').textContent.includes('Sur 24 heures'), null, { timeout: 8000 }).catch(() => {});
-  v('panneau appareil chargé, santé affichée', !!(await page.$('#gA')) && (await page.innerHTML('#detail')).includes('Santé'));
+  await page.click('[data-action="panneau"][data-nom="etat"]');
+  await page.click('.rubrique[data-nom=general]');
+  await page.waitForFunction(() => !!document.querySelector('#gSD') && document.querySelector('#detail').textContent.includes('Sur 24 heures'), null, { timeout: 8000 }).catch(() => {});
+  v('feuille Appareil chargée, santé affichée', !!(await page.$('#gSD')) && (await page.innerHTML('#detail')).includes('Santé'));
   // Le nom d'hôte (terraSIM001.local) poussait sa tuile hors de l'écran des
   // téléphones étroits : chaque tuile doit tenir dans sa case et la page dans l'écran.
   for (const largeur of [320, 360, 390]) {
@@ -109,16 +117,23 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   }
   await page.setViewportSize({ width: 390, height: 844 });
 
-  console.log('\n== Onglet Service (module importé à la demande)');
-  await page.click('.onglets button[data-nom=service]');
+  console.log('\n== Service (module importé à la demande)');
+  await page.click('[data-action="panneau"][data-nom="etat"]');
+  await page.click('.rubrique[data-nom=service]');
   await page.waitForFunction(() => document.querySelector('#detail').textContent.includes('28FF0000000000A1'), null, { timeout: 8000 }).catch(() => {});
   v('le module Service s\'importe et liste les sondes', (await page.innerHTML('#detail')).includes('28FF0000000000A1'));
-  const barre = await page.evaluate(() => {
-    const b = [...document.querySelectorAll('.onglets button')];
-    return { n: b.length, deborde: b.some(x => x.getBoundingClientRect().right > window.innerWidth + 1 || x.scrollWidth > x.clientWidth + 1) };
-  });
-  v('cinq onglets tiennent dans un écran de téléphone', barre.n === 5 && !barre.deborde, `${barre.n} onglets`);
-  await page.click('.onglets button[data-nom=general]');
+  await page.click('[data-action="panneau"][data-nom="etat"]');
+  for (const largeur of [320, 390]) {
+    await page.setViewportSize({ width: largeur, height: 800 });
+    await page.waitForTimeout(150);
+    const r = await page.evaluate(() => {
+      const el = [...document.querySelectorAll('#detail .rubrique, #detail .rond-lib, #detail .zone-accueil')];
+      return { n: el.length, deborde: el.some(x => x.getBoundingClientRect().right > window.innerWidth + 1) || document.documentElement.scrollWidth > window.innerWidth + 1 };
+    });
+    v(`à ${largeur} px, l'accueil tient dans l'écran`, r.n >= 14 && !r.deborde, `${r.n} éléments`);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.click('.rubrique[data-nom=general]');
   await page.waitForTimeout(300);
 
   console.log('\n== Dialogues');
@@ -129,7 +144,9 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   await page.waitForTimeout(300);
   v('« Annuler » referme le dialogue sans agir', !(await page.isVisible('#dlg-confirm')) && !(await page.textContent('#message')).includes('acceptée'));
   await page.click('[data-action="diagnostic"]').catch(() => {});
-  // Le bouton Diagnostic est au pied de la liste : on y revient.
+  // Le bouton Diagnostic est au pied de la liste : on y revient (d'une
+  // feuille, d'abord l'accueil du socle, puis la liste).
+  await page.click('[data-action="panneau"][data-nom="etat"]');
   await page.click('[data-action="montrer"][data-vue="liste"]');
   await page.click('#vue-liste [data-action="diagnostic"]');
   await page.waitForTimeout(300);
@@ -141,7 +158,7 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   console.log('\n== Retrait annulable');
   await page.click('#socles .socle');
   await page.waitForTimeout(400);
-  await page.click('.onglets button[data-nom=general]');
+  await page.click('.rubrique[data-nom=general]');
   await page.waitForTimeout(400);
   await page.click('[data-action="retirerSocle"]');
   await page.waitForTimeout(300);

@@ -4,7 +4,7 @@
 
 ```
 make -C sim test                 # bancs C++, sans Arduino, en quelques secondes
-cd outils && npm ci && npm test  # démonstration, page embarquée, aide, lint, types, budget
+cd outils && npm ci && npm test  # démonstration, page embarquée, aide, lint, types, poids
 npm run hooks                    # hook de pré-commit : rejoue lint, types et générateurs
 ```
 
@@ -37,8 +37,10 @@ montre l'ordre dans lequel tout s'enchaîne.
   incrémente `PROTO_VERSION` dans `config.h`.
 - **Les textes de l'application passent par `t()`** dans `app/app.js` ; le
   français est la référence, l'anglais vient du même dictionnaire.
-- **Pas de dépendance nouvelle dans l'application** : elle doit rester plus
-  légère qu'une photo (`outils/budget.js` le garantit). Les outils peuvent en avoir.
+- **Pas de dépendance nouvelle dans l'application** sans bonne raison : elle doit
+  s'ouvrir vite sur un téléphone en 4G. Lighthouse le vérifie en CI (performance
+  ≥ 90) ; `outils/budget.js` affiche ce que pèse chaque fichier, pour information.
+  Les outils peuvent avoir des dépendances.
 - Les fichiers C++ nouveaux suivent `.clang-format` ; les anciens gardent leur mise
   en forme (ils passeront au formateur dans un commit dédié, sans autre changement).
 - Chaque changement visible va dans `CHANGELOG.md`, section *Non publié*.

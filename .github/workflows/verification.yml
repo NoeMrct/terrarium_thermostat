@@ -9,7 +9,7 @@
 #   reseau       lint et types de l'application, protocole (schéma compris),
 #                client MQTT, application dans jsdom puis dans un vrai Chromium,
 #                couverture c8, démonstration, page embarquée, accessibilité,
-#                régression visuelle, charge, Lighthouse, budgets
+#                régression visuelle, charge, Lighthouse (et poids, pour information)
 #   navigateurs  l'application dans WebKit et Firefox (Safari iPhone est la cible)
 #   serveur      le serveur auto-hébergeable (comptes, historique, push)
 #   firmware     compilation ESP32 reproductible sans avertissement, taille
@@ -115,7 +115,7 @@ jobs:
         working-directory: outils
         run: node test-mqtt.js --broker ws://localhost:9001/mqtt --tcp mqtt://localhost:1883
 
-      - name: Budget de poids de l'application
+      - name: Poids de l'application (pour information)
         working-directory: outils
         run: node budget.js
 

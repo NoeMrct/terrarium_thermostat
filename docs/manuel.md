@@ -73,7 +73,7 @@ celui des plaques. Pour en être sûr, dans l'interface locale, onglet **Réglag
 3. **Calibrer** (ou `calibrer`) : sondes posées côte à côte quelques minutes, les autres zones
    sont alignées sur la zone 1.
 
-Avec le firmware 3.5, l'application fait tout cela à distance, onglet **Service** : inventaire
+Avec le firmware 3.5, l'application fait tout cela à distance, rubrique **Service** : inventaire
 du bus, liaison à une zone, identification, essai de chauffe et calibration.
 
 **Relire le bus** après avoir branché une sonde ; « vers zone 1 » / « vers zone 2 » lie à la main.
@@ -107,8 +107,11 @@ toute seule à la connexion.
 
 ## 7. Régler
 
-Dans la vue d'un socle, onglet **État** : les consignes de jour et de nuit, directement. Onglet
-**Réglages** : tout le reste.
+L'accueil d'un socle montre ses deux zones en grand, quatre boutons ronds (Entretien, Lever les
+défauts, Alertes, Mises à jour) et ses rubriques. Un appui sur une zone ouvre son écran : la cible
+en grand, réglée par les chevrons ‹ › de 0,5 °C en 0,5 °C, pour le jour ou pour la nuit ; elle part
+au socle une seconde après le dernier appui. Les rubriques **Températures**, **Programmation** et
+**Sécurité** donnent tout le reste.
 
 | Réglage | Ce que c'est | Valeur de départ |
 |---|---|---|
@@ -122,10 +125,12 @@ Dans la vue d'un socle, onglet **État** : les consignes de jour et de nuit, dir
 L'**autotune** règle lui-même la bande et le gain : lance-le une fois le terrarium en place et stable,
 il fait osciller la zone pendant environ une heure, puis enregistre ce qu'il a appris.
 
-Onglet **Appareil** : l'alimentation (ampères disponibles, puissance d'un tapis), le cyclage
-saisonnier, les statistiques, la santé du socle, les sauvegardes de réglages.
+Rubrique **Sécurité** : la coupure max de chaque zone et l'alimentation (ampères disponibles,
+puissance d'un tapis). Rubrique **Appareil** : le cyclage saisonnier, les statistiques, la santé du
+socle, les sauvegardes de réglages.
 
-Avec le firmware 3.5, l'onglet Appareil de l'application règle aussi ce qui suit ; dans
+Avec le firmware 3.5, l'application règle aussi ce qui suit (le soleil dans Programmation, la zone
+prioritaire dans Sécurité, le reste dans Appareil) ; dans
 l'interface locale, c'est **Réglages → Réglages généraux** :
 
 - **Jour et nuit calés sur le soleil** : latitude et longitude (deux décimales suffisent), et un
@@ -174,12 +179,12 @@ disent si un terrarium **tient** ses valeurs, pas seulement s'il les atteint.
 ## 10. Être prévenu
 
 - **Notifications du navigateur** : un défaut ou une dérive affiche une notification tant que
-  l'application est ouverte (même en arrière-plan). Onglet Appareil → Notifications.
+  l'application est ouverte (même en arrière-plan). Rubrique **Alertes**.
 - **Sur le téléphone, application fermée** : le socle appelle lui-même une adresse web à chaque
   alerte. Avec [ntfy](https://ntfy.sh), c'est gratuit et sans compte : crée un sujet, mets son adresse dans
   « URL d'alerte » de l'onglet Réseau, choisis le format « texte », installe ntfy sur le téléphone.
   Détails dans `docs/alertes-telephone.md`. Avec le serveur Terrariums : « Activer les notifications
-  du serveur » dans l'onglet Appareil, et c'est le serveur qui pousse les alertes.
+  du serveur » dans la rubrique Alertes, et c'est le serveur qui pousse les alertes.
 - **Rapport quotidien** (interface locale, Réglages généraux) : à l'heure choisie, un résumé de la
   journée — températures, heures de chauffe, kWh, coût, défauts — envoyé à l'URL d'alerte (en
   priorité basse sur ntfy) et sur le sujet MQTT `rapport`.
@@ -190,33 +195,33 @@ disent si un terrarium **tient** ses valeurs, pas seulement s'il les atteint.
 
 ## 11. Entretenir
 
-- **Entretien** (onglet État → Actions) : coupe le chauffage le temps de nettoyer, puis reprend tout
+- **Entretien** (bouton rond de l'accueil du socle) : coupe le chauffage le temps de nettoyer, puis reprend tout
   seul à l'heure dite.
-- **Sauvegarde des réglages** (onglet Appareil) : un fichier JSON avec consignes, horaires et
+- **Sauvegarde des réglages** (rubrique Appareil) : un fichier JSON avec consignes, horaires et
   réglages de l'appareil, à réimporter sur un socle de rechange.
 - **Sauvegarde de la configuration du socle** (interface locale, onglet Appareil) : zones, réglages,
   sondes liées et alertes dans un fichier, à restaurer sur une carte de remplacement. Le Wi-Fi et
   les mots de passe n'y sont pas ; l'URL d'alerte, si.
 - **Résumés journaliers** (interface locale, onglet Appareil, ou `jours`) : un an de journées —
-  températures, heures de chauffe, kWh et coût. L'onglet **Service** de l'application montre le
+  températures, heures de chauffe, kWh et coût. La rubrique **Service** de l'application montre le
   dernier mois, le journal du socle et le rapport du jour.
-- **Sauvegarde du socle à distance** (onglet Service) : la même sauvegarde, téléchargée ou
+- **Sauvegarde du socle à distance** (rubrique Service) : la même sauvegarde, téléchargée ou
   restaurée depuis l'application, mais sans les adresses d'alerte et de heartbeat, qui ne quittent
   jamais le socle par Internet (restaurée, elle garde celles du socle).
-- **Alertes et surveillance** (onglet Service) : l'adresse des alertes et celle du heartbeat se
+- **Alertes et surveillance** (rubrique Service) : l'adresse des alertes et celle du heartbeat se
   remplacent depuis l'application ; seul leur serveur s'affiche ensuite (`ntfy.sh`), jamais
   l'adresse entière. Le Wi-Fi, lui, ne se règle que sur l'interface locale.
 - **Exporter la configuration** (bas de la liste) : l'application entière — broker et socles — pour
   changer de téléphone. Le fichier contient les codes d'appairage et le mot de passe du broker :
   garde-le pour toi.
-- **Redémarrer**, **Effacer l'historique** : onglet Appareil. L'historique local de l'application est
+- **Redémarrer**, **Effacer l'historique** : rubrique Appareil. L'historique local de l'application est
   effacé en même temps.
 
 ## 12. Mettre à jour
 
 - **L'application** se met à jour seule : un message « Nouvelle version disponible — Recharger »
   apparaît. Rien n'est forcé au milieu d'un réglage.
-- **Le firmware** : dans l'application, onglet Appareil, la carte **Mise à jour du firmware** dit
+- **Le firmware** : dans l'application, rubrique **Mises à jour**, la carte **Mise à jour du firmware** dit
   si une version plus récente est publiée et un bouton la fait **télécharger et installer par le socle
   lui-même** (signature vérifiée si le socle l'exige). Sinon : page Flasher un socle (USB), onglet
   Réseau de l'interface locale (envoi du fichier `.bin`, ou « Mise à jour depuis GitHub »), ou OTA

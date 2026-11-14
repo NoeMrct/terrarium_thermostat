@@ -78,6 +78,25 @@ jour.
   seulement quand il sert (et gardé hors ligne par l'agent de service). Tout le
   monde télécharge 4 Ko de moins : `app.js` passe de 30,0 à 26,0 Ko compressés.
   Le budget de poids sépare désormais le démarrage des modules à la demande.
+- **Application redessinée** (I12, d'après les maquettes) : fond blanc, grands
+  chiffres fins (police Inter, licence OFL, hébergée avec l'application),
+  noir pour les commandes, orange et bleu réservés aux deux zones ; thème
+  sombre automatique conservé. Chaque socle a un **accueil** : le terrarium
+  dessiné de trois quarts, dont les zones s'éclairent quand elles chauffent
+  (et se cerclent de rouge en défaut), une ligne d'état (« Tout va bien · jour
+  jusqu'à 20:00 »), les deux zones en grand, quatre boutons ronds (Entretien,
+  Lever les défauts, Alertes, Mises à jour) et huit **rubriques** qui
+  s'ouvrent en feuilles : Températures, Programmation, Courbes, Alertes,
+  Sécurité, Appareil, Service, Mises à jour. Un appui sur une zone ouvre son
+  **écran façon climatisation** : la cible en grand, réglée par chevrons de
+  0,5 °C et envoyée une seconde après le dernier appui, le choix jour ou nuit,
+  le prochain basculement. La liste montre une vignette du terrarium par
+  socle et un bandeau quand l'un d'eux demande l'attention ; l'ajout d'un
+  socle passe derrière un bouton « + ». Échap referme une feuille, et le
+  focus revient d'où l'on venait. Températures à la française (« 30,6° »).
+- Le budget de poids de l'application ne fait plus échouer la CI :
+  `outils/budget.js` affiche les tailles pour information, et Lighthouse
+  (performance ≥ 90) reste le garde-fou du chargement.
 - **Onglet Service dans l'application** (firmware 3.5) : sondes (inventaire,
   liaison, identification suivie en direct), essai de chauffe et calibration
   avec confirmation, rapport du jour, journal, résumés journaliers en tableau,

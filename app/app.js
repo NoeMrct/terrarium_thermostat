@@ -38,10 +38,12 @@ const App = (() => {
   const DELAI_COMMANDE = 8000;      // au-delà, on considère le socle injoignable
   const SILENCE_MS = 150000;        // en ligne mais muet depuis plus longtemps : « silencieux »
   const DUREES = [6, 24, 168, 720]; // heures proposées pour les courbes
-  const ONGLETS = [
-    ['etat', 'ongletEtat', 'i-etat'], ['reglages', 'ongletReglages', 'i-reglages'],
-    ['courbes', 'ongletCourbes', 'i-courbes'], ['general', 'ongletAppareil', 'i-appareil'],
-    ['service', 'ongletService', 'i-outil']
+  // Rubriques de l'accueil d'un socle : chacune s'ouvre en feuille.
+  const RUBRIQUES = [
+    ['reglages', 'rubTemperatures', 'i-etat'], ['programme', 'rubProgrammation', 'i-horloge'],
+    ['courbes', 'ongletCourbes', 'i-courbes'], ['alertes', 'rubAlertes', 'i-cloche'],
+    ['securite', 'rubSecurite', 'i-bouclier'], ['general', 'ongletAppareil', 'i-appareil'],
+    ['service', 'ongletService', 'i-outil'], ['maj', 'rubMaj', 'i-maj']
   ];
 
   // ------------------------------------------------------------------ textes
@@ -71,6 +73,21 @@ const App = (() => {
       socleNeRepondPas: 'Ce socle ne répond pas. Il continue de réguler tout seul : seule la commande à distance est indisponible.',
       socleSilencieux: 'Ce socle est annoncé en ligne mais n\'a rien publié depuis {m} min. Vérifie son réseau.',
       ongletEtat: 'État', ongletReglages: 'Réglages', ongletCourbes: 'Courbes', ongletAppareil: 'Appareil', ongletService: 'Service',
+      toutVaBien: 'tout va bien', defautDans: 'défaut {d} · {z}', jourJusqua: 'jour jusqu\'à {h}', nuitJusqua: 'nuit jusqu\'à {h}',
+      cibleDeg: 'Cible {v}°', chauffePct: 'Chauffe · {p} %', attendPct: 'Attend son tour · {p} %', auRepos: 'Au repos', autotuneEnCours: 'Autoréglage en cours',
+      chauffeCible: 'Chauffe · cible {v}°', attendCible: 'Attend · cible {v}°', reposCible: 'Au repos · cible {v}°',
+      rubTemperatures: 'Températures', rubProgrammation: 'Programmation', rubAlertes: 'Alertes', rubSecurite: 'Sécurité', rubMaj: 'Mises à jour',
+      sousTemperatures: 'Jour {j} · nuit {n}', sousProgrammation: 'Jour à {j} · nuit à {n}', sousSoleil: 'Au rythme du soleil',
+      sousCourbes: 'Dernières 24 h, 7 et 30 jours', aucuneAlerte: 'Aucune alerte en cours', defautEnCours: 'Un défaut demande ton attention',
+      sousSecurite: 'Coupure à {v}°', sousSecuriteAlim: 'Coupure à {v}° · bloc de {a} A', sousAppareil: 'Wi-Fi {r} dBm, signal {q}',
+      sousService: 'Sondes, essai, journal, sauvegarde', versionX: 'Version {v}', majDispoCourt: 'Version {v} disponible',
+      zones: 'Zones', commandesRapides: 'Commandes rapides', retourAccueil: 'Retour à l\'accueil du socle', entretienCourt: 'Entretien', reprendreCourt: 'Reprendre',
+      attention1: '1 socle demande ton attention', attentionN: '{n} socles demandent ton attention',
+      baisser: 'Baisser la consigne de 0,5 degré', monter: 'Monter la consigne de 0,5 degré', periode: 'Période',
+      cibleJour: 'Cible de jour · pas de 0,5°', cibleNuit: 'Cible de nuit · pas de 0,5°', jourDeg: 'Jour · {v}°', nuitDeg: 'Nuit · {v}°',
+      ensuiteNuit: 'Ensuite : nuit à {h}, rampe de {r} min vers {v}°', ensuiteJour: 'Ensuite : jour à {h}, rampe de {r} min vers {v}°',
+      actuellement: 'Actuellement {t} · {e}', courbe: 'Courbe', avances: 'Réglages avancés',
+      alertesSocleTitre: 'Alertes envoyées par le socle', alertesSocle: 'Le socle prévient aussi tout seul, application fermée (ntfy, webhook, heartbeat) : son adresse se règle dans Service.',
       ecranCout: 'Écran, coût et rapport', prixKwh: 'Prix du kWh (€)', ecranNuit: 'Écran la nuit', ecranAttenue: 'Atténué', ecranNormal: 'Normal', ecranEteint: 'Éteint',
       zonePrioritaire: 'Zone prioritaire', aucune: 'Aucune', aideZonePrio: 'Quand l\'alimentation ne suffit pas pour tout, la zone prioritaire chauffe deux fois plus souvent.',
       ledEteinte: 'LED de la carte éteinte', rapportActif: 'Rapport quotidien avec les alertes', heureRapport: 'Heure du rapport',
@@ -85,7 +102,7 @@ const App = (() => {
       nomZone: 'Nom de la zone', debutJour: 'Début du jour', debutNuit: 'Début de la nuit', rampe: 'Rampe (min)', bande: 'Bande (°C)',
       coupureMax: 'Coupure max (°C)', calibration: 'Calibration (°C)',
       aideCoupure: 'La coupure max est une sécurité absolue : au-dessus, la zone se verrouille en défaut. Elle doit rester au-dessus des deux consignes. Un champ vide reste inchangé.',
-      attenteReglages: 'En attente des réglages du socle…', etatZoneCourt: '{t} °C · cible {c} °C',
+      attenteReglages: 'En attente des réglages du socle…', etatZoneCourt: '{t}° · cible {c}°',
       dureeH: '{h} h', dureeJ: '{j} j', ariaCourbes: 'Courbes de température des deux zones', chargement: 'Chargement…',
       nbPoints: '{n} point(s) · trait plein : température, pointillés : consigne', aucunPoint: 'Aucun point sur cette période.',
       aideHistorique: 'L\'historique reste sur le socle : il n\'est jamais recopié sur le broker. Au-delà de 24 h, les points que cette application a enregistrés en passant complètent les siens.',
@@ -224,7 +241,8 @@ const App = (() => {
   let client = null;
   let vueCourante = 'broker';
   let socleOuvert = null;
-  let panneauActif = 'etat';        // etat | reglages | courbes | general | service
+  let panneauActif = 'etat';        // etat (accueil) ou la feuille ouverte : zone, reglages, programme…
+  let minuteurCible = null;
   const etats = {};                 // id -> { enLigne, zones, uptime, entretienS, sante, … }
   const attentes = {};              // req -> { resoudre, rejeter, minuteur }
   const courbes = {};               // id -> { heures, points, chargement, erreur }
@@ -494,6 +512,7 @@ const App = (() => {
 
     if (sujet.endsWith('/statut')) {
       e.enLigne = (texte === 'en ligne');
+      e.statutRecu = true;
     } else if (sujet.endsWith('/sante')) {
       try { noterSante(e, JSON.parse(texte)); } catch (err) { return; }
     } else if (sujet.endsWith('/maj')) {
@@ -728,7 +747,6 @@ const App = (() => {
   const esc = s => String(s == null ? '' : s)
     .replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', '\'': '&#39;' }[c] || c));
   const attr = v => (v === undefined || v === null) ? '' : esc(v);
-  const fixe1 = v => (v === undefined || v === null || isNaN(v)) ? '—' : Number(v).toFixed(1);
   const icone = nom => `<svg class="ico" aria-hidden="true"><use href="#${nom}"/></svg>`;
 
   // Les claviers français écrivent « 33,5 » : une virgule est un point.
@@ -954,38 +972,121 @@ const App = (() => {
   const CONSEILS_DEFAUT = { 'SONDE': 'conseilSonde', 'SURCHAUFFE': 'conseilSurchauffe',
     'SONDE FIGEE': 'conseilFigee', 'CHAUFFE SANS EFFET': 'conseilInefficace' };
 
-  function tuileZone(z, i) {
-    if (!z) {
-      return `<div class="zone squelette" data-zone="${i}" aria-busy="true"><span class="sr-only">${t('attenteDonnees')}</span>
-        <div class="titre"><span class="os os-1"></span></div><div class="temp"><span class="os os-2"></span></div>
-        <div class="meta"><span class="os os-3"></span></div></div>`;
+  // Températures : une décimale, virgule en français (« 30,6° »).
+  const deg = v => (v === undefined || v === null || isNaN(v)) ? '—'
+    : Number(v).toLocaleString(langue === 'en' ? 'en-GB' : 'fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const nomZone = (z, i) => esc((z && z.nom) || t('zoneN', { n: i + 1 }));
+  const etatZone = z => z.autotune ? t('autotuneEnCours') : z.chauffe ? t('chauffePct', { p: +z.demande || 0 })
+    : +z.demande > 0 ? t('attendPct', { p: +z.demande }) : t('auRepos');
+  // Jauge de demande : du SVG plutôt qu'un style en ligne, que la CSP refuse.
+  const jauge = (p, actif) => `<svg class="jauge${actif ? ' active' : ''}" viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true"><rect width="100" height="4" rx="2"/><rect width="${Math.max(0, Math.min(100, p))}" height="4" rx="2"/></svg>`;
+  const conseil = z => z.defaut && CONSEILS_DEFAUT[z.defaut] ? `<span class="conseil">${t(CONSEILS_DEFAUT[z.defaut])}</span>` : '';
+
+  // Période en cours d'une zone, d'après l'horloge du socle (à défaut, celle du
+  // téléphone) : jour ou nuit, et l'heure du prochain basculement.
+  function periodeZone(z, e) {
+    if (!z || z.debutJour === undefined || z.debutNuit === undefined) return null;
+    const h = /(\d{2}):(\d{2})/.exec(String(e.heure || '').slice(11));
+    const d = new Date();
+    const m = h ? +h[1] * 60 + +h[2] : d.getHours() * 60 + d.getMinutes();
+    const jour = (m - z.debutJour + 1440) % 1440 < (z.debutNuit - z.debutJour + 1440) % 1440;
+    return { jour, fin: jour ? z.debutNuit : z.debutJour };
+  }
+
+  // La ligne d'état d'un socle : une pastille, une phrase.
+  function ligneEtat(e) {
+    const zs = e.zones || [];
+    const k = zs.findIndex(z => z && z.defaut);
+    let c = 'ok', txt = t('toutVaBien');
+    if (!e.enLigne) { c = 'ko'; txt = t('horsLigne'); }
+    else if (silencieux(e)) { c = 'warn'; txt = t('silencieux', { m: minutesSilence(e) }); }
+    else if (k >= 0) { c = 'ko'; txt = t('defautDans', { d: esc(zs[k].defaut), z: nomZone(zs[k], k) }); }
+    else if (e.entretienS > 0) { c = 'warn'; txt = t('entretienMin', { m: Math.ceil(e.entretienS / 60) }); }
+    else {
+      const p = periodeZone(zs[0], e);
+      if (p) txt += ' · ' + t(p.jour ? 'jourJusqua' : 'nuitJusqua', { h: enHHMM(p.fin) });
     }
+    return `<p class="ligne-etat ${c}"><span>${txt}</span></p>`;
+  }
+
+  // Le socle et son terrarium de trois quarts : chaque zone rougeoie (ou
+  // bleuit) selon qu'elle chauffe, une zone en défaut est cerclée de rouge.
+  // Tout en SVG : pas d'image à télécharger, et les couleurs suivent le thème.
+  function illustration(e, k, petite) {
+    const zs = e.zones || [];
+    const force = i => {
+      const z = zs[i];
+      if (!z || z.defaut || !e.enLigne) return 0;
+      return z.chauffe ? 1 : Math.round(Math.min(.55, .15 + (+z.demande || 0) / 250) * 10) / 10;
+    };
+    return `<svg class="ill${petite ? ' petite' : ''}" viewBox="${petite ? '24 0 294 280' : '0 0 342 280'}" aria-hidden="true">
+      <defs>${[0, 1].map(i => `<radialGradient id="g${i}${k}" class="lz${i}"><stop offset="0" stop-opacity=".95"/><stop offset=".55" stop-opacity=".38"/><stop offset="1" stop-opacity="0"/></radialGradient>`).join('')}
+        <clipPath id="c${k}"><rect width="200" height="96"/></clipPath></defs>
+      ${petite ? '' : '<ellipse cx="171" cy="215" rx="150" ry="52" class="i0"/>'}
+      <polygon points="126,98 309.6,204 216.1,258 32.5,152" class="i1"/>
+      <polygon points="32.5,152 216.1,258 216.1,272 32.5,166" class="i2"/>
+      <polygon points="216.1,258 309.6,204 309.6,218 216.1,272" class="i3"/>
+      ${petite ? '' : '<polygon points="49.8,165 84.4,185 84.4,193 49.8,173" class="i4"/><path d="M53.3 170l13.8 8" class="i5"/>'}
+      <polygon points="42.9,152 216.1,252 216.1,242 42.9,142" class="i6"/>
+      <polygon points="216.1,252 299.2,204 299.2,194 216.1,242" class="i7"/>
+      <polygon points="126,94 299.2,194 216.1,242 42.9,142" class="i8"/>
+      <g transform="matrix(.866 .5 -.866 .5 126 94)"><g clip-path="url(#c${k})">
+        ${[0, 1].map(i => `<ellipse cx="${50 + 100 * i}" cy="48" rx="72" ry="54" fill="url(#g${i}${k})" opacity="${force(i)}"${zs[i] && zs[i].chauffe && e.enLigne ? ' class="lueur"' : ''}/>`).join('')}
+        <ellipse cx="170" cy="68" rx="15" ry="12" class="i9"/>
+        ${[0, 1].map(i => zs[i] && zs[i].defaut ? `<rect x="${10 + 100 * i}" y="10" width="82" height="76" rx="8" class="i10"/>` : '').join('')}
+      </g></g>
+      <polygon points="42.9,56 216.1,156 216.1,252 42.9,152" class="v"/>
+      <polygon points="216.1,156 299.2,108 299.2,204 216.1,252" class="v"/>
+      <polygon points="126,8 299.2,108 216.1,156 42.9,56" class="v"/>
+      <path d="M42.9 56v96M216.1 156v96M299.2 108v96M42.9 152l173.2 100 83.1-48M126 8l173.2 100-83.1 48L42.9 56z" class="ar"/>
+    </svg>`;
+  }
+
+  // Vue de dessus, pour l'écran d'une zone : la zone choisie rougeoie d'autant
+  // plus qu'elle demande de chauffe.
+  function vueDessus(e, i) {
+    const z = (e.zones || [])[i] || {};
+    const f = !e.enLigne || z.defaut ? 0 : Math.round((.2 + .8 * Math.min(1, (+z.demande || 0) / 100)) * 10) / 10;
+    return `<svg class="ill" viewBox="0 0 342 214" aria-hidden="true">
+      <defs><radialGradient id="gd" class="lz${i}"><stop offset="0" stop-opacity=".95"/><stop offset=".55" stop-opacity=".4"/><stop offset="1" stop-opacity="0"/></radialGradient>
+        <clipPath id="cd"><rect x="30" y="20" width="282" height="166" rx="11"/></clipPath></defs>
+      <rect x="17" y="7" width="308" height="192" rx="22" class="i2"/>
+      <rect x="24" y="14" width="294" height="178" rx="16" class="i8"/>
+      <g clip-path="url(#cd)"><ellipse cx="${i ? 241 : 101}" cy="103" rx="74" ry="84" fill="url(#gd)" opacity="${f}"${z.chauffe && e.enLigne ? ' class="lueur"' : ''}/></g>
+      ${[0, 1].map(k => `<rect x="${40 + 140 * k}" y="30" width="122" height="146" rx="9" class="${k === i ? 'zc' + k : 'zo'}"/>`).join('')}
+      <circle cx="272" cy="62" r="15" class="i9"/>
+    </svg>`;
+  }
+
+  // Une zone sur la carte d'un socle (liste).
+  function zoneListe(z, i) {
+    if (!z) return `<div class="zl squelette" aria-busy="true"><span class="sr-only">${t('attenteDonnees')}</span><span class="os os-1"></span><span class="os os-2"></span></div>`;
     const panne = !!z.defaut;
-    const temp = (panne || z.temp === undefined || z.temp === null)
-      ? '—' : `${Number(z.temp).toFixed(1)}<small> °C</small>`;
-    return `<div class="zone" data-zone="${i}">
-      <div class="titre">${esc(z.nom || t('zoneN', { n: i + 1 }))}</div>
-      <div class="temp${panne ? ' panne' : ''}">${temp}</div>
-      ${panne ? `<div class="defaut">${t('defautLib', { d: esc(z.defaut) })}</div>` : ''}
-      ${panne && CONSEILS_DEFAUT[z.defaut] ? `<div class="conseil">${t(CONSEILS_DEFAUT[z.defaut])}</div>` : ''}
-      <div class="meta">
-        <span>${t('cible', { v: fixe1(z.consigne) })}</span><span>${t('demande', { v: z.demande === undefined ? '—' : z.demande })}</span>
-        ${z.chauffe ? `<span class="chauffe">${icone('i-flamme')}${t('chauffe')}</span>` : ''}
-        ${z.derive ? `<span class="derive">${t('derive')}</span>` : ''}
-        ${z.tropChaud ? `<span class="derive">${t('tropChaud')}</span>` : ''}
-        ${z.autotune ? `<span class="badge neutre">${t('autotune')}</span>` : ''}
-      </div>
+    return `<div class="zl">
+      <span class="nom" data-zone="${i}">${nomZone(z, i)}</span>
+      <span class="moyen${panne ? ' panne' : ''}">${panne ? '—' : deg(z.temp) + '°'}</span>
+      <span class="sous${panne ? ' ko' : ''}">${panne ? t('defautLib', { d: esc(z.defaut) })
+        : t(z.chauffe ? 'chauffeCible' : +z.demande > 0 ? 'attendCible' : 'reposCible', { v: deg(z.consigne) })}</span>${conseil(z)}
     </div>`;
+  }
+
+  // Une zone sur l'accueil du socle : grand chiffre, cible, jauge ; un appui
+  // ouvre son écran.
+  function zoneAccueil(z, i) {
+    if (!z) return `<div class="zone-accueil squelette" aria-busy="true"><span class="sr-only">${t('attenteDonnees')}</span><span class="os os-1"></span><span class="os os-2"></span><span class="os os-3"></span></div>`;
+    const panne = !!z.defaut;
+    return `<button type="button" class="zone-accueil" data-action="zone" data-z="${i}">
+      <span class="nom" data-zone="${i}">${nomZone(z, i)}</span>
+      <span class="grand${panne ? ' panne' : ''}">${panne ? '—' : deg(z.temp) + '°'}</span>
+      <span class="sous">${t('cibleDeg', { v: deg(z.consigne) })}</span>
+      ${jauge(panne ? 0 : +z.demande || 0, z.chauffe)}
+      <span class="etat-zone${panne ? ' ko' : z.chauffe ? '' : ' calme'}">${panne ? t('defautLib', { d: esc(z.defaut) }) : etatZone(z)}</span>${conseil(z)}
+      ${z.derive ? `<span class="badge warn">${t('derive')}</span>` : ''}${z.tropChaud ? `<span class="badge warn">${t('tropChaud')}</span>` : ''}
+    </button>`;
   }
 
   const minutesSilence = e => (e.enLigne && e.derniereMaj) ? Math.floor((Date.now() - e.derniereMaj) / 60000) : 0;
   const silencieux = e => !!(e.enLigne && e.derniereMaj && Date.now() - e.derniereMaj > SILENCE_MS);
-
-  function badgeLigne(e) {
-    if (!e.enLigne) return `<span class="badge ko">${t('horsLigne')}</span>`;
-    if (silencieux(e)) return `<span class="badge warn">${t('silencieux', { m: minutesSilence(e) })}</span>`;
-    return `<span class="badge ok">${t('enLigne')}</span>`;
-  }
 
   // Compatibilité de protocole : un socle plus récent que l'application, ou
   // l'inverse, est signalé sans bloquer ce qui marche encore.
@@ -1006,18 +1107,25 @@ const App = (() => {
       try { h = new URL(config.broker.url).host; } catch (e) { /* adresse brute */ }
       texte(hote, t('brokerAffiche', { h }));
     }
+    const form = $('#form-socle');
 
     if (!config.socles.length) {
       cartes.forEach(c => c.remove()); cartes.clear();
-      peindre(conteneur, `<div class="carte etat-vide">
-        <svg viewBox="0 0 120 80" aria-hidden="true"><rect x="10" y="14" width="100" height="56" rx="12" fill="var(--creux)"/>
-        <rect x="22" y="26" width="34" height="32" rx="8" fill="var(--zone-1)" opacity=".85"/>
-        <rect x="64" y="26" width="34" height="32" rx="8" fill="var(--zone-2)" opacity=".85"/>
-        <circle cx="39" cy="42" r="7" fill="var(--carte)"/><circle cx="81" cy="42" r="7" fill="var(--carte)"/></svg>
+      if (form) form.hidden = false;
+      peindre($('#bandeau-liste'), '');
+      peindre(conteneur, `<div class="carte etat-vide">${illustration({ zones: [] }, 'v', true)}
         <h2>${t('aucunSocle')}</h2><p class="aide">${t('aucunSocleAide')}</p></div>`);
       return;
     }
     if (!cartes.size) { html(conteneur, ''); memo.delete(conteneur); }
+
+    // En tête de liste, ce qui demande l'attention : un défaut, ou un socle
+    // dont le broker a annoncé l'absence.
+    const n = config.socles.filter(s => {
+      const e = etats[s.id];
+      return e && ((e.statutRecu && !e.enLigne) || (e.zones || []).some(z => z && z.defaut));
+    }).length;
+    peindre($('#bandeau-liste'), n ? `<p class="bandeau-attention" role="status">${icone('i-alerte')}${t(n > 1 ? 'attentionN' : 'attention1', { n })}</p>` : '');
 
     const vus = new Set();
     config.socles.forEach((s, i) => {
@@ -1035,8 +1143,9 @@ const App = (() => {
       const e = etats[s.id] || { enLigne: false, zones: [] };
       const zones = e.zones || [];
       carte.classList.toggle('alerte', zones.some(z => z && z.defaut));
-      peindre(carte, `<div class="carte-tete"><h2>${esc(s.nom || s.id)}</h2>${badgeLigne(e)}</div>
-        <div class="zones">${[0, 1].map(k => tuileZone(zones[k], k)).join('')}</div>`);
+      peindre(carte, `<div class="socle-tete">${illustration(e, 'l' + i, true)}
+          <div class="socle-titre"><h2>${esc(s.nom || s.id)}</h2>${ligneEtat(e)}</div>${icone('i-suite')}</div>
+        <div class="socle-zones">${[0, 1].map(k => zoneListe(zones[k], k)).join('')}</div>`);
       if (conteneur.children[i] !== carte) conteneur.insertBefore(carte, conteneur.children[i] || null);
     });
     cartes.forEach((carte, id) => { if (!vus.has(id)) { carte.remove(); cartes.delete(id); } });
@@ -1044,18 +1153,45 @@ const App = (() => {
 
   // ------------------------------------------------------------------ détail
   function enteteSocle(s, e) {
-    const heures = e.uptime ? Math.floor(e.uptime / 3600) : 0;
-    return `<div class="carte-tete"><h2 tabindex="-1">${esc(s.nom || s.id)}</h2>${badgeLigne(e)}</div>
-      <div class="separe">
-        <span class="discret">${esc(s.id)}</span>
-        ${e.version ? `<span class="discret">· ${t('firmware', { v: esc(e.version) })}</span>` : ''}
-        ${heures ? `<span class="discret">· ${t('heuresService', { h: heures })}</span>` : ''}
-        ${e.heure ? `<span class="discret">· ${t('horlogeSocle', { h: esc(String(e.heure).slice(11, 16)) })}</span>` : ''}
-        ${e.entretienS ? `<span class="badge warn">${icone('i-pause')}${t('entretienMin', { m: Math.ceil(e.entretienS / 60) })}</span>` : ''}
-        ${e.alertesEnAttente ? `<span class="badge warn">${t('alertesAttente', { n: e.alertesEnAttente })}</span>` : ''}
-        ${badgeProto(e)}
-      </div>`;
+    return `<h2 tabindex="-1">${esc(s.nom || s.id)}</h2>${ligneEtat(e)}
+      <div class="separe">${e.alertesEnAttente ? `<span class="badge warn">${t('alertesAttente', { n: e.alertesEnAttente })}</span>` : ''}${badgeProto(e)}</div>`;
   }
+
+  // Sous-titre de chaque rubrique : l'essentiel, lisible sans l'ouvrir.
+  function sousTitre(k, s, e) {
+    const zs = (e.zones || []).filter(Boolean), g = generaux[s.id];
+    const deux = cle => zs.map(z => deg(z[cle]) + '°').join(' / ');
+    switch (k) {
+      case 'reglages': return zs.length ? t('sousTemperatures', { j: deux('jour'), n: deux('nuit') }) : '';
+      case 'programme': return g && g.soleilActif ? t('sousSoleil')
+        : zs[0] && zs[0].debutJour !== undefined ? t('sousProgrammation', { j: enHHMM(zs[0].debutJour), n: enHHMM(zs[0].debutNuit) }) : '';
+      case 'courbes': return t('sousCourbes');
+      case 'alertes': return e.alertesEnAttente ? t('alertesAttente', { n: e.alertesEnAttente })
+        : zs.some(z => z.defaut) ? t('defautEnCours') : t('aucuneAlerte');
+      case 'securite': {
+        if (!zs.length || zs[0].max === undefined) return '';
+        const v = deg(Math.min(...zs.map(z => +z.max)));
+        return g ? t('sousSecuriteAlim', { v, a: deg(g.amperes) }) : t('sousSecurite', { v });
+      }
+      case 'general': return e.sante && typeof e.sante.rssi === 'number'
+        ? t('sousAppareil', { r: e.sante.rssi, q: t(qualiteSignal(e.sante.rssi)) }) : '';
+      case 'service': return t('sousService');
+      default: {
+        const dispo = versionApp && versionApp.firmware && versionApp.firmware.version;
+        if (!e.version) return '';
+        return dispo && compareVersions(dispo, e.version) > 0 ? t('majDispoCourt', { v: dispo }) : t('versionX', { v: e.version });
+      }
+    }
+  }
+
+  function vivantCommandes(e) {
+    const enCours = e.entretienS > 0;
+    return rond(`data-action="cmd" data-cmd="entretien" data-params='{"minutes":${enCours ? 0 : 10}}'`, enCours ? 'i-ok' : 'i-pause', t(enCours ? 'reprendreCourt' : 'entretienCourt'))
+      + rond('data-action="cmd" data-cmd="reset"', 'i-reprendre', t('leverDefauts'))
+      + rond('data-action="panneau" data-nom="alertes"', 'i-cloche', t('rubAlertes'))
+      + rond('data-action="panneau" data-nom="maj"', 'i-maj', t('rubMaj'));
+  }
+  const rond = (a, ic, lib) => `<button type="button" class="rond-lib" ${a}><span class="rond">${icone(ic)}</span>${lib}</button>`;
 
   function dessinerSocle() {
     const s = socle(socleOuvert);
@@ -1063,38 +1199,55 @@ const App = (() => {
     const e = etats[s.id] || { enLigne: false, zones: [] };
     const detail = $('#detail');
 
-    // L'ossature (en-tête, avertissement, onglets, conteneur de panneau) n'est
-    // posée qu'une fois par socle ouvert.
+    // L'ossature (accueil et feuille) n'est posée qu'une fois par socle ouvert.
     if (detail.dataset.socle !== s.id) {
       detail.dataset.socle = s.id;
-      html(detail, `<section class="carte entete-socle" data-r="entete"></section>
-        <section class="carte hors-ligne" data-r="horsligne" hidden></section>
-        <nav class="onglets" aria-label="${t('sectionsSocle')}">${ONGLETS.map(([k, cle, i]) =>
-          `<button type="button" data-action="panneau" data-nom="${k}">${icone(i)}${t(cle)}</button>`).join('')}</nav>
-        <div class="pile" data-r="panneau"></div>`);
+      html(detail, `<div class="accueil" data-r="accueil">
+          <header class="accueil-tete" data-r="entete"></header>
+          <section class="carte hors-ligne" data-r="horsligne" hidden></section>
+          <div class="illustration" data-r="illus"></div>
+          <section class="zones-accueil" aria-label="${t('zones')}" data-r="zones"></section>
+          <nav class="commandes" aria-label="${t('commandesRapides')}" data-r="commandes"></nav>
+          <nav class="rubriques" aria-label="${t('sectionsSocle')}">${RUBRIQUES.map(([k, cle, ic]) =>
+            `<button type="button" class="rubrique" data-action="panneau" data-nom="${k}">${icone(ic)}<span><strong>${t(cle)}</strong><small data-r="s-${k}"></small></span>${icone('i-suite')}</button>`).join('')}</nav>
+        </div>
+        <section class="feuille-panneau" data-r="feuille" aria-labelledby="titre-feuille" hidden>
+          <header class="feuille-tete"><button type="button" class="rond" data-action="panneau" data-nom="etat" aria-label="${t('retourAccueil')}">${icone('i-retour')}</button>
+            <div><h2 id="titre-feuille" tabindex="-1" data-r="titre"></h2><small class="discret">${esc(s.nom || s.id)}</small></div><span></span></header>
+          <div class="pile" data-r="panneau"></div>
+        </section>`);
+    }
+    const accueil = panneauActif === 'etat';
+    detail.querySelector('[data-r="accueil"]').hidden = !accueil;
+    detail.querySelector('[data-r="feuille"]').hidden = accueil;
+    const retour = $('#vue-socle > .retour');
+    if (retour) retour.hidden = !accueil;
+
+    if (accueil) {
+      peindre(detail.querySelector('[data-r="entete"]'), enteteSocle(s, e));
+      const hl = detail.querySelector('[data-r="horsligne"]');
+      const muet = silencieux(e);
+      hl.hidden = !!e.enLigne && !muet;
+      peindre(hl, e.enLigne
+        ? (muet ? `<div class="aide">${t('socleSilencieux', { m: minutesSilence(e) })}</div>` : '')
+        : `<div class="aide">${t('socleNeRepondPas')}</div>`);
+      peindre(detail.querySelector('[data-r="illus"]'), illustration(e, 'a'));
+      peindre(detail.querySelector('[data-r="zones"]'), [0, 1].map(k => zoneAccueil((e.zones || [])[k], k)).join(''));
+      peindre(detail.querySelector('[data-r="commandes"]'), vivantCommandes(e));
+      RUBRIQUES.forEach(([k]) => texte(detail.querySelector(`[data-r="s-${k}"]`), sousTitre(k, s, e)));
+      return;
     }
 
-    peindre(detail.querySelector('[data-r="entete"]'), enteteSocle(s, e));
-
-    const hl = detail.querySelector('[data-r="horsligne"]');
-    const muet = silencieux(e);
-    hl.hidden = !!e.enLigne && !muet;
-    peindre(hl, e.enLigne
-      ? (muet ? `<div class="aide">${t('socleSilencieux', { m: minutesSilence(e) })}</div>` : '')
-      : `<div class="aide">${t('socleNeRepondPas')}</div>`);
-
-    detail.querySelectorAll('.onglets button').forEach(b => {
-      const actif = b.dataset.nom === panneauActif;
-      b.classList.toggle('actif', actif);
-      if (actif) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
-    });
-
-    // Le panneau n'est reconstruit (et ses champs réinitialisés) que si sa
-    // structure change : autre panneau, zones qui arrivent, réglages chargés.
+    const rub = RUBRIQUES.find(r => r[0] === panneauActif);
+    texte(detail.querySelector('[data-r="titre"]'), panneauActif === 'zone'
+      ? ((e.zones[zoneOuverte] && e.zones[zoneOuverte].nom) || t('zoneN', { n: zoneOuverte + 1 })) : t(rub ? rub[1] : 'ongletAppareil'));
+    // Le contenu n'est reconstruit (et ses champs réinitialisés) que si sa
+    // structure change : autre feuille, zones qui arrivent, réglages chargés.
     const conteneur = detail.querySelector('[data-r="panneau"]');
     const zonesConnues = (e.zones || []).filter(Boolean).length;
-    let cle = `${panneauActif}|${zonesConnues}`;
-    if (panneauActif === 'general') cle += `|${generaux[s.id] ? 1 : 0}|${stats[s.id] ? 1 : 0}`;
+    let cle = `${panneauActif}|${zonesConnues}|${generaux[s.id] ? 1 : 0}`;
+    if (panneauActif === 'general') cle += `|${stats[s.id] ? 1 : 0}`;
+    if (panneauActif === 'zone') cle += `|${zoneOuverte}`;
     if (panneauActif === 'service') cle += `|${serviceMod ? 1 : 0}|${e.enLigne ? 1 : 0}|${e.proto || 0}`;
     if (conteneur.dataset.cle !== cle) {
       conteneur.dataset.cle = cle;
@@ -1104,12 +1257,18 @@ const App = (() => {
   }
 
   function construirePanneau(s, e) {
-    const zones = e.zones || [];
+    const zones = e.zones || [], g = generaux[s.id];
     switch (panneauActif) {
-      case 'etat': return structureEtat(zones);
-      case 'reglages': return structureReglages(zones);
+      case 'zone': return structureZone();
+      case 'reglages': return structureZones(zones, 'temperatures');
+      case 'programme': return structureZones(zones, 'programme') + carteSoleil(g);
+      case 'securite': return structureZones(zones, 'securite') + carteAlim(g);
       case 'courbes': return structureCourbes(zones);
+      case 'alertes': return `<section class="carte" data-r="notifs"></section>
+        <section class="carte"><h2>${t('alertesSocleTitre')}</h2><p class="aide">${t('alertesSocle')}</p>
+          <div class="boutons"><button type="button" class="btn btn-secondaire" data-action="panneau" data-nom="service">${icone('i-outil')}${t('ongletService')}</button></div></section>`;
       case 'service': return structureService(s, e);
+      case 'maj': return '<section class="carte" data-r="maj"></section>';
       default: return structureGeneral(s);
     }
   }
@@ -1141,56 +1300,71 @@ const App = (() => {
 
   function patcherPanneau(s, e) {
     const zones = e.zones || [];
-    const conteneur = $('#detail [data-r="panneau"]');
-    if (!conteneur) return;
+    const c = $('#detail [data-r="panneau"]');
+    if (!c) return;
+    const r = n => c.querySelector(`[data-r="${n}"]`);
     switch (panneauActif) {
-      case 'etat':
+      case 'zone': patcherZone(e); break;
+      case 'reglages': case 'programme': case 'securite':
         zones.forEach((z, i) => {
           if (!z) return;
-          peindre(conteneur.querySelector(`[data-r="zl${i}"]`), vivantEtat(z, i));
-          peindre(conteneur.querySelector(`[data-r="zo${i}"]`), vivantOutils(z, i));
+          texte(r('zr' + i), z.defaut ? t('defautLib', { d: z.defaut }) : t('etatZoneCourt', { t: deg(z.temp), c: deg(z.consigne) }));
+          peindre(r('zo' + i), vivantOutils(z, i));
         });
-        peindre(conteneur.querySelector('[data-r="actions"]'), vivantActions(e));
-        break;
-      case 'reglages':
-        zones.forEach((z, i) => z && texte(conteneur.querySelector(`[data-r="zr${i}"]`),
-          z.defaut ? t('defautLib', { d: z.defaut }) : t('etatZoneCourt', { t: fixe1(z.temp), c: fixe1(z.consigne) })));
         break;
       case 'courbes': patcherCourbes(s.id); break;
+      case 'alertes': peindre(r('notifs'), vivantNotifications()); break;
       case 'service': if (serviceMod) serviceMod.patcher(); break;
+      case 'maj': peindre(r('maj'), vivantMaj(e) + (e.sante ? etapeMaj(e.sante) : '')); break;
       default:
-        peindre(conteneur.querySelector('[data-r="sante"]'), vivantSante(e));
-        peindre(conteneur.querySelector('[data-r="maj"]'), vivantMaj(e));
-        peindre(conteneur.querySelector('[data-r="stats"]'), vivantStats(stats[s.id]));
-        peindre(conteneur.querySelector('[data-r="notifs"]'), vivantNotifications());
+        peindre(r('sante'), vivantSante(e));
+        peindre(r('stats'), vivantStats(stats[s.id]));
     }
   }
 
-  // --- État : températures en direct, consignes du jour, autotune, entretien.
-  function structureEtat(zones) {
-    let h = '';
-    zones.forEach((z, i) => {
-      if (!z) return;
-      h += `<section class="carte zone-carte">
-        <div data-r="zl${i}"></div>
-        <form data-form="zone" data-z="${i}">
-          <div class="rangee">
-            <div><label for="j${i}">${t('consigneJour')}</label>
-              <input id="j${i}" inputmode="decimal" value="${attr(z.jour)}" placeholder="${t('inchange')}"></div>
-            <div><label for="n${i}">${t('consigneNuit')}</label>
-              <input id="n${i}" inputmode="decimal" value="${attr(z.nuit)}" placeholder="${t('inchange')}"></div>
-          </div>
-          <div class="boutons"><button class="btn" type="submit">${t('enregistrer')}</button><span data-r="zo${i}"></span></div>
-        </form>
-      </section>`;
-    });
-    if (!h) h = `<section class="carte"><div class="squelette-bloc" aria-busy="true"><span class="sr-only">${t('attentePremieresMesures')}</span>
-      <span class="os os-1"></span><span class="os os-2"></span><span class="os os-3"></span></div></section>`;
-    else h = `<div class="deux">${h}</div>`;
-    return h + '<section class="carte" data-r="actions"></section>';
+  // --- Une zone, façon climatisation : la cible en grand, réglée par pas de
+  // 0,5 °C ; l'envoi part une seconde après le dernier appui.
+  let zoneOuverte = 0, periodeChoisie = null;      // null : la période en cours
+  function structureZone() {
+    const i = zoneOuverte;
+    return `<div class="clim" data-z="${i}">
+      <p class="ligne-etat centre" data-r="zetat"></p>
+      <div class="illustration" data-r="zvue"></div>
+      <div class="reglage-cible">
+        <button type="button" class="rond grand-rond" data-action="cible" data-pas="-0.5" aria-label="${t('baisser')}">${icone('i-retour')}</button>
+        <div><div class="cible-geante" aria-live="polite" data-r="zcible"></div><p class="aide" data-r="zlib"></p></div>
+        <button type="button" class="rond grand-rond" data-action="cible" data-pas="0.5" aria-label="${t('monter')}">${icone('i-suite')}</button>
+      </div>
+      <div class="segment" role="group" aria-label="${t('periode')}" data-r="zseg"></div>
+      <p class="ensuite" data-r="zensuite"></p>
+      <form data-form="zone" data-z="${i}" hidden><input type="hidden" id="j${i}"><input type="hidden" id="n${i}"></form>
+      <nav class="commandes trois" data-r="zcmd"></nav>
+    </div>`;
   }
-
-  const vivantEtat = (z, i) => tuileZone(z, i);
+  // Période affichée : celle qu'on a choisie, sinon celle en cours.
+  function periodeAffichee(z, e) {
+    if (periodeChoisie) return periodeChoisie;
+    const p = periodeZone(z, e);
+    return p && !p.jour ? 'nuit' : 'jour';
+  }
+  function patcherZone(e) {
+    const c = $('#detail .clim');
+    const i = zoneOuverte, z = (e.zones || [])[i];
+    if (!c || !z) return;
+    const r = n => c.querySelector(`[data-r="${n}"]`);
+    const per = periodeAffichee(z, e), p = periodeZone(z, e);
+    const champ = /** @type {any} */ ($('#' + (per === 'jour' ? 'j' : 'n') + i));
+    const valeur = champ && champ.value !== '' ? nombre(champ.value) : z[per];
+    peindre(r('zetat'), `<span>${t('actuellement', { t: z.defaut ? '—' : deg(z.temp) + '°', e: z.defaut ? t('defautLib', { d: esc(z.defaut) }) : etatZone(z).toLowerCase() })}</span>`);
+    peindre(r('zvue'), vueDessus(e, i));
+    peindre(r('zcible'), `${deg(valeur)}<span>°</span>`);
+    texte(r('zlib'), t(per === 'jour' ? 'cibleJour' : 'cibleNuit'));
+    peindre(r('zseg'), ['jour', 'nuit'].map(k => `<button type="button" data-action="periode" data-p="${k}" aria-pressed="${per === k}">${icone(k === 'jour' ? 'i-soleil' : 'i-lune')}${t(k === 'jour' ? 'jourDeg' : 'nuitDeg', { v: deg(z[k]) })}</button>`).join(''));
+    texte(r('zensuite'), p ? t(p.jour ? 'ensuiteNuit' : 'ensuiteJour', { h: enHHMM(p.fin), r: z.rampe || 0, v: deg(p.jour ? z.nuit : z.jour) }) : '');
+    peindre(r('zcmd'), rond(`data-action="cmd" data-cmd="${z.autotune ? 'stop-autotune' : 'autotune'}" data-params='{"z":${i}}'`, 'i-cible', t(z.autotune ? 'arreterAutotune' : 'autotuneBtn'))
+      + rond('data-action="panneau" data-nom="courbes"', 'i-courbes', t('courbe'))
+      + rond('data-action="panneau" data-nom="reglages"', 'i-reglages', t('avances')));
+  }
 
   // Le bouton d'autotune change avec l'état de la zone : il vit dans sa propre
   // région, à côté d'Enregistrer, pour ne pas reconstruire le formulaire.
@@ -1198,42 +1372,25 @@ const App = (() => {
     ? `<button type="button" class="btn btn-danger" data-action="cmd" data-cmd="stop-autotune" data-params='{"z":${i}}'>${t('arreterAutotune')}</button>`
     : `<button type="button" class="btn btn-secondaire" data-action="cmd" data-cmd="autotune" data-params='{"z":${i}}'>${icone('i-cible')}${t('autotuneBtn')}</button>`;
 
-  function vivantActions(e) {
-    const enCours = e.entretienS > 0;
-    return `<h2>${t('actions')}</h2>
-      <p class="aide">${enCours ? t('entretienEnCours', { m: Math.ceil(e.entretienS / 60) }) : t('entretienAide')}</p>
-      <div class="boutons">
-        ${enCours
-          ? `<button type="button" class="btn" data-action="cmd" data-cmd="entretien" data-params='{"minutes":0}'>${icone('i-ok')}${t('reprendre')}</button>`
-          : `<button type="button" class="btn btn-secondaire" data-action="cmd" data-cmd="entretien" data-params='{"minutes":10}'>${icone('i-pause')}${t('entretien10')}</button>`}
-        <button type="button" class="btn btn-secondaire" data-action="cmd" data-cmd="reset">${t('leverDefauts')}</button>
-      </div>`;
-  }
-
-  // --- Réglages : tous les paramètres d'une zone, pas seulement les consignes.
-  function structureReglages(zones) {
-    const champ = (i, id, etiquette, valeur, mode = 'decimal') =>
-      `<div><label for="${id}${i}">${etiquette}</label>
-        <input id="${id}${i}" inputmode="${mode}" value="${attr(valeur)}" placeholder="${t('inchange')}"></div>`;
+  // --- Réglages d'une zone, répartis en trois feuilles : températures,
+  // programmation, sécurité. Le même formulaire « zone-complet » n'envoie que
+  // les champs présents.
+  const CHAMPS_ZONE = {
+    temperatures: [['j', 'consigneJour', 'jour'], ['n', 'consigneNuit', 'nuit'], ['b', 'bande', 'bande'], ['o', 'calibration', 'offset']],
+    programme: [['H', 'debutJour', 'debutJour', 1], ['K', 'debutNuit', 'debutNuit', 1], ['R', 'rampe', 'rampe', 2]],
+    securite: [['m', 'coupureMax', 'max']]
+  };
+  function structureZones(zones, quoi) {
     let h = '';
     zones.forEach((z, i) => {
       if (!z) return;
       h += `<form class="carte" data-form="zone-complet" data-z="${i}">
-        <div class="carte-tete"><h2 class="titre-zone" data-zone="${i}">${esc(z.nom || t('zoneN', { n: i + 1 }))}</h2><span class="discret" data-r="zr${i}"></span></div>
-        <label for="N${i}">${t('nomZone')}</label>
-        <input id="N${i}" value="${attr(z.nom)}" maxlength="24">
-        <div class="rangee mt">
-          ${champ(i, 'j', t('consigneJour'), z.jour)}
-          ${champ(i, 'n', t('consigneNuit'), z.nuit)}
-          ${champ(i, 'H', t('debutJour'), enHHMM(z.debutJour), 'numeric')}
-          ${champ(i, 'K', t('debutNuit'), enHHMM(z.debutNuit), 'numeric')}
-          ${champ(i, 'R', t('rampe'), z.rampe, 'numeric')}
-          ${champ(i, 'b', t('bande'), z.bande)}
-          ${champ(i, 'm', t('coupureMax'), z.max)}
-          ${champ(i, 'o', t('calibration'), z.offset)}
-        </div>
-        <p class="aide">${t('aideCoupure')}</p>
-        <button class="btn" type="submit">${t('enregistrer')}</button>
+        <div class="carte-tete"><h2 class="titre-zone" data-zone="${i}">${nomZone(z, i)}</h2><span class="discret" data-r="zr${i}"></span></div>
+        ${quoi === 'temperatures' ? `<label for="N${i}">${t('nomZone')}</label><input id="N${i}" value="${attr(z.nom)}" maxlength="24">` : ''}
+        <div class="rangee mt">${CHAMPS_ZONE[quoi].map(([id, cle, k, mode]) => `<div><label for="${id}${i}">${t(cle)}</label>
+          <input id="${id}${i}" inputmode="${mode ? 'numeric' : 'decimal'}" value="${attr(mode === 1 ? enHHMM(z[k]) : z[k])}" placeholder="${t('inchange')}"></div>`).join('')}</div>
+        ${quoi === 'securite' ? `<p class="aide">${t('aideCoupure')}</p>` : ''}
+        <div class="boutons"><button class="btn" type="submit">${t('enregistrer')}</button>${quoi === 'temperatures' ? `<span data-r="zo${i}"></span>` : ''}</div>
       </form>`;
     });
     return h ? `<div class="deux">${h}</div>` : `<section class="carte aide">${t('attenteReglages')}</section>`;
@@ -1296,47 +1453,50 @@ const App = (() => {
       lignes.map(([cle, j]) => `<tr><td>${cle.slice(8)}/${cle.slice(5, 7)}</td><td>${f(j.mini[0])}</td><td>${f(j.maxi[0])}</td><td>${f(j.mini[1])}</td><td>${f(j.maxi[1])}</td></tr>`).join('')}</tbody></table>`;
   }
 
-  // --- Appareil : alimentation, saison, santé, statistiques, notifications, entretien.
+  // --- Réglages généraux, répartis entre Sécurité (alimentation, zone
+  // prioritaire), Programmation (soleil) et Appareil (le reste).
+  const champG = (id, etiquette, valeur, mode = 'decimal') =>
+    `<div><label for="${id}">${etiquette}</label><input id="${id}" inputmode="${mode}" value="${attr(valeur)}"></div>`;
+  const bascule = (id, cle, actif) => `<label class="interrupteur mt" for="${id}">${t(cle)}
+    <input type="checkbox" id="${id}" role="switch"${actif ? ' checked' : ''}></label>`;
+  const optionG = (v, lib, actuel) => `<option value="${v}"${actuel === v ? ' selected' : ''}>${lib}</option>`;
+  const formGeneraux = (g, interieur) => g ? `<form class="pile" data-form="generaux">${interieur}</form>`
+    : `<section class="carte"><div class="squelette-bloc" aria-busy="true"><span class="sr-only">${t('chargementReglages')}</span>
+      <span class="os os-1"></span><span class="os os-3"></span><span class="os os-3"></span></div></section>`;
+  const soumettre = () => `<div class="boutons"><button class="btn" type="submit">${t('enregistrer')}</button></div>`;
+
+  function carteAlim(g) {
+    return formGeneraux(g, g && `<section class="carte"><h2>${t('alimentation')}</h2><p class="aide">${t('aideAlim')}</p>
+      <div class="rangee">${champG('gA', t('courantDispo'), g.amperes)}${champG('gW', t('puissanceTapis'), g.watts)}${champG('gV', t('tension'), g.volts)}</div>
+      <p class="aide">${t('zonesSimultanees', { n: g.zonesSimultanees })}</p>
+      ${g.zonePrioritaire === undefined ? '' : `<div class="rangee mt"><div><label for="gZP">${t('zonePrioritaire')}</label><select id="gZP">${optionG(0, t('aucune'), g.zonePrioritaire)}${optionG(1, t('zoneN', { n: 1 }), g.zonePrioritaire)}${optionG(2, t('zoneN', { n: 2 }), g.zonePrioritaire)}</select></div></div>
+      <p class="aide">${t('aideZonePrio')}</p>`}${soumettre()}</section>`);
+  }
+
+  function carteSoleil(g) {
+    if (g && g.soleilActif === undefined) return '';       // firmware d'avant la 3.5
+    return formGeneraux(g, g && `<section class="carte"><h2>${t('soleil')}</h2><p class="aide">${t('aideSoleil')}</p>
+      ${bascule('gSO', 'soleilActif', g.soleilActif)}
+      <div class="rangee">${champG('gLat', t('latitude'), g.latitude)}${champG('gLon', t('longitude'), g.longitude)}${champG('gSDec', t('decalageSoleil'), g.soleilDecalageMin, 'numeric')}</div>
+      ${soumettre()}</section>`);
+  }
+
   function structureGeneral(s) {
     const g = generaux[s.id];
-    let h = '';
-    if (!g) {
-      h += `<section class="carte"><div class="squelette-bloc" aria-busy="true"><span class="sr-only">${t('chargementReglages')}</span>
-        <span class="os os-1"></span><span class="os os-3"></span><span class="os os-3"></span></div></section>`;
-    } else {
-      const champ = (id, etiquette, valeur, mode = 'decimal') =>
-        `<div><label for="${id}">${etiquette}</label><input id="${id}" inputmode="${mode}" value="${attr(valeur)}"></div>`;
-      h += `<form class="pile" data-form="generaux">
-        <section class="carte">
-          <h2>${t('alimentation')}</h2>
-          <p class="aide">${t('aideAlim')}</p>
-          <div class="rangee">
-            ${champ('gA', t('courantDispo'), g.amperes)}
-            ${champ('gW', t('puissanceTapis'), g.watts)}
-            ${champ('gV', t('tension'), g.volts)}
-          </div>
-          <p class="aide">${t('zonesSimultanees', { n: g.zonesSimultanees })}</p>
-        </section>
-        <section class="carte">
-          <h2>${t('cyclage')}</h2>
-          <p class="aide">${t('aideCyclage')}</p>
-          <label class="interrupteur mt" for="gSA">${t('cycleActif')}
-            <input type="checkbox" id="gSA" role="switch"${g.saisonActive ? ' checked' : ''}></label>
-          <div class="rangee">
-            ${champ('gSD', t('abaissement'), g.saisonDelta)}
-            ${champ('gS1', t('descente'), g.saisonDescenteJ, 'numeric')}
-            ${champ('gS2', t('plateau'), g.saisonPlateauJ, 'numeric')}
-            ${champ('gS3', t('remontee'), g.saisonRemonteeJ, 'numeric')}
-          </div>
-          <p class="aide">${g.saisonActive ? t('decalageApplique', { v: Number(g.decalageActuel).toFixed(2) }) : t('aucunDecalage')}</p>
-          <button class="btn" type="submit">${t('enregistrer')}</button>
-        </section>${g.prixKwh === undefined ? '' : structureGeneraux35(g, champ)}
-      </form>`;
-    }
-    h += `<section class="carte" data-r="sante"></section>
-      <section class="carte" data-r="maj"></section>
-      <section class="carte" data-r="stats"></section>
-      <section class="carte" data-r="notifs"></section>
+    return `<section class="carte" data-r="sante"></section>` + formGeneraux(g, g && `${g.prixKwh === undefined ? '' : `<section class="carte">
+        <h2>${t('ecranCout')}</h2>
+        <div class="rangee">${champG('gPK', t('prixKwh'), g.prixKwh)}
+          <div><label for="gEN">${t('ecranNuit')}</label><select id="gEN">${optionG(0, t('ecranAttenue'), g.ecranNuit)}${optionG(1, t('ecranNormal'), g.ecranNuit)}${optionG(2, t('ecranEteint'), g.ecranNuit)}</select></div></div>
+        ${bascule('gLE', 'ledEteinte', g.ledEteinte)}${bascule('gRA', 'rapportActif', g.rapportActif)}
+        <div class="rangee">${champG('gRH', t('heureRapport'), enHHMM(g.rapportMinutes), 'numeric')}</div>${soumettre()}</section>`}
+      <section class="carte">
+        <h2>${t('cyclage')}</h2>
+        <p class="aide">${t('aideCyclage')}</p>
+        ${bascule('gSA', 'cycleActif', g.saisonActive)}
+        <div class="rangee">${champG('gSD', t('abaissement'), g.saisonDelta)}${champG('gS1', t('descente'), g.saisonDescenteJ, 'numeric')}
+          ${champG('gS2', t('plateau'), g.saisonPlateauJ, 'numeric')}${champG('gS3', t('remontee'), g.saisonRemonteeJ, 'numeric')}</div>
+        <p class="aide">${g.saisonActive ? t('decalageApplique', { v: Number(g.decalageActuel).toFixed(2) }) : t('aucunDecalage')}</p>${soumettre()}
+      </section>`) + `<section class="carte" data-r="stats"></section>
       <section class="carte">
         <h2>${t('sauvegarde')}</h2>
         <p class="aide">${t('aideSauvegarde')}</p>
@@ -1354,38 +1514,6 @@ const App = (() => {
           <button type="button" class="btn btn-danger" data-action="effacerHistorique">${icone('i-corbeille')}${t('effacerHistorique')}</button>
         </div>
         <button type="button" class="btn btn-danger btn-plein mt" data-action="retirerSocle">${t('retirerSocle')}</button>
-      </section>`;
-    return h;
-  }
-
-  // Réglages du firmware 3.5, à distance depuis le protocole 4 : coût, écran la
-  // nuit, LED, zone prioritaire, rapport quotidien, jour et nuit au soleil.
-  function structureGeneraux35(g, champ) {
-    const option = (v, cle, actuel) => `<option value="${v}"${actuel === v ? ' selected' : ''}>${cle}</option>`;
-    const bascule = (id, cle, actif) => `<label class="interrupteur mt" for="${id}">${t(cle)}
-      <input type="checkbox" id="${id}" role="switch"${actif ? ' checked' : ''}></label>`;
-    return `<section class="carte">
-        <h2>${t('ecranCout')}</h2>
-        <div class="rangee">
-          ${champ('gPK', t('prixKwh'), g.prixKwh)}
-          <div><label for="gEN">${t('ecranNuit')}</label><select id="gEN">${option(0, t('ecranAttenue'), g.ecranNuit)}${option(1, t('ecranNormal'), g.ecranNuit)}${option(2, t('ecranEteint'), g.ecranNuit)}</select></div>
-          <div><label for="gZP">${t('zonePrioritaire')}</label><select id="gZP">${option(0, t('aucune'), g.zonePrioritaire)}${option(1, t('zoneN', { n: 1 }), g.zonePrioritaire)}${option(2, t('zoneN', { n: 2 }), g.zonePrioritaire)}</select></div>
-        </div>
-        <p class="aide">${t('aideZonePrio')}</p>
-        ${bascule('gLE', 'ledEteinte', g.ledEteinte)}
-        ${bascule('gRA', 'rapportActif', g.rapportActif)}
-        <div class="rangee">${champ('gRH', t('heureRapport'), enHHMM(g.rapportMinutes), 'numeric')}</div>
-      </section>
-      <section class="carte">
-        <h2>${t('soleil')}</h2>
-        <p class="aide">${t('aideSoleil')}</p>
-        ${bascule('gSO', 'soleilActif', g.soleilActif)}
-        <div class="rangee">
-          ${champ('gLat', t('latitude'), g.latitude)}
-          ${champ('gLon', t('longitude'), g.longitude)}
-          ${champ('gSDec', t('decalageSoleil'), g.soleilDecalageMin, 'numeric')}
-        </div>
-        <button class="btn" type="submit">${t('enregistrer')}</button>
       </section>`;
   }
 
@@ -1409,8 +1537,11 @@ const App = (() => {
       <div><b>${esc(s.reset || '—')}</b><span>${t('dernierRedemarrage')}</span></div>
       ${s.version ? `<div><b>${esc(s.version)}</b><span>Firmware · ${t('protocole')} ${s.proto !== undefined ? esc(s.proto) : '?'}</span></div>` : ''}
       ${s.hote ? `<div><b class="mono">${esc(s.hote)}</b><span>${t('interfaceLocale')}${s.ip ? ` · ${esc(s.ip)}` : ''}</span></div>` : ''}
-    </div>${s.otaEnAttente ? `<p class="aide mt"><span class="badge warn">${t('majValidation')}</span></p>` : ''}${s.maj && s.maj.etape && s.maj.etape !== 'aucune' ? `<p class="aide mt"><span class="badge ${s.maj.etape === 'validee' ? 'ok' : (s.maj.etape === 'echec' || s.maj.etape === 'retour arriere') ? 'ko' : 'warn'}">${t('majEtape_' + s.maj.etape.replace(/ /g, '_'))}</span> ${esc(s.maj.version || '')} — ${esc(s.maj.detail || '')}</p>` : ''}`;
+    </div>${etapeMaj(s)}`;
   }
+  // Où en est la dernière mise à jour : en attente de validation, validée,
+  // revenue en arrière ou en échec.
+  const etapeMaj = s => `${s.otaEnAttente ? `<p class="aide mt"><span class="badge warn">${t('majValidation')}</span></p>` : ''}${s.maj && s.maj.etape && s.maj.etape !== 'aucune' ? `<p class="aide mt"><span class="badge ${s.maj.etape === 'validee' ? 'ok' : (s.maj.etape === 'echec' || s.maj.etape === 'retour arriere') ? 'ko' : 'warn'}">${t('majEtape_' + s.maj.etape.replace(/ /g, '_'))}</span> ${esc(s.maj.version || '')} — ${esc(s.maj.detail || '')}</p>` : ''}`;
 
   // Mise à jour du firmware depuis l'application : la version publiée est celle
   // de la dernière release (version.json, écrit au déploiement) ; le socle la
@@ -1449,12 +1580,12 @@ const App = (() => {
       const d = z.defauts || {};
       h += `<h3 class="titre-zone mt" data-zone="${i}">${esc(z.nom)}</h3>
         ${z.points ? `<div class="stat stat-4">
-          <div><b>${fixe1(z.min)}</b><span>${t('minC')}</span></div>
-          <div><b>${fixe1(z.max)}</b><span>${t('maxC')}</span></div>
-          <div><b>${fixe1(z.moyenne)}</b><span>${t('moyenneC')}</span></div>
+          <div><b>${deg(z.min)}</b><span>${t('minC')}</span></div>
+          <div><b>${deg(z.max)}</b><span>${t('maxC')}</span></div>
+          <div><b>${deg(z.moyenne)}</b><span>${t('moyenneC')}</span></div>
           <div><b>${z.horsPlagePct} %</b><span>${t('horsPlage')}</span></div>
         </div>` : `<p class="aide">${t('pasAssezHist')}</p>`}
-        <p class="aide mt">${t('cumulService', { h: fixe1(z.heuresChauffe), k: Number(z.kWh).toFixed(2) })}</p>
+        <p class="aide mt">${t('cumulService', { h: deg(z.heuresChauffe), k: Number(z.kWh).toFixed(2) })}</p>
         <p class="aide">${t('defautsCompte', { s: d.sonde || 0, c: d.surchauffe || 0, f: d.figee || 0 })}</p>`;
     });
     return h + `<p class="discret mt">${t('firmware', { v: esc(st.version) })}</p>`;
@@ -1780,10 +1911,17 @@ const App = (() => {
         case 'fermerDiag':        fermerDialogue($('#diag')); break;
         case 'copierRapport':     api.copierRapport(); break;
         case 'sv':                if (serviceMod) serviceMod.clic(d.sv, el); break;
+        case 'zone':              api.zone(+d.z); break;
+        case 'cible':             api.cible(+d.pas); break;
+        case 'periode':           api.periode(d.p); break;
+        case 'ajoutSocle':        api.montrerAjout(); break;
       }
     });
     // Les cartes de socle sont des boutons : clavier compris.
     doc.addEventListener('keydown', ev => {
+      if (ev.key === 'Escape' && vueCourante === 'socle' && panneauActif !== 'etat' && !doc.querySelector('dialog[open]')) {
+        api.panneau('etat'); return;
+      }
       if (ev.key !== 'Enter' && ev.key !== ' ') return;
       const el = /** @type {any} */ (ev.target);
       if (el && el.getAttribute && el.getAttribute('role') === 'button' && el.dataset.action) {
@@ -2171,6 +2309,7 @@ const App = (() => {
     ouvrir(id) {
       socleOuvert = id;
       panneauActif = 'etat';
+      clearTimeout(minuteurCible);
       $('#detail').dataset.socle = '';          // ossature reconstruite à chaque ouverture
       montrer('socle');
       const titre = $('#detail h2');
@@ -2182,15 +2321,69 @@ const App = (() => {
     // avant d'en avoir besoin : chaque requête traverse le broker, et un socle
     // hors ligne ne répondra de toute façon pas.
     panneau(nom) {
+      const avant = panneauActif;
       panneauActif = nom;
       dessiner();
       const id = socleOuvert;
       if (!id) return;
-      if (nom === 'courbes' && !courbes[id]) api.courbes(24);
-      if (nom === 'general') {
-        if (!generaux[id]) commander(id, 'globaux').then(r => { generaux[id] = r; dessiner(); }).catch(() => {});
-        if (!stats[id])    commander(id, 'stats').then(r => { stats[id] = r; dessiner(); }).catch(() => {});
+      // Retour à l'accueil : le focus revient là d'où l'on venait.
+      if (nom === 'etat') {
+        const b = $(avant === 'zone' ? `#detail .zone-accueil[data-z="${zoneOuverte}"]` : `#detail .rubrique[data-nom="${avant}"]`);
+        if (b) b.focus();
+        return;
       }
+      doc.documentElement.scrollTop = 0;
+      const titre = $('#titre-feuille');
+      if (titre) titre.focus();
+      if (nom === 'courbes' && !courbes[id]) api.courbes(24);
+      if (['general', 'programme', 'securite'].includes(nom) && !generaux[id])
+        commander(id, 'globaux').then(r => { generaux[id] = r; dessiner(); }).catch(() => {});
+      if (nom === 'general' && !stats[id]) commander(id, 'stats').then(r => { stats[id] = r; dessiner(); }).catch(() => {});
+    },
+
+    // L'écran d'une zone, façon climatisation.
+    zone(i) {
+      zoneOuverte = i;
+      periodeChoisie = null;
+      api.panneau('zone');
+    },
+    periode(p) { periodeChoisie = p; dessiner(); },
+
+    // Chevrons ‹ › : 0,5 °C par appui, envoyé une seconde après le dernier.
+    cible(pas) {
+      const id = socleOuvert, e = etats[id] || {}, i = zoneOuverte, z = (e.zones || [])[i];
+      if (!z) return;
+      const per = periodeAffichee(z, e);
+      const champ = /** @type {any} */ ($('#' + (per === 'jour' ? 'j' : 'n') + i));
+      if (!champ) return;
+      const actuel = champ.value !== '' ? nombre(champ.value) : z[per];
+      champ.value = String(Math.min(45, Math.max(10, Math.round((actuel + pas) * 2) / 2)));
+      if (navigator.vibrate) navigator.vibrate(8);
+      dessiner();
+      clearTimeout(minuteurCible);
+      minuteurCible = setTimeout(() => {
+        const j = /** @type {any} */ ($('#j' + i)), n = /** @type {any} */ ($('#n' + i));
+        const params = { z: i };
+        if (j && j.value !== '') params.jour = nombre(j.value);
+        if (n && n.value !== '') params.nuit = nombre(n.value);
+        commander(id, 'zone', params).then(() => {
+          if (params.jour !== undefined) z.jour = params.jour;
+          if (params.nuit !== undefined) z.nuit = params.nuit;
+          message(t('reglagesEnregistres'));
+          commander(id, 'etat').catch(() => {});
+        }, err => message(err.message, true)).finally(() => {
+          [j, n].forEach(el => { if (el) el.value = ''; });
+          dessiner();
+        });
+      }, 1000);
+    },
+
+    montrerAjout() {
+      const f = $('#form-socle');
+      if (!f) return;
+      f.hidden = false;
+      const champ = $('#a-id');
+      if (champ) champ.focus();
     },
 
     async courbes(heures) {
@@ -2321,21 +2514,18 @@ const App = (() => {
       }
       const sa = /** @type {HTMLInputElement|null} */ (doc.getElementById('gSA'));
       if (sa) params.saisonActive = !!sa.checked;
-      // Firmware 3.5 (protocole 4) : présents seulement si le socle les a rendus.
-      if (doc.getElementById('gPK')) {
-        for (const [id, cle] of [['gPK', 'prixKwh'], ['gLat', 'latitude'], ['gLon', 'longitude']]) {
-          const v = champNombre(id);
-          if (v !== undefined) params[cle] = v;
-        }
-        const dec = champNombre('gSDec');
-        if (dec !== undefined) params.soleilDecalageMin = Math.round(dec);
-        const heure = depuisHHMM(/** @type {any} */ (doc.getElementById('gRH')).value);
-        if (heure !== null) params.rapportMinutes = heure;
-        for (const [id, cle] of [['gEN', 'ecranNuit'], ['gZP', 'zonePrioritaire']])
-          params[cle] = +(/** @type {any} */ (doc.getElementById(id)).value);
-        for (const [id, cle] of [['gLE', 'ledEteinte'], ['gRA', 'rapportActif'], ['gSO', 'soleilActif']])
-          params[cle] = !!(/** @type {any} */ (doc.getElementById(id)).checked);
+      // Firmware 3.5 (protocole 4) : chaque champ n'est lu que s'il est affiché.
+      const el = id => /** @type {any} */ (doc.getElementById(id));
+      for (const [id, cle] of [['gPK', 'prixKwh'], ['gLat', 'latitude'], ['gLon', 'longitude']]) {
+        const v = champNombre(id);
+        if (v !== undefined) params[cle] = v;
       }
+      const dec = champNombre('gSDec');
+      if (dec !== undefined) params.soleilDecalageMin = Math.round(dec);
+      const heure = el('gRH') ? depuisHHMM(el('gRH').value) : null;
+      if (heure !== null) params.rapportMinutes = heure;
+      for (const [id, cle] of [['gEN', 'ecranNuit'], ['gZP', 'zonePrioritaire']]) if (el(id)) params[cle] = +el(id).value;
+      for (const [id, cle] of [['gLE', 'ledEteinte'], ['gRA', 'rapportActif'], ['gSO', 'soleilActif']]) if (el(id)) params[cle] = !!el(id).checked;
       try {
         const r = await commander(socleOuvert, 'globaux', params);
         generaux[socleOuvert] = r;

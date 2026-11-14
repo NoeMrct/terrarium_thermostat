@@ -55,8 +55,8 @@ alerte.
 
 ## 3. Ce que l'application fait en plus
 
-- Une notification du navigateur tant qu'elle est ouverte (onglet Appareil →
-  Notifications), une pastille sur son icône avec le nombre de zones en défaut,
+- Une notification du navigateur tant qu'elle est ouverte (rubrique Alertes
+  d'un socle), une pastille sur son icône avec le nombre de zones en défaut,
   une vibration sur un nouveau défaut.
 - Le badge **silencieux** sur un socle annoncé en ligne mais muet depuis plus de
   deux minutes.
@@ -71,7 +71,7 @@ prolongé), mise à jour en échec ou retour arrière.
 1. Le serveur doit être servi en HTTPS (le push l'exige) et avoir ses clés
    VAPID — il les engendre au premier démarrage dans son dossier de données ;
    `CONTACT_VAPID` déclare le contact aux services de push.
-2. Dans l'application, connectée au serveur : onglet **Appareil → « Activer les
+2. Dans l'application, connectée au serveur : rubrique **Alertes → « Activer les
    notifications du serveur »**, puis accepter la demande du navigateur. Sur
    iPhone, l'application doit d'abord être installée sur l'écran d'accueil.
    L'application demande aussitôt au serveur une notification d'essai

@@ -41,6 +41,7 @@ const SCENARIOS = [
 const ECRANS = [
   ['liste',    () => { localStorage.setItem('terrarium.langue', 'fr'); App.montrer('liste'); }],
   ['etat',     () => App.ouvrir('terraDEMO002')],
+  ['zone',     () => App.zone(0)],
   ['reglages', () => App.panneau('reglages')],
   ['courbes',  () => App.panneau('courbes')],
   ['appareil', () => App.panneau('general')],

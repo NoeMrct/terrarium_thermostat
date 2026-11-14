@@ -528,12 +528,18 @@ const SERVICE_SRC = lire('service.js');
 if (!SERVICE_SRC.includes('export default function service(app) {')) { console.error('service.js : « export default function service(app) { » introuvable'); process.exit(1); }
 const SERVICE = '(function () {\n' + SERVICE_SRC.replace('export default function service(app) {', 'window.SERVICE = function service(app) {') + '\n})();';
 
+// La police non plus ne se charge pas en file:// (le navigateur refuse une
+// police d'une autre « origine ») : elle est mise en ligne, en base64.
+const POLICE = fs.readFileSync(path.join(APP, 'polices', 'inter-latin-wght.woff2')).toString('base64');
+const STYLE = lire('style.css').replace('url(polices/inter-latin-wght.woff2)', `url(data:font/woff2;base64,${POLICE})`);
+
 // Tout est mis en ligne dans le fichier : ouvert en file://, aucune requête ne
 // pourrait aboutir de toute façon.
 // La politique de sécurité (CSP) de la vraie page interdit les scripts en ligne,
 // ce qui est précisément ce que ce fichier contient : elle est retirée ici.
 html = html
-  .replace('<link rel="stylesheet" href="style.css">', `<style>\n${lire('style.css')}\n</style>`)
+  .replace('<link rel="stylesheet" href="style.css">', () => `<style>\n${STYLE}\n</style>`)
+  .replace(/<link rel="preload"[^>]*>\s*/, '')
   .replace('<link rel="manifest" href="manifest.json">', '')
   .replace('<link rel="icon" href="icone.svg">', '')
   .replace(/<link rel="apple-touch-icon"[^>]*>\s*/, '')
@@ -543,7 +549,7 @@ html = html
   .replace('<header id="entete">', `${BANDEAU}\n<header id="entete">`)
   .replace('<title>Terrariums</title>', '<title>Terrariums — démonstration</title>');
 
-['<script src="mqtt.js"', '<script src="app.js"', 'Content-Security-Policy'].forEach(m => {
+['<script src="mqtt.js"', '<script src="app.js"', 'Content-Security-Policy', 'url(polices/', 'rel="preload"'].forEach(m => {
   if (html.includes(m)) { console.error(`Remplacement manqué : « ${m} » subsiste dans demo.html`); process.exit(1); }
 });
 fs.writeFileSync(path.join(APP, 'demo.html'), html);

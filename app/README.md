@@ -126,24 +126,31 @@ mais tout le reste fonctionne.
    s'installe avec son icône, sans barre d'adresse. Les icônes PNG de
    `icones/` sont là pour ça — iOS ignore les icônes SVG, et sans elles
    l'écran d'accueil montrerait une capture floue de la page.
-4. Onglet **Appareil** d'un socle → « Activer les notifications » pour être
+4. Rubrique **Alertes** d'un socle → « Activer les notifications » pour être
    prévenu d'un défaut sans avoir à regarder l'écran.
 
-La vue d'un socle a quatre onglets :
+Chaque socle a un accueil : le terrarium dessiné, dont les zones s'éclairent
+quand elles chauffent, ses deux zones en grand (un appui ouvre l'écran de la
+zone, cible réglée par chevrons de 0,5 °C), quatre boutons ronds (Entretien,
+Lever les défauts, Alertes, Mises à jour) et des rubriques qui s'ouvrent en
+feuilles :
 
-| Onglet | Ce qu'on y fait |
+| Rubrique | Ce qu'on y fait |
 |---|---|
-| **État** | Températures en direct, consignes jour/nuit, entretien, autotune, levée des défauts |
-| **Réglages** | Tous les réglages d'une zone : nom, horaires, rampe, bande, coupure max, calibration |
-| **Courbes** | 6 h à 7 jours d'historique, demandés au socle à l'ouverture |
-| **Appareil** | Alimentation, cyclage saisonnier, statistiques 24 h, notifications, redémarrage |
+| **Températures** | Nom, consignes jour/nuit, bande et calibration de chaque zone, autotune |
+| **Programmation** | Horaires et rampe ; jour et nuit au soleil (firmware 3.5) |
+| **Courbes** | 6 h à 30 jours d'historique, demandés au socle à l'ouverture |
+| **Alertes** | Notifications du navigateur ou du serveur |
+| **Sécurité** | Coupure max par zone, alimentation, zone prioritaire |
+| **Appareil** | Santé, écran, coût et rapport, cyclage saisonnier, statistiques 24 h, sauvegardes, redémarrage |
+| **Service** | Sondes, essai de chauffe, calibration, journal, résumés, surveillance, sauvegarde du socle (firmware 3.5, module chargé à la demande) |
+| **Mises à jour** | Firmware : version publiée, installation par le socle, étape en cours |
 
-Le journal, la configuration réseau et la mise à jour du firmware restent sur
-l'interface locale du socle : ce sont des opérations qu'on fait chez soi.
+Le Wi-Fi reste sur l'interface locale du socle : c'est une opération qu'on fait
+chez soi, et aucun identifiant Wi-Fi ne passe par le broker.
 
 L'interface suit le réglage clair ou sombre du téléphone et s'adapte à la
-largeur de l'écran : une colonne et une barre d'onglets en bas sur téléphone,
-plusieurs colonnes et des onglets en haut sur tablette ou ordinateur.
+largeur de l'écran ; Échap referme une feuille.
 
 Le bouton « Scanner un QR » apparaît sur les navigateurs qui savent lire les
 codes-barres, essentiellement Chrome sur Android. Format attendu :
@@ -236,7 +243,7 @@ dans le stockage local, comme avant.
 
 **Le firmware se met à jour depuis l'application.** `version.json` porte la
 dernière version publiée (lue dans la release GitHub à la publication) ; la
-carte « Mise à jour du firmware » de l'onglet Appareil la compare à celle du
+carte « Mise à jour du firmware » de la rubrique Mises à jour la compare à celle du
 socle, et l'action `maj` du protocole fait télécharger l'image par le socle
 lui-même, qui publie sa progression sur le sujet `maj`. L'état de la dernière
 mise à jour (validée, retour arrière, échec) vient de sa santé.
