@@ -124,9 +124,15 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   v('feuille Appareil chargée, santé affichée', !!(await page.$('#gSD')) && (await page.innerHTML('#detail')).includes('Santé'));
   // Le nom d'hôte (terraSIM001.local) poussait sa tuile hors de l'écran des
   // téléphones étroits : chaque tuile doit tenir dans sa case et la page dans l'écran.
+  // La feuille entre en glissant (0,22 s, translateX) : mesurée en plein
+  // glissement, elle dépasse de l'écran sans déborder pour autant. On attend
+  // que les animations finies (pas les boucles) soient terminées.
+  const animationsFinies = () => page.waitForFunction(() => !document.getAnimations()
+    .some(a => a.playState === 'running' && a.effect && Number.isFinite(a.effect.getComputedTiming().endTime)), null, { timeout: 3000 }).catch(() => {});
   for (const largeur of [320, 360, 390]) {
     await page.setViewportSize({ width: largeur, height: 800 });
     await page.waitForTimeout(150);
+    await animationsFinies();
     const r = await page.evaluate(() => {
       const tuiles = [...document.querySelectorAll('#detail .stat > div')];
       const fautive = tuiles.find(d => d.scrollWidth > d.clientWidth + 1 || d.getBoundingClientRect().right > window.innerWidth + 1);
@@ -153,6 +159,11 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
         }
         if (!fautifs.length) coupables.push('aucun élément de <main> ne dépasse sa boîte de contenu');
       }
+      if (page) {
+        const enCours = document.getAnimations().filter(a => a.playState === 'running')
+          .map(a => `${a.animationName || a.constructor.name} sur ${a.effect && a.effect.target ? nom(a.effect.target) : '?'}`);
+        if (enCours.length) coupables.push('animations en cours : ' + enCours.slice(0, 3).join(', '));
+      }
       return { n: tuiles.length, fautive: fautive ? fautive.textContent.trim().slice(0, 40) : '', page, coupables, largeur: document.documentElement.scrollWidth };
     });
     v(`à ${largeur} px, aucune tuile ne déborde`, r.n > 0 && !r.fautive && !r.page,
@@ -170,6 +181,7 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   for (const largeur of [320, 390]) {
     await page.setViewportSize({ width: largeur, height: 800 });
     await page.waitForTimeout(150);
+    await animationsFinies();
     const r = await page.evaluate(() => {
       const el = [...document.querySelectorAll('#detail .rubrique, #detail .rond-lib, #detail .zone-accueil')];
       return { n: el.length, deborde: el.some(x => x.getBoundingClientRect().right > window.innerWidth + 1) || document.documentElement.scrollWidth > window.innerWidth + 1 };

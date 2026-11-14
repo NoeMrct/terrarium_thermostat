@@ -73,6 +73,9 @@ const attendre = ms => new Promise(r => setTimeout(r, ms));
   v('l\'accueil du socle se remplit', $('#detail').innerHTML.includes('Point chaud') && !!$('#detail .ill'));
   v('huit rubriques sous les commandes rapides', $('#detail').querySelectorAll('.rubrique').length === 8 && $('#detail').querySelectorAll('.rond-lib').length === 4);
   App.zone(0);
+  // L'écran montre la cible de la période en cours : la nuit (après 20 h),
+  // c'est la consigne de nuit. Ces contrôles portent sur celle de jour.
+  App.periode('jour');
   await attendre(500);
   v('l\'écran de la zone affiche la cible en grand', /32,0/.test(($('#detail [data-r="zcible"]') || {}).textContent || ''));
   v('les champs de réglage sont présents', !!$('#j0'));
