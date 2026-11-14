@@ -401,7 +401,8 @@ Oui, le code se met à jour à distance comme une application, sans jamais
 rebrancher de câble. Deux chemins, voir la section 6 dédiée :
 
 - depuis l'IDE Arduino ou `espota.py`, **à condition qu'un mot de passe OTA soit
-  défini** — sans lui, ArduinoOTA n'est pas démarrée du tout ;
+  défini et qu'aucune clé de signature ne soit compilée** — sinon ArduinoOTA
+  n'est pas démarrée du tout (elle ne vérifie aucune signature) ;
 - depuis l'onglet Réseau de l'interface web, en envoyant le fichier `.bin`, ce
   qui ne demande rien d'autre que le mot de passe de l'interface — et, si une
   clé publique est compilée (`OTA_CLE_PUBLIQUE`), une image **signée** par
@@ -412,6 +413,13 @@ d'une release GitHub, sur ordre de l'application (carte « Mise à jour du
 firmware »), de la commande série `maj 3.4.0`, ou de l'onglet Réseau (« Mise à
 jour depuis GitHub »). HTTPS, origine limitée aux releases du dépôt, signature
 vérifiée si le socle l'exige, progression publiée sur MQTT.
+
+Et, quand le socle exige des images signées, **il s'installe seul** les
+nouvelles versions la nuit (mises à jour automatiques, activées d'origine,
+coupables et reportables) : manifeste lu chaque jour sur la dernière release,
+annonce avant, jamais pendant un défaut, un autotune, un essai, un entretien
+ou un accès support, déploiement progressif sur quelques jours. Aucun chemin
+distant ne revient à une version plus ancienne (anti-retour), même signée.
 
 Dans tous les cas, l'image installée n'est **validée qu'après 90 s** de
 fonctionnement normal : une mise à jour qui plante est annulée au redémarrage

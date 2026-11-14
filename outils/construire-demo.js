@@ -175,10 +175,21 @@ const FAUX_MQTT = `
 
   // Santé du socle : ce que publie un firmware 3.5 sur <id>/sante.
   const majs = {};
+  // Mises à jour automatiques (F15) : une version 3.6.0 publiée, prévue la nuit.
+  const majAutos = {};
+  const majAuto = id => majAutos[id] || (majAutos[id] = { actif: true, plageDebut: 180, plageFin: 300, reporteeJusqua: 0 });
+  function etatMajAuto(id) {
+    const m = majAuto(id), reportee = m.reporteeJusqua > Date.now() / 1000;
+    return { actif: m.actif, signee: true, plageDebut: m.plageDebut, plageFin: m.plageFin,
+      attente: !m.actif ? 'desactivee' : reportee ? 'reportee' : 'plage', rang: id === 'terraDEMO001' ? 7 : 63,
+      publiee: '3.6.0', disponible: '3.6.0', notes: 'Mises à jour automatiques la nuit, images signées exigées.', securite: false, ouvert: 100,
+      verifiee: Math.floor(debut / 1000), ...(reportee ? { reporteeJusqua: m.reporteeJusqua } : {}) };
+  }
   const sante = id => ({ proto: 4, version: '3.5.0-demo', uptime: 128400 + Math.floor((Date.now() - debut) / 1000),
     rssi: id === 'terraDEMO001' ? -58 : -76, heap: 171000, heapMin: 142000, blocMax: 98000,
     reset: 'mise sous tension', otaEnAttente: false, hote: id + '.local', ip: id === 'terraDEMO001' ? '192.168.1.41' : '192.168.1.42',
-    ...(majs[id] ? { maj: majs[id] } : {}) });
+    ...(majs[id] ? { maj: majs[id] } : {}),
+    majAuto: (({ actif, attente, disponible }) => ({ actif, attente, disponible }))(etatMajAuto(id)) });
   const debut = Date.now();
 
   function publierEtat(id) {
@@ -273,6 +284,10 @@ const FAUX_MQTT = `
         if (!(g2.ecranNuit >= 0 && g2.ecranNuit <= 2)) return rep(false, { erreur: "Mode nuit de l'ecran inconnu" });
         if (!(g2.latitude >= -65 && g2.latitude <= 65)) return rep(false, { erreur: 'Latitude hors -65..65' });
         if (!(g2.soleilDecalageMin >= -180 && g2.soleilDecalageMin <= 180)) return rep(false, { erreur: 'Decalage solaire hors -180..180 min' });
+        const ma = majAuto(id), debutMaj = d.majPlageDebut !== undefined ? d.majPlageDebut : ma.plageDebut,
+          finMaj = d.majPlageFin !== undefined ? d.majPlageFin : ma.plageFin;
+        if (debutMaj === finMaj) return rep(false, { erreur: 'Plage de mise a jour vide : debut et fin identiques' });
+        Object.assign(ma, { plageDebut: debutMaj, plageFin: finMaj }, typeof d.majAuto === 'boolean' ? { actif: d.majAuto } : {});
         Object.assign(g, g2);
         return rep(true, Object.assign({}, g, {
           amperes: s.alim, watts: 20, volts: 12, zonesSimultanees: zonesSimultanees(s),
@@ -280,8 +295,19 @@ const FAUX_MQTT = `
           saisonActive: s.saison.active, saisonDelta: s.saison.delta,
           saisonDescenteJ: s.saison.descente, saisonPlateauJ: s.saison.plateau,
           saisonRemonteeJ: s.saison.remontee,
-          decalageActuel: s.saison.active ? -s.saison.delta : 0
+          decalageActuel: s.saison.active ? -s.saison.delta : 0,
+          majAuto: majAuto(id).actif, majPlageDebut: majAuto(id).plageDebut, majPlageFin: majAuto(id).plageFin
         }));
+      }
+      case 'majauto': {
+        const op = d.op || 'etat';
+        if (op === 'reporter') {
+          if (!Number.isInteger(d.jours) || d.jours < 0 || d.jours > 30) return rep(false, { erreur: 'jours : 0 (annuler) a 30' });
+          majAuto(id).reporteeJusqua = d.jours ? Math.floor(Date.now() / 1000) + d.jours * 86400 : 0;
+        } else if (op !== 'etat' && op !== 'verifier') return rep(false, { erreur: 'op : etat, verifier ou reporter' });
+        rep(true, { majAuto: etatMajAuto(id) });
+        publierEtat(id);
+        return;
       }
       case 'stop-autotune':
         if (!s.zones[d.z]) return rep(false, { erreur: 'zone invalide' });
@@ -297,6 +323,9 @@ const FAUX_MQTT = `
         const cible = d.version || ((d.url || '').match(/v([0-9]+[.][0-9]+[.][0-9]+)/) || [])[1] || '?';
         if (!d.url && !d.version) return rep(false, { erreur: 'url ou version attendue' });
         if (d.version === '3.5.0' && !d.forcer) return rep(false, { erreur: 'deja en 3.5.0' });
+        const visee = (cible.match(/^([0-9]+)[.]([0-9]+)[.]([0-9]+)$/) || []).slice(1).map(Number);
+        if (visee.length === 3 && (visee[0] * 1e6 + visee[1] * 1e3 + visee[2]) < 3005000)
+          return rep(false, { erreur: cible + ' plus ancienne que 3.5.0 : retour refuse' });
         rep(true, { maj: 'telechargement' });
         majs[id] = { etape: 'en validation', version: cible, detail: 'telechargement en cours' };
         let pct = 0;

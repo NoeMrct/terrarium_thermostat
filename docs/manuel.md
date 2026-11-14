@@ -256,6 +256,18 @@ disent si un terrarium **tient** ses valeurs, pas seulement s'il les atteint.
   depuis l'IDE si un mot de passe OTA est défini. Pendant l'écriture, le chauffage est coupé ; au
   redémarrage, la nouvelle version doit se déclarer saine dans la minute et demie, sinon le socle
   revient de lui-même à la version précédente — et l'application affiche « retour arrière ».
+- **Mises à jour automatiques** (activées d'origine) : chaque jour, le socle regarde si une version
+  est publiée. Il te prévient (alerte, notification du serveur), puis l'installe **seul la nuit**,
+  entre 03:00 et 05:00 par défaut, jamais pendant un défaut, un autotune, un essai, un entretien ou
+  un accès support, et une seule tentative par nuit. Les nouvelles versions arrivent par vagues sur
+  quelques jours : la tienne peut venir après celle d'un voisin. Dans la rubrique **Mises à jour**,
+  carte **Mises à jour automatiques** : les couper, changer la plage, **reporter de 7 jours** ou
+  **vérifier maintenant** (aussi sur l'onglet Réseau de l'interface locale, ou `maj auto non`,
+  `maj plage 01:00 02:00`, `maj reporter 7` sur la console). Rien ne s'installe seul sur un socle
+  qui n'exige pas d'images signées : la carte le dit, et la mise à jour se lance alors à la main.
+- **Jamais en arrière à distance** : une version plus ancienne que celle qui tourne est refusée,
+  même signée. Pour revenir en arrière malgré tout, onglet Réseau de l'interface locale, choisis
+  « autorisée cette fois » sous « Version plus ancienne ou inconnue » avant d'envoyer le fichier.
 
 ## 13. Sécurité
 

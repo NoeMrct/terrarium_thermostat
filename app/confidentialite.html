@@ -64,7 +64,11 @@
   <p>Le socle enregistre son historique de températures et son journal dans sa propre mémoire. S'il est configuré pour envoyer des
     alertes ou un signal de vie vers une adresse web (<em>webhook</em>, ntfy, healthchecks…), ces messages partent vers le service que
     vous avez indiqué et contiennent l'identifiant du socle, les températures et le texte de l'alerte. Lors d'une mise à jour « depuis
-    GitHub », le socle télécharge le binaire sur les serveurs de GitHub, qui voient son adresse IP.</p>
+    GitHub », le socle télécharge le binaire sur les serveurs de GitHub, qui voient son adresse IP. Pour les mises à jour
+    automatiques, il y lit aussi, une fois par jour, un petit fichier décrivant la dernière version publiée : la requête ne
+    contient rien d'autre que ce qu'un navigateur envoie (adresse IP, « terrarium/&lt;version&gt; » comme logiciel), ni
+    identifiant ni température. Couper les mises à jour automatiques n'arrête pas cette lecture, qui sert aussi à vous
+    prévenir ; elle cesse avec un firmware compilé sans manifeste.</p>
 
   <h2>Vos droits</h2>
   <p>Comme l'éditeur ne détient aucune donnée vous concernant, il n'y a rien à demander, rectifier ou effacer de son côté : tout est

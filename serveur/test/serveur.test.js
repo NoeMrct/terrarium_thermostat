@@ -251,6 +251,26 @@ test('serveur : comptes, droits, appairage, historique, push, API', async t => {
     assert.ok(/hors ligne/.test(pushs[0].charge.titre));
   });
 
+  await t.test('notifications push : mise à jour disponible, une fois par version (F15)', async () => {
+    const sante = majAuto => socle.publish('terrarium/terraA1B2C3/sante', JSON.stringify({ proto: 4, version: '3.5.0', uptime: 100, majAuto }), { retain: true });
+    sante({ actif: true, attente: 'a-jour' });
+    await attendre(200);
+    pushs.length = 0;
+    sante({ actif: true, attente: 'plage', disponible: '3.6.0' });
+    await attendre(200);
+    assert.equal(pushs.length, 1, 'une nouvelle version disponible est annoncée');
+    assert.ok(/3\.6\.0/.test(pushs[0].charge.titre) && /cette nuit/.test(pushs[0].charge.corps) && pushs[0].charge.urgent === false);
+    sante({ actif: true, attente: 'plage', disponible: '3.6.0' });
+    await attendre(150);
+    assert.equal(pushs.length, 1, 'la même version ne se réannonce pas');
+    sante({ actif: false, attente: 'desactivee', disponible: '3.6.1', securite: true });
+    await attendre(200);
+    assert.equal(pushs.length, 2, 'la suivante, si');
+    assert.ok(/sécurité/.test(pushs[1].charge.titre) && /depuis l'application/.test(pushs[1].charge.corps) && pushs[1].charge.urgent === true);
+    const fiche = await appel(s.port, 'GET', '/api/admin/socles/terraA1B2C3', undefined, 'jeton-admin-de-test');
+    if (fiche.status === 200) assert.equal(fiche.donnees.majAuto.disponible, '3.6.1', 'résumé de flotte : mises à jour automatiques');
+  });
+
   await t.test('notifications push : trop chaud et dérive, comme dans l\'application', async () => {
     const etat = champs => socle.publish('terrarium/terraA1B2C3/zone2/etat', JSON.stringify({ temp: 28, consigne: 27, defaut: '0', nom: 'Point froid', ...champs }));
     etat({ trop_chaud: '0', derive: '0' });

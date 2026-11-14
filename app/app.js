@@ -194,6 +194,30 @@ const App = (() => {
       majLancee: 'Téléchargement lancé sur le socle.', majRefusee: 'Mise à jour refusée : {m}', majTelechargement: 'Téléchargement en cours : {p} %', majRedemarre: 'Image écrite, le socle redémarre.',
       majErreur: 'Mise à jour en échec : {m}', interfaceLocale: 'interface locale (sur le même réseau)',
       majEtape_en_validation: 'en validation', majEtape_validee: 'validée', majEtape_retour_arriere: 'retour arrière', majEtape_echec: 'échec',
+      // mises à jour automatiques (F15)
+      majAutoTitre: 'Mises à jour automatiques', majAutoActive: 'Installer seul les nouvelles versions, la nuit',
+      majAutoAide: 'Chaque jour, le socle regarde si une version est publiée. Il l\'installe seul dans la plage choisie, jamais pendant un défaut, un autotune, un essai, un entretien ou un accès support, et seulement si elle est signée. Il prévient avant et revient seul en arrière si elle plante.',
+      majPlageDe: 'De (HH:MM)', majPlageA: 'À (HH:MM)', majPlageInvalide: 'Plage : deux heures différentes, au format HH:MM.',
+      majAutoDispo: 'Version {v} disponible.', majAutoSecurite: 'Correctif de sécurité.', majAutoPubliee: 'Dernière version publiée : {v}.',
+      majAutoReporteeJusqua: 'Reportées jusqu\'au {d}.', majAutoVerifiee: 'Vérifié le {d}.', majAutoErreurVerif: 'Dernière vérification en échec : {m}.',
+      majAutoReporter: 'Reporter de 7 jours', majAutoAnnulerReport: 'Annuler le report', majAutoVerifier: 'Vérifier maintenant',
+      majAutoEnregistre: 'Mises à jour automatiques enregistrées.', majAutoReporteMsg: 'Mises à jour reportées de 7 jours.',
+      majAutoReportAnnule: 'Report annulé.', majAutoVerifMsg: 'Vérification demandée au socle.',
+      majAutoAttente_prete: 'Installation en cours.', majAutoAttente_a_jour: 'Firmware à jour.',
+      majAutoAttente_a_verifier: 'Pas encore vérifié depuis le démarrage du socle.',
+      majAutoAttente_refusee: 'Cette version est revenue en arrière sur ce socle : elle ne s\'installera plus seule.',
+      majAutoAttente_desactivee: 'Désactivées : l\'installation se lance ici, à la main.',
+      majAutoAttente_non_signee: 'Ce firmware n\'exige pas d\'images signées : rien ne s\'installe seul, la mise à jour se lance ici.',
+      majAutoAttente_echecs: 'Trois tentatives ratées : la mise à jour se lance ici, à la main.',
+      majAutoAttente_heure: 'En attente de l\'heure (réseau).', majAutoAttente_reportee: 'Reportées.',
+      majAutoAttente_pause: 'Déploiement suspendu par le fabricant.',
+      majAutoAttente_deploiement: 'Déploiement progressif : ce socle n\'est pas encore servi.',
+      majAutoAttente_tentee: 'Déjà tentée cette nuit, nouvel essai la nuit prochaine.',
+      majAutoAttente_plage: 'Prévue la nuit, entre {de} et {a}.', majAutoAttente_hors_ligne: 'Socle hors ligne.',
+      majAutoAttente_demarrage: 'Socle démarré depuis moins de 10 min.', majAutoAttente_validation: 'L\'image actuelle attend encore sa validation.',
+      majAutoAttente_defaut: 'En attente : une zone est en défaut.', majAutoAttente_autotune: 'En attente : autotune en cours.',
+      majAutoAttente_essai: 'En attente : essai en cours.', majAutoAttente_entretien: 'En attente : entretien en cours.',
+      majAutoAttente_support: 'En attente : accès support ouvert.', majAutoAttente_sans_manifeste: 'Ce firmware ne cherche pas de mises à jour.',
       // serveur
       serveur: 'Serveur', serveurAbsent: 'aucun serveur Terrariums derrière ce broker', socleRattache: 'Socle rattaché à ton compte sur le serveur.',
       rattachementRefuse: 'Rattachement refusé par le serveur : {m}', reessayer: 'Réessayer',
@@ -284,6 +308,7 @@ const App = (() => {
   const zooms = {};                 // id -> { debut, fin } ou null (vue entière)
   const stats = {};                 // id -> réponse de l'action « stats »
   const generaux = {};              // id -> réponse de l'action « globaux »
+  const majAutos = {};              // id -> détail des mises à jour automatiques (action « majauto »)
   const alertesVues = {};           // id -> [libellé|null, …] : dernier défaut notifié
   let versionApp = null;            // contenu de version.json, écrit à la publication
   const erreurs = [];               // journal des erreurs, pour le diagnostic
@@ -1420,6 +1445,10 @@ const App = (() => {
     if (panneauActif === 'general') cle += `|${stats[s.id] ? 1 : 0}`;
     if (panneauActif === 'zone') cle += `|${zoneOuverte}`;
     if (panneauActif === 'service') cle += `|${serviceMod ? 1 : 0}|${e.enLigne ? 1 : 0}|${e.proto || 0}`;
+    if (panneauActif === 'maj') {
+      const d = majAutos[s.id];
+      cle += `|${e.enLigne ? 1 : 0}|${e.sante && e.sante.majAuto ? 1 : 0}|${d ? [d.actif, d.plageDebut, d.plageFin, d.reporteeJusqua || 0].join(',') : '-'}`;
+    }
     if (conteneur.dataset.cle !== cle) {
       conteneur.dataset.cle = cle;
       html(conteneur, construirePanneau(s, e));
@@ -1439,7 +1468,7 @@ const App = (() => {
         <section class="carte"><h2>${t('alertesSocleTitre')}</h2><p class="aide">${t('alertesSocle')}</p>
           <div class="boutons"><button type="button" class="btn btn-secondaire" data-action="panneau" data-nom="service">${icone('i-outil')}${t('ongletService')}</button></div></section>`;
       case 'service': return structureService(s, e);
-      case 'maj': return '<section class="carte" data-r="maj"></section>';
+      case 'maj': return '<section class="carte" data-r="maj"></section>' + structureMajAuto(s, e);
       default: return structureGeneral(s);
     }
   }
@@ -1487,7 +1516,7 @@ const App = (() => {
       case 'courbes': patcherCourbes(s.id); break;
       case 'alertes': peindre(r('notifs'), vivantNotifications()); break;
       case 'service': if (serviceMod) serviceMod.patcher(); break;
-      case 'maj': peindre(r('maj'), vivantMaj(e) + (e.sante ? etapeMaj(e.sante) : '')); break;
+      case 'maj': peindre(r('maj'), vivantMaj(e) + (e.sante ? etapeMaj(e.sante) : '')); peindre(r('majauto'), vivantMajAuto(e)); break;
       default:
         peindre(r('sante'), vivantSante(e));
         peindre(r('stats'), vivantStats(stats[s.id]));
@@ -1732,8 +1761,42 @@ const App = (() => {
     if (!dispo) return h + `<p class="aide">${t('majInconnue', { v: esc(actuelle || '?') })}</p>`;
     const plusRecente = compareVersions(dispo, actuelle) > 0;
     if (!plusRecente) return h + `<p class="aide">${t('majAJour', { v: esc(actuelle || '?') })}</p>`;
+    const fw = versionApp.firmware;
     return h + `<p class="aide">${t('majDisponible', { v: esc(dispo), a: esc(actuelle || '?') })}</p>
+      ${fw.notes ? `<p class="aide">${fw.securite ? `<span class="badge warn">${t('majAutoSecurite')}</span> ` : ''}${esc(fw.notes)}</p>` : ''}
       <button type="button" class="btn mt" data-action="mettreAJour" data-version="${attr(dispo)}" ${e.enLigne ? '' : 'disabled'}>${icone('i-maj')}${t('majInstaller', { v: esc(dispo) })}</button>`;
+  }
+
+  // Mises à jour automatiques (F15) : activées par défaut, la nuit, images
+  // signées exigées. L'état court vient de « sante » ; le détail (plage,
+  // notes, report) de l'action « majauto », lue à l'ouverture de la rubrique.
+  // Le formulaire est dans la structure (reconstruite quand le détail change),
+  // l'état en direct à côté : une saisie en cours n'est jamais écrasée.
+  const dateCourte = s => new Date(s * 1000).toLocaleString(langue === 'en' ? 'en-GB' : 'fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+  function structureMajAuto(s, e) {
+    const d = majAutos[s.id];
+    if (!d && !(e.sante && e.sante.majAuto)) return '';     // firmware d'avant la 3.5
+    const h = `<form class="carte" data-form="majauto"><h2>${t('majAutoTitre')}</h2><div data-r="majauto"></div>`;
+    if (!d) return h + `<div class="squelette-bloc" aria-busy="true"><span class="os os-3"></span></div></form>`;
+    return h + `${bascule('mjA', 'majAutoActive', d.actif)}
+      <div class="rangee">${champG('mjD', t('majPlageDe'), enHHMM(d.plageDebut), 'numeric')}${champG('mjF', t('majPlageA'), enHHMM(d.plageFin), 'numeric')}</div>
+      <p class="aide">${t('majAutoAide')}</p>
+      <div class="boutons"><button class="btn" type="submit">${t('enregistrer')}</button>
+        <button type="button" class="btn btn-secondaire" data-action="majAutoOp" data-op="reporter" data-jours="${d.reporteeJusqua ? 0 : 7}" ${e.enLigne ? '' : 'disabled'}>${t(d.reporteeJusqua ? 'majAutoAnnulerReport' : 'majAutoReporter')}</button>
+        <button type="button" class="btn btn-secondaire" data-action="majAutoOp" data-op="verifier" ${e.enLigne ? '' : 'disabled'}>${t('majAutoVerifier')}</button></div></form>`;
+  }
+  function vivantMajAuto(e) {
+    const court = e.sante && e.sante.majAuto;
+    const d = majAutos[socleOuvert];
+    const a = d || court;
+    if (!a) return '';
+    const de = enHHMM(d ? d.plageDebut : 180), jusqua = enHHMM(d ? d.plageFin : 300);
+    let etat = a.disponible ? t('majAutoDispo', { v: esc(a.disponible) }) + (a.securite ? ' ' + t('majAutoSecurite') : '') + ' '
+      : (d && d.publiee ? t('majAutoPubliee', { v: esc(d.publiee) }) + ' ' : '');
+    etat += t('majAutoAttente_' + String(a.attente || '').replace(/-/g, '_'), { de, a: jusqua });
+    if (d && d.reporteeJusqua) etat += ' ' + t('majAutoReporteeJusqua', { d: dateCourte(d.reporteeJusqua) });
+    return `<p class="aide">${etat}</p>${d && d.notes ? `<p class="aide">${esc(d.notes)}</p>` : ''}
+      ${d && d.verifiee ? `<p class="discret">${t('majAutoVerifiee', { d: dateCourte(d.verifiee) })}${d.erreur ? ' ' + t('majAutoErreurVerif', { m: esc(d.erreur) }) : ''}</p>` : ''}`;
   }
   function compareVersions(a, b) {
     const pa = String(a || '').split('.').map(n => parseInt(n, 10) || 0), pb = String(b || '').split('.').map(n => parseInt(n, 10) || 0);
@@ -2060,6 +2123,7 @@ const App = (() => {
         case 'exporterCsv':       api.exporterCsv(); break;
         case 'cmd':               api.action(d.cmd, d.params ? JSON.parse(d.params) : undefined); break;
         case 'mettreAJour':       api.mettreAJour(d.version); break;
+        case 'majAutoOp':         api.majAutoOp(d.op, d.jours !== undefined ? +d.jours : undefined); break;
         case 'scanner':           api.scanner(); break;
         case 'fermerScan':        fermerScanner(); break;
         case 'testerBroker':      api.testerBroker(); break;
@@ -2124,6 +2188,7 @@ const App = (() => {
         case 'zone':         api.reglerZone(+f.dataset.z); break;
         case 'zone-complet': api.reglerZoneComplet(+f.dataset.z); break;
         case 'generaux':     api.reglerGeneraux(); break;
+        case 'majauto':      api.reglerMajAuto(); break;
         case 'verrou':       api.deverrouiller(); break;
         case 'sv-surveillance': case 'sv-message': case 'sv-nouvelle': if (serviceMod) serviceMod.soumettre(f); break;
       }
@@ -3099,6 +3164,8 @@ const App = (() => {
       if (['general', 'programme', 'securite'].includes(nom) && !generaux[id])
         commander(id, 'globaux').then(r => { generaux[id] = r; dessiner(); }).catch(() => {});
       if (nom === 'general' && !stats[id]) commander(id, 'stats').then(r => { stats[id] = r; dessiner(); }).catch(() => {});
+      if (nom === 'maj' && !majAutos[id] && etats[id] && etats[id].sante && etats[id].sante.majAuto)
+        commander(id, 'majauto').then(r => { majAutos[id] = r.majAuto; dessiner(); }).catch(() => {});
     },
 
     // L'écran d'une zone, façon climatisation.
@@ -3283,6 +3350,33 @@ const App = (() => {
         message(t('majLancee'));
         dessiner();
       } catch (err) { message(t('majRefusee', { m: err.message }), true); }
+    },
+
+    // Mises à jour automatiques : activer ou couper, plage, puis l'état relu.
+    async reglerMajAuto() {
+      const id = socleOuvert;
+      const el = n => /** @type {HTMLInputElement|null} */ (doc.getElementById(n));
+      const debut = el('mjD') ? depuisHHMM(el('mjD').value) : null, fin = el('mjF') ? depuisHHMM(el('mjF').value) : null;
+      if (debut === null || fin === null || debut === fin) { message(t('majPlageInvalide'), true); return; }
+      try {
+        const g = await commander(id, 'globaux', { majAuto: !!(el('mjA') && el('mjA').checked), majPlageDebut: debut, majPlageFin: fin });
+        generaux[id] = g;
+        const r = await commander(id, 'majauto');
+        majAutos[id] = r.majAuto;
+        message(t('majAutoEnregistre'));
+        dessiner();
+      } catch (e) { message(e.message, true); }
+    },
+    async majAutoOp(op, jours) {
+      const id = socleOuvert;
+      try {
+        const r = await commander(id, 'majauto', op === 'reporter' ? { op, jours } : { op });
+        majAutos[id] = r.majAuto;
+        message(t(op === 'verifier' ? 'majAutoVerifMsg' : (jours ? 'majAutoReporteMsg' : 'majAutoReportAnnule')));
+        dessiner();
+        // La lecture du manifeste se fait au tour de boucle suivant : on relit l'état ensuite.
+        if (op === 'verifier') setTimeout(() => commander(id, 'majauto').then(x => { majAutos[id] = x.majAuto; dessiner(); }).catch(() => {}), 8000);
+      } catch (e) { message(e.message, true); }
     },
 
     async redemarrer() {

@@ -151,6 +151,12 @@ class Broker extends EventEmitter {
         f.maj = f.sante.maj;
         this.emit('maj', s.id, f.sante.maj);
       }
+      // Mises à jour automatiques (F15) : une version disponible que le socle
+      // n'annonçait pas encore. La première santé reçue (message retenu rejoué
+      // au démarrage du serveur) sert de référence, sans prévenir à nouveau.
+      const dispo = (f.sante && f.sante.majAuto && f.sante.majAuto.disponible) || null;
+      if (dispo && f.majDispo !== undefined && dispo !== f.majDispo) this.emit('majDisponible', s.id, f.sante.majAuto);
+      f.majDispo = dispo;
     } else if (/^zone\d+\/etat$/.test(s.reste)) {
       const zone = parseInt(s.reste.slice(4), 10) - 1;
       let etat; try { etat = JSON.parse(texte); } catch (e) { return; }
@@ -236,6 +242,7 @@ class Broker extends EventEmitter {
     return {
       id, statut: f.statut, enLigne: f.statut === 'en ligne' && Date.now() - f.vu < 180000, vu: f.vu ? new Date(f.vu).toISOString() : null,
       version: s.version, proto: s.proto, rssi: s.rssi, heap: s.heap, uptime: s.uptime, reset: s.reset, plantage: !!s.plantage, maj: f.maj,
+      majAuto: s.majAuto || null,
       zones: Object.entries(f.zones).sort((a, b) => a[0] - b[0]).map(([, z]) => ({ temp: z.temp, consigne: z.consigne, nom: z.nom,
         defaut: z.defaut === '1' || z.defaut === 1 || (z.defaut && z.defaut !== '0') ? (z.defaut_libelle || true) : null }))
     };

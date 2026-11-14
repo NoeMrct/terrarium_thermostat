@@ -34,6 +34,7 @@ const ECRANS = [
   ['courbes', () => App.panneau('courbes')],
   ['appareil', () => App.panneau('general')],
   ['service', () => App.panneau('service')],
+  ['mises à jour', async () => { App.panneau('maj'); await new Promise(r => setTimeout(r, 1500)); }],
   ['diagnostic', () => App.diagnostic()],
   // L'assistant d'installation : le socle de démonstration neuf arrive en
   // ligne au bout de six secondes.

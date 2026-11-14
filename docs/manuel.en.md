@@ -252,6 +252,18 @@ whether a terrarium **holds** its values, not only whether it reaches them.
   OTA from the IDE if an OTA password is set. While writing, the heating is cut; at restart, the
   new version must declare itself healthy within a minute and a half, otherwise the base goes
   back to the previous version by itself — and the app shows "rolled back".
+- **Automatic updates** (on out of the box): every day the base checks whether a version has been
+  published. It lets you know (alert, server notification), then installs it **by itself at
+  night**, between 03:00 and 05:00 by default, never during a fault, an autotune, a test,
+  maintenance or support access, and only one attempt per night. New versions arrive in waves over
+  a few days: yours may come after a neighbour's. In the **Updates** section, **Automatic updates**
+  card: turn them off, change the window, **postpone 7 days** or **check now** (also in the Network
+  tab of the local interface, or `maj auto non`, `maj plage 01:00 02:00`, `maj reporter 7` on the
+  console). Nothing installs by itself on a base that does not require signed images: the card
+  says so, and you then start the update by hand.
+- **Never backwards remotely**: a version older than the running one is refused, even if signed.
+  To roll back anyway, in the Network tab of the local interface, choose "allowed this time" under
+  "Older or unknown version" before uploading the file.
 
 ## 13. Safety
 

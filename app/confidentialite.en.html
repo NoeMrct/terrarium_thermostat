@@ -62,7 +62,10 @@
   <p>The base records its temperature history and its log in its own memory. If it is configured to send alerts or a
     heartbeat to a web address (<em>webhook</em>, ntfy, healthchecks…), these messages go to the service you specified and
     contain the base's identifier, the temperatures and the alert text. During an update "from GitHub", the base downloads
-    the binary from GitHub's servers, which see its IP address.</p>
+    the binary from GitHub's servers, which see its IP address. For automatic updates it also reads there, once a day, a
+    small file describing the latest published version: the request carries nothing beyond what a browser sends (IP
+    address, "terrarium/&lt;version&gt;" as the software), neither an identifier nor a temperature. Turning automatic updates
+    off does not stop this check, which is also used to warn you; it stops with a firmware built without a manifest.</p>
 
   <h2>Your rights</h2>
   <p>As the publisher holds no data about you, there is nothing to request, correct or erase on their side: everything is

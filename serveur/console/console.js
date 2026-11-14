@@ -605,6 +605,15 @@
     return svg;
   }
 
+  // Pourquoi un socle n'installe pas (encore) la dernière version (sante.majAuto.attente).
+  const ATTENTES_MAJ = {
+    'a-jour': 'à jour', 'a-verifier': 'pas encore vérifié', prete: 'installation en cours', refusee: 'version revenue en arrière ici',
+    desactivee: 'installation manuelle', 'non-signee': 'images non signées : installation manuelle', echecs: 'trois échecs',
+    heure: 'heure inconnue', reportee: 'reportée par le propriétaire', pause: 'déploiement suspendu', deploiement: 'pas encore son tour',
+    tentee: 'tentée cette nuit', plage: 'prévue la nuit', 'hors-ligne': 'hors ligne', demarrage: 'vient de démarrer',
+    validation: 'image en validation', defaut: 'zone en défaut', autotune: 'autotune', essai: 'essai', entretien: 'entretien', support: 'accès support ouvert'
+  };
+
   async function ficheSocle(id, ouvrir = true) {
     const [x, hist, fr] = await Promise.all([admin('GET', `/api/admin/socles/${id}`),
       admin('GET', `/api/admin/socles/${id}/historique?pas=300`).catch(() => null),
@@ -625,7 +634,8 @@
         ['dernier redémarrage', sa.reset || '—'],
         ['adresse locale', sa.ip || '—'],
         sa.webProtege !== undefined ? ['page locale', sa.webProtege ? 'protégée' : 'sans mot de passe'] : null,
-        sa.signatureOta !== undefined ? ['mises à jour', sa.signatureOta ? 'signées exigées' : 'signature non exigée'] : null
+        sa.signatureOta !== undefined ? ['mises à jour', sa.signatureOta ? 'signées exigées' : 'signature non exigée'] : null,
+        sa.majAuto ? ['mises à jour automatiques', `${sa.majAuto.actif ? 'activées' : 'coupées'} · ${ATTENTES_MAJ[sa.majAuto.attente] || sa.majAuto.attente}${sa.majAuto.disponible ? ` · ${sa.majAuto.disponible} disponible` : ''}`] : null
       ]),
       section('Zones', x.etatsZones.length ? h('ul', { class: 'liste-actions' }, x.etatsZones.map(z => h('li', {},
         h('span', {}, h('b', { texte: z.nom || `Zone ${z.zone}` }), ` — ${degres(z.temp)} pour ${degres(z.consigne)}`,

@@ -8,7 +8,7 @@ ne sait pas faire :
 | Droits | un identifiant broker partagé commande tous les socles | comptes utilisateurs, chaque socle rattaché aux comptes qui ont prouvé son code d'appairage |
 | Comptes | créés à la main sur le broker | en libre-service : un code par e-mail, puis une clé d'accès (passkey) ; export et effacement par le titulaire |
 | Historique | seulement quand l'application est ouverte (IndexedDB) | continu, un point par minute, 400 jours, relu par l'application pour combler ses courbes |
-| Notifications | navigateur ouvert, ou ntfy/healthchecks depuis le socle | push sur le téléphone, application fermée : défaut, rétabli, socle disparu, mise à jour en échec |
+| Notifications | navigateur ouvert, ou ntfy/healthchecks depuis le socle | push sur le téléphone, application fermée : défaut, rétabli, socle disparu, mise à jour disponible (une fois par version, avec ce qui va se passer : la nuit ou à la main) ou en échec |
 | Diagnostic | copier-coller | « Envoyer au serveur » |
 | Exploitation | — | console web sur `/console/` : flotte, comptes, comptes d'appareil, rapports, journal d'audit chaîné |
 | Assistance | — | demandes des clients depuis l'application, accès au socle ouvert par le propriétaire (24 h, sans son code), diagnostics à distance, frise, alertes proactives |

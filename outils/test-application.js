@@ -354,6 +354,41 @@ function creerApp(adressePage) {
              texte('#detail').includes('validation') || texte('#detail').includes('validée'));
   }
 
+  titre('16 bis. Mises à jour automatiques (F15)');
+  {
+    App.panneau('etat');
+    App.panneau('maj');
+    const formulaire = () => w.document.querySelector('#detail form[data-form="majauto"]');
+    verifier('la carte « Mises à jour automatiques » se remplit à l\'ouverture',
+             await jusqua(() => !!formulaire() && !!w.document.getElementById('mjD'), 4000));
+    verifier('…version disponible, prévue la nuit entre 03:00 et 05:00, notes de version',
+             texte('#detail').includes('3.6.0') && texte('#detail').includes('entre 03:00 et 05:00') && texte('#detail').includes('images signées'));
+    verifier('…activées par défaut', w.document.getElementById('mjA').checked === true);
+    w.document.getElementById('mjA').checked = false;
+    w.document.getElementById('mjD').value = '22:30';
+    w.document.getElementById('mjF').value = '01:00';
+    formulaire().dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+    verifier('« Enregistrer » coupe et règle la plage (relue sur le socle)',
+             await jusqua(() => texte('#detail').includes('Désactivées') && w.document.getElementById('mjD') && w.document.getElementById('mjD').value === '22:30', 4000),
+             texte('#message').slice(0, 50));
+    w.document.getElementById('mjA').checked = true;
+    w.document.getElementById('mjD').value = '3:00';
+    w.document.getElementById('mjF').value = '05:00';
+    formulaire().dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+    await jusqua(() => texte('#detail').includes('entre 03:00 et 05:00'), 4000);
+    const reporter = $('[data-action="majAutoOp"][data-op="reporter"]');
+    verifier('« Reporter de 7 jours » proposé', !!reporter && reporter.textContent.includes('7 jours'));
+    reporter.click();
+    verifier('…reportées jusqu\'à une date, puis « Annuler le report »',
+             await jusqua(() => texte('#detail').includes('Reportées jusqu') && ($('[data-action="majAutoOp"][data-op="reporter"]') || {}).textContent === 'Annuler le report', 4000));
+    $('[data-action="majAutoOp"][data-op="reporter"]').click();
+    verifier('…report annulé', await jusqua(() => !texte('#detail').includes('Reportées jusqu'), 4000));
+    w.document.getElementById('mjF').value = '03:00';
+    formulaire().dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+    await attendre(300);
+    verifier('une plage vide est refusée dans l\'application', texte('#message').includes('deux heures différentes'));
+  }
+
   titre('17. Présence : un état retenu ne fait pas passer un socle éteint pour en ligne');
   {
     // Le broker rejoue les messages retenus à l'abonnement : l'état publié

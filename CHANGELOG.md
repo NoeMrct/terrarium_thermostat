@@ -147,6 +147,39 @@ jour.
   autoriser, refuser, fermer), notification d'une demande d'accès. Testé par
   `test-protocole.cpp` (98), `test/support.test.js` et `test-support.js`
   (application, console et socle simulé ensemble, axe-core).
+- **Mises à jour automatiques (F15)**, activées d'origine : chaque jour le socle
+  lit le manifeste de la dernière release (`terrarium-version.json`), annonce
+  une fois la nouvelle version (alerte `MAJ`, notification du serveur), puis
+  l'installe seul la nuit (03:00-05:00 par défaut, réglable), jamais pendant
+  un défaut, un autotune, un essai, un entretien ou un accès support ; une
+  tentative par nuit, trois au plus ; une version revenue en arrière n'est plus
+  jamais installée seule ; installation réussie annoncée après sa validation.
+  Seulement avec des images signées (clé compilée). Coupables, reportables
+  (1 à 30 jours), vérifiables à la demande : réglages `majAuto`,
+  `majPlageDebut`, `majPlageFin` de `globaux`, action `majauto` (protocole 4),
+  carte de l'application, onglet Réseau de la page locale (`/api/majauto`),
+  console `maj auto|plage|reporter|verifier`, résumé `majAuto` dans `sante`,
+  fiche de la console d'administration.
+- **Déploiement progressif (V9)** : chaque socle tire un rang stable de son
+  identifiant ; le jour *d*, une version est ouverte à (*d* + 1) / (jours + 1)
+  des socles (7 jours, 2 pour un correctif de sécurité). Workflow
+  « Déploiement du firmware » : `pause`, `reprendre`, `tous`, `etaler`.
+  `outils/manifeste-version.js` écrit le manifeste à la publication.
+- **Anti-retour de version (S4)** : une version plus ancienne est refusée par
+  les chemins distants, même avec `forcer` (qui ne sert plus qu'à réinstaller
+  la même) — version visée ou étiquette de l'URL, puis en-tête de l'image lu
+  avant le moindre octet écrit. Chaque image porte désormais sa version et son
+  projet dans son descripteur d'application (`version_image.cpp`), lisibles
+  aussi par esptool. La page locale admet un retour arrière sur une case
+  cochée par le propriétaire.
+- **Signature exigée, côté outillage (S5)** : `signer-firmware.js
+  --generer-cles … --config config.h` écrit la clé publique dans `config.h`
+  (format clang-format), refuse d'écrire la clé privée dans le dépôt et
+  n'écrase jamais une clé ; `--etat` dit si une clé est compilée ; le
+  workflow de publication s'arrête si la clé est compilée sans le secret et
+  vérifie l'image signée contre `config.h`. Avec une clé compilée, ArduinoOTA
+  (qui ne vérifie aucune signature) reste coupée. La paire reste à créer par
+  le mainteneur (docs/publication.md).
 - **Journal d'audit chaîné** du serveur (`donnees/audit/`, 12 mois) : gestes de
   l'administration et des titulaires, comptes sous référence pseudonyme, jamais
   un secret ; ligne modifiée, retirée ou insérée détectée, fin coupée notée
@@ -159,6 +192,11 @@ jour.
   nouveau socle à l'expédition, échecs compris), l'atelier dans `axe` à chaque
   étape ; le socle simulé termine désormais identification et essai de chauffe
   avec les textes du firmware.
+- Tests : banc `test-majauto` (versions, en-tête d'image, remorque de
+  signature, manifeste, déploiement, décision condition par condition, trois
+  nuits minute par minute), fuzzing du manifeste et des en-têtes, migration
+  des réglages (`ReglagesGlobaux` passe à 68 octets), protocole (PC et socle
+  simulé), page locale, application et serveur.
 - Tests : bancs `test-liaisons` et `test-soleil`, scénarios 21 à 28 du
   simulateur (sondes inversées, couplage légitime, pic isolé, canicule,
   priorité, essai de chauffe, soleil), fuzzing des liaisons et du soleil, tests

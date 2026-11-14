@@ -168,6 +168,19 @@ async function demarrerServeur(surcharge = {}) {
       notifications.notifierProprietaires(comptes, id, { titre: `${id} — mise à jour ${maj.etape}`, corps: `${maj.version || ''} : ${maj.detail || ''}`, socle: id, urgent: true }, `maj:${id}:${maj.etape}:${maj.version}`).catch(() => {});
     }
   });
+  // Mises à jour automatiques (F15) : le propriétaire est prévenu une fois par
+  // version, avec ce qui va se passer (la nuit, ou à lancer depuis l'application).
+  broker.on('majDisponible', (id, majAuto) => {
+    evenements.noter(id, 'maj disponible', { version: majAuto.disponible, attente: majAuto.attente || null });
+    if (!notifications) return;
+    const auto = majAuto.actif && !['desactivee', 'non-signee', 'echecs', 'refusee'].includes(majAuto.attente);
+    notifications.notifierProprietaires(comptes, id, {
+      titre: `${id} — mise à jour ${majAuto.disponible}${majAuto.securite ? ' (sécurité)' : ''}`,
+      corps: auto ? 'Disponible : le socle l\'installera seul cette nuit. Reporter ou couper depuis l\'application.'
+                  : 'Disponible : à installer depuis l\'application (rubrique Mises à jour).',
+      socle: id, urgent: !!majAuto.securite
+    }, `majdispo:${id}:${majAuto.disponible}`).catch(() => {});
+  });
   const purge = setInterval(() => {
     const n = historique.purger(); if (n) o.journal(`historique : ${n} fichier(s) purgé(s)`);
     const m = audit.purger(); if (m) o.journal(`journal d'audit : ${m} mois purgé(s)`);
