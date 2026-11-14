@@ -5,6 +5,7 @@
 
      make protocole */
 #include "socle-factice.h"
+#include "../signature.h"
 #include <cmath>
 #include <cstdlib>
 
@@ -24,6 +25,28 @@ static int g_echecs = 0, g_total = 0;
 static bool contient(const std::string &s, const char *m) { return s.find(m) != std::string::npos; }
 
 static void cmd(SocleFactice &s, const char *json) { Protocole::traiterCommande(s, json, strlen(json)); }
+
+// Enveloppe signée du protocole 4, telle que l'application la construit.
+static std::string signe(const std::string &commande, const char *cle = "SIMULATIONTESTJETON00001") {
+  uint8_t mac[32];
+  Signature::hmacSha256((const uint8_t *)cle, strlen(cle), (const uint8_t *)commande.data(), commande.size(),
+                        mac);
+  char hex[65];
+  Signature::hex(mac, hex);
+  std::string echappee;
+  for (char c : commande) {
+    if (c == '"' || c == '\\') echappee += '\\';
+    echappee += c;
+  }
+  return std::string("{\"c\":\"") + echappee + "\",\"sig\":\"" + hex + "\"}";
+}
+static std::string hexDe(const char *texte) {
+  uint8_t e[32];
+  Signature::sha256((const uint8_t *)texte, strlen(texte), e);
+  char h[65];
+  Signature::hex(e, h);
+  return h;
+}
 
 int main() {
   printf("=== Canal de commande ===\n");
@@ -57,6 +80,60 @@ int main() {
   VERIFIE(contient(s.derniere(), "\"ok\":true") &&
               s.actions.back() == "journal Defauts leves via le canal de commande",
           "bon jeton : défauts levés");
+
+  // --- protocole 4 : commandes signées -------------------------------------
+  {
+    VERIFIE(hexDe("abc") == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "SHA-256(« abc ») : vecteur de la FIPS 180-2");
+    uint8_t mac[32];
+    char h[65];
+    Signature::hmacSha256((const uint8_t *)"Jefe", 4, (const uint8_t *)"what do ya want for nothing?", 28,
+                          mac);
+    Signature::hex(mac, h);
+    VERIFIE(std::string(h) == "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843",
+            "HMAC-SHA256 : cas 2 de la RFC 4231");
+    uint8_t longue[131];
+    memset(longue, 0xaa, sizeof longue);
+    const char *m6 = "Test Using Larger Than Block-Size Key - Hash Key First";
+    Signature::hmacSha256(longue, sizeof longue, (const uint8_t *)m6, strlen(m6), mac);
+    Signature::hex(mac, h);
+    VERIFIE(std::string(h) == "60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54",
+            "HMAC-SHA256 : clé plus longue qu'un bloc (cas 6 de la RFC 4231)");
+
+    s.vider();
+    s.heure = true;
+    std::string e = signe("{\"req\":\"s1\",\"action\":\"reset\",\"ts\":1760000030}");
+    cmd(s, e.c_str());
+    VERIFIE(contient(s.derniere(), "\"ok\":true") && contient(s.derniere(), "\"req\":\"s1\"") &&
+                s.actions.back() == "journal Defauts leves via le canal de commande",
+            "commande signée, sans le code en clair : acceptée");
+    e = signe("{\"req\":\"s2\",\"action\":\"reset\",\"ts\":1760000030}", "SIMULATIONTESTJETON0000X");
+    cmd(s, e.c_str());
+    VERIFIE(contient(s.derniere(), "signature invalide") && contient(s.derniere(), "\"req\":\"s2\"") &&
+                contient(s.actions.back(), "signature invalide"),
+            "signée avec un autre code : refusée, journalisée, avec son req");
+    e = signe("{\"req\":\"s3\",\"action\":\"reset\",\"ts\":1760000030}");
+    e[e.size() - 3] = e[e.size() - 3] == 'a' ? 'b' : 'a';
+    cmd(s, e.c_str());
+    VERIFIE(contient(s.derniere(), "signature invalide"), "signature altérée d'un chiffre : refusée");
+    e = signe("{\"req\":\"s4\",\"action\":\"reset\",\"ts\":1759990000}");
+    cmd(s, e.c_str());
+    VERIFIE(contient(s.derniere(), "perimee"), "signée mais vieille de 3 h : refusée (rejeu)");
+    e = signe("{\"req\":\"s5\",\"action\":\"reset\"}");
+    cmd(s, e.c_str());
+    VERIFIE(contient(s.derniere(), "perimee"),
+            "signée sans heure alors que le socle est à l'heure : refusée");
+    s.heure = false;
+    e = signe("{\"req\":\"s6\",\"action\":\"reset\",\"ts\":1759990000}");
+    cmd(s, e.c_str());
+    VERIFIE(contient(s.derniere(), "\"ok\":true"), "socle sans heure fiable : l'heure n'est pas exigée");
+    s.heure = true;
+    cmd(s, "{\"c\":\"{\\\"req\\\":\\\"s7\\\"\",\"sig\":\"00\"}");
+    VERIFIE(contient(s.derniere(), "signature invalide"), "enveloppe mal formée : refusée sans planter");
+    e = signe("{\"req\":\"s8\",\"action\":\"version\",\"ts\":1760000000}");
+    cmd(s, e.c_str());
+    VERIFIE(contient(s.derniere(), "\"proto\":"), "une lecture signée passe aussi");
+  }
 
   // --- rejouée sans effet --------------------------------------------------
   s.vider();

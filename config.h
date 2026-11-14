@@ -26,7 +26,9 @@
 //       commandes rejouées sans effet (identifiant de requête mémorisé)
 //   3 : 3.4 — action « maj » (mise à jour tirée depuis une URL), sujet « maj »
 //       (progression), champs hote et maj dans « sante »
-#define PROTO_VERSION 3
+//   4 : 3.5 — commandes signées {"c": "<commande>", "sig": HMAC-SHA256 du code
+//       d'appairage}, horodatées "ts" (le code ne circule plus en clair)
+#define PROTO_VERSION 4
 
 // Mise à jour à distance : l'action MQTT « maj » reçoit soit une URL complète,
 // soit un numéro de version, auquel cas l'URL est déduite de ce modèle (%s est

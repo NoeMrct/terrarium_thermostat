@@ -151,7 +151,7 @@ client.on('error', e => { console.error('Erreur MQTT :', e.message); process.exi
 
 // Santé : ce qu'un firmware 3.4 publie sur <id>/sante et joint à « etat ».
 const VERSION_SIM = '3.4.0-simule';
-const PROTO_SIM = 3;
+const PROTO_SIM = 4;
 // Dernière mise à jour tirée (action « maj ») : le vrai socle la garde en NVS.
 socle.maj = null;
 const sante = () => ({
@@ -204,8 +204,29 @@ client.on('message', (sujet, charge) => {
   try { d = JSON.parse(texte); }
   catch (e) { repondre('', false, { erreur: 'JSON invalide' }); return; }
 
+  // Protocole 4 : enveloppe {"c": "<commande>", "sig": HMAC-SHA256(code, c)},
+  // horodatée ; même règle que protocole.cpp (5 min d'écart au plus).
+  let signee = false;
+  if (typeof d.c === 'string') {
+    const attendu = require('crypto').createHmac('sha256', JETON).update(d.c, 'utf8').digest('hex');
+    let interieur = {};
+    try { interieur = JSON.parse(d.c); } catch (e) { /* refusée plus bas */ }
+    if (typeof d.sig !== 'string' || d.sig.length !== 64 ||
+        !require('crypto').timingSafeEqual(Buffer.from(d.sig), Buffer.from(attendu))) {
+      repondre(interieur.req, false, { erreur: 'signature invalide' });
+      console.log('Commande refusée (signature)');
+      return;
+    }
+    if (Math.abs((interieur.ts || 0) - Date.now() / 1000) > 300) {
+      repondre(interieur.req, false, { erreur: 'commande perimee (heure du telephone ?)' });
+      return;
+    }
+    d = interieur;
+    signee = true;
+  }
+
   const lecture = ['etat', 'stats', 'version', 'historique'].includes(d.action);
-  if (!lecture && d.jeton !== JETON) {
+  if (!lecture && !signee && d.jeton !== JETON) {
     repondre(d.req, false, { erreur: 'jeton invalide' });
     console.log(`Commande refusée (jeton) : ${d.action}`);
     return;

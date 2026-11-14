@@ -332,9 +332,36 @@
         "forcer": {
           "type": "boolean",
           "description": "Pour « maj » : réinstaller même si la version est déjà celle qui tourne."
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Heure de l'application (secondes Unix), exigée dans une commande signée : un écart de plus de 5 min avec un socle à l'heure la fait refuser."
         }
       },
       "additionalProperties": true
+    },
+    "commandeSignee": {
+      "description": "Protocole 4 : enveloppe d'une commande, signée avec le code d'appairage, qui ne circule plus en clair.",
+      "type": "object",
+      "required": [
+        "c",
+        "sig"
+      ],
+      "properties": {
+        "c": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 1023,
+          "description": "La commande elle-même (objet « commande » sérialisé, avec \"ts\")."
+        },
+        "sig": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "HMAC-SHA256 de « c » (octets UTF-8), clé = code d'appairage, en hexadécimal minuscule."
+        }
+      },
+      "additionalProperties": false
     },
     "reponse": {
       "description": "Réponse publiée sur <prefixe>/<id>/reponse : l'identifiant de la requête, ok, et selon l'action le corps ci-dessous ou « erreur ».",
@@ -637,7 +664,14 @@
       "$ref": "#/$defs/sante"
     },
     "commande": {
-      "$ref": "#/$defs/commande"
+      "oneOf": [
+        {
+          "$ref": "#/$defs/commande"
+        },
+        {
+          "$ref": "#/$defs/commandeSignee"
+        }
+      ]
     },
     "reponse": {
       "$ref": "#/$defs/reponse"

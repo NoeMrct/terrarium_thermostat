@@ -17,6 +17,7 @@ const { Aedes } = require('aedes');
 const { WebSocketServer, createWebSocketStream } = require('ws');
 const mqtt = require('mqtt');
 const EventEmitter = require('events');
+const crypto = require('crypto');
 
 class Broker extends EventEmitter {
   constructor(comptes, options = {}) {
@@ -174,7 +175,16 @@ class Broker extends EventEmitter {
     return new Promise((resoudre, rejeter) => {
       const req = 'srv' + Math.random().toString(36).slice(2, 10);
       this.attentes[req] = { resoudre, minuteur: setTimeout(() => { delete this.attentes[req]; rejeter(new Error('le socle ne répond pas')); }, delaiMs) };
-      const sujet = `${this.prefixe}/${id}/cmd`, charge = JSON.stringify({ req, action, ...params });
+      // Un socle au protocole 4 reçoit la commande signée (HMAC-SHA256 du code
+      // d'appairage) : le code ne part pas en clair, vers un broker amont non plus.
+      const { jeton, ...reste } = params;
+      const proto = ((this.flotte[id] || {}).sante || {}).proto;
+      let charge;
+      if (jeton && proto >= 4) {
+        const c = JSON.stringify({ req, action, ts: Math.floor(Date.now() / 1000), ...reste });
+        charge = JSON.stringify({ c, sig: crypto.createHmac('sha256', jeton).update(c, 'utf8').digest('hex') });
+      } else charge = JSON.stringify({ req, action, ...params });
+      const sujet = `${this.prefixe}/${id}/cmd`;
       this.publier(sujet, charge);
       if (this.amont) this.amont.publish(sujet, charge, { qos: 1 });
     });

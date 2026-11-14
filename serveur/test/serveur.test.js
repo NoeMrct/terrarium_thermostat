@@ -40,8 +40,14 @@ function socleFactice(port, id, motDePasse, options = {}) {
     c.publish(`terrarium/${id}/statut`, 'en ligne', { retain: true });
   });
   c.on('message', (sujet, charge) => {
-    const d = JSON.parse(charge.toString());
-    const ok = d.action === 'globaux' ? d.jeton === JETON_SOCLE : true;
+    let d = JSON.parse(charge.toString());
+    let signee = false;
+    if (typeof d.c === 'string') {           // protocole 4 : enveloppe signée
+      signee = d.sig === require('crypto').createHmac('sha256', JETON_SOCLE).update(d.c).digest('hex');
+      d = JSON.parse(d.c);
+      c.recues = (c.recues || 0) + 1;
+    }
+    const ok = d.action === 'globaux' ? (signee || d.jeton === JETON_SOCLE) : true;
     c.publish(`terrarium/${id}/reponse`, JSON.stringify({ req: d.req, ok, ...(ok ? { amperes: 3 } : { erreur: 'jeton invalide' }) }));
   });
   return c;
@@ -158,6 +164,17 @@ test('serveur : comptes, droits, appairage, historique, push, API', async t => {
     const bon = await appel(s.port, 'POST', '/api/socles/revendiquer', { id: 'terraA1B2C3', jeton: JETON_SOCLE }, jeton);
     assert.equal(bon.status, 200);
     assert.deepEqual(bon.donnees.socles, ['terraA1B2C3']);
+  });
+
+  await t.test('appairage d\'un socle au protocole 4 : le code ne part pas en clair', async () => {
+    socle.publish('terrarium/terraA1B2C3/sante', JSON.stringify({ proto: 4, version: '3.5.0' }), { retain: true });
+    await attendre(200);
+    const avant = socle.recues || 0;
+    const faux = await appel(s.port, 'POST', '/api/socles/revendiquer', { id: 'terraA1B2C3', jeton: 'FAUXFAUXFAUXFAUXFAUXFAUX' }, jeton);
+    assert.equal(faux.status, 403, 'signée avec un faux code : refusée par le socle');
+    const bon = await appel(s.port, 'POST', '/api/socles/revendiquer', { id: 'terraA1B2C3', jeton: JETON_SOCLE }, jeton);
+    assert.equal(bon.status, 200, 'signée avec le bon code : acceptée');
+    assert.equal((socle.recues || 0) - avant, 2, 'les deux preuves sont parties signées, sans le code');
   });
 
   await t.test('broker : une fois rattaché, l\'application lit les états et commande', async () => {

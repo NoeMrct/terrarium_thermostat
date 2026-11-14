@@ -55,7 +55,7 @@ jobs:
                    --suppress=missingIncludeSystem --suppress=unusedFunction \
                    --suppress=checkersReport --suppress=memsetClassFloat \
                    --suppress=unmatchedSuppression --suppress=useStlAlgorithm \
-                   --quiet controle.cpp anneau.cpp format.cpp qr.cpp protocole.cpp reglages.cpp liaisons.cpp soleil.cpp
+                   --quiet controle.cpp anneau.cpp format.cpp qr.cpp protocole.cpp reglages.cpp liaisons.cpp soleil.cpp signature.cpp
           make -C sim tidy
 
       - name: Couverture des bancs C++ (gcov), seuil dans sim/Makefile

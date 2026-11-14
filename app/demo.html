@@ -1519,7 +1519,7 @@ const App = (() => {
         clearTimeout(a.minuteur);
         delete attentes[r.req];
         // Le refus du code d'appairage est distingué : l'ajout d'un socle s'en sert.
-        r.ok ? a.resoudre(r) : a.rejeter(Object.assign(new Error(r.erreur || t('refuse')), { refus: true, jeton: r.erreur === 'jeton invalide' }));
+        r.ok ? a.resoudre(r) : a.rejeter(Object.assign(new Error(r.erreur || t('refuse')), { refus: true, jeton: r.erreur === 'jeton invalide' || r.erreur === 'signature invalide' }));
       }
       // Une réponse « etat » porte les mêmes données qu'une publication. Celle
       // de « stats » a aussi un tableau « zones », mais de statistiques : prise
@@ -1567,8 +1567,33 @@ const App = (() => {
           rejeter(Object.assign(new Error(t('pasDeReponse')), { delai: true }));
         }, DELAI_COMMANDE)
       };
-      client.publish(base(id) + '/cmd', JSON.stringify({ req, action, jeton: s.jeton, ...params }), { qos: 1 });
+      const envoyer = corps => client.publish(base(id) + '/cmd', corps, { qos: 1 });
+      /** @type {Record<string, any>} */
+      const commande = { req, action, ...params };
+      const e = etats[id] || {};
+      // Les lectures n'exigent rien : le code n'a pas à voyager pour elles.
+      if (LECTURES.includes(action)) envoyer(JSON.stringify(commande));
+      // Protocole 4 : signée avec le code (HMAC-SHA256) et horodatée ; le code
+      // ne circule plus sur le broker. Un socle plus ancien le reçoit en clair.
+      else if (e.proto >= 4 && crypto.subtle) {
+        commande.ts = Math.floor(Date.now() / 1000);
+        const c = JSON.stringify(commande);
+        signer(s.jeton, c).then(sig => envoyer(JSON.stringify({ c, sig })), err => {
+          clearTimeout(attentes[req] && attentes[req].minuteur); delete attentes[req]; rejeter(err);
+        });
+      } else envoyer(JSON.stringify({ ...commande, jeton: s.jeton }));
     });
+  }
+  const LECTURES = ['etat', 'stats', 'version', 'historique'];
+
+  // Clé HMAC dérivée du code d'appairage, importée une fois par socle.
+  const clesHmac = {};
+  /** @param {string} jeton @param {string} texte */
+  function signer(jeton, texte) {
+    const enc = new TextEncoder();
+    const cle = clesHmac[jeton] || (clesHmac[jeton] = crypto.subtle.importKey('raw', enc.encode(jeton), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']));
+    return cle.then(k => crypto.subtle.sign('HMAC', k, enc.encode(texte)))
+      .then(b => Array.from(new Uint8Array(b), x => x.toString(16).padStart(2, '0')).join(''));
   }
 
   // Identifiant tel qu'on le tape : « terra » et six chiffres hexadécimaux en
@@ -1598,9 +1623,10 @@ const App = (() => {
   // plutôt qu'au premier réglage refusé, des jours plus tard. Le socle contrôle
   // le code avant tout le reste : toute autre réponse que « jeton invalide »
   // vaut acceptation.
-  function verifierCode(s) {
+  // L'état d'abord : il dit le protocole du socle, donc s'il faut signer.
+  function verifierCode(s, etat) {
     const encoreLa = () => socle(s.id) === s;
-    commander(s.id, 'globaux').then(() => { if (encoreLa()) message(t('codeVerifie')); }, e => {
+    etat.then(() => commander(s.id, 'globaux')).then(() => { if (encoreLa()) message(t('codeVerifie')); }, e => {
       if (!encoreLa()) return;
       if (!e.jeton) { message(e.refus ? t('codeVerifie') : t('codeNonVerifie', { m: e.message }), !e.refus); return; }
       // Refusé : le socle ne serait jamais pilotable avec ce code. On le retire
@@ -3042,11 +3068,12 @@ const App = (() => {
           .catch(e => message(t('rattachementRefuse', { m: e.message }), true, { libelle: t('reessayer'), faire: () => api.revendiquer(id) }));
       }
       abonner(s);
-      commander(id, 'etat').catch(() => {});
+      const etat = commander(id, 'etat');
+      etat.catch(() => {});
       ['#a-id', '#a-jeton', '#a-nom'].forEach(sel => { $(sel).value = ''; });
       message(t('socleAjoute'));
       // Avec un serveur, c'est le rattachement qui vérifie le code, auprès du socle.
-      if (!serveur.actif()) verifierCode(s);
+      if (!serveur.actif()) verifierCode(s, etat);
       dessiner();
     },
 

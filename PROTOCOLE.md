@@ -96,8 +96,10 @@ d'un socle coincé.
 ### Version du protocole
 
 Le socle annonce `proto` (dans `sante`, dans la réponse `etat` et `version`).
-Cette page décrit la **version 3** (firmware 3.4) : elle ajoute l'action `maj`,
-le sujet `maj` et les champs `hote`, `ip`, `maj` de la santé. La version 2
+Cette page décrit la **version 4** (firmware 3.5) : les commandes modifiantes
+voyagent signées, sans le code d'appairage en clair (voir « Commandes
+signées » ci-dessous). La version 3 (3.4) a ajouté l'action `maj`, le sujet
+`maj` et les champs `hote`, `ip`, `maj` de la santé. La version 2
 (3.3) n'avait pas de mise à jour tirée ; la version 1 (3.0 à 3.2) n'avait ni
 `sante`, ni `proto`, ni le rejeu des commandes. Un changement que
 l'application ne saurait pas interpréter incrémente ce numéro ; l'application
@@ -124,8 +126,29 @@ de l'interface web locale.
   permet d'envoyer les commandes en QoS 1 (livraison garantie, doublons
   possibles) sans qu'un `redemarrer` redémarre deux fois.
 - `action` : voir le tableau ci-dessous.
-- `jeton` : **obligatoire pour toute action modifiante**. Les actions de lecture
-  s'en passent.
+- `jeton` : exigé pour toute action modifiante d'un socle d'avant le protocole
+  4. Les actions de lecture s'en passent. Un socle au protocole 4 l'accepte
+  encore, mais l'application ne l'envoie plus : elle signe.
+
+### Commandes signées (protocole 4)
+
+Le code d'appairage ne circule plus sur le broker. La commande est sérialisée
+telle quelle, horodatée, puis mise dans une enveloppe avec sa signature :
+
+```json
+{ "c": "{\"req\":\"42\",\"action\":\"zone\",\"z\":0,\"jour\":32.5,\"ts\":1794600000}",
+  "sig": "<HMAC-SHA256 de c, clé = code d'appairage, 64 chiffres hexadécimaux minuscules>" }
+```
+
+- La signature porte sur les octets UTF-8 exacts de `c` : rien à
+  canonicaliser, le socle vérifie puis relit `c` comme une requête ordinaire.
+- `ts` (secondes Unix) : un socle à l'heure refuse une commande signée qui
+  s'en écarte de plus de 5 minutes (`commande perimee`) ; c'est ce qui borne le
+  rejeu d'une commande captée, avec la mémoire des huit dernières requêtes.
+- Signature fausse : `{"ok":false,"erreur":"signature invalide"}` (avec le
+  `req` de la commande), journalisé comme un code refusé.
+- En JavaScript : `crypto.subtle.importKey('raw', code, {name: 'HMAC', hash:
+  'SHA-256'}, …)` puis `sign('HMAC', clé, c)` ; en Node : `crypto.createHmac`.
 
 ### Réponse
 
@@ -216,11 +239,20 @@ client.on('message', (sujet, charge) => {
 });
 
 const attentes = {};
+// Protocole 4 : la commande part signée, le code ne quitte pas l'application.
+async function signer(c) {
+  const enc = new TextEncoder();
+  const cle = await crypto.subtle.importKey('raw', enc.encode(JETON), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', cle, enc.encode(c)));
+  return Array.from(mac, x => x.toString(16).padStart(2, '0')).join('');
+}
+
 function commander(action, params = {}) {
-  return new Promise((resoudre, rejeter) => {
+  return new Promise(async (resoudre, rejeter) => {
     const req = String(Date.now());
     attentes[req] = r => (r.ok ? resoudre(r) : rejeter(new Error(r.erreur)));
-    client.publish(`${base}/cmd`, JSON.stringify({ req, action, jeton: JETON, ...params }));
+    const c = JSON.stringify({ req, action, ts: Math.floor(Date.now() / 1000), ...params });
+    client.publish(`${base}/cmd`, JSON.stringify({ c, sig: await signer(c) }));
     setTimeout(() => {
       if (attentes[req]) { delete attentes[req]; rejeter(new Error('pas de reponse')); }
     }, 8000);
@@ -256,6 +288,7 @@ et l'application doit le présenter comme tel plutôt que de rester bloquée.
 | Certificats vérifiés (activé d'usine) | Personne ne se fait passer pour ton broker |
 | Identifiants par appareil sur le broker | Un socle compromis ne donne pas accès aux autres |
 | Jeton exigé pour les actions modifiantes | Un broker mal cloisonné ne suffit pas à piloter un socle |
+| Commandes signées et horodatées (protocole 4) | Qui lit le broker ne vole pas le code d'appairage ; il ne peut ni forger une commande ni en rejouer une ancienne |
 | Validation dans le cœur de régulation | Aucune commande ne peut créer un réglage dangereux |
 | OTA réseau désactivée sans mot de passe | Personne sur le réseau local ne réécrit le firmware |
 | Images signées (ECDSA P-256) exigées par `/api/maj` et par la mise à jour tirée quand une clé publique est compilée | Même avec le mot de passe de l'interface ou le jeton, pas de firmware étranger |

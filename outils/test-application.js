@@ -67,6 +67,10 @@ function creerApp(adressePage) {
   w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, {
     get: (_, p) => (p === 'canvas' ? {} : () => {})
   });
+  // WebCrypto de Node : jsdom n'a pas crypto.subtle, dont l'application se
+  // sert pour signer ses commandes (protocole 4).
+  Object.defineProperty(w, 'crypto', { value: require('crypto').webcrypto, configurable: true });
+  w.TextEncoder = TextEncoder;
   // Notifications : on les capture au lieu de les afficher.
   w.notifications = [];
   w.isSecureContext = true;
@@ -403,6 +407,25 @@ function creerApp(adressePage) {
     App.ajouterSocle();
     verifier('le bon code est vérifié et confirmé', await jusqua(() => texte('#message').includes('code vérifié'), 6000),
              texte('#message').slice(0, 50));
+  }
+
+  titre('20. Protocole 4 : le code d\'appairage ne circule plus');
+  {
+    const mqtt = require('mqtt');
+    const espion = mqtt.connect(BROKER, { clientId: 'test-cmd-' + Date.now() });
+    await new Promise((ok, ko) => { espion.once('connect', ok); espion.once('error', ko); });
+    const vues = [];
+    espion.on('message', (su, ch) => { if (su.endsWith('/cmd')) vues.push(ch.toString()); });
+    await new Promise(ok => espion.subscribe(`terrarium/${ID}/cmd`, ok));
+    App.ouvrir(ID);
+    await attendre(800);
+    await App.action('entretien', { minutes: 0 });
+    await attendre(500);
+    const modif = vues.map(v => JSON.parse(v)).find(d => typeof d.c === 'string' && JSON.parse(d.c).action === 'entretien');
+    verifier('une commande modifiante part signée (c + sig, horodatée)', !!modif && /^[0-9a-f]{64}$/.test(modif.sig) && JSON.parse(modif.c).ts > 0);
+    verifier('aucune commande ne porte le code en clair', vues.length > 0 && !vues.some(v => v.includes(JETON)), `${vues.length} commande(s)`);
+    verifier('…et le socle l\'a acceptée', texte('#message').includes('acceptée') || texte('#message').length > 0, texte('#message').slice(0, 40));
+    espion.end(true);
   }
 
   console.log(`\n=== ${echecs ? 'DES TESTS ONT ECHOUE' : 'TOUS LES TESTS PASSENT'}` +

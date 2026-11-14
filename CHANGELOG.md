@@ -78,6 +78,14 @@ jour.
   seulement quand il sert (et gardé hors ligne par l'agent de service). Tout le
   monde télécharge 4 Ko de moins : `app.js` passe de 30,0 à 26,0 Ko compressés.
   Le budget de poids sépare désormais le démarrage des modules à la demande.
+- **Commandes signées (protocole 4).** Le code d'appairage ne circule plus sur
+  le broker : l'application (et le serveur, pour la preuve de propriété)
+  envoie `{"c": "<commande>", "sig": HMAC-SHA256(code, c)}`, horodatée ; le
+  socle vérifie la signature et refuse une commande à plus de 5 min de son
+  heure (rejeu). Les lectures ne portent plus aucun secret. Un socle d'avant le
+  protocole 4 reçoit toujours le code en clair ; le firmware 3.5 l'accepte
+  encore pour les applications pas encore à jour. SHA-256 et HMAC autonomes
+  (`signature.cpp`), testés sur PC avec les vecteurs de la RFC 4231.
 - **Interface locale : mot de passe obligatoire.** Plus d'accès libre par
   défaut : sans mot de passe, le socle ne sert que la page, qui demande d'en
   créer un (8 caractères au moins, empreinte calculée dans le navigateur,

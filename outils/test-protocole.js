@@ -39,7 +39,8 @@ const valideurs = {
   sante:    ajv.compile({ ...schema.$defs.sante,    $defs: schema.$defs }),
   reponse:  ajv.compile({ ...schema.$defs.reponse,  $defs: schema.$defs }),
   statut:   ajv.compile(schema.$defs.statut),
-  progressionMaj: ajv.compile(schema.$defs.progressionMaj)
+  progressionMaj: ajv.compile(schema.$defs.progressionMaj),
+  commande: ajv.compile({ ...schema.properties.commande, $defs: schema.$defs })
 };
 const horsSchema = [];
 function controler(nom, donnees, sujet) {
@@ -115,6 +116,23 @@ client.on('connect', async () => {
       client.publish(`${base}/cmd`, JSON.stringify({ req, action: 'zone', z: 0, jour: 31, jeton: 'MAUVAIS' }));
     });
     verifier('commande avec mauvais jeton refusée', faux.ok === false, faux.erreur || '');
+
+    titre('4 bis. Protocole 4 : commande signée, sans le code en clair');
+    const signee = (action, params, cle, ts) => new Promise(res => {
+      const req = 'sig' + Math.random().toString(36).slice(2, 7);
+      attentes[req] = { resoudre: res, minuteur: setTimeout(() => res({ ok: null }), 8000) };
+      const c = JSON.stringify({ req, action, ts, ...params });
+      const env = { c, sig: require('crypto').createHmac('sha256', cle).update(c).digest('hex') };
+      controler('commande', env, 'cmd');
+      client.publish(`${base}/cmd`, JSON.stringify(env));
+    });
+    const maintenant = Math.floor(Date.now() / 1000);
+    const bonne = await signee('zone', { z: 0, jour: 31 }, JETON, maintenant);
+    verifier('enveloppe signée avec le code : acceptée', bonne.ok === true, bonne.erreur || '');
+    const autre = await signee('zone', { z: 0, jour: 31 }, 'MAUVAISMAUVAISMAUVAIS000', maintenant);
+    verifier('signée avec un autre code : refusée', autre.ok === false && /signature/.test(autre.erreur || ''), autre.erreur || '');
+    const vieille = await signee('zone', { z: 0, jour: 31 }, JETON, maintenant - 3600);
+    verifier('signée il y a une heure : refusée (rejeu)', vieille.ok === false && /perimee/.test(vieille.erreur || ''), vieille.erreur || '');
 
     titre('5. Réglage d\'une zone');
     const r1 = await commander('zone', { z: 0, jour: 31.5 });

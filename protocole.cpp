@@ -1,5 +1,6 @@
 #include "protocole.h"
 #include "format.h"
+#include "signature.h"
 #include <ArduinoJson.h>
 #include <stdio.h>
 #include <string.h>
@@ -23,6 +24,13 @@ uint8_t g_recenteSuivante = 0;
 
 char g_corps[TAILLE_CORPS];
 char g_reponse[TAILLE_REPONSE];
+
+// Commande intérieure d'une enveloppe signée (protocole 4), relue à part : la
+// chaîne `c` appartient au document qu'on réutilise.
+char g_interieur[1024];
+// Au-delà de cet écart avec l'heure du socle, une commande signée est périmée :
+// c'est ce qui borne le rejeu d'une commande captée sur le broker.
+const uint32_t ECART_MAX_S = 300;
 
 void emettre(Socle &socle, const char *req, bool ok, const char *corps) {
   char reqEsc[64];
@@ -97,13 +105,45 @@ void traiterCommande(Socle &socle, const char *charge, size_t taille) {
     return;
   }
 
+  // Protocole 4 : {"c":"<commande JSON>","sig":"<HMAC-SHA256 hexadécimal>"},
+  // signée avec le code d'appairage, qui ne circule donc plus. La commande en
+  // clair avec "jeton" reste acceptée (applications d'avant le protocole 4).
+  bool signee = false;
+  if (doc["c"].is<const char *>()) {
+    const char *c = doc["c"];
+    const size_t n = strlen(c);
+    const bool valide = n < sizeof g_interieur && Signature::verifier(socle.jeton(), c, n, doc["sig"] | "");
+    if (n < sizeof g_interieur) memcpy(g_interieur, c, n + 1);
+    // Relue même refusée : la réponse d'erreur porte alors le bon "req", et
+    // l'application l'affiche au lieu d'attendre en vain.
+    const bool lisible = n < sizeof g_interieur && !deserializeJson(doc, g_interieur, n) &&
+                         doc.is<JsonObject>();
+    if (!valide) {
+      repondre(socle, lisible ? (doc["req"] | "") : "", false, "\"erreur\":\"signature invalide\"");
+      socle.journal("Commande MQTT refusee : signature invalide");
+      return;
+    }
+    if (!lisible) {
+      repondre(socle, "", false, "\"erreur\":\"JSON invalide\"");
+      return;
+    }
+    const uint32_t ts = doc["ts"] | 0u, maintenant = socle.epoch();
+    const uint32_t ecart = ts > maintenant ? ts - maintenant : maintenant - ts;
+    if (socle.heureFiable() && ecart > ECART_MAX_S) {
+      repondre(socle, doc["req"] | "", false, "\"erreur\":\"commande perimee (heure du telephone ?)\"");
+      socle.journal("Commande MQTT refusee : signee mais perimee");
+      return;
+    }
+    signee = true;
+  }
+
   const char *req = doc["req"] | "";
   const char *action = doc["action"] | "";
   const char *jeton = doc["jeton"] | "";
 
   if (rejouerSiConnue(socle, req)) return;  // doublon livré par le broker
 
-  if (!actionLectureSeule(action) && !memeJeton(jeton, socle.jeton())) {
+  if (!actionLectureSeule(action) && !signee && !memeJeton(jeton, socle.jeton())) {
     repondre(socle, req, false, "\"erreur\":\"jeton invalide\"");
     char t[80];
     snprintf(t, sizeof t, "Commande MQTT refusee : jeton invalide (%.24s)", action);
