@@ -133,8 +133,19 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
       const page = document.documentElement.scrollWidth > window.innerWidth + 1;
       // Ce qui dépasse, au plus profond : de quoi corriger sans deviner.
       const depasse = el => el.getBoundingClientRect().right > window.innerWidth + 1;
+      const nom = el => `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).join('.') : ''}`;
       const coupables = page ? [...document.body.querySelectorAll('*')].filter(el => depasse(el) && ![...el.children].some(depasse))
-        .slice(0, 4).map(el => `${el.tagName.toLowerCase()}${el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).join('.') : ''} (${Math.round(el.getBoundingClientRect().right)} px) « ${el.textContent.trim().slice(0, 30)} »`) : [];
+        .slice(0, 4).map(el => `${nom(el)} (${Math.round(el.getBoundingClientRect().right)} px) « ${el.textContent.trim().slice(0, 30)} »`) : [];
+      // Rien ne dépasse par sa boîte : le débordement vient d'un texte ou d'un
+      // pseudo-élément. Le conteneur le plus profond dont la largeur défilable
+      // dépasse l'écran le situe, et son style dit pourquoi.
+      if (page && !coupables.length) {
+        const large = el => el.scrollWidth > window.innerWidth + 1;
+        let el = document.body;
+        for (;;) { const enfant = [...el.children].find(large); if (!enfant) break; el = enfant; }
+        const st = window.getComputedStyle(el);
+        coupables.push(`${nom(el)} défile sur ${el.scrollWidth} px (boîte ${Math.round(el.getBoundingClientRect().width)} px, white-space ${st.whiteSpace}, overflow-wrap ${st.overflowWrap}) « ${el.textContent.trim().replace(/\s+/g, ' ').slice(0, 60)} »`);
+      }
       return { n: tuiles.length, fautive: fautive ? fautive.textContent.trim().slice(0, 40) : '', page, coupables, largeur: document.documentElement.scrollWidth };
     });
     v(`à ${largeur} px, aucune tuile ne déborde`, r.n > 0 && !r.fautive && !r.page,
