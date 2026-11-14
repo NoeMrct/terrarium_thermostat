@@ -129,6 +129,20 @@ uint8_t zonesSimultanees(const ReglagesGlobaux &g);
 // Décalage de consigne du jour, en °C (négatif). 0 si le cyclage est inactif.
 float decalageSaisonnier(const ReglagesGlobaux &g, uint32_t maintenantEpoch);
 
+// Mot de passe du point d'accès de secours, propre à chaque socle : avec un
+// mot de passe commun, imprimé dans la documentation, n'importe qui à portée
+// pouvait rejoindre le réseau de configuration d'un socle neuf et le régler
+// avant son propriétaire. Il est tiré une fois, gardé, et affiché sur l'écran
+// tant que le point d'accès est ouvert. Alphabet sans caractères ambigus
+// (ni i, l, o, 0, 1) : il se recopie sur un téléphone sans hésiter.
+const uint8_t LONGUEUR_MDP_AP = 10;
+// `alea` fournit des entiers de 32 bits imprévisibles (esp_random sur le socle,
+// un générateur amorcé sur PC). Écrit au plus taille - 1 caractères.
+void genererMotDePasseAp(char *dest, size_t taille, uint32_t (*alea)());
+// Vrai s'il faut en tirer un : absent ou trop court (point d'accès ouvert à
+// tous, ou mémoire abîmée), ou resté sur l'ancien mot de passe commun.
+bool motDePasseApARenouveler(const char *mdp);
+
 // Relecture tolérante d'une structure persistée. Règle du projet : ces
 // structures ne s'agrandissent QUE par la fin. Un firmware plus récent relit
 // alors sans peine une mémoire écrite par l'ancien — les champs ajoutés restent

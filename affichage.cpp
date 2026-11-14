@@ -97,18 +97,24 @@ void pageReseau() {
   ecran.print(Reseau::identifiant());
   ecran.setCursor(0, 12);
   if (Reseau::modePointAcces()) {
+    // Tout ce qu'il faut pour rejoindre le socle depuis un téléphone. Le MQTT
+    // n'a pas de sens sans réseau : sa ligne laisse la place au mot de passe.
     ecran.println(F("Point d'acces ouvert"));
-    ecran.println(Reseau::ssidConfiguration());
-  } else if (Reseau::connecte()) {
-    ecran.print(F("WiFi "));
-    ecran.println(Reseau::ssidConnecte());
-    ecran.printf("%d dBm  ", Reseau::rssi());
-    ecran.println(Reseau::adresse());
+    ecran.println(Reseau::ssidConfiguration());  // 23 caracteres : deux lignes
+    ecran.println(F("Mot de passe :"));
+    ecran.println(Stockage::reseau().apMotDePasse);
   } else {
-    ecran.println(F("WiFi : non connecte"));
-    ecran.println(Stockage::reseau().ssid);
+    if (Reseau::connecte()) {
+      ecran.print(F("WiFi "));
+      ecran.println(Reseau::ssidConnecte());
+      ecran.printf("%d dBm  ", Reseau::rssi());
+      ecran.println(Reseau::adresse());
+    } else {
+      ecran.println(F("WiFi : non connecte"));
+      ecran.println(Stockage::reseau().ssid);
+    }
+    ligneLongue("MQTT " + Reseau::etatMqtt());
   }
-  ligneLongue("MQTT " + Reseau::etatMqtt());
   ecran.print(F("Web : "));
   ecran.println(Stockage::reseau().webUtilisateur[0] ? F("protege") : F("SANS mot de passe"));
 }
@@ -260,7 +266,10 @@ bool ecranEssai() {
 // Dernière ligne de la page principale : ce qui ne va pas, sinon l'adresse.
 String statut() {
   if (ctrl.enMaintenance()) return F("ENTRETIEN");
-  if (Reseau::modePointAcces()) return F("AP config");
+  // Point d'accès : « AP config » et son mot de passe en alternance, toutes les
+  // 4 s — c'est ce qu'il faut lire pour configurer le socle depuis un téléphone.
+  if (Reseau::modePointAcces())
+    return (millis() / 4000) % 2 ? String("mdp ") + Stockage::reseau().apMotDePasse : String(F("AP config"));
   if (!Reseau::connecte()) return F("WIFI --");
   const char *m = Reseau::etatCourtMqtt();
   if (m[0]) return String(m);

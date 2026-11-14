@@ -13,6 +13,16 @@
 #include <cmath>
 
 static int g_echecs = 0, g_total = 0;
+
+// Générateur amorcé : sur PC, le hasard n'a pas à être imprévisible, seulement
+// à varier d'un tirage à l'autre (esp_random() le remplace sur le socle).
+static uint32_t alea() {
+  static uint32_t graine = 2463534242u;
+  graine ^= graine << 13;
+  graine ^= graine >> 17;
+  graine ^= graine << 5;
+  return graine;
+}
 #define VERIFIE(cond, nom)                                        \
   do {                                                            \
     g_total++;                                                    \
@@ -211,6 +221,27 @@ int main() {
   VERIFIE(!Stockage::globauxValides(r, err, sizeof err), "mode d'écran inconnu refusé");
   VERIFIE(Stockage::assainirGlobaux(r) && r.ecranNuit == ECRAN_NUIT_ATTENUE && r.zonePrioritaire == 1,
           "…assaini sans toucher au reste");
+
+  // Mot de passe du point d'accès, propre à chaque socle.
+  {
+    char mdp[33], autre[33];
+    Stockage::genererMotDePasseAp(mdp, sizeof mdp, alea);
+    Stockage::genererMotDePasseAp(autre, sizeof autre, alea);
+    bool alphabetSur = strlen(mdp) == Stockage::LONGUEUR_MDP_AP;
+    for (const char *c = mdp; *c; c++)
+      if (!strchr("abcdefghjkmnpqrstuvwxyz23456789", *c)) alphabetSur = false;
+    VERIFIE(alphabetSur, "mot de passe du point d'accès : 10 caractères, sans i, l, o, 0 ni 1");
+    VERIFIE(strcmp(mdp, autre) != 0, "deux tirages donnent deux mots de passe différents");
+    VERIFIE(!Stockage::motDePasseApARenouveler(mdp), "un mot de passe tiré est gardé");
+    char court[6];
+    Stockage::genererMotDePasseAp(court, sizeof court, alea);
+    VERIFIE(strlen(court) == 5, "tampon trop petit : tronqué, toujours terminé");
+    VERIFIE(Stockage::motDePasseApARenouveler(""), "absent : à tirer");
+    VERIFIE(Stockage::motDePasseApARenouveler("court"), "trop court (moins de 8) : à tirer");
+    VERIFIE(Stockage::motDePasseApARenouveler(nullptr), "pointeur nul : à tirer");
+    VERIFIE(Stockage::motDePasseApARenouveler("terrarium1234"), "l'ancien mot de passe commun est remplacé");
+    VERIFIE(!Stockage::motDePasseApARenouveler("choisi-par-moi"), "un mot de passe choisi est respecté");
+  }
 
   VERIFIE(strcmp(nomEtapeMaj(MAJ_VALIDEE), "validee") == 0 &&
               strcmp(nomEtapeMaj(MAJ_RETOUR_ARRIERE), "retour arriere") == 0 &&

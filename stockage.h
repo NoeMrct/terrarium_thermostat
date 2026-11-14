@@ -48,6 +48,10 @@ void sauverGlobaux();
 // été créé (c'est alors le premier démarrage de cet appareil).
 bool assurerJeton();
 void regenererJeton();
+// Tire le mot de passe du point d'accès s'il manque (ou s'il est resté sur
+// l'ancien mot de passe commun) et l'enregistre. Vrai s'il vient d'être tiré.
+// À appeler radio allumée : esp_random() n'est vraiment aléatoire qu'avec elle.
+bool assurerMotDePasseAp();
 
 // --- dernière mise à jour du firmware (NVS) ---
 EtatMaj &etatMaj();

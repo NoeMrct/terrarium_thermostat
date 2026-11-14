@@ -29,7 +29,8 @@ CEM + ErP) : ne jamais vendre un adaptateur sans certificat.
   retour arrière automatique après une mise à jour défaillante
   (`docs/securite.md`).
 - Cybersécurité (RED 3.3, CRA) : pas d'identifiant par défaut commun — chaque
-  socle a son code d'appairage aléatoire ; interface locale authentifiée par
+  socle a son code d'appairage aléatoire et son propre mot de passe de point
+  d'accès, affiché sur son écran ; interface locale authentifiée par
   défi/réponse, limitation des tentatives ; MQTT chiffré (TLS) avec
   vérification de certificat ; images de mise à jour signées (ECDSA P-256)
   quand `OTA_CLE_PUBLIQUE` est renseignée ; compilation reproductible et

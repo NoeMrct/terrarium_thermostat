@@ -45,7 +45,8 @@ Without Chrome: the Arduino IDE, with the board settings described in the reposi
 
 1. Unplug USB, plug in the 12 V. The screen shows "Thermostat terrarium" then the status.
 2. If Wi-Fi was not given at flashing time, the base opens a **terrarium-config-XXXXXX** network
-   (the last six characters of its identifier; password `terrarium1234`). Connect your phone to
+   (the last six characters of its identifier; its password, unique to each base, shows on the screen
+   alternating with "AP config"). Connect your phone to
    it: the configuration page opens by itself (otherwise `http://192.168.4.1`).
 3. **Network** tab: your Wi-Fi, a username and a password for the interface, an OTA password if
    you want to update without a cable, and, for remote control, the MQTT server. Save: the base

@@ -2078,6 +2078,10 @@ String ssidPointAcces() { return "terrarium-config-" + g_id.substring(5); }
 
 void ouvrirPointAcces() {
   WiFi.mode(WIFI_AP);
+  // Radio allumée : esp_random() tire maintenant du vrai hasard. Premier
+  // passage, ou socle mis à jour depuis un firmware au mot de passe commun.
+  if (Stockage::assurerMotDePasseAp())
+    journal("Mot de passe du point d'acces tire pour ce socle (affiche sur l'ecran)");
   WiFi.softAP(ssidPointAcces().c_str(), Stockage::reseau().apMotDePasse);
   // Toute résolution de nom renvoie vers le socle : c'est ce qui fait apparaître
   // la page de configuration toute seule sur le téléphone (portail captif).

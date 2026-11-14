@@ -44,7 +44,8 @@ Sans Chrome : l'IDE Arduino, avec les réglages de carte décrits dans `INSTALLA
 
 1. Débranche l'USB, branche le 12 V. L'écran affiche « Thermostat terrarium » puis l'état.
 2. Si le Wi-Fi n'a pas été donné au flashage, le socle ouvre un réseau **terrarium-config-XXXXXX**
-   (les six derniers caractères de son identifiant ; mot de passe `terrarium1234`). Connecte ton
+   (les six derniers caractères de son identifiant ; son mot de passe, propre à chaque socle, s'affiche
+   sur l'écran en alternance avec « AP config »). Connecte ton
    téléphone dessus : la page de configuration s'ouvre d'elle-même (sinon `http://192.168.4.1`).
 3. Onglet **Réseau** : ton Wi-Fi, un utilisateur et un mot de passe pour l'interface, un mot de passe
    OTA si tu veux mettre à jour sans câble, et, pour le pilotage à distance, le serveur MQTT. Enregistre :

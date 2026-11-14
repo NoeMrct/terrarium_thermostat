@@ -74,6 +74,13 @@ jour.
   de la page locale pour chaque nouveauté.
 
 ### Modifié
+- **Point d'accès de secours : un mot de passe propre à chaque socle.** Fini le
+  mot de passe commun `terrarium1234`, imprimé dans la documentation : le socle
+  tire le sien (10 caractères, sans i, l, o, 0 ni 1) à la première ouverture du
+  point d'accès, radio allumée, et le garde. Un socle mis à jour depuis le mot
+  de passe commun en reçoit un nouveau à la prochaine ouverture. Il s'affiche
+  sur l'écran (page Réseau, et en alternance avec « AP config » en bas de la
+  page principale) et dans la commande série `etat`.
 - Application : les statistiques séparent les 24 dernières heures (minimum,
   maximum, moyenne, temps hors plage) des cumuls depuis la mise en service
   (heures de chauffe, kWh) ; les défauts sont comptés depuis le dernier

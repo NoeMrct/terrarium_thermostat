@@ -144,7 +144,8 @@ Aucun réseau n'est configuré au départ. Trois façons de le donner :
   site propose de configurer le Wi-Fi (protocole Improv) ; c'est le plus court.
 - **Par le point d'accès** que l'ESP32 ouvre tant qu'il n'a pas de réseau :
   **`terrarium-config-XXXXXX`** (les six derniers caractères de son
-  identifiant), mot de passe `terrarium1234`. Connecte-toi avec ton téléphone :
+  identifiant), avec le mot de passe affiché sur l'écran du socle (propre à
+  chaque socle, en alternance avec « AP config »). Connecte-toi avec ton téléphone :
   la page de configuration s'ouvre d'elle-même (portail captif ; sinon
   http://192.168.4.1), onglet Réseau.
 - **Au moniteur série** : `wifi MonReseau MonMotDePasse` essaie le réseau tout

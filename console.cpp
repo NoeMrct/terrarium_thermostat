@@ -828,6 +828,9 @@ void etat() {
   Serial.printf("\n%s  tapis actif %d  %s  heap %u o\n", horodatage().c_str(), ctrl.tapisActif(),
                 Reseau::modePointAcces() ? "AP config" : Reseau::adresse().c_str(),
                 (unsigned)ESP.getFreeHeap());
+  if (Reseau::modePointAcces())
+    Serial.printf("  point d'acces %s  mot de passe %s\n", Reseau::ssidConfiguration().c_str(),
+                  Stockage::reseau().apMotDePasse);
   for (uint8_t z = 0; z < NB_ZONES; z++) {
     const ZoneEtat &s = ctrl.zone[z];
     Serial.printf("  %-12s %6.2f C -> %5.2f C  demande %3d%%  charge %3.0f%%  I=%+.2f  biais %.2f  %s%s\n",

@@ -31,7 +31,8 @@
 
    PREMIER DÉMARRAGE
      1) Téléverser. Aucun réseau n'est configuré : l'ESP32 ouvre un point d'accès
-        « terrarium-config » (mot de passe terrarium1234). S'y connecter et
+        « terrarium-config-XXXXXX », mot de passe affiché sur l'écran (propre
+        à ce socle, aussi donné par `etat`). S'y connecter et
         ouvrir http://192.168.4.1 pour saisir le WiFi, ou passer par la console
         série : `wifi <ssid> <mot de passe>` puis `redemarrer`.
      2) Protéger l'accès : `motdepasse web <mdp>` et `motdepasse ota <mdp>`.

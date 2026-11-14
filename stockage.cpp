@@ -98,7 +98,8 @@ void reseauParDefaut(ReglagesReseau &r) {
   r.mqttPort = 1883;
   r.heartbeatMinutes = 5;
   snprintf(r.mqttPrefixe, sizeof r.mqttPrefixe, "terrarium");
-  snprintf(r.apMotDePasse, sizeof r.apMotDePasse, "terrarium1234");
+  // apMotDePasse reste vide : il est tiré à la première ouverture du point
+  // d'accès (Stockage::assurerMotDePasseAp), propre à ce socle.
   snprintf(r.fuseau, sizeof r.fuseau, "CET-1CEST,M3.5.0,M10.5.0/3");
   snprintf(r.ntp, sizeof r.ntp, "fr.pool.ntp.org");
   r.decouverteHA = true;
@@ -149,6 +150,13 @@ void regenererJeton() {
   for (uint8_t i = 0; i < 24; i++) g_reseau.jeton[i] = alphabet[esp_random() % (sizeof(alphabet) - 1)];
   g_reseau.jeton[24] = '\0';
   sauverReseau();
+}
+
+bool assurerMotDePasseAp() {
+  if (!motDePasseApARenouveler(g_reseau.apMotDePasse)) return false;
+  genererMotDePasseAp(g_reseau.apMotDePasse, sizeof g_reseau.apMotDePasse, esp_random);
+  sauverReseau();
+  return true;
 }
 
 bool assurerJeton() {
@@ -220,9 +228,9 @@ void demarrer() {
     assainirTexte(g_reseau.otaMotDePasse, sizeof g_reseau.otaMotDePasse);
     assainirTexte(g_reseau.apMotDePasse, sizeof g_reseau.apMotDePasse);
     // Le point d'accès de secours est le dernier moyen d'accéder à l'appareil :
-    // il ne doit jamais se retrouver ouvert à cause d'une NVS abîmée.
-    if (strlen(g_reseau.apMotDePasse) < 8)
-      snprintf(g_reseau.apMotDePasse, sizeof g_reseau.apMotDePasse, "terrarium1234");
+    // il ne doit jamais se retrouver ouvert à cause d'une NVS abîmée. Un mot de
+    // passe trop court est retiré ; ouvrirPointAcces() en tire un nouveau.
+    if (strlen(g_reseau.apMotDePasse) < 8) g_reseau.apMotDePasse[0] = '\0';
     assainirTexte(g_reseau.urlAlertes, sizeof g_reseau.urlAlertes);
     assainirTexte(g_reseau.urlHeartbeat, sizeof g_reseau.urlHeartbeat);
     assainirTexte(g_reseau.mqttHote, sizeof g_reseau.mqttHote);

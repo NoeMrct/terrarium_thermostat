@@ -127,6 +127,20 @@ float decalageSaisonnier(const ReglagesGlobaux &g, uint32_t maintenantEpoch) {
   return 0.0f;  // cycle terminé
 }
 
+void genererMotDePasseAp(char *dest, size_t taille, uint32_t (*alea)()) {
+  static const char alphabet[] = "abcdefghjkmnpqrstuvwxyz23456789";  // sans i, l, o, 0, 1
+  if (!dest || taille == 0) return;
+  size_t n = taille - 1;
+  if (n > LONGUEUR_MDP_AP) n = LONGUEUR_MDP_AP;
+  for (size_t i = 0; i < n; i++) dest[i] = alphabet[alea() % (sizeof(alphabet) - 1)];
+  dest[n] = '\0';
+}
+
+bool motDePasseApARenouveler(const char *mdp) {
+  // Le mot de passe commun des firmwares jusqu'à la 3.5 : public, donc à remplacer.
+  return !mdp || strlen(mdp) < 8 || strcmp(mdp, "terrarium1234") == 0;
+}
+
 size_t relireTolerant(const uint8_t *source, size_t disponible, void *dest, size_t taille) {
   memset(dest, 0, taille);
   if (!source || disponible == 0) return 0;
