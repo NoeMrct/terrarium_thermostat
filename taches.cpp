@@ -253,7 +253,7 @@ void envoyerRapport() {
   g_baseDepuisRapport = true;
 }
 
-String joursJson(uint16_t n) {
+String joursJson(uint16_t n, size_t maxOctets) {
   const uint16_t total = Stockage::joursNombre();
   if (n > total) n = total;
   String j = "{\"prixKwh\":" + String(Stockage::globaux().prixKwh, 4) + ",\"jours\":[";
@@ -267,23 +267,27 @@ String joursJson(uint16_t n) {
     localtime_r(&td, &tm);
     char date[12];
     strftime(date, sizeof date, "%Y-%m-%d", &tm);
-    if (i) j += ",";
-    j += "{\"date\":\"" + String(date) + "\",\"zones\":[";
+    String jour = "{\"date\":\"" + String(date) + "\",\"zones\":[";
     for (uint8_t z = 0; z < NB_ZONES; z++) {
-      if (z) j += ",";
-      j += "{\"min\":" + temperature(r.mini[z]) + ",\"max\":" + temperature(r.maxi[z]) +
-           ",\"moyenne\":" + temperature(r.moyenne[z]);
+      if (z) jour += ",";
+      jour += "{\"min\":" + temperature(r.mini[z]) + ",\"max\":" + temperature(r.maxi[z]) +
+              ",\"moyenne\":" + temperature(r.moyenne[z]);
       if (precedent && r.secondesChauffe[z] >= avant.secondesChauffe[z]) {
         const uint32_t sec = r.secondesChauffe[z] - avant.secondesChauffe[z];
-        j += ",\"heures\":" + String(sec / 3600.0f, 2) + ",\"kWh\":" + String(kwh(sec), 3) +
-             ",\"euros\":" + String(euros(sec), 3) +
-             ",\"defauts\":" + String(r.defauts[z] >= avant.defauts[z] ? r.defauts[z] - avant.defauts[z] : 0);
+        jour += ",\"heures\":" + String(sec / 3600.0f, 2) + ",\"kWh\":" + String(kwh(sec), 3) +
+                ",\"euros\":" + String(euros(sec), 3) + ",\"defauts\":" +
+                String(r.defauts[z] >= avant.defauts[z] ? r.defauts[z] - avant.defauts[z] : 0);
       } else {
-        j += ",\"heures\":null,\"kWh\":null,\"euros\":null,\"defauts\":null";
+        jour += ",\"heures\":null,\"kWh\":null,\"euros\":null,\"defauts\":null";
       }
-      j += "}";
+      jour += "}";
     }
-    j += "]}";
+    jour += "]}";
+    // Un message MQTT a une taille : les jours les plus anciens restent alors
+    // sur le socle (la page locale, elle, n'a pas de limite).
+    if (maxOctets && j.length() + jour.length() + 3 > maxOctets) break;
+    if (i) j += ",";
+    j += jour;
   }
   j += "]}";
   return j;

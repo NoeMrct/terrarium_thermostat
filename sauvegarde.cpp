@@ -17,7 +17,7 @@ void copier(char *dest, size_t taille, JsonVariantConst v) {
 
 namespace Sauvegarde {
 
-String json() {
+String json(bool pourLeBroker) {
   JsonDocument d;
   d["format"] = FORMAT;
   d["version"] = FW_VERSION;
@@ -77,14 +77,19 @@ String json() {
   JsonObject n = d["reseau"].to<JsonObject>();
   n["fuseau"] = r.fuseau;
   n["ntp"] = r.ntp;
-  n["urlAlertes"] = r.urlAlertes;  // une URL ntfy vaut secret : à garder pour soi
+  if (!pourLeBroker) {
+    n["urlAlertes"] = r.urlAlertes;  // une URL ntfy vaut secret : à garder pour soi
+    n["urlHeartbeat"] = r.urlHeartbeat;
+  }
   n["formatAlertes"] = r.formatAlertes;
-  n["urlHeartbeat"] = r.urlHeartbeat;
   n["heartbeatMinutes"] = r.heartbeatMinutes;
   n["mqttPrefixe"] = r.mqttPrefixe;
   n["decouverteHA"] = r.decouverteHA;
   String s;
-  serializeJsonPretty(d, s);
+  if (pourLeBroker)
+    serializeJson(d, s);
+  else
+    serializeJsonPretty(d, s);
   return s;
 }
 

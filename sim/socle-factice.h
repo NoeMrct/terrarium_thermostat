@@ -100,6 +100,62 @@ struct SocleFactice : public Protocole::Socle {
   }
   void lancerMaj(const char *cible) override { actions.push_back(std::string("maj ") + cible); }
   void journal(const char *texte) override { actions.push_back(std::string("journal ") + texte); }
+
+  // Protocole 4 (F1)
+  ReglagesReseau res{};
+  bool sondeAbsente = false;
+  void corpsSondes(bool relire, char *out, size_t taille) override {
+    if (relire) actions.push_back("relire");
+    snprintf(out, taille, "\"sondes\":{\"sondes\":[{\"rom\":\"28FF0000000000A1\",\"zone\":0}]}");
+  }
+  bool lierSonde(uint8_t z, const char *rom, char *message, size_t taille) override {
+    if (sondeAbsente || strlen(rom) != 16) {
+      snprintf(message, taille, "Sonde %s absente du bus", rom);
+      return false;
+    }
+    actions.push_back("lier " + std::to_string(z) + " " + rom);
+    snprintf(message, taille, "Sonde liee a la zone %u", (unsigned)z + 1);
+    return true;
+  }
+  bool identifierSonde(uint8_t z, char *message, size_t taille) override {
+    actions.push_back("identifier " + std::to_string(z));
+    snprintf(message, taille, "Serrez la sonde de la zone %u", (unsigned)z + 1);
+    return true;
+  }
+  void annulerIdentification() override { actions.push_back("stop-identifier"); }
+  bool lancerEssai(uint8_t z, char *message, size_t taille) override {
+    actions.push_back("essai " + std::to_string(z));
+    snprintf(message, taille, "Essai lance sur la zone %u", (unsigned)z + 1);
+    return true;
+  }
+  void annulerEssai() override { actions.push_back("stop-essai"); }
+  void corpsEssai(char *out, size_t taille) override {
+    snprintf(out, taille, "\"essai\":{\"zone\":0,\"restantS\":0,\"resultat\":\"\"}");
+  }
+  bool calibrer(char *message, size_t taille) override {
+    snprintf(message, taille, "Calibration : zone 2 decalee de -0.31 C");
+    return true;
+  }
+  void corpsRapport(char *out, size_t taille) override {
+    snprintf(out, taille, "\"texte\":\"Rapport \\\"du jour\\\"\"");
+  }
+  void envoyerRapport() override { actions.push_back("envoyerRapport"); }
+  void corpsJours(uint16_t n, char *out, size_t taille) override {
+    snprintf(out, taille, "\"jours\":{\"n\":%u,\"jours\":[]}", (unsigned)n);
+  }
+  void corpsJournal(char *out, size_t taille) override {
+    snprintf(out, taille, "\"texte\":\"Demarrage\\n\"");
+  }
+  void corpsSauvegarde(char *out, size_t taille) override {
+    snprintf(out, taille, "\"sauvegarde\":{\"format\":\"terrarium-sauvegarde\"}");
+  }
+  bool restaurer(const char *json, size_t n, char *message, size_t taille) override {
+    actions.push_back(std::string("restaurer ") + std::string(json, n));
+    snprintf(message, taille, "Configuration restauree");
+    return true;
+  }
+  ReglagesReseau &reseau() override { return res; }
+  void sauverReseau() override { actions.push_back("sauverReseau"); }
 };
 
 #endif

@@ -35,8 +35,23 @@ const socle = {
     courantAlimA: 3, puissanceTapisW: 20, tensionV: 12,
     maintenanceMin: 10, ecranVeilleMin: 10,
     saisonActive: false, saisonDelta: 5,
-    saisonDescenteJ: 21, saisonPlateauJ: 60, saisonRemonteeJ: 21, saisonDebutEpoch: 0
+    saisonDescenteJ: 21, saisonPlateauJ: 60, saisonRemonteeJ: 21, saisonDebutEpoch: 0,
+    rapportActif: false, rapportMinutes: 1200, prixKwh: 0, ledEteinte: false, ecranNuit: 0,
+    soleilActif: false, soleilDecalageMin: 0, latitude: 0, longitude: 0, zonePrioritaire: 0
   },
+  // Protocole 4 (F1) : ce que la page locale réglait seule.
+  sondes: [
+    { rom: '28FF0000000000A1', temp: 24.1 },
+    { rom: '28FF0000000000B2', temp: 22.0 }
+  ],
+  liaisons: ['28FF0000000000A1', '28FF0000000000B2'],
+  identification: null,
+  essai: { zone: 0, finMs: 0, resultat: '' },
+  reseau: {
+    ssid: 'Maison', ssid2: '', urlAlertes: '', urlHeartbeat: '',
+    heartbeatMinutes: 5, formatAlertes: 0
+  },
+  journal: ['Demarrage (simulation)'],
   // Historique en anneau, comme le socle réel : un point par minute, gardé en
   // mémoire ici puisqu'il n'y a pas de flash.
   historique: [],
@@ -63,6 +78,7 @@ const zonesSimultanees = () => {
 // le test du protocole doit le faire remarquer.
 function validerGlobaux(g) {
   const e = m => { throw new Error(m); };
+  const fini = v => typeof v === 'number' && Number.isFinite(v);
   if (!(g.courantAlimA >= 0.5 && g.courantAlimA <= 40))       e("Amperage de l'alimentation hors 0.5-40 A");
   if (!(g.puissanceTapisW >= 1 && g.puissanceTapisW <= 200))  e("Puissance d'un tapis hors 1-200 W");
   if (!(g.tensionV >= 3 && g.tensionV <= 60))                 e('Tension hors 3-60 V');
@@ -73,7 +89,26 @@ function validerGlobaux(g) {
     e('Duree de phase saisonniere hors 0-365 jours');
   if (g.saisonActive && g.saisonDescenteJ + g.saisonPlateauJ + g.saisonRemonteeJ === 0)
     e('Un cycle saisonnier doit durer au moins un jour');
+  if (!(g.rapportMinutes >= 0 && g.rapportMinutes <= 1439))   e('Heure du rapport invalide');
+  if (!(fini(g.prixKwh) && g.prixKwh >= 0 && g.prixKwh <= 5)) e('Prix du kWh hors 0-5 EUR');
+  if (!(g.ecranNuit >= 0 && g.ecranNuit <= 2))                e("Mode nuit de l'ecran inconnu");
+  if (!(g.soleilDecalageMin >= -180 && g.soleilDecalageMin <= 180)) e('Decalage solaire hors -180..180 min');
+  if (!(fini(g.latitude) && g.latitude >= -65 && g.latitude <= 65)) e('Latitude hors -65..65');
+  if (!(fini(g.longitude) && g.longitude >= -180 && g.longitude <= 180)) e('Longitude hors -180..180');
+  if (g.soleilActif && g.latitude === 0 && g.longitude === 0) e('Position inconnue : renseigner latitude et longitude');
+  if (!(g.zonePrioritaire >= 0 && g.zonePrioritaire <= 2))    e('Zone prioritaire inconnue');
 }
+
+// Hôte d'une URL : seul relu à distance, comme hoteUrl() dans protocole.cpp.
+function hoteUrl(u) {
+  if (!u) return '';
+  try { return new URL(u).hostname || 'definie'; } catch (e) { return 'definie'; }
+}
+
+const journal = t => {
+  socle.journal.push(`${new Date().toISOString().slice(11, 19)} ${t}`);
+  if (socle.journal.length > 200) socle.journal.shift();
+};
 
 // Les mêmes bornes que reglagesValides() dans le firmware. Si l'un des deux
 // change, le test du protocole doit le faire remarquer.
@@ -301,7 +336,11 @@ client.on('message', (sujet, charge) => {
       const champs = { amperes: 'courantAlimA', watts: 'puissanceTapisW', volts: 'tensionV',
                        entretienMin: 'maintenanceMin', ecranVeilleMin: 'ecranVeilleMin',
                        saisonDelta: 'saisonDelta', saisonDescenteJ: 'saisonDescenteJ',
-                       saisonPlateauJ: 'saisonPlateauJ', saisonRemonteeJ: 'saisonRemonteeJ' };
+                       saisonPlateauJ: 'saisonPlateauJ', saisonRemonteeJ: 'saisonRemonteeJ',
+                       rapportActif: 'rapportActif', rapportMinutes: 'rapportMinutes', prixKwh: 'prixKwh',
+                       ledEteinte: 'ledEteinte', ecranNuit: 'ecranNuit', soleilActif: 'soleilActif',
+                       soleilDecalageMin: 'soleilDecalageMin', latitude: 'latitude', longitude: 'longitude',
+                       zonePrioritaire: 'zonePrioritaire' };
       let ecriture = false;
       for (const [k, v] of Object.entries(champs))
         if (d[k] !== undefined) { g[v] = d[k]; ecriture = true; }
@@ -321,7 +360,11 @@ client.on('message', (sujet, charge) => {
         ecranVeilleMin: c.ecranVeilleMin, saisonActive: c.saisonActive,
         saisonDelta: c.saisonDelta, saisonDescenteJ: c.saisonDescenteJ,
         saisonPlateauJ: c.saisonPlateauJ, saisonRemonteeJ: c.saisonRemonteeJ,
-        decalageActuel: c.saisonActive ? -c.saisonDelta : 0
+        decalageActuel: c.saisonActive ? -c.saisonDelta : 0,
+        prixKwh: c.prixKwh, rapportActif: c.rapportActif, rapportMinutes: c.rapportMinutes,
+        ledEteinte: c.ledEteinte, ecranNuit: c.ecranNuit, soleilActif: c.soleilActif,
+        soleilDecalageMin: c.soleilDecalageMin, latitude: c.latitude, longitude: c.longitude,
+        zonePrioritaire: c.zonePrioritaire
       });
     }
 
@@ -408,6 +451,136 @@ client.on('message', (sujet, charge) => {
         console.log(`Mise à jour simulée vers ${cible}`);
       }, 150);
       return;
+    }
+
+
+    // ---- Protocole 4 (F1) : mêmes noms, mêmes refus que protocole.cpp ----
+    case 'sondes': {
+      if (d.relire) journal('Bus 1-Wire relu');
+      const id = socle.identification;
+      const restantS = id ? Math.max(0, 120 - Math.round((Date.now() - id.debut) / 1000)) : 0;
+      // Même forme que Sondes::inventaireJson() : zone 0-based (-1 : libre),
+      // identification 1-based.
+      return repondre(d.req, true, {
+        sondes: {
+          sondes: socle.sondes.map(x => ({ rom: x.rom, temp: x.temp, zone: socle.liaisons.indexOf(x.rom) })),
+          parasite: false,
+          liaisons: socle.liaisons.map(r => (r ? { rom: r, presente: socle.sondes.some(x => x.rom === r) } : null)),
+          identification: id && restantS ? { zone: id.zone + 1, restantS } : null,
+          resultat: ''
+        }
+      });
+    }
+    case 'lier': case 'identifier': case 'essai': {
+      if (d.action === 'essai' && d.z === undefined) {
+        const restantS = Math.max(0, Math.round((socle.essai.finMs - Date.now()) / 1000));
+        return repondre(d.req, true, { essai: { zone: restantS ? socle.essai.zone + 1 : 0, restantS, resultat: socle.essai.resultat } });
+      }
+      const z = d.z;
+      if (!(z >= 0 && z < socle.zones.length)) return repondre(d.req, false, { erreur: 'zone invalide' });
+      if (d.action === 'lier') {
+        const rom = String(d.rom || '').toUpperCase();
+        if (!/^[0-9A-F]{16}$/.test(rom)) return repondre(d.req, false, { erreur: 'Adresse de sonde invalide (16 chiffres hexadecimaux)' });
+        if (!socle.sondes.some(x => x.rom === rom)) return repondre(d.req, false, { erreur: 'Sonde absente du bus (`scan` pour relire le bus)' });
+        socle.liaisons = socle.liaisons.map(r => (r === rom ? '' : r));  // une sonde ne vaut que pour une zone
+        socle.liaisons[z] = rom;
+        journal(`Sonde ${rom} liee a la zone ${z + 1}`);
+        return repondre(d.req, true, { message: `Sonde ${rom} liee a la zone ${z + 1}` });
+      }
+      if (d.action === 'identifier') {
+        socle.identification = { zone: z, debut: Date.now() };
+        return repondre(d.req, true, { message: `Zone ${z + 1} : serrez sa sonde dans la main (ou refroidissez-la) ; chauffe suspendue, 120 s maximum` });
+      }
+      if (socle.essai.finMs > Date.now()) return repondre(d.req, false, { erreur: `Essai deja en cours (zone ${socle.essai.zone + 1})` });
+      socle.essai = { zone: z, finMs: Date.now() + 60000, resultat: '' };
+      setTimeout(() => {
+        if (socle.essai.zone === z && socle.essai.finMs) socle.essai.resultat = `Zone ${z + 1} : +1.2 C en 60 s, le tapis chauffe`;
+      }, 3000);
+      journal(`Essai de chauffe lance sur la zone ${z + 1}`);
+      return repondre(d.req, true, { message: `Zone ${z + 1} : chauffe seule a pleine puissance, verdict des que sa sonde gagne 0.5 C (10 min au plus). Ne pas laisser sans surveillance.` });
+    }
+    case 'stop-identifier':
+      socle.identification = null;
+      return repondre(d.req, true, { message: 'Identification annulee' });
+    case 'stop-essai':
+      socle.essai.finMs = 0;
+      return repondre(d.req, true, { message: 'Essai arrete' });
+    case 'calibrer': {
+      const t = socle.zones.map(z => z.temp);
+      if (Math.abs(t[0] - t[1]) > 3) return repondre(d.req, false, { erreur: 'Sondes trop ecartees (> 3 C) : les placer cote a cote' });
+      return repondre(d.req, true, { message: `Zone 2 decalee de ${(t[0] - t[1]).toFixed(2)} C sur la zone 1` });
+    }
+    case 'rapport':
+      if (d.envoyer) {
+        journal('Rapport envoye');
+        return repondre(d.req, true, { message: 'Rapport envoye vers les alertes' });
+      }
+      return repondre(d.req, true, {
+        texte: `Rapport du ${new Date().toISOString().slice(0, 10)}\n` +
+          socle.zones.map(z => `${z.nom} : ${z.temp.toFixed(1)} C, consigne ${consigne(z).toFixed(1)} C`).join('\n')
+      });
+    case 'jours': {
+      const n = Math.max(1, Math.min(400, Number.isInteger(d.n) ? d.n : 7));
+      const jours = [];
+      for (let i = 0; i < Math.min(n, 30); i++) {
+        const date = new Date(Date.now() - (i + 1) * 86400000).toISOString().slice(0, 10);
+        jours.push({ date, zones: socle.zones.map(z => ({ min: z.temp - 1, max: z.temp + 1, moyenne: z.temp, heures: 5.2, kWh: 0.104, euros: 0.026, defauts: 0 })) });
+      }
+      return repondre(d.req, true, { jours: { prixKwh: socle.globaux.prixKwh, jours } });
+    }
+    case 'journal':
+      return repondre(d.req, true, { texte: socle.journal.join('\n').slice(-5000) });
+    case 'sauvegarde':
+      return repondre(d.req, true, {
+        sauvegarde: {
+          format: 'terrarium-sauvegarde', version: VERSION_SIM, appareil: ID, date: new Date().toISOString(),
+          zones: socle.zones.map(z => ({ nom: z.nom, consigneJour: z.consigneJour, consigneNuit: z.consigneNuit })),
+          globaux: { ...socle.globaux }, sondes: [...socle.liaisons],
+          reseau: { formatAlertes: socle.reseau.formatAlertes, heartbeatMinutes: socle.reseau.heartbeatMinutes }
+        }
+      });
+    case 'restaurer': {
+      const v = d.sauvegarde;
+      if (!v || typeof v !== 'object' || Array.isArray(v)) return repondre(d.req, false, { erreur: 'sauvegarde attendue' });
+      if (v.format !== 'terrarium-sauvegarde') return repondre(d.req, false, { erreur: "Ce n'est pas une sauvegarde de socle" });
+      if (v.globaux) {
+        const g = { ...socle.globaux, ...v.globaux };
+        try { validerGlobaux(g); } catch (e) { return repondre(d.req, false, { erreur: `Reglages generaux refuses : ${e.message}. Rien n'a ete applique` }); }
+        Object.assign(socle.globaux, g);
+      }
+      (v.zones || []).forEach((z, i) => { if (socle.zones[i] && z && typeof z.nom === 'string') socle.zones[i].nom = z.nom; });
+      if (Array.isArray(v.sondes)) socle.liaisons = socle.zones.map((_, i) => v.sondes[i] || '');
+      journal(`Configuration de ${v.appareil || '?'} restauree`);
+      publier();
+      return repondre(d.req, true, { message: `Configuration de ${v.appareil || '?'} restauree (zones, reglages, sondes, alertes).` });
+    }
+    // Réseau : la surveillance seulement ; aucun identifiant Wi-Fi par le broker,
+    // et les URL ne reviennent que par leur hôte.
+    case 'reseau': {
+      if (['ssid', 'ssid2', 'wifiPass', 'wifiPass2'].some(k => d[k] !== undefined))
+        return repondre(d.req, false, { erreur: 'Wi-Fi : a regler sur la page locale du socle' });
+      const n = { ...socle.reseau };
+      let ok = true, ecriture = false;
+      for (const k of ['urlAlertes', 'urlHeartbeat']) {
+        if (typeof d[k] !== 'string') continue;
+        ecriture = true;
+        if ((d[k] && !/^https?:\/\//.test(d[k])) || d[k].length > 160) ok = false; else n[k] = d[k];
+      }
+      if (d.heartbeatMinutes !== undefined) {
+        ecriture = true;
+        if (Number.isInteger(d.heartbeatMinutes) && d.heartbeatMinutes >= 1 && d.heartbeatMinutes <= 1440) n.heartbeatMinutes = d.heartbeatMinutes; else ok = false;
+      }
+      if (d.formatAlertes !== undefined) {
+        ecriture = true;
+        if (d.formatAlertes === 0 || d.formatAlertes === 1) n.formatAlertes = d.formatAlertes; else ok = false;
+      }
+      if (!ok) return repondre(d.req, false, { erreur: 'reseau : valeur invalide (URL http(s)://, 1-1440 min, format 0 ou 1)' });
+      if (ecriture) { socle.reseau = n; journal('Surveillance (alertes, heartbeat) modifiee via le canal de commande'); }
+      const r = socle.reseau;
+      return repondre(d.req, true, {
+        ssid: r.ssid, ssid2: r.ssid2, alertes: hoteUrl(r.urlAlertes), heartbeat: hoteUrl(r.urlHeartbeat),
+        heartbeatMinutes: r.heartbeatMinutes, formatAlertes: r.formatAlertes
+      });
     }
 
     default:

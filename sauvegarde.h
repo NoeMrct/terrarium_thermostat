@@ -10,7 +10,9 @@
 
 namespace Sauvegarde {
 
-String json();
+// pourLeBroker : compacte, et sans les URL d'alerte et de heartbeat (leur
+// chemin vaut secret) ; restaurée, elle garde celles du socle.
+String json(bool pourLeBroker = false);
 // Tout ou rien : un seul réglage refusé, et rien n'est appliqué.
 bool restaurer(const char *texte, size_t longueur, char *message, size_t taille);
 

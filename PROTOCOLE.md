@@ -98,7 +98,10 @@ d'un socle coincé.
 Le socle annonce `proto` (dans `sante`, dans la réponse `etat` et `version`).
 Cette page décrit la **version 4** (firmware 3.5) : les commandes modifiantes
 voyagent signées, sans le code d'appairage en clair (voir « Commandes
-signées » ci-dessous). La version 3 (3.4) a ajouté l'action `maj`, le sujet
+signées » ci-dessous), et l'application fait à distance ce que seule la page
+locale savait faire (sondes, essai, calibration, rapport, journal, résumés
+journaliers, sauvegarde, surveillance — dernières lignes du tableau des
+actions). La version 3 (3.4) a ajouté l'action `maj`, le sujet
 `maj` et les champs `hote`, `ip`, `maj` de la santé. La version 2
 (3.3) n'avait pas de mise à jour tirée ; la version 1 (3.0 à 3.2) n'avait ni
 `sante`, ni `proto`, ni le rejeu des commandes. Un changement que
@@ -166,7 +169,7 @@ telle quelle, horodatée, puis mise dans une enveloppe avec sa signature :
 | `stats` | non | — | Min / max / moyenne sur 24 h, temps hors plage, énergie, compteurs de défauts |
 | `historique` | non | `heures` (1-400, défaut 24), `max` (1-200, défaut 120) | Points de courbe, échantillonnés |
 | `zone` | **oui** | `z`, et `nom`, `jour`, `nuit`, `bande`, `ki`, `max`, `offset`, `rampe`, `debutJour`, `debutNuit`, `deriveSeuil`, `deriveMin`, `inefficaceMin`, `inefficaceDelta`, `chuteSeuil`, `chuteSecondes` | Modifie une zone |
-| `globaux` | **oui** | aucun (lecture), ou `amperes`, `watts`, `volts`, `entretienMin`, `ecranVeilleMin`, `saisonActive`, `saisonDelta`, `saisonDescenteJ`, `saisonPlateauJ`, `saisonRemonteeJ` | Lit ou modifie les réglages de l'appareil |
+| `globaux` | **oui** | aucun (lecture), ou `amperes`, `watts`, `volts`, `entretienMin`, `ecranVeilleMin`, `saisonActive`, `saisonDelta`, `saisonDescenteJ`, `saisonPlateauJ`, `saisonRemonteeJ` ; depuis le protocole 4 : `prixKwh` (0-5 €), `rapportActif`, `rapportMinutes` (heure d'envoi, 0-1439), `ledEteinte`, `ecranNuit` (0 atténué, 1 normal, 2 éteint), `soleilActif`, `soleilDecalageMin` (-180-180), `latitude` (-65-65), `longitude`, `zonePrioritaire` (0 aucune, 1 ou 2) | Lit ou modifie les réglages de l'appareil |
 | `reset` | **oui** | — | Lève les défauts verrouillés |
 | `entretien` | **oui** | `minutes` (0-240, 0 annule) | Coupe le chauffage temporairement, reprise automatique |
 | `autotune` | **oui** | `z` | Lance la calibration automatique |
@@ -175,6 +178,17 @@ telle quelle, horodatée, puis mise dans une enveloppe avec sa signature :
 | `alim` | **oui** | `amperes`, `watts` | Raccourci historique de `globaux` |
 | `redemarrer` | **oui** | — | Redémarre le socle |
 | `maj` | **oui** | `version` (`X.Y.Z`, release GitHub) ou `url` (`https://`, releases du dépôt seulement), `forcer` | Le socle télécharge et installe l'image, publie sa progression sur `maj`, redémarre ; la réponse `{"ok":true,"maj":"telechargement"}` part avant le téléchargement. Refus : `deja en X.Y.Z` (sans `forcer`), `hote non autorise`, `hors ligne` |
+| `sondes` | **oui** | `relire` (relit le bus 1-Wire d'abord) | `"sondes":{…}` : les sondes du bus (`rom`, `temp`, `zone` comptée depuis 0, -1 si libre), `liaisons` de chaque zone (`rom`, `presente`), `identification` en cours, `resultat` de la dernière |
+| `lier` | **oui** | `z`, `rom` (16 chiffres hexadécimaux) | Lie une sonde présente à une zone (et la retire d'une autre) ; `message` |
+| `identifier` / `stop-identifier` | **oui** | `z` / — | Lance l'assistant (chauffe suspendue, 2 min au plus : la sonde qu'on serre dans la main se lie à la zone) ou l'annule ; l'avancement se lit avec `sondes` |
+| `essai` / `stop-essai` | **oui** | `z` / — | Essai de chauffe d'une zone seule ; sans `z`, `"essai":{"zone","restantS","resultat"}` (`zone` comptée depuis 1, 0 : aucun essai) |
+| `calibrer` | **oui** | — | Aligne la zone 2 sur la zone 1 (sondes côte à côte) ; `message` ou `erreur` |
+| `rapport` | **oui** | `envoyer` | Le rapport du jour (`texte`), ou son envoi immédiat vers l'adresse des alertes |
+| `jours` | **oui** | `n` (1-400, défaut 7) | `"jours":{"prixKwh","jours":[…]}` : résumés journaliers du plus récent au plus ancien, autant qu'un message en tient (une trentaine) ; la page locale les donne tous |
+| `journal` | **oui** | — | La fin du journal (`texte`, 5000 caractères au plus) |
+| `sauvegarde` | **oui** | — | `"sauvegarde":{…}` : la configuration (zones, réglages, sondes, réseau non secret), **sans les adresses d'alerte et de heartbeat** |
+| `restaurer` | **oui** | `sauvegarde` (objet) | Réapplique une sauvegarde, tout ou rien ; les adresses absentes gardent celles du socle ; `message` |
+| `reseau` | **oui** | aucun (lecture), ou `urlAlertes`, `urlHeartbeat` (`http(s)://`, 160 car.), `heartbeatMinutes` (1-1440), `formatAlertes` (0 JSON, 1 texte) | La surveillance seulement. Réponse : `ssid`, `ssid2`, `alertes` et `heartbeat` (**l'hôte seul** des adresses, vide si aucune), `heartbeatMinutes`, `formatAlertes`. Tout identifiant Wi-Fi (`ssid`, `ssid2`, `wifiPass`, `wifiPass2`) est refusé : le Wi-Fi se règle sur la page locale |
 
 Les horaires (`debutJour`, `debutNuit`) sont en minutes depuis minuit :
 `8:00` s'écrit `480`.
@@ -289,6 +303,7 @@ et l'application doit le présenter comme tel plutôt que de rester bloquée.
 | Identifiants par appareil sur le broker | Un socle compromis ne donne pas accès aux autres |
 | Jeton exigé pour les actions modifiantes | Un broker mal cloisonné ne suffit pas à piloter un socle |
 | Commandes signées et horodatées (protocole 4) | Qui lit le broker ne vole pas le code d'appairage ; il ne peut ni forger une commande ni en rejouer une ancienne |
+| Aucun secret relu par le broker (protocole 4) | Ni mot de passe Wi-Fi (refusé dans `reseau`), ni adresse d'alerte ou de heartbeat (seul l'hôte revient, la sauvegarde les omet) : lire le broker ne donne pas de quoi entrer sur le réseau ni écrire dans tes notifications |
 | Validation dans le cœur de régulation | Aucune commande ne peut créer un réglage dangereux |
 | OTA réseau désactivée sans mot de passe | Personne sur le réseau local ne réécrit le firmware |
 | Images signées (ECDSA P-256) exigées par `/api/maj` et par la mise à jour tirée quand une clé publique est compilée | Même avec le mot de passe de l'interface ou le jeton, pas de firmware étranger |

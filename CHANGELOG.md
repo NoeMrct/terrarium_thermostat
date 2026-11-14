@@ -78,6 +78,17 @@ jour.
   seulement quand il sert (et gardé hors ligne par l'agent de service). Tout le
   monde télécharge 4 Ko de moins : `app.js` passe de 30,0 à 26,0 Ko compressés.
   Le budget de poids sépare désormais le démarrage des modules à la demande.
+- **À distance (protocole 4).** L'application peut faire ce que seule la page
+  locale savait faire : inventaire et liaison des sondes, assistant
+  d'identification, essai de chauffe, calibration, rapport du jour (lu ou
+  envoyé), journal, résumés journaliers, sauvegarde et restauration,
+  surveillance (adresses d'alerte et de heartbeat), et les réglages 3.5 de
+  `globaux` (prix du kWh, écran la nuit, LED, soleil, zone prioritaire,
+  rapport). Rien de secret ne revient par le broker : le Wi-Fi reste réglable
+  sur la page locale seulement, une adresse d'alerte s'écrit mais seul son
+  hôte se relit, et la sauvegarde envoyée par le broker omet ces adresses
+  (restaurée, elle garde celles du socle). Les résumés s'arrêtent à ce que
+  tient un message. Le simulateur, le schéma et `test-protocole.js` suivent.
 - **Commandes signées (protocole 4).** Le code d'appairage ne circule plus sur
   le broker : l'application (et le serveur, pour la preuve de propriété)
   envoie `{"c": "<commande>", "sig": HMAC-SHA256(code, c)}`, horodatée ; le

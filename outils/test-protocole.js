@@ -288,6 +288,72 @@ client.on('connect', async () => {
                santeRecue && santeRecue.maj ? santeRecue.maj.detail : '');
     }
 
+    titre('13 quater. Protocole 4 : à distance, ce que la page locale faisait seule');
+    {
+      const inv = await commander('sondes', { relire: true });
+      verifier('sondes : inventaire du bus et liaisons des zones',
+               inv.ok && inv.sondes && Array.isArray(inv.sondes.sondes) && inv.sondes.sondes.length >= 1 &&
+               Array.isArray(inv.sondes.liaisons) && inv.sondes.liaisons.length === 2,
+               inv.sondes ? `${inv.sondes.sondes.length} sonde(s)` : inv.erreur || '');
+      const rom = inv.sondes && inv.sondes.sondes.length > 1 ? inv.sondes.sondes[1].rom : '';
+      const lie = await commander('lier', { z: 1, rom });
+      verifier('lier : une sonde présente se lie à une zone', lie.ok === true && /zone 2/.test(lie.message || ''), lie.message || lie.erreur || '');
+      const absente = await commander('lier', { z: 0, rom: '28FF00000000DEAD' });
+      verifier('lier : sonde absente refusée avec la raison', absente.ok === false && /absente/.test(absente.erreur || ''), absente.erreur || '');
+      const horsZone = await commander('lier', { z: 5, rom });
+      verifier('lier : zone inexistante refusée', horsZone.ok === false && /zone invalide/.test(horsZone.erreur || ''));
+      const ident = await commander('identifier', { z: 0 });
+      const enCours = await commander('sondes');
+      verifier('identifier : lancée, et visible dans l\'inventaire',
+               ident.ok === true && enCours.sondes && enCours.sondes.identification && enCours.sondes.identification.zone === 1,
+               ident.message || ident.erreur || '');
+      verifier('identifier : annulée sur demande', (await commander('stop-identifier')).ok === true);
+      const essai = await commander('essai', { z: 1 });
+      const ou = await commander('essai');
+      verifier('essai : lancé sur une zone, état lisible ensuite', essai.ok === true && ou.essai && ou.essai.zone === 2,
+               ou.essai ? `zone ${ou.essai.zone}, ${ou.essai.restantS} s` : essai.erreur || '');
+      await commander('stop-essai');
+      const fini = await commander('essai');
+      verifier('essai : arrêté sur demande', fini.essai && fini.essai.zone === 0);
+      const cal = await commander('calibrer');
+      verifier('calibrer : un compte rendu dans tous les cas', typeof (cal.message || cal.erreur) === 'string', cal.message || cal.erreur || '');
+      const rap = await commander('rapport');
+      verifier('rapport : texte lisible à distance', rap.ok === true && /Rapport/.test(rap.texte || ''));
+      verifier('rapport : envoi immédiat', (await commander('rapport', { envoyer: true })).ok === true);
+      const jours = await commander('jours', { n: 400 });
+      verifier('jours : résumés journaliers, bornés à un message',
+               jours.ok === true && jours.jours && Array.isArray(jours.jours.jours) && jours.jours.jours.length <= 31,
+               jours.jours ? `${jours.jours.jours.length} jour(s)` : '');
+      const jrn = await commander('journal');
+      verifier('journal : la fin du journal', jrn.ok === true && typeof jrn.texte === 'string' && jrn.texte.length > 0);
+      const sauv = await commander('sauvegarde');
+      verifier('sauvegarde : exportée, sans les adresses d\'alerte',
+               sauv.ok === true && sauv.sauvegarde && sauv.sauvegarde.format === 'terrarium-sauvegarde' &&
+               !/urlAlertes|urlHeartbeat/.test(JSON.stringify(sauv.sauvegarde)));
+      const rest = await commander('restaurer', { sauvegarde: sauv.sauvegarde });
+      verifier('restaurer : la sauvegarde exportée se réapplique', rest.ok === true && /restauree/.test(rest.message || ''), rest.message || rest.erreur || '');
+      const sansSauv = await commander('restaurer');
+      verifier('restaurer sans sauvegarde : refusé', sansSauv.ok === false && /sauvegarde attendue/.test(sansSauv.erreur || ''));
+      const res = await commander('reseau', { urlAlertes: 'https://ntfy.sh/sujet-secret-123', heartbeatMinutes: 15, formatAlertes: 1 });
+      verifier('reseau : alertes réglées, seul l\'hôte revient',
+               res.ok === true && res.alertes === 'ntfy.sh' && res.heartbeatMinutes === 15 && !/sujet-secret/.test(JSON.stringify(res)),
+               `alertes = ${res.alertes}`);
+      const wifi = await commander('reseau', { ssid2: 'Secours', wifiPass2: 'x' });
+      verifier('reseau : aucun identifiant Wi-Fi par le broker', wifi.ok === false && /page locale/.test(wifi.erreur || ''), wifi.erreur || '');
+      const format = await commander('reseau', { formatAlertes: 3 });
+      verifier('reseau : format d\'alerte inconnu refusé', format.ok === false);
+      const g = await commander('globaux', { prixKwh: 0.25, ecranNuit: 2, zonePrioritaire: 1 });
+      verifier('globaux : réglages 3.5 à distance (prix, écran, zone prioritaire)',
+               g.ok === true && g.prixKwh === 0.25 && g.ecranNuit === 2 && g.zonePrioritaire === 1, g.erreur || '');
+      const soleil = await commander('globaux', { soleilActif: true });
+      verifier('globaux : soleil sans position refusé', soleil.ok === false && /Position/.test(soleil.erreur || ''), soleil.erreur || '');
+      const nu = await commander('journal', {}, false);
+      verifier('les actions du protocole 4 exigent le code ou la signature', nu.ok === false);
+      const signe = await signee('sondes', {}, JETON, Math.floor(Date.now() / 1000));
+      verifier('…et passent signées, sans le code en clair', signe.ok === true && !!signe.sondes);
+      await commander('globaux', { prixKwh: 0, ecranNuit: 0, zonePrioritaire: 0 });
+    }
+
     titre('14. Robustesse');
     client.publish(`${base}/cmd`, 'ceci n\'est pas du JSON');
     await attendre(500);

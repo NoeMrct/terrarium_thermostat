@@ -289,6 +289,85 @@ int main() {
   cmd(s, "{\"req\":\"73\",\"action\":\"zone\",\"z\":0,\"jour\":null,\"jeton\":\"SIMULATIONTESTJETON00001\"}");
   VERIFIE(contient(s.derniere(), "\"ok\":true"), "zone : null ignoré");
 
+  // --- protocole 4 : à distance, ce que la page locale savait faire (F1) ---
+  {
+    auto c = [&](const std::string &corps) {
+      const std::string j = "{" + corps + ",\"jeton\":\"SIMULATIONTESTJETON00001\"}";
+      cmd(s, j.c_str());
+    };
+    s.vider();
+    c("\"req\":\"f1\",\"action\":\"sondes\",\"relire\":true");
+    VERIFIE(contient(s.derniere(), "28FF0000000000A1") && s.actions.back() == "relire",
+            "sondes : inventaire, bus relu sur demande");
+    c("\"req\":\"f2\",\"action\":\"lier\",\"z\":1,\"rom\":\"28FF0000000000A1\"");
+    VERIFIE(contient(s.derniere(), "\"ok\":true") && contient(s.derniere(), "liee a la zone 2"),
+            "lier : une sonde présente se lie, message rendu");
+    c("\"req\":\"f3\",\"action\":\"lier\",\"z\":5,\"rom\":\"28FF0000000000A1\"");
+    VERIFIE(contient(s.derniere(), "zone invalide"), "lier : zone inexistante refusée");
+    s.sondeAbsente = true;
+    c("\"req\":\"f4\",\"action\":\"lier\",\"z\":0,\"rom\":\"28FF0000000000B2\"");
+    VERIFIE(contient(s.derniere(), "\"ok\":false") && contient(s.derniere(), "absente"),
+            "lier : sonde absente refusée avec la raison");
+    s.sondeAbsente = false;
+    c("\"req\":\"f5\",\"action\":\"identifier\",\"z\":0");
+    c("\"req\":\"f6\",\"action\":\"stop-identifier\"");
+    VERIFIE(s.actions.back() == "stop-identifier" && contient(s.reponses[s.reponses.size() - 2], "Serrez"),
+            "identifier puis annuler");
+    c("\"req\":\"f7\",\"action\":\"essai\",\"z\":1");
+    VERIFIE(contient(s.derniere(), "Essai lance"), "essai : lancé sur une zone");
+    c("\"req\":\"f8\",\"action\":\"essai\"");
+    VERIFIE(contient(s.derniere(), "\"essai\":{"), "essai sans zone : où il en est");
+    c("\"req\":\"f9\",\"action\":\"stop-essai\"");
+    VERIFIE(s.actions.back() == "stop-essai", "essai arrêté");
+    c("\"req\":\"f10\",\"action\":\"calibrer\"");
+    VERIFIE(contient(s.derniere(), "decalee"), "calibrer");
+    c("\"req\":\"f11\",\"action\":\"rapport\"");
+    VERIFIE(contient(s.derniere(), "\"texte\":\"Rapport"), "rapport : texte lisible à distance");
+    c("\"req\":\"f12\",\"action\":\"rapport\",\"envoyer\":true");
+    VERIFIE(s.actions.back() == "envoyerRapport", "rapport : envoi immédiat");
+    c("\"req\":\"f13\",\"action\":\"jours\",\"n\":5000");
+    VERIFIE(contient(s.derniere(), "\"n\":400"), "jours : nombre borné");
+    c("\"req\":\"f14\",\"action\":\"journal\"");
+    VERIFIE(contient(s.derniere(), "Demarrage"), "journal : la fin du journal");
+    c("\"req\":\"f15\",\"action\":\"sauvegarde\"");
+    VERIFIE(contient(s.derniere(), "terrarium-sauvegarde"), "sauvegarde : export");
+    c("\"req\":\"f16\",\"action\":\"restaurer\",\"sauvegarde\":{\"format\":\"terrarium-sauvegarde\","
+      "\"zones\":[]}");
+    VERIFIE(contient(s.derniere(), "restauree") &&
+                contient(s.actions.back(), "\"format\":\"terrarium-sauvegarde\""),
+            "restaurer : la sauvegarde passe telle quelle");
+    c("\"req\":\"f17\",\"action\":\"restaurer\"");
+    VERIFIE(contient(s.derniere(), "sauvegarde attendue"), "restaurer sans sauvegarde : refusé");
+    c("\"req\":\"f18\",\"action\":\"reseau\",\"urlAlertes\":\"https://moi:cle@ntfy.sh:443/sujet-secret\","
+      "\"heartbeatMinutes\":10,\"formatAlertes\":1");
+    VERIFIE(contient(s.derniere(), "\"alertes\":\"ntfy.sh\"") && !contient(s.derniere(), "sujet-secret") &&
+                !contient(s.derniere(), "cle") &&
+                strcmp(s.res.urlAlertes, "https://moi:cle@ntfy.sh:443/sujet-secret") == 0 &&
+                s.res.formatAlertes == 1 && s.res.heartbeatMinutes == 10,
+            "reseau : alertes réglées, seul l'hôte de l'URL revient");
+    c("\"req\":\"f18b\",\"action\":\"reseau\",\"urlHeartbeat\":\"http://[2001:db8::1]:8080/ping/abc\"");
+    VERIFIE(contient(s.derniere(), "\"heartbeat\":\"[2001:db8::1]\"") && !contient(s.derniere(), "abc"),
+            "reseau : hôte IPv6 rendu sans le chemin");
+    c("\"req\":\"f19\",\"action\":\"reseau\",\"urlAlertes\":\"ftp://x\"");
+    VERIFIE(contient(s.derniere(), "valeur invalide") &&
+                strcmp(s.res.urlAlertes, "https://moi:cle@ntfy.sh:443/sujet-secret") == 0,
+            "reseau : URL non http(s) refusée sans rien changer");
+    c("\"req\":\"f20\",\"action\":\"reseau\",\"ssid2\":\"Secours\",\"wifiPass2\":\"motdepasse2\"");
+    VERIFIE(contient(s.derniere(), "page locale") && s.res.ssid2[0] == '\0' && s.res.motDePasse2[0] == '\0',
+            "reseau : aucun identifiant Wi-Fi ne passe par le broker");
+    c("\"req\":\"f21\",\"action\":\"globaux\",\"prixKwh\":0.2516,\"ecranNuit\":2,\"zonePrioritaire\":1,"
+      "\"soleilDecalageMin\":-30,\"ledEteinte\":true");
+    VERIFIE(contient(s.derniere(), "\"ok\":true") && s.glob.ecranNuit == 2 && s.glob.zonePrioritaire == 1 &&
+                s.glob.soleilDecalageMin == -30 && s.glob.ledEteinte,
+            "globaux : réglages 3.5 à distance");
+    c("\"req\":\"f22\",\"action\":\"globaux\",\"ecranNuit\":9");
+    VERIFIE(contient(s.derniere(), "\"ok\":false") && s.glob.ecranNuit == 2,
+            "globaux : mode d'écran inconnu refusé");
+    cmd(s, "{\"req\":\"f23\",\"action\":\"journal\"}");
+    VERIFIE(contient(s.derniere(), "jeton invalide"),
+            "les actions du protocole 4 exigent le code (ou la signature)");
+  }
+
   printf("\n=== %s : %d/%d ===\n", g_echecs ? "ECHEC" : "CANAL DE COMMANDE OK", g_total - g_echecs, g_total);
   return g_echecs ? 1 : 0;
 }

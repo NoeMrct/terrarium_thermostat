@@ -1710,6 +1710,16 @@ public:
     d += ",\"saisonPlateauJ\":" + String(g.saisonPlateauJ);
     d += ",\"saisonRemonteeJ\":" + String(g.saisonRemonteeJ);
     d += ",\"decalageActuel\":" + String(ctrl.decalageSaison(), 2);
+    // 3.5 (lus et réglés à distance depuis le protocole 4)
+    d += ",\"prixKwh\":" + String(g.prixKwh, 4);
+    d += ",\"rapportActif\":" + String(g.rapportActif ? "true" : "false");
+    d += ",\"rapportMinutes\":" + String(g.rapportMinutes);
+    d += ",\"ledEteinte\":" + String(g.ledEteinte ? "true" : "false");
+    d += ",\"ecranNuit\":" + String(g.ecranNuit);
+    d += ",\"soleilActif\":" + String(g.soleilActif ? "true" : "false");
+    d += ",\"soleilDecalageMin\":" + String(g.soleilDecalageMin);
+    d += ",\"latitude\":" + String(g.latitude, 4) + ",\"longitude\":" + String(g.longitude, 4);
+    d += ",\"zonePrioritaire\":" + String(g.zonePrioritaire);
     copier(out, taille, d);
   }
 
@@ -1771,6 +1781,62 @@ public:
     ::lancerMaj(String(cible), erreur, sizeof erreur);  // ne revient qu'en cas de refus
   }
   void journal(const char *texte) override { ::journal("%s", texte); }
+
+  // Protocole 4 (F1) : les mêmes fonctions que les routes de la page locale.
+  // Un corps texte (rapport, journal) est échappé dans une chaîne JSON.
+  void texte(const char *cle, const String &t, char *out, size_t taille) {
+    const int n = snprintf(out, taille, "\"%s\":\"", cle);
+    if (n < 0 || (size_t)n + 2 >= taille) return;
+    const size_t e = formatEchapperJson(t.c_str(), out + n, taille - n - 1);
+    snprintf(out + n + e, taille - n - e, "\"");
+  }
+  void corpsSondes(bool relire, char *out, size_t taille) override {
+    if (relire) Sondes::rescanner();
+    copier(out, taille, "\"sondes\":" + Sondes::inventaireJson());
+  }
+  bool lierSonde(uint8_t z, const char *rom, char *message, size_t taille) override {
+    uint8_t r[8];
+    if (!texteEnRom(String(rom), r)) {
+      snprintf(message, taille, "Adresse de sonde invalide (16 chiffres hexadecimaux)");
+      return false;
+    }
+    return Sondes::lierRom(r, z, message, taille);
+  }
+  bool identifierSonde(uint8_t z, char *message, size_t taille) override {
+    return Sondes::lancerIdentification(z, message, taille);
+  }
+  void annulerIdentification() override { Sondes::annulerIdentification(); }
+  bool lancerEssai(uint8_t z, char *message, size_t taille) override {
+    return Essai::lancer(z, message, taille);
+  }
+  void annulerEssai() override { Essai::annuler(); }
+  void corpsEssai(char *out, size_t taille) override {
+    char esc[400];
+    formatEchapperJson(Essai::dernierResultat(), esc, sizeof esc);
+    snprintf(out, taille, "\"essai\":{\"zone\":%d,\"restantS\":%u,\"resultat\":\"%s\"}",
+             Essai::zoneEnCours() + 1, (unsigned)Essai::restantS(), esc);
+  }
+  bool calibrer(char *message, size_t taille) override { return Essai::calibrer(message, taille); }
+  void corpsRapport(char *out, size_t taille) override { texte("texte", Taches::rapport(), out, taille); }
+  void envoyerRapport() override { Taches::envoyerRapport(); }
+  void corpsJours(uint16_t n, char *out, size_t taille) override {
+    const size_t cle = 9;  // "jours":
+    copier(out, taille,
+           "\"jours\":" +
+               Taches::joursJson(n > Stockage::JOURS_MAX ? Stockage::JOURS_MAX : n, taille - cle - 1));
+  }
+  // La fin du journal seulement : la réponse doit tenir dans un message MQTT.
+  void corpsJournal(char *out, size_t taille) override {
+    texte("texte", Stockage::journalQueue(5000), out, taille);
+  }
+  void corpsSauvegarde(char *out, size_t taille) override {
+    copier(out, taille, "\"sauvegarde\":" + Sauvegarde::json(true));
+  }
+  bool restaurer(const char *json, size_t n, char *message, size_t taille) override {
+    return Sauvegarde::restaurer(json, n, message, taille);
+  }
+  ReglagesReseau &reseau() override { return Stockage::reseau(); }
+  void sauverReseau() override { Stockage::sauverReseau(); }
 };
 SocleReel g_socle;
 

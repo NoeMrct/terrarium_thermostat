@@ -61,6 +61,25 @@ public:
                              size_t taille) = 0;
   virtual void lancerMaj(const char *cible) = 0;
   virtual void journal(const char *texte) = 0;
+
+  // Protocole 4 (F1) : à distance, ce que seule la page locale savait faire.
+  // Les corps s'écrivent comme corpsEtat : des champs JSON sans accolades.
+  virtual void corpsSondes(bool relire, char *out, size_t taille) = 0;  // "sondes":{…}
+  virtual bool lierSonde(uint8_t z, const char *rom, char *message, size_t taille) = 0;
+  virtual bool identifierSonde(uint8_t z, char *message, size_t taille) = 0;
+  virtual void annulerIdentification() = 0;
+  virtual bool lancerEssai(uint8_t z, char *message, size_t taille) = 0;
+  virtual void annulerEssai() = 0;
+  virtual void corpsEssai(char *out, size_t taille) = 0;  // "essai":{…}
+  virtual bool calibrer(char *message, size_t taille) = 0;
+  virtual void corpsRapport(char *out, size_t taille) = 0;  // "texte":"…"
+  virtual void envoyerRapport() = 0;
+  virtual void corpsJours(uint16_t n, char *out, size_t taille) = 0;  // "jours":{…}
+  virtual void corpsJournal(char *out, size_t taille) = 0;            // "texte":"…" (la fin)
+  virtual void corpsSauvegarde(char *out, size_t taille) = 0;         // "sauvegarde":{…}
+  virtual bool restaurer(const char *json, size_t n, char *message, size_t taille) = 0;
+  virtual ReglagesReseau &reseau() = 0;
+  virtual void sauverReseau() = 0;
 };
 
 // Traite une charge reçue sur <base>/cmd. Toujours une réponse, même pour du
