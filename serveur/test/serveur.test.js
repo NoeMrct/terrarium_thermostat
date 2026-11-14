@@ -234,6 +234,48 @@ test('serveur : comptes, droits, appairage, historique, push, API', async t => {
     assert.ok(/hors ligne/.test(pushs[0].charge.titre));
   });
 
+  await t.test('notifications push : trop chaud et dérive, comme dans l\'application', async () => {
+    const etat = champs => socle.publish('terrarium/terraA1B2C3/zone2/etat', JSON.stringify({ temp: 28, consigne: 27, defaut: '0', nom: 'Point froid', ...champs }));
+    etat({ trop_chaud: '0', derive: '0' });
+    await attendre(200);
+    pushs.length = 0;
+    etat({ trop_chaud: '1', derive: '0' });
+    await attendre(200);
+    assert.equal(pushs.length, 1, 'une zone trop chaude est notifiée');
+    assert.ok(/trop chaud/.test(pushs[0].charge.titre) && /Point froid/.test(pushs[0].charge.corps) && pushs[0].charge.urgent === true);
+    etat({ trop_chaud: '1', derive: '0' });
+    await attendre(150);
+    assert.equal(pushs.length, 1, 'qui le reste ne renotifie pas');
+    etat({ trop_chaud: '0', derive: '0' });
+    await attendre(200);
+    assert.equal(pushs.length, 2, 'le retour à la normale est notifié');
+    assert.ok(/rétabli/.test(pushs[1].charge.titre));
+    etat({ temp: 24, trop_chaud: '0', derive: '1' });
+    await attendre(200);
+    assert.equal(pushs.length, 3, 'une dérive est notifiée');
+    assert.ok(/dérive/.test(pushs[2].charge.titre) && pushs[2].charge.urgent === false);
+    etat({ temp: 24, defaut: '1', defaut_libelle: 'SONDE', trop_chaud: '0', derive: '1' });
+    await attendre(200);
+    assert.equal(pushs.length, 4, 'un défaut l\'emporte sur la dérive');
+    assert.ok(/DÉFAUT/.test(pushs[3].charge.titre));
+    etat({ trop_chaud: '0', derive: '0' });
+    await attendre(200);
+  });
+
+  await t.test('notifications push : un premier état (retenu, rejoué au démarrage) ne notifie pas une alerte ancienne', async () => {
+    // Zones encore jamais vues par ce serveur : c'est la situation d'un état
+    // retenu rejoué après un redémarrage du serveur.
+    await attendre(80);                              // au-delà de l'anti-répétition du test
+    pushs.length = 0;
+    s.broker.emit('etat', 'terraA1B2C3', 5, { temp: 24, consigne: 27, defaut: '0', derive: '1' }, undefined);
+    s.broker.emit('etat', 'terraA1B2C3', 6, { temp: 31, consigne: 27, defaut: '0', trop_chaud: '1' }, undefined);
+    await attendre(150);
+    assert.equal(pushs.length, 0, 'dérive et trop chaud déjà en cours : pas de notification');
+    s.broker.emit('etat', 'terraA1B2C3', 7, { temp: 24, consigne: 27, defaut: '1', defaut_libelle: 'SONDE' }, undefined);
+    await attendre(150);
+    assert.equal(pushs.length, 1, 'un défaut, lui, est toujours signalé');
+  });
+
   await t.test('rapports de diagnostic et état de la flotte', async () => {
     const r = await appel(s.port, 'POST', '/api/rapports', 'Terrariums — Diagnostic\nrssi -60 dBm', jeton);
     assert.equal(r.status, 201);

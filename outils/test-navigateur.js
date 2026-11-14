@@ -18,7 +18,7 @@
    IndexedDB, WebCrypto, Pointer Events).
    ============================================================================= */
 
-/* global document, navigator, caches, window, localStorage */
+/* global document, navigator, caches, window, localStorage, indexedDB, App */
 const { servirApp } = require('./servir-app');
 let playwright;
 try { playwright = require('playwright'); }
@@ -95,6 +95,19 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   await page.click('.onglets button[data-nom=general]');
   await page.waitForFunction(() => !!document.querySelector('#gA') && document.querySelector('#detail').textContent.includes('Sur 24 heures'), null, { timeout: 8000 }).catch(() => {});
   v('panneau appareil chargé, santé affichée', !!(await page.$('#gA')) && (await page.innerHTML('#detail')).includes('Santé'));
+  // Le nom d'hôte (terraSIM001.local) poussait sa tuile hors de l'écran des
+  // téléphones étroits : chaque tuile doit tenir dans sa case et la page dans l'écran.
+  for (const largeur of [320, 360, 390]) {
+    await page.setViewportSize({ width: largeur, height: 800 });
+    await page.waitForTimeout(150);
+    const r = await page.evaluate(() => {
+      const tuiles = [...document.querySelectorAll('#detail .stat > div')];
+      const fautive = tuiles.find(d => d.scrollWidth > d.clientWidth + 1 || d.getBoundingClientRect().right > window.innerWidth + 1);
+      return { n: tuiles.length, fautive: fautive ? fautive.textContent.trim().slice(0, 40) : '', page: document.documentElement.scrollWidth > window.innerWidth + 1 };
+    });
+    v(`à ${largeur} px, aucune tuile ne déborde`, r.n > 0 && !r.fautive && !r.page, r.fautive || (r.page ? 'la page dépasse l\'écran' : `${r.n} tuiles`));
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
 
   console.log('\n== Dialogues');
   await page.click('[data-action="redemarrer"]');
@@ -193,7 +206,56 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   });
   v('agent de service enregistré', sw.actif, sw.cache.join(','));
   v('coque mise en cache (mqtt.js, aide, icônes)', sw.entrees.includes('/mqtt.js') && sw.entrees.includes('/aide.html') && sw.entrees.includes('/icones/icone-192.png'), sw.entrees.length + ' entrées');
+  // Avant les essais qui suivent : le rechargement de « Tout effacer » coupe la
+  // liaison WebSocket, ce que Firefox journalise comme une erreur.
   v('aucune erreur ni avertissement console (CSP comprise)', erreurs.length === 0, erreurs.join(' | '));
+
+  if (MOTEUR === 'chromium') {
+    // Chrome sur Android refuse « new Notification() » : une alerte doit passer
+    // par l'agent de service, sinon elle n'apparaît jamais sur le téléphone.
+    console.log('\n== Notifications par l\'agent de service');
+    await ctx.grantPermissions(['notifications'], { origin: `http://localhost:${PORT}` });
+    const espion = require('mqtt').connect(BROKER, { clientId: 'nav-espion-' + Date.now() });
+    await new Promise((ok, ko) => { espion.once('connect', ok); espion.once('error', ko); });
+    const zone2 = tropChaud => espion.publish(`terrarium/${ID}/zone2/etat`, JSON.stringify({
+      temp: 31, consigne: 26, chauffe: '0', defaut: '0', defaut_libelle: 'OK', derive: '0', trop_chaud: tropChaud, jour: 26, nuit: 22 }));
+    zone2('1');
+    await page.waitForTimeout(1500);
+    const titres = await page.evaluate(async () => {
+      const reg = await navigator.serviceWorker.getRegistration();
+      return reg ? (await reg.getNotifications()).map(n => n.title) : null;
+    });
+    v('« trop chaud » est affichée par l\'agent de service', Array.isArray(titres) && titres.some(t => /trop chaud/.test(t)), titres ? titres.join(' | ') || 'aucune' : 'pas d\'agent');
+    zone2('0');
+    espion.end(true);
+  }
+
+  console.log('\n== « Tout effacer » efface aussi l\'historique local');
+  const compterPoints = async () => {
+    const bases = indexedDB.databases ? await indexedDB.databases() : [{ name: 'terrariums' }];
+    if (!bases.some(b => b.name === 'terrariums')) return 0;
+    return new Promise(res => {
+      const r = indexedDB.open('terrariums');
+      r.onsuccess = () => {
+        const db = r.result;
+        if (!db.objectStoreNames.contains('points')) { db.close(); res(0); return; }
+        const c = db.transaction('points').objectStore('points').count();
+        c.onsuccess = () => { db.close(); res(c.result); };
+        c.onerror = () => { db.close(); res(-1); };
+      };
+      r.onerror = () => res(-1);
+    });
+  };
+  const avant = await page.evaluate(compterPoints);
+  v('l\'application a noté des points dans IndexedDB', avant > 0, `${avant} point(s)`);
+  await page.evaluate(() => { App.effacerTout(); });
+  await page.waitForSelector('#dlg-confirm [data-dlg="oui"]', { state: 'visible', timeout: 3000 }).catch(() => {});
+  await Promise.all([page.waitForEvent('load', { timeout: 8000 }).catch(() => {}), page.click('#dlg-confirm [data-dlg="oui"]')]);
+  await page.waitForTimeout(800);
+  const apres = await page.evaluate(compterPoints);
+  v('après « Tout effacer », plus aucun point local', apres === 0, `${apres} point(s)`);
+  v('…et l\'application repart de l\'écran du broker', await page.isVisible('#vue-broker'));
+
 
   await navigateur.close();
   serveur.close();

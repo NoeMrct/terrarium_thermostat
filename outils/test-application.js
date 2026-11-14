@@ -333,6 +333,78 @@ function creerApp(adressePage) {
              texte('#detail').includes('validation') || texte('#detail').includes('validée'));
   }
 
+  titre('17. Présence : un état retenu ne fait pas passer un socle éteint pour en ligne');
+  {
+    // Le broker rejoue les messages retenus à l'abonnement : l'état publié
+    // avant l'extinction arrive avec le testament « hors ligne ». L'état seul
+    // faisait croire le socle en ligne, selon l'ordre d'arrivée.
+    const mqtt = require('mqtt');
+    const espion = mqtt.connect(BROKER, { clientId: 'test-retenu-' + Date.now() });
+    await new Promise((ok, ko) => { espion.once('connect', ok); espion.once('error', ko); });
+    const R = 'terraRETENU';
+    const retenir = (s, m) => new Promise(ok => espion.publish(`terrarium/${R}/${s}`, m, { retain: true, qos: 1 }, ok));
+    await retenir('statut', 'hors ligne');
+    await retenir('zone1/etat', JSON.stringify({ temp: 27.4, consigne: 30, chauffe: '0', defaut: '0', defaut_libelle: 'OK', jour: 30, nuit: 24 }));
+    await retenir('zone2/etat', JSON.stringify({ temp: 24.1, consigne: 26, chauffe: '0', defaut: '0', defaut_libelle: 'OK', jour: 26, nuit: 22 }));
+    App.montrer('liste');
+    $('#a-id').value = R; $('#a-jeton').value = 'RETENU000000000000000001'; $('#a-nom').value = 'Socle éteint';
+    App.ajouterSocle();
+    const carte = () => (w.document.querySelector(`#socles .socle[data-id="${R}"]`) || {}).innerHTML || '';
+    verifier('les dernières valeurs connues sont affichées', await jusqua(() => carte().includes('27.4'), 6000));
+    await attendre(300);
+    verifier('…mais le socle reste hors ligne', carte().includes('hors ligne') && !carte().includes('en ligne'),
+             carte().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 50));
+    // Une charge vide efface un message retenu.
+    await retenir('statut', ''); await retenir('zone1/etat', ''); await retenir('zone2/etat', '');
+    espion.end(true);
+    App.ouvrir(R); App.retirerSocle(); await attendre(200);
+  }
+
+  titre('18. Une zone trop chaude est notifiée');
+  {
+    const mqtt = require('mqtt');
+    const espion = mqtt.connect(BROKER, { clientId: 'test-chaud-' + Date.now() });
+    await new Promise((ok, ko) => { espion.once('connect', ok); espion.once('error', ko); });
+    w.notifications.length = 0;
+    const zone2 = champs => espion.publish(`terrarium/${ID}/zone2/etat`, JSON.stringify({
+      temp: 31, consigne: 26, chauffe: '0', defaut: '0', defaut_libelle: 'OK', derive: '0', jour: 26, nuit: 22, ...champs }));
+    zone2({ trop_chaud: '1' });
+    const notifiee = await jusqua(() => w.notifications.some(n => /trop chaud/.test(n.titre)), 5000);
+    verifier('« trop chaud » fait apparaître une notification', notifiee, (w.notifications[0] || {}).titre || 'aucune');
+    verifier('elle dit quoi faire', w.notifications.some(n => /ombre/.test(n.corps || '')));
+    zone2({ trop_chaud: '0' });
+    verifier('le retour à la normale est notifié', await jusqua(() => w.notifications.some(n => /rétabli/.test(n.titre)), 5000));
+    espion.end(true);
+  }
+
+  titre('19. Ajout d\'un socle : identifiant normalisé, code vérifié auprès du socle');
+  {
+    App.montrer('liste');
+    $('#a-id').value = 'terra/1'; $('#a-jeton').value = JETON; $('#a-nom').value = '';
+    App.ajouterSocle();
+    verifier('un identifiant qui casserait les sujets MQTT est refusé', texte('#message').includes('Identifiant invalide'), texte('#message').slice(0, 40));
+    $('#a-id').value = ' terrarium-config-a1b2c3 '; $('#a-jeton').value = 'ABCD-EFGH-JKLM-NPQR-STUV-WXYZ';
+    App.ajouterSocle();
+    const lu = JSON.parse(w.localStorage.getItem('terrarium.config.v1'));
+    verifier('« terrarium-config-a1b2c3 » est enregistré comme terraA1B2C3', lu.socles.some(s => s.id === 'terraA1B2C3'),
+             lu.socles.map(s => s.id).join(', '));
+    App.ouvrir('terraA1B2C3'); App.retirerSocle(); await attendre(200);
+
+    // Mauvais code pour le socle simulé : refusé dès l'ajout, pas des jours plus tard.
+    App.ouvrir(ID); App.retirerSocle(); await attendre(300);
+    $('#a-id').value = ID; $('#a-jeton').value = 'MAUVAISCODEMAUVAISCODE00'; $('#a-nom').value = 'Terrarium de test';
+    App.ajouterSocle();
+    verifier('un mauvais code est refusé par le socle dès l\'ajout', await jusqua(() => texte('#message').includes('Code refusé'), 6000),
+             texte('#message').slice(0, 50));
+    const apres = JSON.parse(w.localStorage.getItem('terrarium.config.v1'));
+    verifier('…le socle n\'est pas gardé et le formulaire est rendu',
+             !apres.socles.some(s => s.id === ID) && $('#a-id').value === ID && $('#a-nom').value === 'Terrarium de test');
+    $('#a-jeton').value = JETON;
+    App.ajouterSocle();
+    verifier('le bon code est vérifié et confirmé', await jusqua(() => texte('#message').includes('code vérifié'), 6000),
+             texte('#message').slice(0, 50));
+  }
+
   console.log(`\n=== ${echecs ? 'DES TESTS ONT ECHOUE' : 'TOUS LES TESTS PASSENT'}` +
               ` (${reussites} reussite(s), ${echecs} echec(s)) ===`);
   process.exit(echecs ? 1 : 0);

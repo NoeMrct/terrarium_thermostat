@@ -101,10 +101,26 @@ async function demarrerServeur(surcharge = {}) {
     historique.noterZone(id, zone, etat);
     if (!notifications) return;
     const defaut = x => !!x && x.defaut !== undefined && x.defaut !== '0' && x.defaut !== 0 && x.defaut !== null && x.defaut !== false;
-    if (defaut(etat) && !defaut(avant)) {
-      notifications.notifierProprietaires(comptes, id, { titre: `${id} — DÉFAUT`, corps: `${nomZone(etat, zone)} : ${etat.defaut_libelle || etat.defaut}. Chauffage coupé.`, socle: id, urgent: true }, `defaut:${id}:${zone}`).catch(() => {});
-    } else if (!defaut(etat) && avant && defaut(avant)) {
-      notifications.notifierProprietaires(comptes, id, { titre: `${id} — rétabli`, corps: `${nomZone(etat, zone)} est revenue à la normale.`, socle: id }, `retabli:${id}:${zone}`).catch(() => {});
+    const drapeau = v => v === '1' || v === 1 || v === true;
+    // Du plus grave au plus doux, comme dans l'application : le défaut coupe la
+    // chauffe ; « trop chaud » (soleil, canicule, lampe) demande d'agir, la
+    // chauffe ne refroidit pas ; la dérive prévient avant le défaut. Les deux
+    // derniers drapeaux sont publiés depuis le firmware 3.5.
+    const alerte = x => !x ? null : defaut(x) ? 'defaut' : drapeau(x.trop_chaud) ? 'trop_chaud' : drapeau(x.derive) ? 'derive' : null;
+    const a = alerte(etat), b = alerte(avant);
+    if (a === b) return;
+    const envoyer = (n, cle) => notifications.notifierProprietaires(comptes, id, { ...n, socle: id }, `${cle}:${id}:${zone}`).catch(() => {});
+    if (a === 'defaut') {
+      envoyer({ titre: `${id} — DÉFAUT`, corps: `${nomZone(etat, zone)} : ${etat.defaut_libelle || etat.defaut}. Chauffage coupé.`, urgent: true }, 'defaut');
+    } else if (a && avant === undefined) {
+      // Premier état vu depuis le démarrage du serveur (état retenu rejoué) :
+      // une dérive en cours depuis des heures n'est pas une nouvelle.
+    } else if (a === 'trop_chaud') {
+      envoyer({ titre: `${id} — trop chaud`, corps: `${nomZone(etat, zone)} dépasse sa consigne sans chauffer : aérer ou ombrer.`, urgent: true }, 'tropchaud');
+    } else if (a === 'derive') {
+      envoyer({ titre: `${id} — dérive`, corps: `${nomZone(etat, zone)} s'éloigne de sa consigne.` }, 'derive');
+    } else if (!a && avant) {
+      envoyer({ titre: `${id} — rétabli`, corps: `${nomZone(etat, zone)} est revenue à la normale.` }, 'retabli');
     }
   });
   broker.on('horsLigne', id => {

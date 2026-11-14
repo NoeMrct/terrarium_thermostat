@@ -74,6 +74,16 @@ jour.
   de la page locale pour chaque nouveauté.
 
 ### Modifié
+- Application : les statistiques séparent les 24 dernières heures (minimum,
+  maximum, moyenne, temps hors plage) des cumuls depuis la mise en service
+  (heures de chauffe, kWh) ; les défauts sont comptés depuis le dernier
+  démarrage, et le disent.
+- Application : à l'ajout d'un socle, l'identifiant est remis dans sa forme
+  (`terraa1b2c3` ou `terrarium-config-A1B2C3` deviennent `terraA1B2C3`) et le
+  code d'appairage est vérifié auprès du socle tout de suite : un code refusé
+  rend le formulaire au lieu d'enregistrer un socle impilotable.
+- Notifications « trop chaud » et « dérive » dans l'application et dans les
+  notifications push du serveur, comme le défaut (le retour à la normale aussi).
 - Réessais MQTT espacés : 15 s, puis doublés jusqu'à 5 min, au lieu d'un essai
   toutes les 5 s contre un broker qui refuse.
 - Négociation TLS des alertes et de la mise à jour tirée bornée à 5-6 s.
@@ -89,6 +99,19 @@ jour.
 
 ### Corrigé
 
+- Application : un socle éteint passait pour « en ligne » à l'ouverture. Le
+  broker rejoue l'état retenu à l'abonnement, et cet état suffisait à déclarer
+  le socle présent. La présence ne vient plus que du sujet `statut` (et de son
+  testament) ; un état rejoué n'entre pas non plus dans l'historique local.
+- Application : sur Android, les notifications n'apparaissaient jamais —
+  Chrome refuse `new Notification()` hors agent de service. Elles passent
+  désormais par l'agent de service. Sur iPhone, l'application explique
+  qu'elles demandent l'installation sur l'écran d'accueil au lieu d'accuser le
+  HTTPS.
+- Application : « Tout effacer » laissait l'historique local (IndexedDB) sur
+  l'appareil ; la base est maintenant supprimée.
+- Application : sur un téléphone étroit (320 à 390 px), la tuile du nom d'hôte
+  débordait de l'écran dans la santé du socle.
 - Application : ouvrir l'onglet Appareil effaçait de l'écran un défaut, la
   chauffe et le temps de service jusqu'à la publication suivante du socle
   (jusqu'à 60 s) : la réponse « stats », qui a aussi un tableau `zones`, était

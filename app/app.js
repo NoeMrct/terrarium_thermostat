@@ -56,6 +56,7 @@ const App = (() => {
       notifDerive: '{nom} — dérive', notifDeriveCorps: '{zone} s\'éloigne de sa consigne.',
       notifDefaut: '{nom} — DÉFAUT', notifDefautCorps: '{zone} : {d}. Chauffage coupé.',
       notifRetabli: '{nom} — rétabli', notifRetabliCorps: '{zone} est revenue à la normale.',
+      notifTropChaud: '{nom} — trop chaud', notifTropChaudCorps: '{zone} : trop chaud sans chauffer — aérer, ombrer.',
       attenteDonnees: 'en attente de données…', zoneN: 'Zone {n}', defautLib: 'DÉFAUT : {d}', cible: 'cible {v} °C',
       demande: 'demande {v} %', chauffe: 'chauffe', derive: 'dérive', autotune: 'autotune', tropChaud: 'trop chaud',
       conseilSonde: 'Sonde absente ou illisible : vérifie son câble et la résistance de 4,7 kΩ. Le tapis reste coupé.',
@@ -96,24 +97,28 @@ const App = (() => {
       sauvegarde: 'Sauvegarde des réglages', aideSauvegarde: 'Un fichier avec les consignes, horaires et réglages de l\'appareil : pour un socle de rechange, ou avant une expérimentation.',
       exporterReglages: 'Exporter les réglages', importerReglages: 'Importer des réglages',
       sur24h: 'Sur 24 heures', chargementStats: 'Chargement des statistiques…', minC: 'min °C', maxC: 'max °C', moyenneC: 'moyenne °C',
-      horsPlage: 'du temps hors plage', deChauffe: 'de chauffe', consommes: 'consommés',
-      pasAssezHist: 'Pas encore assez d\'historique. Chauffe cumulée {h} h · {k} kWh.',
-      defautsCompte: 'Défauts : sonde {s} · surchauffe {c} · sonde figée {f}', firmware: 'Firmware {v}',
+      horsPlage: 'du temps hors plage',
+      pasAssezHist: 'Pas encore 24 h d\'historique.',
+      cumulService: 'Depuis la mise en service : {h} h de chauffe · {k} kWh',
+      defautsCompte: 'Défauts depuis le démarrage : sonde {s} · surchauffe {c} · sonde figée {f}', firmware: 'Firmware {v}',
       sante: 'Santé du socle', signalWifi: 'Signal Wi-Fi', memoireLibre: 'Mémoire libre', plusGrandBloc: 'plus grand bloc {b} Ko',
       dernierRedemarrage: 'Dernier redémarrage', enService: 'En service depuis', majValidation: 'Mise à jour en cours de validation',
       protocole: 'Protocole', sigExcellent: 'excellent', sigBon: 'bon', sigFaible: 'faible', sigTresFaible: 'très faible', inconnu: 'inconnu',
       santeInconnue: 'Ce socle ne publie pas encore son état de santé : mets son firmware à jour pour voir le signal Wi-Fi, la mémoire et les redémarrages.',
       notifications: 'Notifications',
-      notifGranted: 'Activées : un défaut ou une dérive fait apparaître une notification, même onglet en arrière-plan. Elles ne partent que pendant que l\'application est ouverte — pour être prévenu appareil éteint, configure l\'URL d\'alerte du socle.',
+      notifGranted: 'Activées : chaque alerte fait apparaître une notification, même onglet en arrière-plan. Elles ne partent que pendant que l\'application est ouverte — pour être prévenu appareil éteint, configure l\'URL d\'alerte du socle.',
       notifDenied: 'Refusées pour ce site. C\'est un réglage du navigateur, à rouvrir depuis lui.',
       notifIndispo: 'Indisponibles ici : le navigateur ne les propose qu\'en HTTPS.',
-      notifDefault: 'Un défaut ou une dérive peut faire apparaître une notification pendant que l\'application est ouverte.',
+      notifIos: 'Sur iPhone, ajoute d\'abord l\'application à l\'écran d\'accueil (Partager), puis ouvre-la de là.',
+      notifDefault: 'Une alerte peut faire apparaître une notification pendant que l\'application est ouverte.',
       activerNotifs: 'Activer les notifications', notifsIndispoPage: 'Notifications indisponibles sur cette page.',
       notifsActivees: 'Notifications activées.', notifsRefusees: 'Notifications refusées.', notifsIndispo2: 'Notifications indisponibles : {m}',
       wssRequis: 'L\'adresse doit commencer par wss:// — sans chiffrement, tes codes d\'appairage circuleraient en clair.',
       testEnCours: 'Test de connexion…', testOk: 'Connexion réussie en {ms} ms.', testKo: 'Connexion impossible : {m}',
       oublierBrokerQ: 'Oublier ce broker ?', oublierBrokerTexte: 'Les socles enregistrés seront conservés.', oublier: 'Oublier',
       idManquant: 'Identifiant manquant.', jeton24: 'Le code d\'appairage fait 24 caractères.', dejaEnregistre: 'Ce socle est déjà enregistré.',
+      idInvalide: 'Identifiant invalide (exemple : terraA1B2C3).', codeVerifie: 'Socle ajouté, code vérifié.',
+      codeRefuse: 'Code refusé par le socle : recopie-le depuis son écran.', codeNonVerifie: 'Socle ajouté ; code non vérifié ({m}).',
       socleAjoute: 'Socle ajouté.', socleRetire: 'Socle retiré.', annuler: 'Annuler', cancel: 'Annuler', confirmer: 'Confirmer',
       redemarrerQ: 'Redémarrer le socle ?', redemarrerTexte: 'La régulation reprend toute seule au démarrage.', redemarrer: 'Redémarrer',
       effacerHistQ: 'Effacer l\'historique de ce socle ?', effacerHistTexte: 'Les courbes repartent de zéro, y compris les points enregistrés par cette application.',
@@ -164,6 +169,7 @@ const App = (() => {
       notifDerive: '{nom} — drift', notifDeriveCorps: '{zone} is drifting away from its setpoint.',
       notifDefaut: '{nom} — FAULT', notifDefautCorps: '{zone}: {d}. Heating cut off.',
       notifRetabli: '{nom} — recovered', notifRetabliCorps: '{zone} is back to normal.',
+      notifTropChaud: '{nom} — too hot', notifTropChaudCorps: '{zone}: too hot without heating — ventilate, shade.',
       attenteDonnees: 'waiting for data…', zoneN: 'Zone {n}', defautLib: 'FAULT: {d}', cible: 'target {v} °C',
       demande: 'demand {v} %', chauffe: 'heating', derive: 'drift', autotune: 'autotune', tropChaud: 'too hot',
       conseilSonde: 'Probe missing or unreadable: check its cable and the 4.7 kΩ resistor. The mat stays off.',
@@ -204,24 +210,28 @@ const App = (() => {
       sauvegarde: 'Settings backup', aideSauvegarde: 'A file with the setpoints, schedules and device settings: for a spare base, or before an experiment.',
       exporterReglages: 'Export settings', importerReglages: 'Import settings',
       sur24h: 'Over 24 hours', chargementStats: 'Loading statistics…', minC: 'min °C', maxC: 'max °C', moyenneC: 'average °C',
-      horsPlage: 'of the time out of range', deChauffe: 'of heating', consommes: 'used',
-      pasAssezHist: 'Not enough history yet. Total heating {h} h · {k} kWh.',
-      defautsCompte: 'Faults: probe {s} · overheat {c} · frozen probe {f}', firmware: 'Firmware {v}',
+      horsPlage: 'of the time out of range',
+      pasAssezHist: 'Less than 24 h of history yet.',
+      cumulService: 'Since commissioning: {h} h heating · {k} kWh',
+      defautsCompte: 'Faults since start-up: probe {s} · overheat {c} · frozen probe {f}', firmware: 'Firmware {v}',
       sante: 'Base health', signalWifi: 'Wi-Fi signal', memoireLibre: 'Free memory', plusGrandBloc: 'largest block {b} KB',
       dernierRedemarrage: 'Last restart', enService: 'Up for', majValidation: 'Update being validated',
       protocole: 'Protocol', sigExcellent: 'excellent', sigBon: 'good', sigFaible: 'weak', sigTresFaible: 'very weak', inconnu: 'unknown',
       santeInconnue: 'This base does not publish its health yet: update its firmware to see Wi-Fi signal, memory and restarts.',
       notifications: 'Notifications',
-      notifGranted: 'Enabled: a fault or a drift shows a notification, even with the tab in the background. They only go out while the app is open — to be warned with the device off, configure the base\'s alert URL.',
+      notifGranted: 'Enabled: every alert shows a notification, even with the tab in the background. They only go out while the app is open — to be warned with the device off, configure the base\'s alert URL.',
       notifDenied: 'Refused for this site. That is a browser setting, to reopen from the browser.',
       notifIndispo: 'Unavailable here: the browser only offers them over HTTPS.',
-      notifDefault: 'A fault or a drift can show a notification while the app is open.',
+      notifIos: 'On iPhone, first add the app to the Home Screen (Share), then open it from there.',
+      notifDefault: 'An alert can show a notification while the app is open.',
       activerNotifs: 'Enable notifications', notifsIndispoPage: 'Notifications unavailable on this page.',
       notifsActivees: 'Notifications enabled.', notifsRefusees: 'Notifications refused.', notifsIndispo2: 'Notifications unavailable: {m}',
       wssRequis: 'The address must start with wss:// — without encryption, your pairing codes would travel in clear text.',
       testEnCours: 'Testing the connection…', testOk: 'Connected in {ms} ms.', testKo: 'Connection failed: {m}',
       oublierBrokerQ: 'Forget this broker?', oublierBrokerTexte: 'The registered bases will be kept.', oublier: 'Forget',
       idManquant: 'Identifier missing.', jeton24: 'The pairing code is 24 characters long.', dejaEnregistre: 'This base is already registered.',
+      idInvalide: 'Invalid identifier (example: terraA1B2C3).', codeVerifie: 'Base added, code checked.',
+      codeRefuse: 'Code refused by the base: copy it again from its screen.', codeNonVerifie: 'Base added; code not checked ({m}).',
       socleAjoute: 'Base added.', socleRetire: 'Base removed.', annuler: 'Undo', cancel: 'Cancel', confirmer: 'Confirm',
       redemarrerQ: 'Restart the base?', redemarrerTexte: 'Regulation resumes by itself at boot.', redemarrer: 'Restart',
       effacerHistQ: 'Clear this base\'s history?', effacerHistTexte: 'The charts start again from zero, including the points recorded by this app.',
@@ -577,7 +587,7 @@ const App = (() => {
     return n;
   }
 
-  function recevoir(sujet, charge) {
+  function recevoir(sujet, charge, paquet) {
     const texte = charge.toString();
     if (sujet === sujetServeur()) {
       let a; try { a = JSON.parse(texte); } catch (err) { return; }
@@ -603,16 +613,24 @@ const App = (() => {
       const n = parseInt(parts[2].replace('zone', ''), 10) - 1;
       if (!(n >= 0)) return;
       try { e.zones[n] = normaliser(JSON.parse(texte), e.zones[n]); } catch (err) { return; }
-      e.enLigne = true;
-      e.derniereMaj = Date.now();
-      hist.noter(id, e);
+      // Un état retenu est rejoué par le broker à chaque abonnement, même si le
+      // socle s'est éteint il y a des heures : il dit ce que le socle publiait,
+      // pas qu'il est là. La présence vient de « statut » (et de son testament) ;
+      // seul un état reçu en direct date la dernière nouvelle et entre dans
+      // l'historique, sinon une vieille valeur y serait notée à l'heure actuelle.
+      if (!(paquet && paquet.retain)) {
+        e.enLigne = true;
+        e.derniereMaj = Date.now();
+        hist.noter(id, e);
+      }
     } else if (sujet.endsWith('/reponse')) {
       let r; try { r = JSON.parse(texte); } catch (err) { return; }
       const a = attentes[r.req];
       if (a) {
         clearTimeout(a.minuteur);
         delete attentes[r.req];
-        r.ok ? a.resoudre(r) : a.rejeter(new Error(r.erreur || t('refuse')));
+        // Le refus du code d'appairage est distingué : l'ajout d'un socle s'en sert.
+        r.ok ? a.resoudre(r) : a.rejeter(Object.assign(new Error(r.erreur || t('refuse')), { refus: true, jeton: r.erreur === 'jeton invalide' }));
       }
       // Une réponse « etat » porte les mêmes données qu'une publication. Celle
       // de « stats » a aussi un tableau « zones », mais de statistiques : prise
@@ -657,10 +675,55 @@ const App = (() => {
         action, resoudre, rejeter,
         minuteur: setTimeout(() => {
           delete attentes[req];
-          rejeter(new Error(t('pasDeReponse')));
+          rejeter(Object.assign(new Error(t('pasDeReponse')), { delai: true }));
         }, DELAI_COMMANDE)
       };
       client.publish(base(id) + '/cmd', JSON.stringify({ req, action, jeton: s.jeton, ...params }), { qos: 1 });
+    });
+  }
+
+  // Identifiant tel qu'on le tape : « terra » et six chiffres hexadécimaux en
+  // majuscules (la fin de l'adresse MAC), mais souvent recopié en minuscules ou
+  // depuis le nom du Wi-Fi de configuration (« terrarium-config-A1B2C3 »). Le
+  // sujet MQTT, lui, distingue la casse : « terraa1b2c3 » n'aurait jamais rien
+  // reçu. Les identifiants d'une autre forme (socle simulé…) restent tels quels.
+  function normaliserId(brut) {
+    const id = String(brut || '').replace(/\s+/g, '');
+    const m = /^(?:terrarium-config-|terra)?([0-9a-f]{6})$/i.exec(id);
+    return m ? 'terra' + m[1].toUpperCase() : id;
+  }
+  // Pas de « / », « + », « # » : ils casseraient les sujets MQTT du socle.
+  const ID_VALIDE = /^[A-Za-z0-9_-]{1,40}$/;
+
+  // Retire un socle de l'appareil : abonnements (sans quoi le broker continuait
+  // d'envoyer son état, qui réapparaissait dans les notifications), état, configuration.
+  function oublierSocle(id) {
+    if (client && client.connected) { try { client.unsubscribe(sujets(id)); } catch (e) { /* déjà parti */ } }
+    [etats, courbes, stats, generaux, alertesVues].forEach(o => { delete o[id]; });
+    config.socles = config.socles.filter(x => x.id !== id);
+    sauver();
+  }
+
+  // Sans serveur, rien n'a encore vérifié le code d'appairage. Une lecture des
+  // réglages globaux, protégée par le code et sans effet, le fait tout de suite,
+  // plutôt qu'au premier réglage refusé, des jours plus tard. Le socle contrôle
+  // le code avant tout le reste : toute autre réponse que « jeton invalide »
+  // vaut acceptation.
+  function verifierCode(s) {
+    const encoreLa = () => socle(s.id) === s;
+    commander(s.id, 'globaux').then(() => { if (encoreLa()) message(t('codeVerifie')); }, e => {
+      if (!encoreLa()) return;
+      if (!e.jeton) { message(e.refus ? t('codeVerifie') : t('codeNonVerifie', { m: e.message }), !e.refus); return; }
+      // Refusé : le socle ne serait jamais pilotable avec ce code. On le retire
+      // et on rend le formulaire, prêt pour la correction.
+      oublierSocle(s.id);
+      if (socleOuvert === s.id) { socleOuvert = null; montrer('liste'); }
+      $('#a-id').value = s.id;
+      $('#a-nom').value = s.nom !== s.id ? s.nom : '';
+      dessiner();
+      message(t('codeRefuse'), true);
+      const champ = $('#a-jeton');
+      if (champ) champ.focus();
     });
   }
 
@@ -672,15 +735,33 @@ const App = (() => {
   const notificationsPossibles = () =>
     typeof Notification !== 'undefined' && window.isSecureContext !== false;
 
+  // Sur iPhone et iPad, Safari ne propose les notifications qu'à une
+  // application ajoutée à l'écran d'accueil et ouverte depuis son icône : dans
+  // un onglet, l'objet Notification n'existe même pas. Le dire, plutôt que
+  // d'accuser le HTTPS.
+  function surIosHorsEcranAccueil() {
+    const nav = /** @type {any} */ (navigator);
+    // « standalone » n'existe que sur iOS : vrai quand l'appli est lancée depuis son icône.
+    return (/iPad|iPhone|iPod/.test(nav.userAgent) || (nav.platform === 'MacIntel' && nav.maxTouchPoints > 1)) && !nav.standalone;
+  }
+
   function etatNotifications() {
-    if (!notificationsPossibles()) return 'indisponible';
+    if (window.isSecureContext === false) return 'https';
+    if (typeof Notification === 'undefined') return surIosHorsEcranAccueil() ? 'ios' : 'indisponible';
     return Notification.permission;             // 'granted' | 'denied' | 'default'
   }
 
+  // Par l'agent de service quand il y en a un : Chrome sur Android refuse
+  // « new Notification() » (il lève une exception), et c'est le téléphone où
+  // l'alerte compte le plus. Le constructeur reste le recours d'un navigateur
+  // de bureau sans agent de service.
   function notifier(titre, corps) {
     if (etatNotifications() !== 'granted') return;
-    try { new Notification(titre, { body: corps, tag: titre, icon: 'icone.svg' }); }
-    catch (e) { /* certains navigateurs mobiles exigent un agent de service */ }
+    const o = { body: corps, tag: titre, icon: 'icone.svg' };
+    const directe = () => { try { new Notification(titre, o); } catch (e) { /* refusée par ce navigateur */ } };
+    const sw = /** @type {any} */ (navigator).serviceWorker;
+    (sw && sw.getRegistration ? sw.getRegistration() : Promise.resolve())
+      .then(reg => (reg && reg.showNotification ? reg.showNotification(titre, o) : directe())).catch(directe);
   }
 
   // Pastille sur l'icône de l'application : le nombre de zones en défaut.
@@ -703,15 +784,19 @@ const App = (() => {
     let nouveauDefaut = false;
     e.zones.forEach((z, i) => {
       if (!z) return;
-      const courant = z.defaut || (z.derive ? 'derive' : null);
+      // Du plus grave au plus doux : le défaut coupe la chauffe ; « trop chaud »
+      // (soleil, canicule, lampe) demande d'agir, la chauffe ne refroidit pas ;
+      // la dérive prévient avant le défaut.
+      const courant = z.defaut || (z.tropChaud ? 'trop_chaud' : null) || (z.derive ? 'derive' : null);
       const precedent = alertesVues[id][i];
       if (courant === precedent) return;
       alertesVues[id][i] = courant;
       if (precedent === undefined) return;      // premier état connu : rien à signaler
       const zone = z.nom || t('zoneN', { n: i + 1 });
-      if (courant === 'derive')  notifier(t('notifDerive', { nom }), t('notifDeriveCorps', { zone }));
-      else if (courant)        { notifier(t('notifDefaut', { nom }), t('notifDefautCorps', { zone, d: courant })); nouveauDefaut = true; }
-      else                       notifier(t('notifRetabli', { nom }), t('notifRetabliCorps', { zone }));
+      if (courant === 'trop_chaud') notifier(t('notifTropChaud', { nom }), t('notifTropChaudCorps', { zone }));
+      else if (courant === 'derive') notifier(t('notifDerive', { nom }), t('notifDeriveCorps', { zone }));
+      else if (courant)            { notifier(t('notifDefaut', { nom }), t('notifDefautCorps', { zone, d: courant })); nouveauDefaut = true; }
+      else                           notifier(t('notifRetabli', { nom }), t('notifRetabliCorps', { zone }));
     });
     // Une vibration brève sur un nouveau défaut : la régulation vient de couper
     // le chauffage d'un animal, ce n'est pas un message comme les autres.
@@ -1377,17 +1462,20 @@ const App = (() => {
   function vivantStats(st) {
     let h = `<h2>${t('sur24h')}</h2>`;
     if (!st) return h + `<div class="squelette-bloc" aria-busy="true"><span class="sr-only">${t('chargementStats')}</span><span class="os os-3"></span><span class="os os-3"></span></div>`;
+    // Les tuiles ne montrent que les 24 dernières heures. La chauffe et
+    // l'énergie sont des cumuls depuis la mise en service, les défauts un
+    // compte depuis le dernier démarrage : mêlés aux tuiles, « 41 h de chauffe »
+    // passait pour la journée.
     (st.zones || []).forEach((z, i) => {
       const d = z.defauts || {};
       h += `<h3 class="titre-zone mt" data-zone="${i}">${esc(z.nom)}</h3>
-        ${z.points ? `<div class="stat">
+        ${z.points ? `<div class="stat stat-4">
           <div><b>${fixe1(z.min)}</b><span>${t('minC')}</span></div>
           <div><b>${fixe1(z.max)}</b><span>${t('maxC')}</span></div>
           <div><b>${fixe1(z.moyenne)}</b><span>${t('moyenneC')}</span></div>
           <div><b>${z.horsPlagePct} %</b><span>${t('horsPlage')}</span></div>
-          <div><b>${fixe1(z.heuresChauffe)} h</b><span>${t('deChauffe')}</span></div>
-          <div><b>${Number(z.kWh).toFixed(2)} kWh</b><span>${t('consommes')}</span></div>
-        </div>` : `<p class="aide">${t('pasAssezHist', { h: fixe1(z.heuresChauffe), k: Number(z.kWh).toFixed(2) })}</p>`}
+        </div>` : `<p class="aide">${t('pasAssezHist')}</p>`}
+        <p class="aide mt">${t('cumulService', { h: fixe1(z.heuresChauffe), k: Number(z.kWh).toFixed(2) })}</p>
         <p class="aide">${t('defautsCompte', { s: d.sonde || 0, c: d.surchauffe || 0, f: d.figee || 0 })}</p>`;
     });
     return h + `<p class="discret mt">${t('firmware', { v: esc(st.version) })}</p>`;
@@ -1395,7 +1483,7 @@ const App = (() => {
 
   function vivantNotifications() {
     const n = etatNotifications();
-    const cle = { granted: 'notifGranted', denied: 'notifDenied', indisponible: 'notifIndispo' }[n] || 'notifDefault';
+    const cle = { granted: 'notifGranted', denied: 'notifDenied', https: 'notifIndispo', ios: 'notifIos', indisponible: 'notifsIndispoPage' }[n] || 'notifDefault';
     let h = `<h2>${t('notifications')}</h2><p class="aide">${t(cle)}</p>
       ${n === 'default' ? `<button type="button" class="btn btn-secondaire mt" data-action="notifications">${icone('i-cloche')}${t('activerNotifs')}</button>` : ''}`;
     if (serveur.actif() && config.serveur.push) {
@@ -1582,9 +1670,10 @@ const App = (() => {
   const hist = (() => {
     const dispo = typeof indexedDB !== 'undefined';
     let promesse = null;
+    let supprimee = false;          // « Tout effacer » : plus rien ne la rouvre avant le rechargement
     const derniers = {};
     function ouvrir() {
-      if (!dispo) return Promise.resolve(null);
+      if (!dispo || supprimee) return Promise.resolve(null);
       if (promesse) return promesse;
       promesse = new Promise(res => {
         let r;
@@ -1638,7 +1727,23 @@ const App = (() => {
         req.onsuccess = () => { const cur = req.result; if (!cur) return; if (cur.value.e < limite) cur.delete(); cur.continue(); };
       } catch (err) { /* rien */ } });
     }
-    return { disponible: () => dispo, noter, lire, effacer, purger };
+    // La base entière, pas seulement ses points : « Tout effacer » promet que
+    // l'historique local disparaît de l'appareil. La connexion ouverte est
+    // fermée d'abord, sans quoi la suppression attendrait le rechargement.
+    function toutEffacer() {
+      if (!dispo) return Promise.resolve();
+      supprimee = true;
+      const fermer = promesse ? promesse.then(db => { if (db) db.close(); }) : Promise.resolve();
+      promesse = null;
+      return fermer.then(() => new Promise(/** @param {(v?: any) => void} res */ res => {
+        let r;
+        try { r = indexedDB.deleteDatabase('terrariums'); } catch (e) { res(); return; }
+        // Un autre onglet ouvert la retient (« blocked ») : la suppression
+        // aboutira à sa fermeture, inutile de bloquer celui-ci en attendant.
+        r.onsuccess = r.onerror = r.onblocked = () => res();
+      }));
+    }
+    return { disponible: () => dispo, noter, lire, effacer, purger, toutEffacer };
   })();
 
   // Fusion des points du socle et des points locaux : le socle fait foi quand
@@ -1998,7 +2103,7 @@ const App = (() => {
     async effacerTout() {
       if (!await confirmer({ titre: t('effacerToutQ'), texte: t('effacerToutTexte'), ok: t('effacerTout'), danger: true })) return;
       try { localStorage.removeItem(CLE_CONFIG); } catch (e) { /* stockage indisponible */ }
-      hist.toutEffacer && hist.toutEffacer();
+      await hist.toutEffacer();
       location.reload();
     },
 
@@ -2030,10 +2135,11 @@ const App = (() => {
     },
 
     ajouterSocle() {
-      const id = $('#a-id').value.trim();
+      const id = normaliserId($('#a-id').value);
       const jeton = $('#a-jeton').value.trim().replace(/[\s-]/g, '').toUpperCase();
       const nom = $('#a-nom').value.trim();
       if (!id) { message(t('idManquant'), true); return; }
+      if (!ID_VALIDE.test(id)) { message(t('idInvalide'), true); return; }
       if (jeton.length !== 24) { message(t('jeton24'), true); return; }
       if (socle(id)) { message(t('dejaEnregistre'), true); return; }
 
@@ -2049,6 +2155,8 @@ const App = (() => {
       commander(id, 'etat').catch(() => {});
       ['#a-id', '#a-jeton', '#a-nom'].forEach(sel => { $(sel).value = ''; });
       message(t('socleAjoute'));
+      // Avec un serveur, c'est le rattachement qui vérifie le code, auprès du socle.
+      if (!serveur.actif()) verifierCode(s);
       dessiner();
     },
 
@@ -2059,15 +2167,8 @@ const App = (() => {
       const s = socle(id);
       if (!id || !s) return;
       const index = config.socles.indexOf(s);
-      // Se désabonner aussi : sans cela, le broker continuait d'envoyer l'état
-      // d'un socle retiré, qui réapparaissait dans les notifications.
-      if (client && client.connected && config.broker) {
-        try { client.unsubscribe(sujets(id)); } catch (e) { /* déjà parti */ }
-      }
-      const sauvegarde = { etat: etats[id], courbes: courbes[id], stats: stats[id], generaux: generaux[id], alertes: alertesVues[id] };
-      [etats, courbes, stats, generaux, alertesVues].forEach(o => { delete o[id]; });
-      config.socles = config.socles.filter(x => x.id !== id);
-      sauver();
+      const sauvegarde = { etat: etats[id], alertes: alertesVues[id] };
+      oublierSocle(id);
       socleOuvert = null;
       montrer('liste');
       majBadge();
@@ -2159,7 +2260,7 @@ const App = (() => {
     },
 
     async activerNotifications() {
-      if (!notificationsPossibles()) { message(t('notifsIndispoPage'), true); return; }
+      if (!notificationsPossibles()) { message(t(surIosHorsEcranAccueil() ? 'notifIos' : 'notifsIndispoPage'), true); return; }
       try {
         const r = await Notification.requestPermission();
         message(r === 'granted' ? t('notifsActivees') : t('notifsRefusees'), r !== 'granted');
@@ -2409,9 +2510,7 @@ const App = (() => {
             // sa casse « terraXXXXXX ».
             const m = /^terrarium:([^:]+):([A-Z0-9]{24})$/i.exec(codes[0].rawValue || '');
             if (!m) { message(t('qrNonReconnu'), true); return; }
-            let id = m[1];
-            if (/^TERRA[0-9A-F]{6}$/.test(id)) id = 'terra' + id.slice(5);
-            $('#a-id').value = id; $('#a-jeton').value = m[2].toUpperCase();
+            $('#a-id').value = normaliserId(m[1]); $('#a-jeton').value = m[2].toUpperCase();
             $('#a-nom').focus();
             message(t('codeLu'));
             return;
