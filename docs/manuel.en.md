@@ -48,8 +48,9 @@ Without Chrome: the Arduino IDE, with the board settings described in the reposi
    (the last six characters of its identifier; its password, unique to each base, shows on the screen
    alternating with "AP config"). Connect your phone to
    it: the configuration page opens by itself (otherwise `http://192.168.4.1`).
-3. **Network** tab: your Wi-Fi, a username and a password for the interface, an OTA password if
-   you want to update without a cable, and, for remote control, the MQTT server. Save: the base
+3. On first opening, the page asks you to create the interface password (8 characters at least;
+   a base assembled at the workshop already has one, on its label). Then the **Network** tab: your
+   Wi-Fi, an OTA password if you want to update without a cable, and, for remote control, the MQTT server. Save: the base
    restarts on your network.
 4. It is then reachable at `http://terraXXXXXX.local` (its identifier, shown on the screen and
    in the app) or at its IP address. The interface asks for the username and password you chose;

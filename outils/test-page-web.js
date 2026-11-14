@@ -124,13 +124,26 @@ function creerPage(socle) {
     // Authentification par défi : tant qu'aucune session n'est ouverte, les
     // API répondent 401 ; /api/session ouvre la session si la preuve est la
     // bonne (calculée ici avec le crypto de Node, pas celui de la page).
+    // Premier accès (S2) : sans mot de passe, le socle ne sert que la page, le
+    // défi « libre » et la création ; le reste répond 428.
+    if (socle.aCreer) {
+      if (chemin === '/api/defi') return rendre({ libre: true, creer: true });
+      if (chemin === '/api/premier-acces') {
+        const q = Object.fromEntries(new URLSearchParams(opts.body || ''));
+        if (!/^[0-9a-f]{64}$/.test(q.empreinte || '')) return rendre('Empreinte invalide', 400);
+        socle.aCreer = false;
+        socle.auth = { utilisateur: q.utilisateur, empreinte: q.empreinte };
+        return rendre('Mot de passe enregistre');
+      }
+      return rendre('Mot de passe de l\'interface a creer', 428);
+    }
     if (socle.auth) {
       if (chemin === '/api/defi') { socle.auth.defi = 'd3f1' + Math.random().toString(16).slice(2, 10); return rendre({ libre: false, defi: socle.auth.defi, utilisateur: socle.auth.utilisateur }); }
       if (chemin === '/api/session') {
         const q = Object.fromEntries(new URLSearchParams(opts.body || ''));
         const crypto = require('crypto');
         const h = x => crypto.createHash('sha256').update(x, 'utf8').digest('hex');
-        const attendu = h(socle.auth.defi + ':' + h(socle.auth.utilisateur + ':' + socle.auth.motDePasse));
+        const attendu = h(socle.auth.defi + ':' + (socle.auth.empreinte || h(socle.auth.utilisateur + ':' + socle.auth.motDePasse)));
         socle.auth.tentatives = (socle.auth.tentatives || 0) + 1;
         if (q.defi === socle.auth.defi && q.preuve === attendu) { socle.auth.session = true; return rendre({ ok: true }); }
         return rendre('Identifiants refuses', 401);
@@ -417,6 +430,28 @@ const dernier = (socle, chemin, methode) =>
       v('la restauration envoie le fichier en JSON, avec X-Terrarium',
         e && e.corps.includes('terrarium-sauvegarde') && e.entetes['Content-Type'] === 'application/json' && e.entetes['X-Terrarium'] === '1');
     }
+  }
+
+  titre('13. Premier accès : mot de passe obligatoire (S2)');
+  {
+    const s9 = creerSocle();
+    s9.aCreer = true;
+    const q = creerPage(s9);
+    await attendre(900);
+    v('sans mot de passe, la page demande d\'en créer un', !q.$('#creation').hidden && q.$('#connexion').hidden);
+    v('…et ne montre rien du socle (ni zones ni code d\'appairage)', q.html('#zones') === '' && !q.texte('#jet').match(/[A-Z0-9]{24}/));
+    q.$('#nm').value = 'court'; q.$('#nm2').value = 'court';
+    await q.w.eval("creer({preventDefault(){}})"); await attendre(200);
+    v('un mot de passe de moins de 8 caractères est refusé', /8 caractères/.test(q.texte('#nerr')) && s9.aCreer);
+    q.$('#nm').value = 'un mot de passe sûr'; q.$('#nm2').value = 'un autre';
+    await q.w.eval("creer({preventDefault(){}})"); await attendre(200);
+    v('deux saisies différentes sont refusées', /diffèrent/.test(q.texte('#nerr')) && s9.aCreer);
+    q.$('#nm2').value = 'un mot de passe sûr';
+    await q.w.eval("creer({preventDefault(){}})"); await attendre(1200);
+    const crea = dernier(s9, '/api/premier-acces', 'POST');
+    v('la création n\'envoie que l\'empreinte, avec X-Terrarium', crea && /empreinte=[0-9a-f]{64}/.test(crea.corps) && crea.entetes['X-Terrarium'] === '1');
+    v('le mot de passe n\'a jamais quitté le navigateur', !s9.envois.some(e => /sûr|s%C3%BBr/.test(e.corps) || /sûr/.test(e.url)));
+    v('la page se connecte d\'elle-même et se remplit', s9.auth && s9.auth.session === true && q.$('#creation').hidden && q.html('#zones').includes('Point'));
   }
 
   console.log(`\n=== ${ko ? 'DES TESTS ONT ECHOUE' : 'INTERFACE WEB EMBARQUEE OK'}` +

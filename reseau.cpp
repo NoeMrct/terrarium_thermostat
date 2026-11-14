@@ -142,7 +142,7 @@ bool memeEmpreinte(const char *a, const char *b) {
   return diff == 0;
 }
 
-enum VerdictAuth : uint8_t { AUTH_OK = 0, AUTH_REFUSE, AUTH_EN_PAUSE };
+enum VerdictAuth : uint8_t { AUTH_OK = 0, AUTH_REFUSE, AUTH_EN_PAUSE, AUTH_A_CREER };
 
 // --- sessions -----------------------------------------------------------
 // L'interface locale parle en HTTP clair sur le réseau de la maison : avec
@@ -223,9 +223,18 @@ Session &nouvelleSession(uint32_t maintenant) {
 // téléversement d'une mise à jour doit pouvoir se prononcer dès le premier
 // fragment, alors qu'émettre une réponse au milieu d'un envoi en cours
 // couperait la connexion avant que le navigateur ait fini de parler.
-VerdictAuth verdictAuth() {
+bool motDePasseWebDefini() {
   const ReglagesReseau &r = Stockage::reseau();
-  if (r.webUtilisateur[0] == '\0' || r.webHachage[0] == '\0') return AUTH_OK;  // accès libre assumé
+  return r.webUtilisateur[0] != '\0' && r.webHachage[0] != '\0';
+}
+
+VerdictAuth verdictAuth() {
+  // Plus d'accès libre (S2) : tant qu'aucun mot de passe n'est défini,
+  // l'interface ne sert que la page et la création du mot de passe. Sans cela,
+  // n'importe quel appareil du réseau local lisait le code d'appairage et
+  // réglait le socle. Les socles montés à l'atelier arrivent avec le leur.
+  if (!motDePasseWebDefini()) return AUTH_A_CREER;
+  const ReglagesReseau &r = Stockage::reseau();
 
   // Après cinq échecs, une minute de pause : sans cela un mot de passe court
   // se retrouve par force brute en quelques minutes sur un réseau local.
@@ -268,6 +277,10 @@ bool autorise() {
     case AUTH_EN_PAUSE:
       serveur.send(429, "text/plain", "Trop de tentatives, reessayez dans une minute");
       return false;
+    case AUTH_A_CREER:
+      // 428 : la page montre le formulaire de création au lieu de la connexion.
+      serveur.send(428, "text/plain", "Mot de passe de l'interface a creer");
+      return false;
     default:
       // La page embarquée s'annonce par X-Terrarium et gère sa propre
       // connexion : lui renvoyer le défi Basic ferait surgir le dialogue du
@@ -279,13 +292,39 @@ bool autorise() {
   }
 }
 
-// GET /api/defi : un nonce à usage unique, valable deux minutes.
-void routeDefi() {
-  const ReglagesReseau &r = Stockage::reseau();
-  if (r.webUtilisateur[0] == '\0' || r.webHachage[0] == '\0') {
-    serveur.send(200, "application/json", "{\"libre\":true}");
+// POST /api/premier-acces : l'utilisateur et l'empreinte SHA-256 de
+// « utilisateur:mot de passe », calculée par la page — le mot de passe ne
+// voyage pas. Refusé dès qu'un mot de passe existe : il ne se change ensuite
+// qu'une fois connecté (onglet Réseau) ou par la console série.
+void routePremierAcces() {
+  if (!origineSure()) return;
+  if (motDePasseWebDefini()) {
+    serveur.send(409, "text/plain", "Mot de passe deja defini : connectez-vous");
     return;
   }
+  const String u = serveur.arg("utilisateur"), e = serveur.arg("empreinte");
+  bool ok = u.length() >= 1 && u.length() <= 16 && u.indexOf(':') < 0 && e.length() == 64;
+  for (size_t i = 0; ok && i < e.length(); i++)
+    ok = isxdigit((unsigned char)e[i]) && !isupper((unsigned char)e[i]);
+  if (!ok) {
+    serveur.send(400, "text/plain", "Utilisateur (1 a 16 caracteres, sans :) ou empreinte invalide");
+    return;
+  }
+  ReglagesReseau &r = Stockage::reseau();
+  snprintf(r.webUtilisateur, sizeof r.webUtilisateur, "%s", u.c_str());
+  snprintf(r.webHachage, sizeof r.webHachage, "%s", e.c_str());
+  Stockage::sauverReseau();
+  journal("Interface web : mot de passe cree au premier acces (utilisateur %s)", r.webUtilisateur);
+  serveur.send(200, "text/plain", "Mot de passe enregistre");
+}
+
+// GET /api/defi : un nonce à usage unique, valable deux minutes.
+void routeDefi() {
+  if (!motDePasseWebDefini()) {
+    serveur.send(200, "application/json", "{\"libre\":true,\"creer\":true}");
+    return;
+  }
+  const ReglagesReseau &r = Stockage::reseau();
   const uint32_t maintenant = millis();
   Defi *cible = &g_defis[0];
   for (Defi &d : g_defis) {
@@ -1219,8 +1258,13 @@ void routeReseauPost() {
   TXT("ssid2", ssid2);
   SECRET("wifiPass2", motDePasse2);
   if (serveur.hasArg("ssid2") && serveur.arg("ssid2").length() == 0) r.motDePasse2[0] = '\0';
-  TXT("webUser", webUtilisateur);
-  if (serveur.hasArg("webPass") && serveur.arg("webPass").length() > 0) {
+  // L'utilisateur ne se vide plus (ce serait rouvrir l'accès libre, S2) et ne
+  // change qu'avec un nouveau mot de passe : l'empreinte porte sur les deux.
+  const bool nouveauMdp = serveur.hasArg("webPass") && serveur.arg("webPass").length() > 0;
+  if (serveur.hasArg("webUser") && serveur.arg("webUser").length() > 0 &&
+      (nouveauMdp || serveur.arg("webUser") == r.webUtilisateur))
+    snprintf(r.webUtilisateur, sizeof r.webUtilisateur, "%s", serveur.arg("webUser").c_str());
+  if (nouveauMdp) {
     const String u = serveur.hasArg("webUser") && serveur.arg("webUser").length() ? serveur.arg("webUser")
                                                                                   : String(r.webUtilisateur);
     snprintf(r.webHachage, sizeof r.webHachage, "%s", hacher(u + ":" + serveur.arg("webPass")).c_str());
@@ -2104,6 +2148,7 @@ void lancerServices() {
 
   serveur.on("/", HTTP_GET, routeRacine);
   serveur.on("/api/defi", HTTP_GET, routeDefi);
+  serveur.on("/api/premier-acces", HTTP_POST, routePremierAcces);
   serveur.on("/api/session", HTTP_POST, routeSession);
   serveur.on("/api/deconnexion", HTTP_POST, routeDeconnexion);
   serveur.on("/api/status", HTTP_GET, routeStatus);

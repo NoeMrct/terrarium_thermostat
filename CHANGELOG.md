@@ -78,6 +78,13 @@ jour.
   seulement quand il sert (et gardé hors ligne par l'agent de service). Tout le
   monde télécharge 4 Ko de moins : `app.js` passe de 30,0 à 26,0 Ko compressés.
   Le budget de poids sépare désormais le démarrage des modules à la demande.
+- **Interface locale : mot de passe obligatoire.** Plus d'accès libre par
+  défaut : sans mot de passe, le socle ne sert que la page, qui demande d'en
+  créer un (8 caractères au moins, empreinte calculée dans le navigateur,
+  `POST /api/premier-acces`) ; toute autre requête reçoit 428, réglages et
+  code d'appairage compris. Le formulaire Réseau ne vide plus l'utilisateur et
+  ne le change qu'avec un nouveau mot de passe. `provisionner.js` tire le mot
+  de passe à l'atelier, le donne au socle et l'imprime sur l'étiquette.
 - **Point d'accès de secours : un mot de passe propre à chaque socle.** Fini le
   mot de passe commun `terrarium1234`, imprimé dans la documentation : le socle
   tire le sien (10 caractères, sans i, l, o, 0 ni 1) à la première ouverture du

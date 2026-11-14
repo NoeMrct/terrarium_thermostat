@@ -36,8 +36,8 @@ pre{background:var(--k);padding:10px;border-radius:12px;font-size:11.5px;overflo
 .pill{display:inline-flex;align-items:center;gap:5px;background:var(--k);border-radius:999px;padding:5px 10px;font-size:12px;font-weight:600;color:var(--g)}
 .pill.ok{background:var(--ad);color:var(--a)}.pill.warn{background:var(--wd);color:var(--w)}
 .avert{background:var(--wd);color:var(--w);border-radius:14px;padding:10px 12px;margin-bottom:12px;font-size:12.5px;line-height:1.45}
-#connexion{position:fixed;inset:0;background:var(--f);display:flex;align-items:center;justify-content:center;padding:16px;z-index:9}
-#connexion .card{width:100%;max-width:360px}#connexion[hidden]{display:none}
+#connexion,#creation{position:fixed;inset:0;background:var(--f);display:flex;align-items:center;justify-content:center;padding:16px;z-index:9}
+#connexion .card,#creation .card{width:100%;max-width:360px}#connexion[hidden],#creation[hidden]{display:none}
 h3{font-size:13px;margin:14px 0 2px;color:var(--g);font-weight:600}
 progress{width:100%;height:9px}a{color:var(--a)}
 .zone{display:flex;align-items:center;gap:6px;color:var(--g);font-size:12.5px;font-weight:600}
@@ -52,6 +52,12 @@ progress{width:100%;height:9px}a{color:var(--a)}
 <label>Utilisateur</label><input class="w" id="cu" autocomplete="username">
 <label>Mot de passe</label><input class="w" id="cm" type="password" autocomplete="current-password">
 <div class="bad" id="cerr"></div><button type="submit">Se connecter</button></form></div>
+<div id="creation" hidden><form class="card" onsubmit="creer(event)"><h3 style="margin-top:0">Créer le mot de passe</h3>
+<div class="g">Premier accès à ce socle : choisissez l'utilisateur et le mot de passe de son interface. Sans eux, personne sur le réseau ne peut le régler ni lire son code d'appairage. Le mot de passe ne quitte pas ce navigateur.</div>
+<label>Utilisateur</label><input class="w" id="nu" value="admin" autocomplete="username">
+<label>Mot de passe (8 caractères au moins)</label><input class="w" id="nm" type="password" autocomplete="new-password">
+<label>Le même, encore une fois</label><input class="w" id="nm2" type="password" autocomplete="new-password">
+<div class="bad" id="nerr"></div><button type="submit">Créer et se connecter</button></form></div>
 <h1>Thermostat terrarium</h1><div class="sub" id="entete">…</div>
 <div id="avertissements"></div>
 <div class="tabs">
@@ -89,10 +95,12 @@ ni les mots de passe ne sont dans le fichier, mais l'URL d'alerte y est (une URL
 const C=['#d95f0a','#0b7fb9'];let S=null;
 // Toutes les requêtes portent X-Terrarium (preuve qu'elles viennent de cette
 // page, et non d'un site tiers) ; un 401 ouvre le formulaire de connexion.
-function F(u,o={}){return fetch(u,Object.assign({},o,{headers:Object.assign({'X-Terrarium':'1'},o.headers||{})})).then(r=>{if(r.status===401)connexion();return r;});}
+function F(u,o={}){return fetch(u,Object.assign({},o,{headers:Object.assign({'X-Terrarium':'1'},o.headers||{})})).then(r=>{if(r.status===401)connexion();else if(r.status===428)creation();return r;});}
 // Lecture JSON : null si la requête est refusée (session absente, erreur).
 async function J(u){const r=await F(u);return r.ok?r.json():null;}
 function connexion(){const c=document.getElementById('connexion');if(c.hidden){c.hidden=false;document.getElementById('cu').focus();}}
+// 428 : aucun mot de passe encore (premier accès) ; le socle ne sert rien d'autre.
+function creation(){const c=document.getElementById('creation');if(c.hidden){c.hidden=false;document.getElementById('nm').focus();}}
 // SHA-256 (chaîne UTF-8 → hexadécimal). WebCrypto n'existe pas en HTTP clair :
 // on le fait à la main, c'est ce qui permet de ne jamais envoyer le mot de passe.
 function sha256(t){const K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
@@ -108,12 +116,21 @@ function sha256(t){const K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c2
  return H.map(x=>x.toString(16).padStart(8,'0')).join('');}
 async function connecter(ev){ev.preventDefault();const err=document.getElementById('cerr');err.textContent='';
  const d=await(await fetch('/api/defi',{headers:{'X-Terrarium':'1'}})).json();
- if(d.libre){document.getElementById('connexion').hidden=true;maj();return;}
+ if(d.libre){document.getElementById('connexion').hidden=true;creation();return;}
  const u=document.getElementById('cu').value||d.utilisateur,p=document.getElementById('cm').value;
  const preuve=sha256(d.defi+':'+sha256(u+':'+p));
  const r=await fetch('/api/session',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Terrarium':'1'},body:'defi='+encodeURIComponent(d.defi)+'&preuve='+preuve});
  if(r.ok){document.getElementById('connexion').hidden=true;document.getElementById('cm').value='';maj();}
  else err.textContent=await r.text();}
+async function creer(ev){ev.preventDefault();const err=document.getElementById('nerr');err.textContent='';
+ const u=document.getElementById('nu').value.trim(),p=document.getElementById('nm').value;
+ if(!u||u.length>16||u.includes(':')){err.textContent='Utilisateur : 1 à 16 caractères, sans « : ».';return;}
+ if(p.length<8){err.textContent='Le mot de passe doit faire 8 caractères au moins.';return;}
+ if(p!==document.getElementById('nm2').value){err.textContent='Les deux saisies diffèrent.';return;}
+ const r=await fetch('/api/premier-acces',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Terrarium':'1'},body:'utilisateur='+encodeURIComponent(u)+'&empreinte='+sha256(u+':'+p)});
+ if(!r.ok){err.textContent=await r.text();return;}
+ document.getElementById('creation').hidden=true;document.getElementById('nm').value=document.getElementById('nm2').value='';
+ document.getElementById('cu').value=u;document.getElementById('cm').value=p;await connecter({preventDefault(){}});}
 async function deconnecter(){await fetch('/api/deconnexion',{method:'POST',headers:{'X-Terrarium':'1'}});location.reload();}
 function onglet(id,b){['vue','reg','res','sta','log'].forEach(x=>document.getElementById(x).style.display=x==id?'':'none');
 document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
@@ -290,7 +307,7 @@ function formulaires(){
    <label>Réseau de secours (SSID, vide = aucun)</label><input class="w" id="ssid2">
    <label>Mot de passe du réseau de secours (vide = inchangé)</label><input class="w" id="wpass2" type="password">
    <div class="g">Essayé en alternance quand le premier ne répond pas (box en panne, répéteur…).</div>
-   <label>Utilisateur de cette interface (vide = accès libre)</label><input class="w" id="wu">
+   <label>Utilisateur de cette interface (ne change qu'avec un nouveau mot de passe)</label><input class="w" id="wu">
    <label>Mot de passe de cette interface (vide = inchangé)</label><input class="w" id="wp" type="password">
    <label>Mot de passe OTA (vide = inchangé)</label><input class="w" id="op" type="password">
    <label>Mot de passe du point d'accès de secours (8 car. min, vide = inchangé)</label><input class="w" id="ap" type="password">

@@ -116,7 +116,7 @@ void pageReseau() {
     ligneLongue("MQTT " + Reseau::etatMqtt());
   }
   ecran.print(F("Web : "));
-  ecran.println(Stockage::reseau().webUtilisateur[0] ? F("protege") : F("SANS mot de passe"));
+  ecran.println(Stockage::reseau().webUtilisateur[0] ? F("protege") : F("mdp a creer"));
 }
 
 bool visiteCourbe(const Echantillon &e, void *ctx) {

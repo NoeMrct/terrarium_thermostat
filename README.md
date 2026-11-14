@@ -157,8 +157,10 @@ sur son adresse IP.
 
 ## Étape 6 — Sécuriser l'accès
 
-Par défaut l'interface est ouverte à tout le monde sur ton réseau. Trois
-commandes à passer :
+L'interface n'est jamais ouverte à tout le réseau : à la première visite, la
+page demande de créer son mot de passe avant de servir quoi que ce soit (un
+socle monté à l'atelier a déjà le sien, imprimé sur l'étiquette). Les trois
+mots de passe se règlent aussi au moniteur série :
 
 ```
 motdepasse web MonMotDePasse
@@ -766,6 +768,7 @@ sont dans des zones de mémoire que le téléversement ne touche pas.
 | `/api/maj` | POST | Téléverser un firmware (`multipart/form-data`) |
 | `/api/maj-distante?version=3.4.0` (ou `url=`) | POST | Faire télécharger une release par le socle |
 | `/api/defi`, `/api/session`, `/api/deconnexion` | GET / POST | Connexion par défi/réponse de la page (cookie de session 24 h) |
+| `/api/premier-acces` | POST | Création du mot de passe au premier accès (`utilisateur`, `empreinte` = SHA-256 de « utilisateur:mot de passe ») ; tant qu'il manque, les autres routes répondent 428 |
 | `/api/coredump` | GET / DELETE | Dernier rapport de plantage |
 | `/metrics` | GET | Format Prometheus |
 | `/manifest.json`, `/icone.svg`, `/sw.js` | GET | Application installable |

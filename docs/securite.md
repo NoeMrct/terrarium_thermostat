@@ -42,8 +42,9 @@ sont là pour qu'une panne coupe, jamais pour qu'elle chauffe.
   version qui plante est annulée automatiquement. Le socle ne télécharge un
   firmware que sur ordre, en HTTPS, depuis les releases du projet, et vérifie
   la signature si elle est exigée.
-- **Accès** : l'interface locale demande un mot de passe (connexion par défi,
-  session de 24 h), le pilotage à distance exige le code d'appairage, et
+- **Accès** : l'interface locale exige un mot de passe — créé à la première
+  visite, ou tiré à l'atelier et imprimé sur l'étiquette ; rien n'est servi
+  avant (connexion par défi, session de 24 h), le pilotage à distance exige le code d'appairage, et
   l'application peut se verrouiller par un code qui chiffre ces secrets sur le
   téléphone. Qui prend le téléphone ne peut pas chauffer l'animal.
 - Le socle ne chauffe jamais plus de tapis que l'alimentation déclarée n'en

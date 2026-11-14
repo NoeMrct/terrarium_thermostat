@@ -243,7 +243,10 @@ par USB avec effacement complet (`docs/decisions/0010-repartitionnement.md`).
 
 ## Sécuriser
 
-À faire tout de suite, l'accès est ouvert par défaut :
+L'interface locale n'est jamais ouverte : à la première visite, la page
+demande de créer son mot de passe, et rien d'autre (ni réglages, ni code
+d'appairage) n'est servi avant. Le même, ou celui des deux autres accès, se
+règle aussi au moniteur série :
 
 ```
 motdepasse web MonMotDePasse

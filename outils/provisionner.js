@@ -7,9 +7,11 @@
    2. Lance l'auto-test usine (« test usine ») et refuse de continuer s'il échoue.
    3. Crée le compte d'appareil sur le serveur Terrariums (API d'administration)
       et configure le socle pour s'y connecter (commande « mqtt »), si --serveur.
-   4. Écrit l'étiquette QR à coller sous le socle (SVG, même contenu que
-      qr-appairage.js) et une fiche JSON dans provisionnement/ (ignoré par git :
-      elle contient le code d'appairage).
+   4. Avec le port série, tire le mot de passe de l'interface locale (S2 :
+      plus d'accès libre) et le donne au socle (« motdepasse web »).
+   5. Écrit l'étiquette QR à coller sous le socle (SVG, même contenu que
+      qr-appairage.js, mot de passe de l'interface compris) et une fiche JSON
+      dans provisionnement/ (ignorée par git : elle contient les secrets).
 
      node provisionner.js --port /dev/ttyUSB0 [--serveur https://… --admin <jeton>] [--hote mqtt.exemple.fr]
      node provisionner.js --id terraA1B2C3 --jeton K7M2QX… [--serveur … --admin …]
@@ -31,6 +33,9 @@ const HOTE = arg('hote');                                  // hôte MQTT à donn
 const PORT_MQTT = +arg('port-mqtt', 1883);
 const SORTIE = path.resolve(__dirname, 'provisionnement');
 const attendre = ms => new Promise(r => setTimeout(r, ms));
+// Mot de passe de l'interface locale : 12 caractères sans ambiguïté à la
+// lecture (ni i, l, o, 0, 1), tirés par le générateur cryptographique.
+const motDePasseWeb = () => Array.from({ length: 12 }, () => 'abcdefghjkmnpqrstuvwxyz23456789'[require('crypto').randomInt(31)]).join('');
 
 (async () => {
   let serie = null;
@@ -51,6 +56,15 @@ const attendre = ms => new Promise(r => setTimeout(r, ms));
   }
 
   const fiche = { id: ID, date: new Date().toISOString(), jeton: JETON };
+  if (serie) {
+    const mdp = motDePasseWeb();
+    const ok = await serie.commande(`motdepasse web ${mdp} admin`, /Enregistre/, 5000);
+    if (!ok) { console.error('Le socle n\'a pas confirmé « motdepasse web » — socle refusé.'); serie.fermer(); process.exit(1); }
+    fiche.web = { utilisateur: 'admin', motDePasse: mdp };
+    console.log('Mot de passe de l\'interface locale tiré et donné au socle.');
+  } else {
+    console.log('Sans port série : le mot de passe de l\'interface locale sera créé au premier accès à la page du socle.');
+  }
   if (SERVEUR) {
     if (!ADMIN) { console.error('--admin <jeton d\'administration> (ou ADMIN_JETON) est requis avec --serveur'); process.exit(2); }
     const r = await fetch(`${SERVEUR}/api/admin/appareils`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN}` }, body: JSON.stringify({ id: ID }) });
@@ -73,9 +87,10 @@ const attendre = ms => new Promise(r => setTimeout(r, ms));
 
   fs.mkdirSync(SORTIE, { recursive: true });
   const etiquette = path.join(SORTIE, `${ID}-etiquette.svg`);
-  const svg = execFileSync(process.execPath, [path.join(__dirname, 'qr-appairage.js'), '--id', ID, '--jeton', JETON], { encoding: 'utf8' });
+  const svg = execFileSync(process.execPath, [path.join(__dirname, 'qr-appairage.js'), '--id', ID, '--jeton', JETON,
+    ...(fiche.web ? ['--web', `${fiche.web.utilisateur}:${fiche.web.motDePasse}`] : [])], { encoding: 'utf8' });
   fs.writeFileSync(etiquette, svg);
   fiche.etiquette = etiquette;
   fs.writeFileSync(path.join(SORTIE, `${ID}.json`), JSON.stringify(fiche, null, 1) + '\n', { mode: 0o600 });
-  console.log(`Étiquette : ${etiquette}\nFiche : ${path.join(SORTIE, ID + '.json')} (contient le code d'appairage : à garder hors du dépôt)`);
+  console.log(`Étiquette : ${etiquette}\nFiche : ${path.join(SORTIE, ID + '.json')} (contient le code d'appairage${fiche.web ? ' et le mot de passe de l\'interface' : ''} : à garder hors du dépôt)`);
 })().catch(e => { console.error(e.message); process.exit(1); });

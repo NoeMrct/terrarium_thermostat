@@ -13,6 +13,9 @@ const QRCode = require('qrcode');
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i >= 0 ? process.argv[i + 1] : d; };
 const ID    = arg('id');
 const JETON = (arg('jeton') || '').toUpperCase();
+// Facultatif : « utilisateur:mot de passe » de l'interface locale, généré à
+// l'atelier (provisionner.js) et imprimé sous le code (S2).
+const WEB = arg('web');
 
 if (!ID || JETON.length !== 24) {
   console.error('Usage : node qr-appairage.js --id terraA1B2C3 --jeton <24 caracteres>');
@@ -36,14 +39,17 @@ QRCode.toString(charge, { type: 'svg', margin: 1, errorCorrectionLevel: 'M', wid
     const modules = vb ? parseFloat(vb[1]) : COTE;
     const echelle = COTE / modules;
     const interieur = qr.replace(/<\?xml[^>]*\?>/, '').replace(/<svg[^>]*>/, '').replace('</svg>', '');
-    process.stdout.write(`<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400" viewBox="0 0 300 400">
-  <rect width="300" height="400" fill="#fff"/>
+    const h = WEB ? 428 : 400;
+    const echapper = t => t.replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+    const web = WEB ? `\n  <text x="150" y="414" text-anchor="middle" font-family="monospace" font-size="11">Interface locale : ${echapper(WEB.replace(':', ' / '))}</text>` : '';
+    process.stdout.write(`<svg xmlns="http://www.w3.org/2000/svg" width="300" height="${h}" viewBox="0 0 300 ${h}">
+  <rect width="300" height="${h}" fill="#fff"/>
   <text x="150" y="26" text-anchor="middle" font-family="sans-serif" font-size="15" font-weight="600">Socle chauffant</text>
   <text x="150" y="45" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#555">${ID}</text>
   <g transform="translate(20 58) scale(${echelle})">${interieur}</g>
   <text x="150" y="348" text-anchor="middle" font-family="monospace" font-size="13" letter-spacing="1">${groupes}</text>
   <text x="150" y="372" text-anchor="middle" font-family="sans-serif" font-size="9.5" fill="#555">Code d'appairage — ne pas divulguer</text>
-  <text x="150" y="388" text-anchor="middle" font-family="sans-serif" font-size="9.5" fill="#555">Regenerable par la commande « jeton nouveau »</text>
+  <text x="150" y="388" text-anchor="middle" font-family="sans-serif" font-size="9.5" fill="#555">Regenerable par la commande « jeton nouveau »</text>${web}
 </svg>\n`);
   })
   .catch(e => { console.error(e.message); process.exit(1); });

@@ -47,8 +47,9 @@ Sans Chrome : l'IDE Arduino, avec les réglages de carte décrits dans `INSTALLA
    (les six derniers caractères de son identifiant ; son mot de passe, propre à chaque socle, s'affiche
    sur l'écran en alternance avec « AP config »). Connecte ton
    téléphone dessus : la page de configuration s'ouvre d'elle-même (sinon `http://192.168.4.1`).
-3. Onglet **Réseau** : ton Wi-Fi, un utilisateur et un mot de passe pour l'interface, un mot de passe
-   OTA si tu veux mettre à jour sans câble, et, pour le pilotage à distance, le serveur MQTT. Enregistre :
+3. À la première ouverture, la page demande de créer le mot de passe de l'interface (8 caractères au
+   moins ; un socle monté à l'atelier a déjà le sien, sur son étiquette). Puis onglet **Réseau** : ton
+   Wi-Fi, un mot de passe OTA si tu veux mettre à jour sans câble, et, pour le pilotage à distance, le serveur MQTT. Enregistre :
    le socle redémarre sur ton réseau.
 4. Il est ensuite joignable sur `http://terraXXXXXX.local` (son identifiant, affiché sur l'écran et
    dans l'application) ou sur son adresse IP. L'interface demande l'utilisateur et le mot de passe
