@@ -80,6 +80,17 @@ class Historique {
     return fs.readdirSync(this.dossier).filter(f => /^terra[0-9A-Za-z]{6}$/.test(f));
   }
 
+  // Tout l'historique d'un socle (compte effacé, plus aucun propriétaire).
+  supprimer(id) {
+    if (!/^terra[0-9A-Za-z]{6}$/.test(String(id || ''))) return false;
+    delete this.courant[id];
+    delete this.derniere[id];
+    const d = path.join(this.dossier, id);
+    if (!fs.existsSync(d)) return false;
+    fs.rmSync(d, { recursive: true, force: true });
+    return true;
+  }
+
   // Supprime les fichiers plus vieux que la rétention. Renvoie le nombre effacé.
   purger(maintenant = Date.now()) {
     let n = 0;

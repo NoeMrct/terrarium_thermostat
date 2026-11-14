@@ -16,6 +16,10 @@ services:
       # AMONT_UTILISATEUR: "appli"
       # AMONT_MOT_DE_PASSE: "secret"
       # ORIGINES: "https://terrariums.exemple.fr"
+      # Comptes en libre-service (code par e-mail, puis clés d'accès) :
+      # SMTP_URL: "smtps://utilisateur:motdepasse@smtp.fournisseur.fr:465"
+      # COURRIEL_DE: "Terrariums <ne-pas-repondre@exemple.fr>"
+      # RP_ID: "terrariums.exemple.fr"   # par défaut, le domaine de la première origine
     volumes:
       - donnees:/donnees
 volumes:

@@ -1,9 +1,16 @@
 'use strict';
 /* Comptes du serveur : utilisateurs (l'application), appareils (les socles),
-   jetons de session, droits. Tout vit dans donnees/comptes.json, réécrit à
-   chaque changement (atomiquement : fichier temporaire puis renommage). Les
-   mots de passe sont hachés par scrypt avec un sel par compte ; rien de
-   réutilisable ailleurs ne dort sur le disque.
+   jetons de session, clés d'accès, droits. Tout vit dans donnees/comptes.json,
+   réécrit à chaque changement (atomiquement : fichier temporaire puis
+   renommage). Les mots de passe sont hachés par scrypt avec un sel par compte,
+   les jetons de session par SHA-256 : rien de réutilisable ailleurs ne dort sur
+   le disque, pas même une session en cours.
+
+   Deux sortes de comptes utilisateur : ceux créés par l'administration, avec
+   identifiant et mot de passe ; ceux ouverts en libre-service par e-mail (code
+   à usage unique, puis clés d'accès), sans mot de passe du tout. Pour les
+   seconds, le jeton de session sert aussi de mot de passe au broker : la
+   session glisse (30 jours sans usage la ferment).
 
    En mémoire, chaque registre est une Map : les clés viennent du réseau
    (identifiants, jetons) et une Map n'a ni prototype à polluer ni propriété
@@ -14,6 +21,9 @@ const path = require('path');
 const crypto = require('crypto');
 
 const SCRYPT = { N: 16384, r: 8, p: 1, keylen: 32 };
+const DUREE_SESSION_J = 30;
+const cleSession = jeton => 'h:' + crypto.createHash('sha256').update(String(jeton)).digest('hex');
+const EMAIL = /^[a-z0-9._%+-]{1,64}@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,24}$/i;
 
 function hacher(motDePasse, sel) {
   return crypto.scryptSync(String(motDePasse), sel, SCRYPT.keylen, { N: SCRYPT.N, r: SCRYPT.r, p: SCRYPT.p }).toString('hex');
@@ -40,6 +50,13 @@ class Comptes {
         if (lu[k] && typeof lu[k] === 'object') this.donnees[k] = new Map(Object.entries(lu[k]));
       }
     } catch (e) { /* premier démarrage */ }
+    // Sessions d'avant le hachage : la clé était le jeton lui-même.
+    let migre = false;
+    for (const [j, v] of [...this.donnees.sessions]) {
+      if (!j.startsWith('h:')) { this.donnees.sessions.delete(j); this.donnees.sessions.set(cleSession(j), v); migre = true; }
+    }
+    for (const u of this.donnees.utilisateurs.values()) if (!Array.isArray(u.cles)) u.cles = [];
+    if (migre) this.sauver();
   }
 
   sauver() {
@@ -51,8 +68,17 @@ class Comptes {
     fs.renameSync(tmp, this.chemin);
   }
 
+  // Écriture différée : prolonger une session à chaque connexion MQTT ne doit
+  // pas réécrire le fichier à chaque fois.
+  sauverBientot() {
+    if (this.minuteurSauvegarde) return;
+    this.minuteurSauvegarde = setTimeout(() => { this.minuteurSauvegarde = null; this.sauver(); }, 2000);
+    if (this.minuteurSauvegarde.unref) this.minuteurSauvegarde.unref();
+  }
+
   // --- utilisateurs -----------------------------------------------------------
-  static loginValide(login) { return /^[a-z0-9._@+-]{3,64}$/i.test(String(login || '')); }
+  static loginValide(login) { return /^[a-z0-9._@+-]{3,64}$/i.test(String(login || '')) || Comptes.emailValide(login); }
+  static emailValide(email) { const e = String(email || ''); return e.length <= 254 && EMAIL.test(e); }
 
   ajouterUtilisateur(login, motDePasse, options = {}) {
     if (!Comptes.loginValide(login)) throw new Error('identifiant invalide (3 à 64 caractères : lettres, chiffres, . _ @ + -)');
@@ -60,10 +86,56 @@ class Comptes {
     const cle = login.toLowerCase();
     if (this.donnees.utilisateurs.has(cle)) throw new Error('identifiant déjà pris');
     const sel = crypto.randomBytes(16).toString('hex');
-    const u = { login, sel, empreinte: hacher(motDePasse, sel), socles: [], admin: !!options.admin, cree: new Date().toISOString() };
+    const u = { login, sel, empreinte: hacher(motDePasse, sel), socles: [], cles: [], admin: !!options.admin, cree: new Date().toISOString() };
+    if (Comptes.emailValide(login)) u.email = login.toLowerCase();
     this.donnees.utilisateurs.set(cle, u);
     this.sauver();
     return u;
+  }
+
+  // Compte en libre-service : l'adresse e-mail est l'identifiant, et il n'y a
+  // pas de mot de passe (connexion par code envoyé, puis clés d'accès).
+  obtenirParEmail(email) {
+    const e = String(email || '').trim().toLowerCase();
+    if (!Comptes.emailValide(e)) throw new Error('adresse e-mail invalide');
+    let u = this.utilisateur(e), nouveau = false;
+    if (!u) {
+      u = { login: e, email: e, sel: null, empreinte: null, socles: [], cles: [], admin: false, cree: new Date().toISOString() };
+      this.donnees.utilisateurs.set(e, u);
+      nouveau = true;
+      this.sauver();
+    }
+    return { u, nouveau };
+  }
+
+  // Droit à l'effacement (RGPD, art. 17) : le compte, ses sessions, ses
+  // abonnements push et ses clés d'accès disparaissent. Renvoie les socles
+  // qui n'ont plus aucun propriétaire (leur historique peut alors partir aussi).
+  supprimerUtilisateur(login) {
+    const u = this.utilisateur(login);
+    if (!u) return null;
+    const cle = u.login.toLowerCase();
+    this.donnees.utilisateurs.delete(cle);
+    for (const [j, s_] of this.donnees.sessions) if (s_.login === cle) this.donnees.sessions.delete(j);
+    this.donnees.abonnementsPush.delete(cle);
+    this.sauver();
+    return { orphelins: u.socles.filter(id => !this.proprietaires(id).length) };
+  }
+
+  // Droit à la portabilité (RGPD, art. 20) : tout ce que le compte contient,
+  // sans aucun secret (ni empreinte, ni jeton, ni clé publique complète).
+  exporter(login) {
+    const u = this.utilisateur(login);
+    if (!u) return null;
+    const cle = u.login.toLowerCase();
+    return {
+      compte: { identifiant: u.login, email: u.email || null, cree: u.cree, administrateur: !!u.admin, motDePasse: !!u.empreinte },
+      socles: u.socles.slice(),
+      clesAcces: (u.cles || []).map(c => ({ nom: c.nom, cree: c.cree, derniereUtilisation: c.vu || null, synchronisee: !!c.synchronisee })),
+      sessions: [...this.donnees.sessions.values()].filter(s_ => s_.login === cle).map(s_ => ({ ouverte: s_.cree || null, expire: s_.expire, appareil: s_.agent || '' })),
+      notificationsPush: (this.donnees.abonnementsPush.get(cle) || []).map(a => ({ appareil: a.agent, cree: a.cree })),
+      exporte: new Date().toISOString()
+    };
   }
 
   changerMotDePasse(login, motDePasse) {
@@ -86,28 +158,90 @@ class Comptes {
     const u = this.utilisateur(login);
     if (!u) return null;
     const s = String(secret || '');
-    if (s.length >= 8 && memeEmpreinte(hacher(s, u.sel), u.empreinte)) return u;
-    const session = this.donnees.sessions.get(s);
-    if (session && session.login === u.login.toLowerCase() && Date.parse(session.expire) > Date.now()) return u;
+    if (s.length >= 8 && u.empreinte && memeEmpreinte(hacher(s, u.sel), u.empreinte)) return u;
+    const session = this.session(s);
+    if (session && session.login === u.login.toLowerCase()) return u;
     return null;
   }
 
-  ouvrirSession(login, dureeJours = 30) {
+  ouvrirSession(login, options = {}) {
     const u = this.utilisateur(login);
     if (!u) throw new Error('utilisateur inconnu');
+    const dureeJours = options.dureeJours || DUREE_SESSION_J;
     const jeton = crypto.randomBytes(24).toString('hex');
-    this.donnees.sessions.set(jeton, { login: u.login.toLowerCase(), expire: new Date(Date.now() + dureeJours * 86400000).toISOString() });
+    const maintenant = Date.now();
+    this.donnees.sessions.set(cleSession(jeton), { login: u.login.toLowerCase(), cree: new Date(maintenant).toISOString(),
+      expire: new Date(maintenant + dureeJours * 86400000).toISOString(), agent: String(options.agent || '').slice(0, 120) });
     this.purgerSessions();
     this.sauver();
     return jeton;
   }
 
-  fermerSession(jeton) { if (this.donnees.sessions.delete(String(jeton || ''))) this.sauver(); }
+  fermerSession(jeton) { if (this.donnees.sessions.delete(cleSession(jeton || ''))) this.sauver(); }
+
+  // Session en cours pour ce jeton, prolongée au passage (au plus une fois par
+  // jour) : on reste connecté tant qu'on se sert de l'application.
+  session(jeton) {
+    if (!jeton) return null;
+    const s_ = this.donnees.sessions.get(cleSession(jeton));
+    if (!s_) return null;
+    const maintenant = Date.now(), expire = Date.parse(s_.expire);
+    if (expire <= maintenant) return null;
+    if (expire - maintenant < (DUREE_SESSION_J - 1) * 86400000) {
+      s_.expire = new Date(maintenant + DUREE_SESSION_J * 86400000).toISOString();
+      this.sauverBientot();
+    }
+    return s_;
+  }
 
   utilisateurDeSession(jeton) {
-    const s = this.donnees.sessions.get(String(jeton || ''));
-    if (!s || Date.parse(s.expire) <= Date.now()) return null;
-    return this.utilisateur(s.login);
+    const s_ = this.session(String(jeton || ''));
+    return s_ ? this.utilisateur(s_.login) : null;
+  }
+
+  // --- clés d'accès (WebAuthn) ---------------------------------------------------
+  // L'identifiant WebAuthn de l'utilisateur est aléatoire et stable : jamais
+  // son e-mail, que l'authentificateur garderait en clair.
+  idWebauthn(u) {
+    if (!u.idWebauthn) { u.idWebauthn = crypto.randomBytes(16).toString('base64url'); this.sauver(); }
+    return u.idWebauthn;
+  }
+
+  ajouterCle(login, cle) {
+    const u = this.utilisateur(login);
+    if (!u) throw new Error('utilisateur inconnu');
+    if (this.cleParId(cle.id)) throw new Error('clé déjà enregistrée');
+    u.cles = u.cles || [];
+    if (u.cles.length >= 10) throw new Error('dix clés d\'accès au plus par compte');
+    u.cles.push({ id: cle.id, jwk: cle.jwk, alg: cle.alg, compteur: cle.compteur || 0, synchronisee: !!cle.synchronisee,
+      nom: String(cle.nom || 'Clé d\'accès').slice(0, 60), cree: new Date().toISOString(), vu: null });
+    this.sauver();
+  }
+
+  cleParId(id) {
+    for (const u of this.donnees.utilisateurs.values()) {
+      const c = (u.cles || []).find(x => x.id === id);
+      if (c) return { u, cle: c };
+    }
+    return null;
+  }
+
+  noterUsageCle(id, compteur) {
+    const t = this.cleParId(id);
+    if (!t) return;
+    t.cle.compteur = compteur;
+    t.cle.vu = new Date().toISOString();
+    this.sauver();
+  }
+
+  retirerCle(login, id) {
+    const u = this.utilisateur(login);
+    if (!u) return false;
+    const avant = (u.cles || []).length;
+    u.cles = (u.cles || []).filter(c => c.id !== id);
+    if (u.cles.length === avant) return false;
+    this.sauver();
+    return true;
   }
 
   purgerSessions() {
@@ -187,7 +321,8 @@ class Comptes {
 
   resume() {
     return {
-      utilisateurs: [...this.donnees.utilisateurs.values()].map(u => ({ login: u.login, socles: u.socles, admin: u.admin, cree: u.cree })),
+      utilisateurs: [...this.donnees.utilisateurs.values()].map(u => ({ login: u.login, socles: u.socles, admin: u.admin, cree: u.cree,
+        email: !!u.email, motDePasse: !!u.empreinte, cles: (u.cles || []).length })),
       appareils: [...this.donnees.appareils.values()].map(a => ({ id: a.id, cree: a.cree }))
     };
   }

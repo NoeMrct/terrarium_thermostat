@@ -1,18 +1,27 @@
 'use strict';
-/* API HTTP du serveur : sessions, rattachement d'un socle à un compte (preuve
-   par le code d'appairage, vérifiée auprès du socle), historique, abonnements
-   push, rapports de diagnostic, administration et état de la flotte. Les
-   fichiers de l'application peuvent être servis depuis ici (SERVIR_APP=1) pour
-   un déploiement entièrement auto-hébergé. */
+/* API HTTP du serveur : comptes (libre-service par e-mail et clés d'accès, ou
+   identifiant et mot de passe), sessions, rattachement d'un socle à un compte
+   (preuve par le code d'appairage, vérifiée auprès du socle), historique,
+   abonnements push, rapports de diagnostic, export et effacement du compte,
+   administration et état de la flotte. Les fichiers de l'application peuvent
+   être servis depuis ici (SERVIR_APP=1) pour un déploiement entièrement
+   auto-hébergé. */
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { Comptes } = require('./comptes');
+const webauthn = require('./webauthn');
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
                 '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.map': 'application/json',
                 '.webmanifest': 'application/manifest+json', '.ico': 'image/x-icon', '.txt': 'text/plain; charset=utf-8' };
 const LIMITE_CORPS = 64 * 1024;
+const VALIDITE_CODE_MS = 10 * 60000;
+const VALIDITE_DEFI_MS = 5 * 60000;
+const empreinteCode = (email, code) => crypto.createHash('sha256').update(`${email}:${code}`).digest();
+// Dans le journal : « no…@exemple.fr », jamais l'adresse entière.
+const masquerEmail = e => String(e).replace(/^(.{0,2})[^@]*/, '$1…');
 
 class Api {
   constructor({ comptes, broker, historique, notifications, options }) {
@@ -20,6 +29,54 @@ class Api {
     this.o = options;
     this.tentatives = new Map();    // ip -> [instants] des connexions ratées
     this.dossierRapports = path.join(options.donnees, 'rapports');
+    this.courriel = options.courriel || null;           // { envoyer({ a, sujet, texte }) } ou rien
+    this.codes = new Map();           // e-mail -> { empreinte, expire, essais } : en mémoire seulement
+    this.defis = new Map();           // défi WebAuthn -> { type, login, rpId, origine, expire }
+    this.demandesIp = new Map();      // ip -> [instants] des codes demandés
+    this.demandesEmail = new Map();   // e-mail -> [instants]
+  }
+
+  // Au plus `n` événements par clé sur la fenêtre ; vrai si la limite est atteinte.
+  limite(table, cle, n, fenetreMs) {
+    const maintenant = Date.now();
+    const l = (table.get(cle) || []).filter(t => maintenant - t < fenetreMs);
+    if (l.length >= n) { table.set(cle, l); return true; }
+    l.push(maintenant);
+    table.set(cle, l);
+    return false;
+  }
+
+  // --- clés d'accès : partie prenante et origine ------------------------------------
+  // RP_ID réglé : il vaut pour toutes les cérémonies, depuis les origines de
+  // ORIGINES. Sinon (installation sans ORIGINES), la cérémonie se lie à
+  // l'origine qui la demande, notée avec le défi et exigée à la réponse.
+  contexteWebauthn(req) {
+    const origine = String(req.headers.origin || '');
+    let hote;
+    try { hote = new URL(origine).hostname; } catch (e) { return null; }
+    const liste = Array.isArray(this.o.origines) ? this.o.origines : null;
+    if (liste && !liste.includes(origine)) return null;
+    const rpId = this.o.rpId || hote;
+    if (hote !== rpId && !hote.endsWith('.' + rpId)) return null;
+    return { rpId, origine };
+  }
+  nouveauDefi(type, contexte, login = null) {
+    const maintenant = Date.now();
+    for (const [d, v] of this.defis) if (v.expire < maintenant) this.defis.delete(d);
+    if (this.defis.size > 5000) this.defis.clear();
+    const defi = crypto.randomBytes(32).toString('base64url');
+    this.defis.set(defi, { type, login, rpId: contexte.rpId, origine: contexte.origine, expire: maintenant + VALIDITE_DEFI_MS });
+    return defi;
+  }
+  prendreDefi(defi, type) {
+    const v = this.defis.get(String(defi || ''));
+    if (!v) return null;
+    this.defis.delete(String(defi));
+    return v.type === type && v.expire > Date.now() ? v : null;
+  }
+  origineAcceptee(enregistre) {
+    const liste = Array.isArray(this.o.origines) ? this.o.origines : null;
+    return o => o === enregistre.origine && (!liste || liste.includes(o));
   }
 
   // --- utilitaires ------------------------------------------------------------------
@@ -110,7 +167,8 @@ class Api {
   async api(req, res, methode, chemin, url, ip) {
     // Public
     if (methode === 'GET' && chemin === '/api/infos') {
-      return this.json(res, 200, { serveur: 'terrariums', version: this.o.version, mqtt: { ws: '/mqtt', tcp: this.o.portMqtt }, push: !!this.notifications, prefixe: this.broker.prefixe });
+      return this.json(res, 200, { serveur: 'terrariums', version: this.o.version, mqtt: { ws: '/mqtt', tcp: this.o.portMqtt }, push: !!this.notifications, prefixe: this.broker.prefixe,
+        comptes: { email: !!this.courriel, clesAcces: true } });
     }
     if (chemin === '/api/session') {
       if (methode === 'POST') {
@@ -127,6 +185,68 @@ class Api {
         return this.json(res, 200, { ok: true });
       }
     }
+    // Connexion par e-mail : un code à six chiffres, dix minutes, cinq essais.
+    // La réponse est la même que l'adresse ait un compte ou non.
+    if (methode === 'POST' && chemin === '/api/compte/code') {
+      if (!this.courriel) return this.erreur(res, 503, 'connexion par e-mail non configurée sur ce serveur');
+      const d = await this.lireJson(req);
+      const email = String(d.email || '').trim().toLowerCase();
+      if (!Comptes.emailValide(email)) return this.erreur(res, 400, 'adresse e-mail invalide');
+      if (this.limite(this.demandesIp, ip, 10, 900000) || this.limite(this.demandesEmail, email, 3, 900000)) {
+        return this.erreur(res, 429, 'trop de demandes, réessayer dans un quart d\'heure');
+      }
+      const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+      this.codes.set(email, { empreinte: empreinteCode(email, code), expire: Date.now() + VALIDITE_CODE_MS, essais: 0 });
+      try {
+        await this.courriel.envoyer({ a: email, sujet: `Votre code de connexion : ${code}`, texte:
+          `Bonjour,\n\nVoici votre code pour vous connecter à Terrariums : ${code}\n\n` +
+          'Il est valable 10 minutes. Si vous n\'avez rien demandé, ignorez ce message : sans ce code, personne ne peut entrer dans votre compte.\n\n— Terrariums\n' });
+      } catch (e) {
+        this.codes.delete(email);
+        this.o.journal(`e-mail vers ${masquerEmail(email)} non envoyé : ${e.message}`);
+        return this.erreur(res, 502, 'e-mail non envoyé, réessayer dans un moment');
+      }
+      return this.json(res, 200, { ok: true, valideMinutes: VALIDITE_CODE_MS / 60000 });
+    }
+    if (methode === 'POST' && chemin === '/api/compte/verifier') {
+      if (this.tropDEssais(ip)) return this.erreur(res, 429, 'trop de tentatives, réessayer dans un quart d\'heure');
+      const d = await this.lireJson(req);
+      const email = String(d.email || '').trim().toLowerCase(), code = String(d.code || '').replace(/\s/g, '');
+      const c = this.codes.get(email);
+      if (!c || c.expire < Date.now() || !/^\d{6}$/.test(code)) { this.noterEchec(ip); return this.erreur(res, 401, 'code invalide ou expiré'); }
+      if (!crypto.timingSafeEqual(empreinteCode(email, code), c.empreinte)) {
+        if (++c.essais >= 5) this.codes.delete(email);
+        this.noterEchec(ip);
+        return this.erreur(res, 401, 'code invalide ou expiré');
+      }
+      this.codes.delete(email);
+      const { u, nouveau } = this.comptes.obtenirParEmail(email);
+      const jeton = this.comptes.ouvrirSession(u.login, { agent: req.headers['user-agent'] });
+      if (nouveau) this.o.journal(`compte ouvert : ${masquerEmail(email)}`);
+      return this.json(res, 200, { jeton, login: u.login, socles: u.socles, admin: !!u.admin, nouveau, clesAcces: (u.cles || []).length });
+    }
+    // Connexion par clé d'accès : clés découvrables, aucune liste de clés
+    // envoyée (elle dirait quelles adresses ont un compte).
+    if (methode === 'POST' && chemin === '/api/cles/options-connexion') {
+      const ctx = this.contexteWebauthn(req);
+      if (!ctx) return this.erreur(res, 400, 'origine non acceptée pour les clés d\'accès');
+      return this.json(res, 200, { challenge: this.nouveauDefi('connexion', ctx), rpId: ctx.rpId, timeout: 120000, userVerification: 'preferred', allowCredentials: [] });
+    }
+    if (methode === 'POST' && chemin === '/api/cles/connexion') {
+      if (this.tropDEssais(ip)) return this.erreur(res, 429, 'trop de tentatives, réessayer dans un quart d\'heure');
+      const d = await this.lireJson(req);
+      const defi = this.prendreDefi(d.defi, 'connexion');
+      const t = typeof d.id === 'string' ? this.comptes.cleParId(d.id) : null;
+      if (!defi || !t) { this.noterEchec(ip); return this.erreur(res, 401, defi ? 'clé d\'accès inconnue de ce serveur' : 'défi expiré, recommencer'); }
+      if (d.userHandle && d.userHandle !== t.u.idWebauthn) { this.noterEchec(ip); return this.erreur(res, 401, 'clé d\'accès d\'un autre compte'); }
+      let r;
+      try { r = webauthn.verifierConnexion(d, t.cle, { defi: d.defi, rpId: defi.rpId, origineAcceptee: this.origineAcceptee(defi) }); }
+      catch (e) { this.noterEchec(ip); return this.erreur(res, 401, e.message); }
+      this.comptes.noterUsageCle(d.id, r.compteur);
+      const jeton = this.comptes.ouvrirSession(t.u.login, { agent: req.headers['user-agent'] });
+      return this.json(res, 200, { jeton, login: t.u.login, socles: t.u.socles, admin: !!t.u.admin });
+    }
+
     if (methode === 'GET' && chemin === '/api/push/cle') {
       if (!this.notifications) return this.erreur(res, 404, 'notifications désactivées');
       return this.json(res, 200, { cle: this.notifications.clePublique() });
@@ -160,7 +280,51 @@ class Api {
     // Utilisateur connecté
     const u = this.utilisateurDe(req);
     if (!u) return this.erreur(res, 401, 'session requise');
-    if (methode === 'GET' && chemin === '/api/moi') return this.json(res, 200, { login: u.login, socles: u.socles, admin: !!u.admin });
+    if (methode === 'GET' && chemin === '/api/moi') {
+      return this.json(res, 200, { login: u.login, email: u.email || null, socles: u.socles, admin: !!u.admin, motDePasse: !!u.empreinte, clesAcces: (u.cles || []).length });
+    }
+    if (methode === 'GET' && chemin === '/api/moi/export') {
+      res.setHeader('Content-Disposition', 'attachment; filename="terrariums-compte.json"');
+      return this.json(res, 200, this.comptes.exporter(u.login));
+    }
+    if (methode === 'DELETE' && chemin === '/api/moi') {
+      const d = await this.lireJson(req);
+      if (String(d.confirmation || '').trim().toLowerCase() !== u.login.toLowerCase()) return this.erreur(res, 400, 'confirmation : recopier l\'identifiant du compte');
+      const r = this.comptes.supprimerUtilisateur(u.login);
+      for (const id of r.orphelins) this.historique.supprimer(id);
+      this.o.journal(`compte effacé à la demande de son titulaire${r.orphelins.length ? ` (${r.orphelins.length} historique(s) de socle effacé(s))` : ''}`);
+      return this.json(res, 200, { ok: true, historiquesEffaces: r.orphelins.length });
+    }
+    // Clés d'accès du compte : inscription (session ouverte requise), liste, retrait.
+    if (methode === 'POST' && chemin === '/api/cles/options-creation') {
+      const ctx = this.contexteWebauthn(req);
+      if (!ctx) return this.erreur(res, 400, 'origine non acceptée pour les clés d\'accès');
+      return this.json(res, 200, {
+        challenge: this.nouveauDefi('creation', ctx, u.login),
+        rp: { id: ctx.rpId, name: this.o.rpNom || 'Terrariums' },
+        user: { id: this.comptes.idWebauthn(u), name: u.email || u.login, displayName: u.email || u.login },
+        pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -8 }, { type: 'public-key', alg: -257 }],
+        timeout: 120000, attestation: 'none',
+        authenticatorSelection: { residentKey: 'required', requireResidentKey: true, userVerification: 'preferred' },
+        excludeCredentials: (u.cles || []).map(c => ({ type: 'public-key', id: c.id }))
+      });
+    }
+    if (chemin === '/api/cles') {
+      if (methode === 'GET') return this.json(res, 200, { cles: (u.cles || []).map(c => ({ id: c.id, nom: c.nom, cree: c.cree, vu: c.vu, synchronisee: !!c.synchronisee })) });
+      if (methode === 'POST') {
+        const d = await this.lireJson(req);
+        const defi = this.prendreDefi(d.defi, 'creation');
+        if (!defi || defi.login !== u.login) return this.erreur(res, 400, 'défi expiré, recommencer');
+        let r;
+        try { r = webauthn.verifierInscription(d, { defi: d.defi, rpId: defi.rpId, origineAcceptee: this.origineAcceptee(defi) }); }
+        catch (e) { return this.erreur(res, 400, e.message); }
+        if (d.id && d.id !== r.id) return this.erreur(res, 400, 'identifiant de clé incohérent');
+        this.comptes.ajouterCle(u.login, { ...r, nom: d.nom });
+        return this.json(res, 201, { id: r.id, nom: String(d.nom || 'Clé d\'accès').slice(0, 60) });
+      }
+    }
+    const mCle = /^\/api\/cles\/([A-Za-z0-9_-]{16,1400})$/.exec(chemin);
+    if (methode === 'DELETE' && mCle) return this.json(res, 200, { retiree: this.comptes.retirerCle(u.login, mCle[1]) });
 
     if (methode === 'POST' && chemin === '/api/socles/revendiquer') {
       const d = await this.lireJson(req);

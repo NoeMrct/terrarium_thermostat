@@ -103,6 +103,15 @@ jour.
   Wi-Fi du banc oublié, historique vidé, QR à lien encodé dans le navigateur
   (`qr.js`), impression à 62 mm ; à l'expédition, code et mot de passe
   effacés de l'atelier. Mise de côté avec raison, registre CSV sans secret.
+- **Comptes en libre-service** sur le serveur Terrariums (V2, V3) : un code à
+  six chiffres par e-mail ouvre le compte (SMTP au choix : `SMTP_URL`), puis
+  des **clés d'accès** (passkeys, WebAuthn vérifié par le serveur sans
+  dépendance) ; plus de mot de passe à retenir. Export du compte en JSON sans
+  secret (RGPD, art. 20) et effacement par son titulaire, historique des socles
+  orphelins compris (art. 17). Sessions glissantes (30 jours sans usage), et
+  plus aucun jeton de session en clair sur le disque (empreintes SHA-256,
+  anciennes sessions migrées). Limites : trois codes par adresse et dix par IP
+  et par quart d'heure, cinq essais par code.
 - Console : `wifi off` oublie le réseau enregistré (point d'accès de
   configuration au démarrage suivant), pour qu'un socle rodé à l'atelier ne
   cherche pas le Wi-Fi du banc chez l'acheteur.

@@ -11,6 +11,8 @@
      - notifications push sur le téléphone (défaut, retour à la normale, socle
        disparu, mise à jour en échec) ;
      - rattachement d'un socle à un compte par preuve du code d'appairage ;
+     - comptes en libre-service : code par e-mail, puis clés d'accès (passkeys),
+       export et effacement du compte par son titulaire ;
      - état de la flotte pour l'exploitant, rapports de diagnostic.
 
    Configuration par variables d'environnement (ou serveur/.env chargé ici) :
@@ -24,6 +26,11 @@
      ORIGINES=https://…,…      origines autorisées pour l'API (défaut : toutes)
      CONTACT_VAPID=mailto:…    contact déclaré aux services de push
      RETENTION_JOURS=400       durée de conservation de l'historique
+     SMTP_URL=smtps://u:m@h    envoi des codes de connexion (smtps:// 465, ou smtp:// avec STARTTLS)
+     COURRIEL_DE="Terrariums <ne-pas-repondre@domaine>"   expéditeur des e-mails
+     COURRIEL_JOURNAL=1        sans SMTP, écrit les e-mails dans le journal (développement)
+     RP_ID=exemple.fr          domaine des clés d'accès (défaut : celui de la première origine)
+     RP_NOM=Terrariums         nom montré par le téléphone à l'inscription d'une clé
 
    Ligne de commande :
      node serveur.js                         démarre
@@ -44,6 +51,7 @@ const { Broker } = require('./lib/broker');
 const { Historique } = require('./lib/historique');
 const { Notifications } = require('./lib/notifications');
 const { Api } = require('./lib/api');
+const { Courriel } = require('./lib/courriel');
 
 const VERSION = require('./package.json').version;
 
@@ -70,6 +78,10 @@ function configuration(surcharge = {}) {
     contactVapid: env.CONTACT_VAPID || 'mailto:admin@example.invalid',
     retentionJours: +env.RETENTION_JOURS || 400,
     pushActif: env.PUSH !== '0',
+    // Clés d'accès : le domaine (RP ID) est celui où tourne l'application.
+    rpId: env.RP_ID || (env.ORIGINES ? (() => { try { return new URL(env.ORIGINES.split(',')[0].trim()).hostname; } catch (e) { return null; } })() : null),
+    rpNom: env.RP_NOM || 'Terrariums',
+    courriel: env.SMTP_URL ? new Courriel(env.SMTP_URL, { de: env.COURRIEL_DE }) : (env.COURRIEL_JOURNAL === '1' ? 'journal' : null),
     journal: msg => console.log(`${new Date().toISOString().slice(0, 19).replace('T', ' ')} | ${msg}`),
     version: VERSION,
     ...surcharge
@@ -83,6 +95,8 @@ function nomZone(etat, zone) { return (etat && etat.nom) || `Zone ${zone + 1}`; 
 async function demarrerServeur(surcharge = {}) {
   const o = configuration(surcharge);
   fs.mkdirSync(o.donnees, { recursive: true });
+  // Développement sans SMTP : l'e-mail (et son code) va au journal du serveur.
+  if (o.courriel === 'journal') o.courriel = { envoyer: async m => o.journal(`e-mail (COURRIEL_JOURNAL=1) à ${m.a} : ${m.sujet}`) };
   const comptes = new Comptes(o.donnees);
   const historique = new Historique(o.donnees, { retentionJours: o.retentionJours, pasMs: o.pasHistoriqueMs });
   const notifications = o.pushActif ? new Notifications(o.donnees, { contact: o.contactVapid, envoyer: o.envoyerPush, antiSpamMs: o.antiSpamMs }) : null;
@@ -137,6 +151,8 @@ async function demarrerServeur(surcharge = {}) {
 
   o.journal(`Serveur Terrariums ${VERSION} — HTTP ${port} (API /api, MQTT /mqtt)${portMqtt ? `, MQTT TCP ${portMqtt}` : ''}, données ${o.donnees}${o.amont ? `, pont vers ${o.amont.url}` : ''}${o.app ? ', application servie' : ''}`);
   if (!o.adminJeton) o.journal('ADMIN_JETON absent : administration par la ligne de commande seulement');
+  if (!o.courriel) o.journal('SMTP_URL absent : pas de comptes en libre-service par e-mail (identifiant et mot de passe seulement)');
+  if (!o.rpId) o.journal('RP_ID et ORIGINES absents : chaque clé d\'accès se lie au domaine de la page qui la crée');
 
   return {
     port, portMqtt, comptes, broker, historique, notifications, api,

@@ -6,6 +6,7 @@ ne sait pas faire :
 | Besoin | Sans serveur | Avec le serveur |
 |---|---|---|
 | Droits | un identifiant broker partagé commande tous les socles | comptes utilisateurs, chaque socle rattaché aux comptes qui ont prouvé son code d'appairage |
+| Comptes | créés à la main sur le broker | en libre-service : un code par e-mail, puis une clé d'accès (passkey) ; export et effacement par le titulaire |
 | Historique | seulement quand l'application est ouverte (IndexedDB) | continu, un point par minute, 400 jours, relu par l'application pour combler ses courbes |
 | Notifications | navigateur ouvert, ou ntfy/healthchecks depuis le socle | push sur le téléphone, application fermée : défaut, rétabli, socle disparu, mise à jour en échec |
 | Diagnostic | copier-coller | « Envoyer au serveur » |
@@ -54,12 +55,29 @@ Variables d'environnement, ou `serveur/.env` :
 | `CONTACT_VAPID` | — | contact déclaré aux services de push |
 | `RETENTION_JOURS` | 400 | historique conservé |
 | `PREFIXE` | terrarium | racine des sujets |
+| `SMTP_URL` | — | envoi des codes de connexion : `smtps://utilisateur:motdepasse@smtp.fournisseur:465`, ou `smtp://…:587` (STARTTLS exigé). Sans lui, pas de comptes en libre-service |
+| `COURRIEL_DE` | `Terrariums <ne-pas-repondre@hôte SMTP>` | expéditeur des e-mails |
+| `COURRIEL_JOURNAL` | 0 | `1` : sans SMTP, l'e-mail (et son code) est écrit dans le journal — développement seulement |
+| `RP_ID` | domaine de la première origine de `ORIGINES` | domaine des clés d'accès : celui où tourne l'application (`app.exemple.fr`, ou `exemple.fr` pour tous ses sous-domaines). Le changer rend inutilisables les clés déjà créées |
+| `RP_NOM` | Terrariums | nom affiché par le téléphone à la création d'une clé |
 
 ## API
 
 Publique : `GET /api/infos`, `POST /api/session {login, motDePasse}` → `{jeton}`,
 `GET /api/push/cle`.
-Session (`Authorization: Bearer <jeton>`) : `GET /api/moi`,
+Comptes en libre-service : `POST /api/compte/code {email}` (un code à six
+chiffres par e-mail, valable 10 minutes ; même réponse que l'adresse ait un
+compte ou non ; trois demandes par adresse et dix par adresse IP et par quart
+d'heure), `POST /api/compte/verifier {email, code}` → `{jeton, nouveau}` (cinq
+essais par code ; le compte s'ouvre au premier code juste),
+`POST /api/cles/options-connexion` puis `POST /api/cles/connexion` (clé
+d'accès : clés découvrables, aucune liste de clés renvoyée).
+Session (`Authorization: Bearer <jeton>`) : `GET /api/moi`, `GET /api/moi/export`
+(tout le compte en JSON, sans aucun secret), `DELETE /api/moi {confirmation:
+<identifiant>}` (compte, sessions, clés et abonnements effacés ; l'historique
+d'un socle qui n'a plus aucun propriétaire aussi), `POST /api/cles/options-creation`
+puis `POST /api/cles` (inscrire une clé d'accès), `GET /api/cles`,
+`DELETE /api/cles/:id`,
 `POST /api/socles/revendiquer {id, jeton}`, `DELETE /api/socles/:id`,
 `GET /api/socles/:id/historique?depuis&jusqua&pas` (même format que le socle :
 `[epoch, t1, consigne1, t2, consigne2]` en centièmes), `POST|DELETE
@@ -68,8 +86,23 @@ Administration : `GET /api/flotte`, `GET /api/admin/comptes`, `POST
 /api/admin/utilisateurs`, `POST /api/admin/appareils` (renvoie le mot de passe
 engendré), `DELETE /api/admin/appareils/:id`, `POST /api/admin/utilisateurs/:login/socles`.
 
-Dix échecs de connexion par adresse et par quart d'heure bloquent `/api/session`.
-Les sessions durent 30 jours ; changer de mot de passe les ferme toutes.
+Dix échecs de connexion par adresse et par quart d'heure bloquent `/api/session`,
+`/api/compte/verifier` et `/api/cles/connexion`.
+Les sessions durent 30 jours et se prolongent à l'usage (30 jours sans servir
+les ferment) ; changer de mot de passe les ferme toutes. Sur le disque, une
+session n'est qu'une empreinte SHA-256 de son jeton. Pour un compte ouvert par
+e-mail, le jeton de session est aussi le mot de passe présenté au broker
+(identifiant : l'adresse e-mail).
+
+## Clés d'accès
+
+Le serveur vérifie lui-même les cérémonies WebAuthn (`lib/webauthn.js`, sans
+dépendance) : défi à usage unique de cinq minutes, origine acceptée (celles de
+`ORIGINES`, ou à défaut celle qui a demandé le défi), empreinte du `RP_ID`,
+présence de l'utilisateur, signature (ES256, EdDSA ou RS256) et compteur de
+signatures. Aucune attestation n'est exigée : toute clé d'accès du marché
+convient. L'identifiant WebAuthn d'un compte est aléatoire (jamais l'e-mail),
+dix clés au plus par compte.
 
 ## Droits sur le broker
 
@@ -86,7 +119,7 @@ refusé dans le SUBACK (code 128) sans couper la connexion.
 
 ```
 donnees/
-  comptes.json                      utilisateurs (scrypt), appareils, sessions, abonnements push
+  comptes.json                      utilisateurs (scrypt), clés d'accès (publiques), appareils, sessions (empreintes), abonnements push
   vapid.json                        paire de clés des notifications (engendrée)
   historique/<id>/AAAA-MM-JJ.ndjson un point par ligne
   rapports/<date>-<login>.txt       diagnostics envoyés par l'application
@@ -97,6 +130,9 @@ Sauvegarde : copier le dossier. Tout est du texte.
 ## Tests
 
 `npm test` : comptes, droits, appairage, historique, push (service de push
-simulé), API, pont vers un broker amont — sur des ports éphémères. Et depuis
+simulé), API, pont vers un broker amont ; comptes en libre-service (code par
+e-mail, clés d'accès signées par un authentificateur logiciel, sessions,
+export, effacement) et client SMTP contre un faux serveur — sur des ports
+éphémères. Et depuis
 `outils/` : `node test-serveur.js` fait tourner la vraie application (jsdom,
 son propre client MQTT) contre le vrai serveur.
