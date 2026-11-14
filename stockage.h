@@ -4,7 +4,8 @@
 #define STOCKAGE_H
 
 #include "config.h"
-#include "reglages.h"  // structures de réglages et leurs règles, testables sur PC
+#include "reglages.h"   // structures de réglages et leurs règles, testables sur PC
+#include "protocole.h"  // session d'accès support (Protocole::SessionService)
 
 namespace Stockage {
 
@@ -56,6 +57,10 @@ bool assurerMotDePasseAp();
 // --- dernière mise à jour du firmware (NVS) ---
 EtatMaj &etatMaj();
 void sauverEtatMaj();
+
+// --- accès support (NVS) : la session tient à travers un redémarrage ---
+Protocole::SessionService &service();
+void sauverService();  // une session vide est retirée de la NVS
 
 // --- statistiques cumulées ---
 void chargerStats(StatsZone s[NB_ZONES]);

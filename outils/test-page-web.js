@@ -60,7 +60,8 @@ function creerSocle(options = {}) {
                blocMax: 98000, reset: 'mise sous tension', otaEnAttente: !!options.otaEnAttente,
                signatureOta: false, plantage: options.plantage || undefined,
                hote: 'terraA1B2C3.local', ip: '192.168.1.42', maj: options.maj || undefined,
-               mqtt: options.mqtt || 'connecte', webProtege: options.webProtege !== false }
+               mqtt: options.mqtt || 'connecte', webProtege: options.webProtege !== false,
+               service: options.service || undefined }
     },
     reseau: {
       ssid: 'maison', ssid2: 'secours', webUtilisateur: 'admin', urlAlertes: 'https://exemple.fr/alerte',
@@ -170,6 +171,7 @@ function creerPage(socle) {
     if (chemin === '/api/jours') return rendre(socle.jours);
     if (chemin === '/api/rapport') return opts.method === 'POST' ? rendre('Rapport envoye') : rendre('Rapport du 10/09 (temperatures sur 24 h)');
     if (chemin === '/api/sauvegarde') return rendre('Configuration de terraA1B2C3 restauree');
+    if (chemin === '/api/service' && opts.method === 'DELETE') { socle.status.sante.service = undefined; return rendre('Acces support ferme'); }
     return rendre('OK');
   };
   // jsdom ne dessine pas : un contexte 2D inerte suffit, on teste la logique.
@@ -337,6 +339,14 @@ const dernier = (socle, chemin, methode) =>
     v('le résumé du plantage et le lien du coredump sont là',
       q.html('#sante').includes('0x400d1234') && q.html('#sante').includes('/api/coredump'));
     v('une mise à jour en attente de validation est dite', q.html('#sante').includes('validation'));
+    // Accès support ouvert depuis l'application (V11) : dit en tête et en avertissement, refermable ici.
+    const s6b = creerSocle({ service: { actif: true, jusqua: 1789000000 } });
+    const qs = creerPage(s6b);
+    await attendre(900);
+    v('accès support ouvert : dit dans l\'entête', qs.html('#entete').includes('support connecté'));
+    v('et en avertissement, avec son échéance', qs.html('#avertissements').includes('Accès support ouvert') && /jusqu'au \d\d\/\d\d\/\d{4}/.test(qs.texte('#avertissements')));
+    await qs.w.eval('fermerSupport()'); await attendre(400);
+    v('« Fermer l\'accès » : un DELETE, puis plus rien', !!dernier(s6b, '/api/service', 'DELETE') && !qs.html('#avertissements').includes('Accès support'));
   }
 
   titre('11. Connexion par défi/réponse, nom d\'hôte, mise à jour tirée');

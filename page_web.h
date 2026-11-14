@@ -178,6 +178,7 @@ function sante(){
   '<br><a href="/api/coredump">Télécharger le coredump</a> · <a href="#" onclick="effacerCoredump();return false">effacer</a></div>';
  el.innerHTML=h;}
 async function effacerCoredump(){if(!confirm('Effacer le coredump enregistré ?'))return;await supprimer('/api/coredump');}
+async function fermerSupport(){if(confirm('Fermer l\'accès du support à ce socle ?'))await supprimer('/api/service');}
 const esc=s=>String(s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
 async function maj(){
  const r=await F('/api/status');if(!r.ok)return;S=await r.json();
@@ -188,6 +189,7 @@ async function maj(){
   (S.maintenanceS?`<span class="pill warn">entretien : ${Math.ceil(S.maintenanceS/60)} min</span>`:'')+
   (S.alertesEnAttente?`<span class="pill warn">${S.alertesEnAttente} alerte(s) en attente</span>`:'')+
   (S.sante&&S.sante.otaEnAttente?`<span class="pill warn">mise à jour à valider</span>`:'')+
+  (S.sante&&S.sante.service?`<span class="pill warn">support connecté</span>`:'')+
   `<span class="pill">v${esc(S.version||'?')}</span>`;
  document.getElementById('zones').innerHTML=S.zones.map((z,i)=>
   `<div class="card"><div class="zone${i?' z2':''}">${esc(z.nom)}${z.autotune?' · AUTOTUNE':''}</div>
@@ -210,6 +212,7 @@ async function maj(){
  if(S.sante&&S.sante.webProtege===false)av.push(`<b>Interface locale sans mot de passe.</b> Tout appareil de ton réseau Wi-Fi peut
    changer les consignes. Définis un utilisateur et un mot de passe dans l'onglet Réseau.`);
  if(S.sante&&S.sante.plantage)av.push(`<b>Le socle a redémarré après un plantage.</b> Le résumé est dans l'onglet Appareil, le fichier complet est téléchargeable : joins-le à un rapport de bogue.`);
+ if(S.sante&&S.sante.service)av.push(`<b>Accès support ouvert</b> jusqu'au ${new Date(S.sante.service.jusqua*1e3).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})} : le support peut diagnostiquer et régler ce socle, ses gestes sont notés au journal. <button onclick="fermerSupport()">Fermer l'accès</button>`);
  document.getElementById('avertissements').innerHTML=
   av.map(t=>`<div class="avert">${t}</div>`).join('');
  if(!document.getElementById('j0'))formulaires();

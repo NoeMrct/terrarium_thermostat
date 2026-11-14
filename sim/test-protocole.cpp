@@ -368,6 +368,110 @@ int main() {
             "les actions du protocole 4 exigent le code (ou la signature)");
   }
 
+  // --- Accès support (V11) : une clé de session, donnée par le propriétaire.
+  {
+    Protocole::oublierReponses();
+    SocleFactice s;
+    const char *CLE = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    const std::string ouvrir = std::string(
+                                   "{\"req\":\"v1\",\"action\":\"service\",\"op\":\"ouvrir\",\"cle\":\"") +
+                               CLE + "\",\"heures\":24,\"ts\":1760000000}";
+    // Avant toute session, la clé ne signe rien.
+    std::string e = signe("{\"req\":\"v0\",\"action\":\"reset\",\"ts\":1760000000}", CLE);
+    cmd(s, e.c_str());
+    VERIFIE(contient(s.derniere(), "signature invalide") && !Protocole::serviceActif(s),
+            "service : sans session ouverte, la clé du support ne signe rien");
+    cmd(s, signe(ouvrir).c_str());
+    VERIFIE(contient(s.derniere(), "\"ok\":true") && contient(s.derniere(), "\"actif\":true") &&
+                contient(s.derniere(), "\"jusqua\":1760086400") && strcmp(s.session.cle, CLE) == 0 &&
+                s.servicesSauves == 1 && Protocole::serviceActif(s),
+            "service : le propriétaire ouvre 24 h (signé avec le code), la session est gardée");
+    e = signe("{\"req\":\"v2\",\"action\":\"reset\",\"ts\":1760000000}", CLE);
+    s.vider();
+    cmd(s, e.c_str());
+    bool journalSupport = false, reset = false;
+    for (const std::string &a : s.actions) {
+      if (a == "journal Support : reset") journalSupport = true;
+      if (a == "leverDefauts") reset = true;
+    }
+    VERIFIE(contient(s.derniere(), "\"ok\":true") && reset && journalSupport,
+            "service : la clé signe une action, notée « Support : » au journal du socle");
+    s.vider();
+    cmd(s, signe("{\"req\":\"v2b\",\"action\":\"etat\",\"ts\":1760000000}", CLE).c_str());
+    bool rienAuJournal = true;
+    for (const std::string &a : s.actions)
+      if (a.rfind("journal", 0) == 0) rienAuJournal = false;
+    VERIFIE(contient(s.derniere(), "\"ok\":true") && rienAuJournal,
+            "service : une lecture du support n'entre pas au journal");
+    const std::string autre =
+        std::string("{\"req\":\"v3\",\"action\":\"service\",\"op\":\"ouvrir\",\"cle\":\"") +
+        "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210" + "\",\"ts\":1760000000}";
+    cmd(s, signe(autre, CLE).c_str());
+    VERIFIE(contient(s.derniere(), "seul le proprietaire") && strcmp(s.session.cle, CLE) == 0,
+            "service : le support ne s'ouvre pas une autre session");
+    cmd(s,
+        signe("{\"req\":\"v4\",\"action\":\"service\",\"op\":\"prolonger\",\"heures\":72,\"ts\":1760000000}",
+              CLE)
+            .c_str());
+    VERIFIE(contient(s.derniere(), "\"ok\":true") && s.session.jusqua == 1760000000u + 72u * 3600u &&
+                contient(s.derniere(), "\"par\":\"support\""),
+            "service : le support prolonge (72 h)");
+    cmd(s,
+        signe("{\"req\":\"v5\",\"action\":\"service\",\"op\":\"prolonger\",\"heures\":168,\"ts\":1760000000}",
+              CLE)
+            .c_str());
+    s.maintenant = 1760000000u + 6u * 86400u;
+    cmd(s,
+        signe("{\"req\":\"v6\",\"action\":\"service\",\"op\":\"prolonger\",\"heures\":168,\"ts\":1760518400}",
+              CLE)
+            .c_str());
+    VERIFIE(
+        contient(s.derniere(), "\"ok\":true") && s.session.jusqua == 1760000000u + Protocole::SERVICE_MAX_S,
+        "service : jamais plus de 7 jours après l'ouverture");
+    s.maintenant = 1760000000u + Protocole::SERVICE_MAX_S;
+    cmd(s, signe("{\"req\":\"v7\",\"action\":\"reset\",\"ts\":1760604800}", CLE).c_str());
+    VERIFIE(contient(s.derniere(), "signature invalide") && !Protocole::serviceActif(s),
+            "service : à l'échéance, la clé ne signe plus rien");
+    s.maintenant = 1760000000u;
+    cmd(s, signe(ouvrir).c_str());
+    s.heure = false;
+    cmd(s, signe("{\"req\":\"v8\",\"action\":\"reset\",\"ts\":1760000000}", CLE).c_str());
+    VERIFIE(contient(s.derniere(), "signature invalide"),
+            "service : sans heure fiable, rien du support n'est accepté");
+    cmd(s, signe("{\"req\":\"v9\",\"action\":\"service\",\"op\":\"ouvrir\",\"cle\":"
+                 "\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"ts\":1760000000}")
+               .c_str());
+    VERIFIE(contient(s.derniere(), "heure inconnue"), "service : pas d'ouverture sans heure fiable");
+    s.heure = true;
+    cmd(s,
+        signe("{\"req\":\"v10\",\"action\":\"service\",\"op\":\"ouvrir\",\"cle\":\"ABC\",\"ts\":1760000000}")
+            .c_str());
+    VERIFIE(contient(s.derniere(), "64 caracteres"), "service : clé mal formée refusée");
+    cmd(s, signe("{\"req\":\"v11\",\"action\":\"service\",\"op\":\"ouvrir\",\"cle\":"
+                 "\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"heures\":500,\"ts\":"
+                 "1760000000}")
+               .c_str());
+    VERIFIE(contient(s.derniere(), "1 a 168 h"), "service : durée bornée à 168 h");
+    s.vider();
+    cmd(s,
+        signe("{\"req\":\"v12\",\"action\":\"service\",\"op\":\"fermer\",\"ts\":1760000000}", CLE).c_str());
+    bool fermeParSupport = false;
+    for (const std::string &a : s.actions)
+      if (a == "journal Acces support ferme par le support") fermeParSupport = true;
+    VERIFIE(contient(s.derniere(), "\"actif\":false") && s.session.cle[0] == '\0' && fermeParSupport,
+            "service : le support ferme, le journal le dit");
+    cmd(s, signe("{\"req\":\"v13\",\"action\":\"reset\",\"ts\":1760000000}", CLE).c_str());
+    VERIFIE(contient(s.derniere(), "signature invalide"), "service : fermée, la clé ne vaut plus");
+    cmd(s, signe(ouvrir).c_str());
+    cmd(s, signe("{\"req\":\"v14\",\"action\":\"service\",\"op\":\"fermer\",\"ts\":1760000000}").c_str());
+    VERIFIE(contient(s.derniere(), "\"par\":\"proprietaire\"") && !Protocole::serviceActif(s),
+            "service : le propriétaire ferme à tout moment");
+    cmd(s, "{\"req\":\"v15\",\"action\":\"service\"}");
+    VERIFIE(contient(s.derniere(), "jeton invalide"), "service : l'état lui-même exige une signature");
+    cmd(s, signe("{\"req\":\"v16\",\"action\":\"service\",\"op\":\"pirater\",\"ts\":1760000000}").c_str());
+    VERIFIE(contient(s.derniere(), "op :"), "service : opération inconnue refusée");
+  }
+
   printf("\n=== %s : %d/%d ===\n", g_echecs ? "ECHEC" : "CANAL DE COMMANDE OK", g_total - g_echecs, g_total);
   return g_echecs ? 1 : 0;
 }

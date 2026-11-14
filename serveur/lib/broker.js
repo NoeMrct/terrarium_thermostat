@@ -138,8 +138,15 @@ class Broker extends EventEmitter {
       const avant = f.statut;
       f.statut = texte;
       if (avant === 'en ligne' && texte === 'hors ligne') this.emit('horsLigne', s.id);
+      // Retour après une absence vue par ce serveur (pas le statut retenu rejoué au démarrage).
+      if (avant === 'hors ligne' && texte === 'en ligne') this.emit('enLigne', s.id);
     } else if (s.reste === 'sante') {
+      const uptimeAvant = f.sante ? f.sante.uptime : undefined;
       try { f.sante = JSON.parse(texte); } catch (e) { /* ignoré */ }
+      // La durée de marche qui recule : le socle a redémarré.
+      if (f.sante && typeof uptimeAvant === 'number' && typeof f.sante.uptime === 'number' && f.sante.uptime < uptimeAvant) {
+        this.emit('redemarrage', s.id, f.sante);
+      }
       if (f.sante && f.sante.maj && f.sante.maj.etape && f.sante.maj.etape !== (f.maj && f.maj.etape)) {
         f.maj = f.sante.maj;
         this.emit('maj', s.id, f.sante.maj);
@@ -173,8 +180,10 @@ class Broker extends EventEmitter {
   }
 
   // Commande au nom du serveur, réponse attendue : sert à vérifier un code
-  // d'appairage (action protégée par le jeton, sans effet).
-  commander(id, action, params = {}, delaiMs = 8000) {
+  // d'appairage (action protégée par le jeton, sans effet), et à porter les
+  // commandes du support pendant un accès ouvert (signées avec la clé de
+  // session : options.cle).
+  commander(id, action, params = {}, delaiMs = 8000, options = {}) {
     return new Promise((resoudre, rejeter) => {
       const req = 'srv' + Math.random().toString(36).slice(2, 10);
       this.attentes[req] = { resoudre, minuteur: setTimeout(() => { delete this.attentes[req]; rejeter(new Error('le socle ne répond pas')); }, delaiMs) };
@@ -183,7 +192,10 @@ class Broker extends EventEmitter {
       const { jeton, ...reste } = params;
       const proto = ((this.flotte[id] || {}).sante || {}).proto;
       let charge;
-      if (jeton && proto >= 4) {
+      if (options.cle) {
+        const c = JSON.stringify({ req, action, ts: Math.floor(Date.now() / 1000), ...reste });
+        charge = JSON.stringify({ c, sig: crypto.createHmac('sha256', options.cle).update(c, 'utf8').digest('hex') });
+      } else if (jeton && proto >= 4) {
         const c = JSON.stringify({ req, action, ts: Math.floor(Date.now() / 1000), ...reste });
         charge = JSON.stringify({ c, sig: crypto.createHmac('sha256', jeton).update(c, 'utf8').digest('hex') });
       } else charge = JSON.stringify({ req, action, ...params });

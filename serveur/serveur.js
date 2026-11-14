@@ -14,7 +14,10 @@
      - comptes en libre-service : code par e-mail, puis clés d'accès (passkeys),
        export et effacement du compte par son titulaire ;
      - console d'administration sur /console/ : flotte, comptes, comptes
-       d'appareil, rapports de diagnostic, journal d'audit chaîné (12 mois).
+       d'appareil, rapports de diagnostic, journal d'audit chaîné (12 mois) ;
+     - back-office support : demandes des clients, accès ouverts par les
+       propriétaires (clé de session, le code d'appairage ne quitte pas leur
+       téléphone), diagnostics à distance, frise de chaque socle.
 
    Configuration par variables d'environnement (ou serveur/.env chargé ici) :
      PORT=8080                 HTTP, API et MQTT sur WebSocket (/mqtt)
@@ -38,6 +41,7 @@
      node serveur.js utilisateur ajouter <login> <mot de passe> [--admin]
      node serveur.js utilisateur mot-de-passe <login> <nouveau>
      node serveur.js utilisateur admin <login> oui|non     droits sur la console
+     node serveur.js utilisateur support <login> oui|non   rôle support (demandes, accès ouverts)
      node serveur.js audit verifier          vérifie la chaîne du journal d'audit
      node serveur.js appareil ajouter <terraXXXXXX> [mot de passe]
      node serveur.js appareil retirer <terraXXXXXX>
@@ -56,6 +60,8 @@ const { Notifications } = require('./lib/notifications');
 const { Api } = require('./lib/api');
 const { Courriel } = require('./lib/courriel');
 const { Audit, refCompte } = require('./lib/audit');
+const { Support } = require('./lib/support');
+const { Evenements } = require('./lib/evenements');
 
 const VERSION = require('./package.json').version;
 
@@ -106,7 +112,9 @@ async function demarrerServeur(surcharge = {}) {
   const notifications = o.pushActif ? new Notifications(o.donnees, { contact: o.contactVapid, envoyer: o.envoyerPush, antiSpamMs: o.antiSpamMs }) : null;
   const broker = new Broker(comptes, { prefixe: o.prefixe, adminJeton: o.adminJeton, amont: o.amont, journal: o.journal });
   const audit = new Audit(o.donnees, { retentionMois: o.auditMois || 12 });
-  const api = new Api({ comptes, broker, historique, notifications, audit, options: o });
+  const support = new Support(o.donnees);
+  const evenements = new Evenements(o.donnees, { retentionJours: o.retentionJours });
+  const api = new Api({ comptes, broker, historique, notifications, audit, support, evenements, options: o });
 
   const serveurHttp = http.createServer((req, res) => api.traiter(req, res));
   await broker.demarrer({ portTcp: o.portMqtt, serveurHttp, cheminWs: '/mqtt' });
@@ -129,6 +137,10 @@ async function demarrerServeur(surcharge = {}) {
     const alerte = x => !x ? null : defaut(x) ? 'defaut' : drapeau(x.trop_chaud) ? 'trop_chaud' : drapeau(x.derive) ? 'derive' : null;
     const a = alerte(etat), b = alerte(avant);
     if (a === b) return;
+    // Pour la frise : chaque changement vu en direct (pas l'état retenu rejoué).
+    if (avant !== undefined) {
+      evenements.noter(id, a || 'retabli', { zone: zone + 1, ...(a === 'defaut' ? { libelle: String(etat.defaut_libelle || etat.defaut) } : {}) });
+    }
     const envoyer = (n, cle) => notifications.notifierProprietaires(comptes, id, { ...n, socle: id }, `${cle}:${id}:${zone}`).catch(() => {});
     if (a === 'defaut') {
       envoyer({ titre: `${id} — DÉFAUT`, corps: `${nomZone(etat, zone)} : ${etat.defaut_libelle || etat.defaut}. Chauffage coupé.`, urgent: true }, 'defaut');
@@ -143,10 +155,14 @@ async function demarrerServeur(surcharge = {}) {
       envoyer({ titre: `${id} — rétabli`, corps: `${nomZone(etat, zone)} est revenue à la normale.` }, 'retabli');
     }
   });
+  broker.on('enLigne', id => evenements.noter(id, 'en ligne'));
+  broker.on('redemarrage', (id, sante) => evenements.noter(id, 'redemarrage', { reset: sante.reset || null, version: sante.version || null }));
   broker.on('horsLigne', id => {
+    evenements.noter(id, 'hors ligne');
     if (notifications) notifications.notifierProprietaires(comptes, id, { titre: `${id} — hors ligne`, corps: 'Le socle a quitté le broker (coupure de courant ou de réseau).', socle: id, urgent: true }, `horsligne:${id}`).catch(() => {});
   });
   broker.on('maj', (id, maj) => {
+    if (maj) evenements.noter(id, 'maj', { etape: maj.etape, version: maj.version || null, detail: maj.detail || null });
     if (!notifications || !maj) return;
     if (maj.etape === 'echec' || maj.etape === 'retour arriere') {
       notifications.notifierProprietaires(comptes, id, { titre: `${id} — mise à jour ${maj.etape}`, corps: `${maj.version || ''} : ${maj.detail || ''}`, socle: id, urgent: true }, `maj:${id}:${maj.etape}:${maj.version}`).catch(() => {});
@@ -155,9 +171,15 @@ async function demarrerServeur(surcharge = {}) {
   const purge = setInterval(() => {
     const n = historique.purger(); if (n) o.journal(`historique : ${n} fichier(s) purgé(s)`);
     const m = audit.purger(); if (m) o.journal(`journal d'audit : ${m} mois purgé(s)`);
+    evenements.purger();
     comptes.purgerSessions();
   }, 6 * 3600000);
   purge.unref();
+  // Accès support échus : la clé quitte le disque (le socle, lui, la refuse déjà).
+  const echeances = setInterval(() => {
+    for (const id of support.purgerAcces()) audit.noter({ qui: 'serveur', action: 'support.acces.echu', cible: id });
+  }, o.echeancesMs || 60000);
+  echeances.unref();
 
   o.journal(`Serveur Terrariums ${VERSION} — HTTP ${port} (API /api, console /console/, MQTT /mqtt)${portMqtt ? `, MQTT TCP ${portMqtt}` : ''}, données ${o.donnees}${o.amont ? `, pont vers ${o.amont.url}` : ''}${o.app ? ', application servie' : ''}`);
   if (!o.adminJeton) o.journal('ADMIN_JETON absent : console ouverte aux seuls comptes administrateurs (node serveur.js utilisateur admin <login> oui)');
@@ -165,8 +187,8 @@ async function demarrerServeur(surcharge = {}) {
   if (!o.rpId) o.journal('RP_ID et ORIGINES absents : chaque clé d\'accès se lie au domaine de la page qui la crée');
 
   return {
-    port, portMqtt, comptes, broker, historique, notifications, api, audit,
-    async arreter() { clearInterval(purge); await broker.arreter(); await new Promise(r => serveurHttp.close(r)); }
+    port, portMqtt, comptes, broker, historique, notifications, api, audit, support, evenements,
+    async arreter() { clearInterval(purge); clearInterval(echeances); await broker.arreter(); await new Promise(r => serveurHttp.close(r)); }
   };
 }
 
@@ -184,6 +206,13 @@ async function cli(args) {
       comptes.definirAdmin(a, b === 'oui');
       new Audit(o.donnees).noter({ qui: 'ligne de commande', action: 'compte.admin', cible: refCompte(a), details: { admin: b === 'oui' } });
       console.log(`${a} : ${b === 'oui' ? 'administrateur' : 'plus administrateur'}.`);
+      return 0;
+    }
+    if (cmd === 'utilisateur' && sous === 'support') {
+      if (!['oui', 'non'].includes(b)) { console.error('utilisateur support <login> oui|non'); return 2; }
+      comptes.definirSupport(a, b === 'oui');
+      new Audit(o.donnees).noter({ qui: 'ligne de commande', action: 'compte.support', cible: refCompte(a), details: { support: b === 'oui' } });
+      console.log(`${a} : ${b === 'oui' ? 'rôle support' : 'plus de rôle support'}.`);
       return 0;
     }
     if (cmd === 'audit' && sous === 'verifier') {

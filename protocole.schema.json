@@ -163,6 +163,24 @@
         "webProtege": {
           "type": "boolean",
           "description": "L'interface locale demande un mot de passe (firmware 3.5, facultatif)."
+        },
+        "service": {
+          "type": "object",
+          "required": [
+            "actif",
+            "jusqua"
+          ],
+          "properties": {
+            "actif": {
+              "const": true
+            },
+            "jusqua": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Fin de l'accès support (secondes Unix)."
+            }
+          },
+          "description": "Présent seulement pendant un accès support ouvert par le propriétaire (firmware 3.5)."
         }
       },
       "additionalProperties": true
@@ -297,9 +315,24 @@
             "journal",
             "sauvegarde",
             "restaurer",
-            "reseau"
+            "reseau",
+            "service"
           ],
-          "description": "Les actions du protocole 4 qui suivent « maj » (sondes … reseau) font à distance ce que la page locale faisait seule."
+          "description": "Les actions du protocole 4 qui suivent « maj » (sondes … reseau) font à distance ce que la page locale faisait seule. « service » ouvre, prolonge ou ferme l'accès support (V11)."
+        },
+        "op": {
+          "enum": [
+            "ouvrir",
+            "prolonger",
+            "fermer",
+            "etat"
+          ],
+          "description": "Pour « service » : « ouvrir » (signé avec le code d'appairage seulement), « prolonger » (au plus 7 jours après l'ouverture), « fermer », « etat » (défaut)."
+        },
+        "cle": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Pour « service ouvrir » : clé de session tirée par l'application, remise au serveur ; elle signe les commandes du support tant que l'accès vaut."
         },
         "jeton": {
           "type": "string",
@@ -419,7 +452,7 @@
         "sig": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$",
-          "description": "HMAC-SHA256 de « c » (octets UTF-8), clé = code d'appairage, en hexadécimal minuscule."
+          "description": "HMAC-SHA256 de « c » (octets UTF-8), clé = code d'appairage (ou, pendant un accès support ouvert, la clé de session), en hexadécimal minuscule."
         }
       },
       "additionalProperties": false

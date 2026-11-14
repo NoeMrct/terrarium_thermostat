@@ -352,6 +352,28 @@ client.on('connect', async () => {
       const signe = await signee('sondes', {}, JETON, Math.floor(Date.now() / 1000));
       verifier('…et passent signées, sans le code en clair', signe.ok === true && !!signe.sondes);
       await commander('globaux', { prixKwh: 0, ecranNuit: 0, zonePrioritaire: 0 });
+
+      // Accès support (V11) : une clé de session donnée par le propriétaire.
+      const cle = require('crypto').randomBytes(32).toString('hex');
+      const ts = () => Math.floor(Date.now() / 1000);
+      const avant = await signee('reset', {}, cle, ts());
+      verifier('service : sans accès ouvert, la clé ne signe rien', avant.ok === false && /signature/.test(avant.erreur || ''));
+      const ouvre = await signee('service', { op: 'ouvrir', cle, heures: 24 }, JETON, ts());
+      verifier('service : ouvert 24 h par le propriétaire (signé avec le code)', ouvre.ok === true && ouvre.service && ouvre.service.actif === true &&
+               ouvre.service.jusqua - ouvre.service.ouvert === 86400, ouvre.erreur || '');
+      const parCle = await signee('journal', {}, cle, ts());
+      verifier('service : la clé de session signe, l\'action est notée « Support : »', parCle.ok === true && /Support : journal|Acces support ouvert/.test(parCle.texte || ''));
+      const reouvre = await signee('service', { op: 'ouvrir', cle, heures: 24 }, cle, ts());
+      verifier('service : le support ne s\'ouvre pas une session', reouvre.ok === false && /proprietaire/.test(reouvre.erreur || ''));
+      const prolonge = await signee('service', { op: 'prolonger', heures: 168 }, cle, ts());
+      verifier('service : prolongé par le support, au plus 7 jours', prolonge.ok === true && prolonge.service.par === 'support' &&
+               prolonge.service.jusqua - prolonge.service.ouvert <= 7 * 86400);
+      const etatS = await commander('etat', {}, false);
+      verifier('service : la santé dit l\'accès ouvert', !!(etatS.sante && etatS.sante.service && etatS.sante.service.actif));
+      const ferme = await signee('service', { op: 'fermer' }, JETON, ts());
+      verifier('service : le propriétaire ferme', ferme.ok === true && ferme.service.actif === false);
+      const apres = await signee('reset', {}, cle, ts());
+      verifier('service : fermé, la clé ne vaut plus', apres.ok === false && /signature/.test(apres.erreur || ''));
     }
 
     titre('14. Robustesse');

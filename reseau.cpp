@@ -10,6 +10,7 @@
 #include "essai.h"
 #include "liaisons.h"
 #include "sauvegarde.h"
+#include "affichage.h"
 
 #include <WiFi.h>
 #include <esp_mac.h>
@@ -75,6 +76,8 @@ volatile uint8_t g_portailCoupures = 0;
 const uint32_t PORTAIL_DELAI_MS = 20000;        // au-delà, la box n'a pas répondu
 const uint32_t PORTAIL_REDEMARRAGE_MS = 12000;  // le temps que la page lise le succès
 uint32_t g_dernierMqtt = 0, g_dernierEssaiMqtt = 0;
+bool g_santeAPublier = false;  // la santé change d'un coup (accès support) : la republier tout de suite
+uint32_t g_dernierControleService = 0;
 // Délai avant le prochain essai MQTT : 15 s, doublé à chaque refus jusqu'à
 // 5 min. Un broker qui refuse un mot de passe n'a pas à être sollicité toutes
 // les 15 s pendant des jours (certains finissent par bloquer l'adresse).
@@ -455,6 +458,10 @@ String corpsSante() {
          echapperJson(m.version) + "\",\"detail\":\"" + echapperJson(m.detail) + "\"}";
   }
   if (resumePlantage()[0]) j += ",\"plantage\":\"" + echapperJson(resumePlantage()) + "\"";
+  // Accès support ouvert par le propriétaire (V11) : jusqu'à quand.
+  const Protocole::SessionService &sv = Stockage::service();
+  if (sv.cle[0] && ::heureFiable() && (uint32_t)time(nullptr) < sv.jusqua)
+    j += ",\"service\":{\"actif\":true,\"jusqua\":" + String(sv.jusqua) + "}";
   if (Courant::actif()) {
     j += ",\"courantA\":" + String(Courant::amperes(), 2);
     j += ",\"tensionV\":" + String(Courant::volts(), 1);
@@ -1183,6 +1190,19 @@ void routeConfig() {
   Stockage::sauverZone((uint8_t)z, n);
   journal("Reglages zone %d modifies via l'interface web", z + 1);
   serveur.send(200, "text/plain", "Reglages enregistres");
+}
+
+// Accès support : le propriétaire le ferme aussi depuis la page locale, sans
+// l'application (la session se rouvre depuis l'application seulement).
+void routeServiceFermer() {
+  if (!autorise()) return;
+  if (!origineSure()) return;
+  const bool etait = Stockage::service().cle[0] != '\0';
+  memset(&Stockage::service(), 0, sizeof(Protocole::SessionService));
+  Stockage::sauverService();
+  g_santeAPublier = true;
+  if (etait) journal("Acces support ferme depuis l'interface locale");
+  serveur.send(200, "text/plain", etait ? "Acces support ferme" : "Aucun acces support ouvert");
 }
 
 void routeReset() {
@@ -1966,6 +1986,12 @@ public:
   }
   ReglagesReseau &reseau() override { return Stockage::reseau(); }
   void sauverReseau() override { Stockage::sauverReseau(); }
+  Protocole::SessionService &service() override { return Stockage::service(); }
+  void sauverService() override {
+    Stockage::sauverService();
+    g_santeAPublier = true;
+    Affichage::reveiller();
+  }
 };
 SocleReel g_socle;
 
@@ -2164,7 +2190,8 @@ void gererMqtt(uint32_t maintenant) {
   mqtt.loop();
   if (!g_haPublie) publierDecouverteHA();
   Reseau::publierMqtt();  // ne publie que ce qui a changé
-  if (maintenant - g_dernierMqtt >= PERIODE_SANTE_MS) {
+  if (g_santeAPublier || maintenant - g_dernierMqtt >= PERIODE_SANTE_MS) {
+    g_santeAPublier = false;
     g_dernierMqtt = maintenant;
     mqtt.publish((sujetBase() + "/sante").c_str(), ("{" + corpsSante() + "}").c_str(), true);
   }
@@ -2408,6 +2435,7 @@ void lancerServices() {
   serveur.on("/api/history", HTTP_DELETE, routeHistoryDelete);
   serveur.on("/api/config", HTTP_POST, routeConfig);
   serveur.on("/api/reset", HTTP_POST, routeReset);
+  serveur.on("/api/service", HTTP_DELETE, routeServiceFermer);
   serveur.on("/api/autotune", HTTP_POST, routeAutotune);
   serveur.on("/api/autotune", HTTP_DELETE, routeAutotuneStop);
   serveur.on("/api/globaux", HTTP_GET, routeGlobauxGet);
@@ -2589,6 +2617,17 @@ void boucle(uint32_t maintenant) {
   }
   gererMqtt(maintenant);
   gererEnvois(maintenant);
+  // Accès support échu : la session est retirée (écran, NVS, santé).
+  if (maintenant - g_dernierControleService >= 10000) {
+    g_dernierControleService = maintenant;
+    Protocole::SessionService &sv = Stockage::service();
+    if (sv.cle[0] && ::heureFiable() && (uint32_t)time(nullptr) >= sv.jusqua) {
+      memset(&sv, 0, sizeof sv);
+      Stockage::sauverService();
+      g_santeAPublier = true;
+      journal("Acces support echu : ferme");
+    }
+  }
 }
 
 bool connecte() { return g_connecte && !g_ap; }

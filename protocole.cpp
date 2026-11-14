@@ -357,7 +357,84 @@ bool traiterDistant(Socle &socle, JsonDocument &doc, const char *req, const char
   return false;
 }
 
+// Une clé de session : exactement 64 caractères hexadécimaux minuscules.
+bool cleServiceValide(const char *c) {
+  if (strlen(c) != 64) return false;
+  for (const char *p = c; *p; p++)
+    if (!((*p >= '0' && *p <= '9') || (*p >= 'a' && *p <= 'f'))) return false;
+  return true;
+}
+
+// Accès support : ouvrir (propriétaire seulement), prolonger, fermer, état.
+void traiterService(Socle &socle, const JsonDocument &doc, const char *req, bool parSupport) {
+  SessionService &s = socle.service();
+  const char *op = doc["op"] | "etat";
+  const uint32_t maintenant = socle.epoch();
+  const long heures = doc["heures"] | 24L;
+  if (strcmp(op, "ouvrir") == 0) {
+    if (parSupport) {
+      erreur(socle, req, "seul le proprietaire ouvre l'acces support");
+      return;
+    }
+    if (!socle.heureFiable()) {
+      erreur(socle, req, "heure inconnue : acces support impossible");
+      return;
+    }
+    const char *cle = doc["cle"] | "";
+    if (!cleServiceValide(cle)) {
+      erreur(socle, req, "cle : 64 caracteres hexadecimaux");
+      return;
+    }
+    if (heures < 1 || heures > 168) {
+      erreur(socle, req, "duree : 1 a 168 h");
+      return;
+    }
+    snprintf(s.cle, sizeof s.cle, "%s", cle);
+    s.ouvert = maintenant;
+    s.jusqua = maintenant + (uint32_t)heures * 3600UL;
+    socle.sauverService();
+    socle.journal("Acces support ouvert par le proprietaire");
+  } else if (strcmp(op, "prolonger") == 0) {
+    if (!serviceActif(socle)) {
+      erreur(socle, req, "aucun acces support ouvert");
+      return;
+    }
+    if (heures < 1 || heures > 168) {
+      erreur(socle, req, "duree : 1 a 168 h");
+      return;
+    }
+    uint32_t fin = maintenant + (uint32_t)heures * 3600UL;
+    if (fin < s.jusqua) fin = s.jusqua;
+    const uint32_t plafond = s.ouvert + SERVICE_MAX_S;
+    if (fin > plafond) fin = plafond;
+    s.jusqua = fin;
+    socle.sauverService();
+    socle.journal(parSupport ? "Acces support prolonge par le support"
+                             : "Acces support prolonge par le proprietaire");
+  } else if (strcmp(op, "fermer") == 0) {
+    const bool etait = s.cle[0] != '\0';
+    memset(&s, 0, sizeof s);
+    socle.sauverService();
+    if (etait)
+      socle.journal(parSupport ? "Acces support ferme par le support"
+                               : "Acces support ferme par le proprietaire");
+  } else if (strcmp(op, "etat") != 0) {
+    erreur(socle, req, "op : ouvrir, prolonger, fermer ou etat");
+    return;
+  }
+  const bool actif = serviceActif(socle);
+  snprintf(g_corps, sizeof g_corps, "\"service\":{\"actif\":%s,\"ouvert\":%lu,\"jusqua\":%lu,\"par\":\"%s\"}",
+           actif ? "true" : "false", (unsigned long)(actif ? s.ouvert : 0),
+           (unsigned long)(actif ? s.jusqua : 0), parSupport ? "support" : "proprietaire");
+  repondre(socle, req, true, g_corps);
+}
+
 }  // namespace
+
+bool serviceActif(Socle &socle) {
+  const SessionService &s = socle.service();
+  return s.cle[0] != '\0' && socle.heureFiable() && socle.epoch() < s.jusqua;
+}
 
 bool actionLectureSeule(const char *action) {
   return strcmp(action, "etat") == 0 || strcmp(action, "stats") == 0 || strcmp(action, "version") == 0 ||
@@ -383,11 +460,19 @@ void traiterCommande(Socle &socle, const char *charge, size_t taille) {
   // Protocole 4 : {"c":"<commande JSON>","sig":"<HMAC-SHA256 hexadécimal>"},
   // signée avec le code d'appairage, qui ne circule donc plus. La commande en
   // clair avec "jeton" reste acceptée (applications d'avant le protocole 4).
-  bool signee = false;
+  // Pendant un accès support ouvert, la clé de session signe aussi : la
+  // commande est alors celle du support (notée au journal du socle).
+  bool signee = false, parSupport = false;
   if (doc["c"].is<const char *>()) {
     const char *c = doc["c"];
     const size_t n = strlen(c);
-    const bool valide = n < sizeof g_interieur && Signature::verifier(socle.jeton(), c, n, doc["sig"] | "");
+    const char *sig = doc["sig"] | "";
+    bool valide = n < sizeof g_interieur && Signature::verifier(socle.jeton(), c, n, sig);
+    if (!valide && n < sizeof g_interieur && serviceActif(socle) &&
+        Signature::verifier(socle.service().cle, c, n, sig)) {
+      valide = true;
+      parSupport = true;
+    }
     if (n < sizeof g_interieur) memcpy(g_interieur, c, n + 1);
     // Relue même refusée : la réponse d'erreur porte alors le bon "req", et
     // l'application l'affiche au lieu d'attendre en vain.
@@ -423,6 +508,19 @@ void traiterCommande(Socle &socle, const char *charge, size_t taille) {
     char t[80];
     snprintf(t, sizeof t, "Commande MQTT refusee : jeton invalide (%.24s)", action);
     socle.journal(t);
+    return;
+  }
+
+  // Ce que fait le support entre au journal du socle, que le propriétaire lit
+  // sur la page locale ; les lectures n'y entrent pas.
+  if (parSupport && !actionLectureSeule(action)) {
+    char t[80];
+    snprintf(t, sizeof t, "Support : %.40s", action);
+    socle.journal(t);
+  }
+
+  if (strcmp(action, "service") == 0) {
+    traiterService(socle, doc, req, parSupport);
     return;
   }
 

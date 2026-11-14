@@ -11,6 +11,7 @@ ne sait pas faire :
 | Notifications | navigateur ouvert, ou ntfy/healthchecks depuis le socle | push sur le téléphone, application fermée : défaut, rétabli, socle disparu, mise à jour en échec |
 | Diagnostic | copier-coller | « Envoyer au serveur » |
 | Exploitation | — | console web sur `/console/` : flotte, comptes, comptes d'appareil, rapports, journal d'audit chaîné |
+| Assistance | — | demandes des clients depuis l'application, accès au socle ouvert par le propriétaire (24 h, sans son code), diagnostics à distance, frise, alertes proactives |
 
 Les socles s'y connectent comme à n'importe quel broker (MQTT TCP ou TLS
 derrière un reverse proxy), ou restent sur un broker amont (HiveMQ) que le
@@ -25,6 +26,7 @@ ADMIN_JETON=$(openssl rand -hex 24) node serveur.js        # HTTP 8080 (API, /mq
 node serveur.js utilisateur ajouter noe 'un mot de passe'   # un compte pour l'application
 node serveur.js appareil ajouter terraA1B2C3                # un compte pour un socle : affiche la commande série à taper
 node serveur.js utilisateur admin noe oui                   # donne à ce compte l'accès à la console
+node serveur.js utilisateur support agent oui               # rôle support : demandes et accès ouverts seulement
 node serveur.js audit verifier                              # vérifie la chaîne du journal d'audit
 ```
 
@@ -150,6 +152,56 @@ utilisateurs/:login/cles/:id`, `DELETE utilisateurs/:login {confirmation:
 login}` ; `GET rapports`, `GET|DELETE rapports/:nom` ; `GET
 audit?limite&cible&compte`, `GET audit/export?cible&compte`.
 
+## Support (V11)
+
+Le propriétaire écrit au support depuis l'application (onglet Service, carte
+Assistance) ; l'équipe répond depuis la console (onglet **Support**). Une
+demande relie le client, le socle, les messages et l'accès, avec un statut
+(nouvelle, en cours, attente client, résolue), une gravité (urgente si le socle
+est en défaut à l'ouverture) et un responsable ; la file met les urgentes et
+les plus anciennes en tête. Les **notes internes** ne sont jamais montrées au
+client, ni le nom de qui a répondu.
+
+**L'accès au socle**, ouvert par le propriétaire seul : l'application tire une
+clé de session (32 octets), l'envoie au socle (`service ouvrir`, signée avec le
+code d'appairage, que le serveur ne voit jamais), puis la remet au serveur, qui
+vérifie qu'elle signe (`service etat`) et la garde le temps de l'accès
+(`donnees/support/acces.json`, 0600). 24 h, prolongeables par l'équipe jusqu'à
+7 jours après l'ouverture (borne tenue par le socle), fermables à tout moment
+par le propriétaire (application ou page locale). Pendant l'accès :
+
+- diagnostics et réglages signés avec la clé (relire le bus, état, journal du
+  socle, rapport, résumés, essai de chauffe, lever les défauts, redémarrer…),
+  chacun au journal d'audit avec ses valeurs, et au journal du socle ;
+- **copie des réglages** prise à l'ouverture, et « tout remettre » (référence
+  tapée) ;
+- **transfert** des réglages vers un socle de remplacement (accès ouvert sur le
+  neuf), avec rattachement des propriétaires ;
+- l'écran du socle affiche « Support connecté ».
+
+À l'échéance, la clé quitte le disque (le socle la refuse déjà) ; l'effacement
+d'un compte ferme l'accès de ses socles et efface ses demandes.
+
+**Rôles** : `admin` (tout) et `support` (tableau de bord, socles, rapports,
+journal en lecture, demandes et accès ; ni comptes, ni comptes d'appareil, ni
+export du journal). **Frise** d'un socle : ce que le serveur a vu (en ligne,
+hors ligne, redémarrage, défaut, rétabli, mise à jour —
+`donnees/evenements/<id>/AAAA-MM.ndjson`, aussi longtemps que l'historique), ce
+qu'ont fait le propriétaire et l'équipe, et les messages. **Alertes
+proactives** au tableau de bord, sans ouvrir d'accès : défaut, mise à jour en
+échec, hors ligne depuis plus d'une heure, trois redémarrages en 24 h,
+plantage, signal faible, mémoire basse — chacune avec sa demande, ou de quoi en
+ouvrir une.
+
+Routes du propriétaire (session) : `GET|POST /api/support/acces`,
+`DELETE /api/support/acces/:id`, `POST /api/support/acces/:id/refuser`,
+`GET|POST /api/support/demandes`, `POST /api/support/demandes/:n/messages`.
+De l'équipe (`/api/admin/support/…`) : `GET|POST demandes`, `GET|POST
+demandes/:n`, `POST demandes/:n/messages|notes|demander-acces`, `GET equipe`,
+`GET acces`, `GET acces/:id`, `POST acces/:id/commande|prolonger|fermer|copie`,
+`POST acces/:id/remettre {confirmation}`, `POST transferer {de, vers,
+confirmation}` ; et `GET /api/admin/socles/:id/frise`.
+
 ## Journal d'audit
 
 Chaque geste de l'administration, et ce que font les titulaires eux-mêmes
@@ -199,6 +251,9 @@ donnees/
   historique/<id>/AAAA-MM-JJ.ndjson un point par ligne
   rapports/<date>-<login>.txt       diagnostics envoyés par l'application
   audit/AAAA-MM.ndjson              journal d'audit chaîné, 12 mois
+  support/acces.json                accès ouverts (clés de session, 0600, effacées à l'échéance)
+  support/demandes.json             demandes, messages et notes internes
+  evenements/<id>/AAAA-MM.ndjson    ce que chaque socle a vécu (frise, alertes)
 ```
 
 Sauvegarde : copier le dossier. Tout est du texte.
@@ -209,8 +264,10 @@ Sauvegarde : copier le dossier. Tout est du texte.
 simulé), API, pont vers un broker amont ; comptes en libre-service (code par
 e-mail, clés d'accès signées par un authentificateur logiciel, sessions,
 export, effacement), client SMTP contre un faux serveur, journal d'audit
-(chaîne, ruptures, purge) et routes de la console — sur des ports
-éphémères. Et depuis
+(chaîne, ruptures, purge), routes de la console et support (demandes, accès
+par clé de session contre un socle factice aux règles du firmware, transfert,
+échéance, rôles, frise) — sur des ports éphémères. Et depuis
 `outils/` : `node test-serveur.js` fait tourner la vraie application (jsdom,
-son propre client MQTT) contre le vrai serveur ; `node test-compte.js` et
-`node test-console.js` ouvrent l'application et la console dans Chromium.
+son propre client MQTT) contre le vrai serveur ; `node test-compte.js`,
+`node test-console.js` et `node test-support.js` (application, console et socle
+simulé ensemble) ouvrent l'application et la console dans Chromium.

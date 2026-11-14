@@ -14,6 +14,7 @@ const { Comptes } = require('./comptes');
 const webauthn = require('./webauthn');
 const { Admin } = require('./admin');
 const { refCompte } = require('./audit');
+const { RoutesSupport } = require('./support');
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
                 '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.map': 'application/json',
@@ -43,12 +44,15 @@ function fichierConsole(nom) {
 }
 
 class Api {
-  constructor({ comptes, broker, historique, notifications, audit, options }) {
+  constructor({ comptes, broker, historique, notifications, audit, support, evenements, options }) {
     this.comptes = comptes; this.broker = broker; this.historique = historique; this.notifications = notifications;
     this.audit = audit || { noter() {}, lire: () => [], verifier: () => ({ ok: true, n: 0 }) };
+    this.support = support || null;          // demandes et accès support (V11)
+    this.evenements = evenements || null;    // ce que les socles ont vécu (frise, alertes)
     this.o = options;
     this.demarre = Date.now();
     this.admin = new Admin(this);
+    this.routesSupport = new RoutesSupport(this);
     this.tentatives = new Map();    // ip -> [instants] des connexions ratées
     this.tentativesAdmin = new Map(); // ip -> [instants] des jetons inconnus présentés à /api/admin
     this.dossierRapports = path.join(options.donnees, 'rapports');
@@ -150,9 +154,10 @@ class Api {
   identiteAdmin(req) {
     const jeton = Api.jetonDe(req);
     if (!jeton) return null;
-    if (this.o.adminJeton && memeSecret(jeton, this.o.adminJeton)) return { qui: 'jeton d\'administration', login: null };
+    if (this.o.adminJeton && memeSecret(jeton, this.o.adminJeton)) return { qui: 'jeton d\'administration', login: null, role: 'admin' };
     const u = this.comptes.utilisateurDeSession(jeton);
-    return u && u.admin ? { qui: u.login, login: u.login } : null;
+    if (!u || !(u.admin || u.support)) return null;
+    return { qui: u.login, login: u.login, role: u.admin ? 'admin' : 'support' };
   }
   estAdmin(req) { return !!this.identiteAdmin(req); }
 
@@ -168,9 +173,32 @@ class Api {
     this.tentatives.get(ip).push(Date.now());
   }
 
+  // Un compte effacé (par lui-même ou par l'administration) : l'historique et
+  // les événements des socles qui n'ont plus de propriétaire partent, ses
+  // demandes au support aussi, et un accès support ouvert sur ces socles se ferme.
+  async apresEffacement(login, orphelins) {
+    for (const id of orphelins) {
+      this.historique.supprimer(id);
+      if (this.evenements) this.evenements.supprimer(id);
+      if (this.support && this.support.acces.has(id)) await this.routesSupport.fermer(id, 'serveur', 'compte du propriétaire effacé');
+    }
+    if (this.support) this.support.oublierCompte(login);
+  }
+
   // Une ligne au journal d'audit pour ce que fait le titulaire lui-même : la
   // frise d'un compte ou d'un socle montre aussi ses propres gestes.
   noterTitulaire(action, cible, details = null) { this.audit.noter({ qui: 'titulaire', action, cible, details }); }
+
+  // Export d'un compte (RGPD, art. 15 et 20) : le compte, et ses demandes au
+  // support telles que le client les voit.
+  exportCompte(login) {
+    const e = this.comptes.exporter(login);
+    if (e && this.support) {
+      e.demandesSupport = [...this.support.demandes.values()].filter(d => d.compte && d.compte.toLowerCase() === String(login).toLowerCase())
+        .map(d => this.support.vueClient(d));
+    }
+    return e;
+  }
 
   // Historique d'un socle (application du propriétaire, ou console).
   repondreHistorique(res, id, url) {
@@ -324,14 +352,19 @@ class Api {
     }
     if (methode === 'GET' && chemin === '/api/moi/export') {
       res.setHeader('Content-Disposition', 'attachment; filename="terrariums-compte.json"');
-      return this.json(res, 200, this.comptes.exporter(u.login));
+      return this.json(res, 200, this.exportCompte(u.login));
+    }
+    // Support : accès ouverts par le titulaire, demandes et messages.
+    if (chemin.startsWith('/api/support/')) {
+      if (!this.support) return this.erreur(res, 404, 'support indisponible sur ce serveur');
+      return await this.routesSupport.proprietaire(req, res, methode, chemin, url, u);
     }
     if (methode === 'DELETE' && chemin === '/api/moi') {
       const d = await this.lireJson(req);
       if (String(d.confirmation || '').trim().toLowerCase() !== u.login.toLowerCase()) return this.erreur(res, 400, 'confirmation : recopier l\'identifiant du compte');
       const nbSocles = u.socles.length;
       const r = this.comptes.supprimerUtilisateur(u.login);
-      for (const id of r.orphelins) this.historique.supprimer(id);
+      await this.apresEffacement(u.login, r.orphelins);
       this.noterTitulaire('compte.supprimer', refCompte(u.login), { socles: nbSocles, historiquesEffaces: r.orphelins.length });
       this.o.journal(`compte effacé à la demande de son titulaire${r.orphelins.length ? ` (${r.orphelins.length} historique(s) de socle effacé(s))` : ''}`);
       return this.json(res, 200, { ok: true, historiquesEffaces: r.orphelins.length });

@@ -13,6 +13,7 @@ Preferences prefs;
 ReglagesReseau g_reseau;
 ReglagesGlobaux g_globaux;
 EtatMaj g_maj;
+Protocole::SessionService g_service;
 bool g_fsPret = false;
 
 const char *CHEMIN_HIST = "/hist.bin";
@@ -206,7 +207,12 @@ void demarrer() {
   const size_t lu = lireStructure("reseau", &g_reseau, sizeof g_reseau);
   const size_t luG = lireStructure("globaux", &g_globaux, sizeof g_globaux);
   lireStructure("maj", &g_maj, sizeof g_maj);
+  lireStructure("service", &g_service, sizeof g_service);
   prefs.end();
+  // Une session relue doit être entière : sinon, aucune (fermée).
+  g_service.cle[sizeof g_service.cle - 1] = '\0';
+  if (strlen(g_service.cle) != 64 || g_service.jusqua <= g_service.ouvert)
+    memset(&g_service, 0, sizeof g_service);
   if (g_maj.etape > MAJ_ECHEC) g_maj.etape = MAJ_AUCUNE;
   assainirTexte(g_maj.version, sizeof g_maj.version);
   assainirTexte(g_maj.detail, sizeof g_maj.detail);
@@ -293,6 +299,18 @@ EtatMaj &etatMaj() { return g_maj; }
 void sauverEtatMaj() {
   prefs.begin("thermo", false);
   prefs.putBytes("maj", &g_maj, sizeof g_maj);
+  prefs.end();
+}
+
+// --- accès support -----------------------------------------------------------
+Protocole::SessionService &service() { return g_service; }
+
+void sauverService() {
+  prefs.begin("thermo", false);
+  if (g_service.cle[0])
+    prefs.putBytes("service", &g_service, sizeof g_service);
+  else
+    prefs.remove("service");
   prefs.end();
 }
 

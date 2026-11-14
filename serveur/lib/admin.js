@@ -20,9 +20,18 @@ const { Comptes } = require('./comptes');
 const { refCompte, empreinteCompte } = require('./audit');
 
 const NOM_RAPPORT = /^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z-([A-Za-z0-9_]{1,80})\.txt$/;
-const R_SOCLE = /^\/api\/admin\/socles\/(terra[0-9A-Za-z]{6})(\/historique|\/proprietaires(?:\/([^/]+))?)?$/;
+const R_SOCLE = /^\/api\/admin\/socles\/(terra[0-9A-Za-z]{6})(\/historique|\/frise|\/proprietaires(?:\/([^/]+))?)?$/;
+// Ce qu'un compte « support » peut faire : lire la flotte, les rapports et le
+// journal, et tout ce qui touche aux demandes et aux accès ouverts.
+const PERMIS_SUPPORT = [
+  ['GET', /^\/api\/admin\/(moi|tableau|socles|rapports|audit)$/],
+  ['GET', /^\/api\/admin\/socles\/terra[0-9A-Za-z]{6}(\/historique|\/frise)?$/],
+  ['GET', /^\/api\/admin\/rapports\/[^/]+$/],
+  ['*', /^\/api\/admin\/support\//]
+];
+const permisSupport = (methode, chemin) => PERMIS_SUPPORT.some(([m, r]) => (m === '*' || m === methode) && r.test(chemin));
 const R_APPAREIL = /^\/api\/admin\/appareils\/(terra[0-9A-Za-z]{6})(\/renouveler)?$/;
-const R_UTILISATEUR = /^\/api\/admin\/utilisateurs\/([^/]+)(\/admin|\/sessions\/fermer|\/mot-de-passe|\/export|\/socles(?:\/(terra[0-9A-Za-z]{6}))?|\/cles\/([A-Za-z0-9_-]{16,1400}))?$/;
+const R_UTILISATEUR = /^\/api\/admin\/utilisateurs\/([^/]+)(\/admin|\/support|\/sessions\/fermer|\/mot-de-passe|\/export|\/socles(?:\/(terra[0-9A-Za-z]{6}))?|\/cles\/([A-Za-z0-9_-]{16,1400}))?$/;
 const R_RAPPORT = /^\/api\/admin\/rapports\/([^/]+)$/;
 
 // Une route reçoit un identifiant venu de l'adresse : décodé une fois, et
@@ -92,17 +101,68 @@ class Admin {
         admins: utilisateurs.filter(u => u.admin).length, sansSocle: utilisateurs.filter(u => !u.socles.length).length,
         clesAcces: utilisateurs.reduce((n, u) => n + u.cles, 0), sessions: utilisateurs.reduce((n, u) => n + u.sessions, 0) },
       rapports: { total: rapports.length, semaine: rapports.filter(r => r.date >= semaine).length },
-      audit: { ok: v.ok, n: v.n, tete: v.tete || null, rupture: v.rupture || null }
+      audit: { ok: v.ok, n: v.n, tete: v.tete || null, rupture: v.rupture || null },
+      support: a.support ? { ouvertes: [...a.support.demandes.values()].filter(d => d.statut !== 'résolue').length,
+        nouvelles: [...a.support.demandes.values()].filter(d => d.statut === 'nouvelle').length,
+        acces: [...a.support.acces.keys()].filter(id => a.support.accesActif(id)).length } : null,
+      alertes: this.alertes(socles)
     };
+  }
+
+  // Alertes proactives : ce que l'état général dit, sans ouvrir d'accès. Du
+  // plus grave au plus doux ; la demande ouverte sur le socle, s'il y en a une.
+  alertes(socles) {
+    const a = this.api, maintenant = Date.now(), alertes = [];
+    const veille = new Date(maintenant - 86400000).toISOString();
+    const demandeOuverte = id => {
+      if (!a.support) return null;
+      const d = [...a.support.demandes.values()].find(x => x.socle === id && x.statut !== 'résolue');
+      return d ? d.n : null;
+    };
+    for (const s of socles) {
+      const pousser = (type, gravite, texte, depuis = null) => alertes.push({ socle: s.id, type, gravite, texte, depuis, demande: demandeOuverte(s.id), proprietaires: s.proprietaires.length });
+      for (const [i, z] of s.zones.entries()) if (z.defaut) pousser('defaut', 'urgente', `zone ${i + 1} en défaut : ${typeof z.defaut === 'string' ? z.defaut : 'défaut'}`);
+      if (s.maj && /echec|retour/.test(s.maj.etape || '')) pousser('maj', 'urgente', `mise à jour ${s.maj.etape} (${s.maj.version || '?'})`);
+      if (!s.enLigne && !s.jamaisVu && s.proprietaires.length && s.vu && maintenant - Date.parse(s.vu) > 3600000) pousser('horsligne', 'normale', 'hors ligne depuis plus d\'une heure', s.vu);
+      if (a.evenements) {
+        const reboots = a.evenements.lire(s.id, { depuis: veille, limite: 50 }).filter(e => e.type === 'redemarrage').length;
+        if (reboots >= 3) pousser('redemarrages', 'normale', `${reboots} redémarrages en 24 h`);
+      }
+      if (s.plantage) pousser('plantage', 'normale', 'un plantage attend d\'être lu (coredump)');
+      if (s.enLigne && typeof s.rssi === 'number' && s.rssi && s.rssi < -80) pousser('signal', 'faible', `signal Wi-Fi faible (${s.rssi} dBm)`);
+      const sante = (a.broker.flotte[s.id] || {}).sante || {};
+      if (s.enLigne && typeof sante.heapMin === 'number' && sante.heapMin < 30000) pousser('memoire', 'faible', `mémoire au plus bas : ${Math.round(sante.heapMin / 1024)} Ko`);
+    }
+    const ordre = { urgente: 0, normale: 1, faible: 2 };
+    return alertes.sort((x, y) => ordre[x.gravite] - ordre[y.gravite]);
+  }
+
+  // La frise d'un socle : ce qu'il a vécu (vu par le serveur), ce que son
+  // propriétaire et l'équipe ont fait, et les messages des demandes.
+  frise(id) {
+    const a = this.api, elements = [];
+    if (a.evenements) for (const e of a.evenements.lire(id, { limite: 300 })) elements.push({ t: e.t, source: 'socle', type: e.type, details: e });
+    for (const e of a.audit.lire({ limite: 300, filtre: x => x.cible === id })) {
+      elements.push({ t: e.t, source: e.qui === 'titulaire' ? 'client' : (e.qui === 'serveur' ? 'serveur' : 'support'), type: e.action, qui: e.qui, details: e.details });
+    }
+    if (a.support) {
+      for (const d of a.support.demandes.values()) {
+        if (d.socle !== id) continue;
+        for (const m of d.messages) elements.push({ t: m.t, source: m.de === 'client' ? 'client' : 'support', type: 'message', qui: m.qui, details: { demande: d.n, extrait: m.texte.slice(0, 200) } });
+      }
+    }
+    return elements.sort((x, y) => (x.t < y.t ? 1 : x.t > y.t ? -1 : 0)).slice(0, 400);
   }
 
   // --- aiguillage -----------------------------------------------------------------------
   async traiter(req, res, methode, chemin, url, qui) {
     const a = this.api, c = a.comptes, b = a.broker;
+    if (qui.role !== 'admin' && !permisSupport(methode, chemin)) return a.json(res, 403, { erreur: 'réservé aux administrateurs', droits: 'admin' });
+    if (chemin.startsWith('/api/admin/support/')) return a.routesSupport.equipe(req, res, methode, chemin, url, qui);
 
     if (methode === 'GET' && chemin === '/api/flotte') return a.json(res, 200, { socles: b.etatFlotte(), comptes: c.resume() });
     if (methode === 'GET' && chemin === '/api/admin/comptes') return a.json(res, 200, c.resume());
-    if (methode === 'GET' && chemin === '/api/admin/moi') return a.json(res, 200, { qui: qui.qui, compte: qui.login, version: a.o.version, email: !!a.courriel });
+    if (methode === 'GET' && chemin === '/api/admin/moi') return a.json(res, 200, { qui: qui.qui, compte: qui.login, role: qui.role, version: a.o.version, email: !!a.courriel });
     if (methode === 'GET' && chemin === '/api/admin/tableau') return a.json(res, 200, this.tableau());
 
     // --- socles ---
@@ -116,9 +176,12 @@ class Admin {
         const detail = b.detailSocle(id);
         return a.json(res, 200, { ...ligne, sante: detail ? detail.sante : null, etatsZones: detail ? detail.etatsZones : [],
           proprietairesDetail: c.proprietaires(id).map(u => ({ login: u.login, type: u.empreinte ? 'motdepasse' : 'email', admin: !!u.admin })),
-          dernierPoint: a.historique.dernierPoint(id), journal: a.audit.lire({ limite: 50, filtre: e => e.cible === id }) });
+          dernierPoint: a.historique.dernierPoint(id), journal: a.audit.lire({ limite: 50, filtre: e => e.cible === id }),
+          acces: a.support ? a.support.vueAcces(id) : null,
+          demandes: a.support ? [...a.support.demandes.values()].filter(d => d.socle === id).map(d => ({ n: d.n, statut: d.statut, gravite: d.gravite, cree: d.cree })) : [] });
       }
       if (mS[2] === '/historique' && methode === 'GET') return a.repondreHistorique(res, id, url);
+      if (mS[2] === '/frise' && methode === 'GET') return a.json(res, 200, { id, frise: this.frise(id), acces: a.support ? a.support.vueAcces(id) : null });
       if (mS[2] && mS[2].startsWith('/proprietaires')) {
         if (methode === 'POST' && !mS[3]) {
           const d = await a.lireJson(req);
@@ -203,7 +266,7 @@ class Admin {
         if (String(d.confirmation || '').trim().toLowerCase() !== u.login.toLowerCase()) return a.erreur(res, 400, `confirmation : taper « ${u.login} »`);
         const nbSocles = u.socles.length;
         const r = c.supprimerUtilisateur(u.login);
-        for (const id of r.orphelins) a.historique.supprimer(id);
+        await a.apresEffacement(u.login, r.orphelins);
         this.noter(qui, 'compte.supprimer', ref, { socles: nbSocles, historiquesEffaces: r.orphelins.length });
         return a.json(res, 200, { ok: true, historiquesEffaces: r.orphelins.length });
       }
@@ -213,6 +276,12 @@ class Admin {
         c.definirAdmin(u.login, !!d.admin);
         this.noter(qui, 'compte.admin', ref, { admin: !!d.admin });
         return a.json(res, 200, { ok: true, admin: !!d.admin });
+      }
+      if (quoi === '/support' && methode === 'POST') {
+        const d = await a.lireJson(req);
+        c.definirSupport(u.login, !!d.support);
+        this.noter(qui, 'compte.support', ref, { support: !!d.support });
+        return a.json(res, 200, { ok: true, support: !!d.support });
       }
       if (quoi === '/sessions/fermer' && methode === 'POST') {
         const n = c.fermerSessions(u.login);
@@ -231,7 +300,7 @@ class Admin {
           .map(e => ({ quand: e.t, par: e.qui === 'titulaire' ? 'titulaire' : 'exploitant', action: e.action, cible: e.cible, details: e.details }));
         this.noter(qui, 'compte.export', ref, null);
         res.setHeader('Content-Disposition', 'attachment; filename="terrariums-compte.json"');
-        return a.json(res, 200, { ...c.exporter(u.login), journal });
+        return a.json(res, 200, { ...a.exportCompte(u.login), journal });
       }
       if (quoi.startsWith('/socles')) {
         if (methode === 'POST' && !mU[3]) {

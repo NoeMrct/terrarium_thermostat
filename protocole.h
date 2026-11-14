@@ -26,6 +26,21 @@ namespace Protocole {
 const size_t TAILLE_CORPS = 7000;
 const size_t TAILLE_REPONSE = TAILLE_CORPS + 96;
 
+// Accès support (V11). Le propriétaire ouvre une session par une commande
+// « service » signée avec le code d'appairage : il y donne une clé aléatoire
+// (64 caractères hexadécimaux), que l'application remet au serveur. Tant que
+// la session vaut, une commande signée avec cette clé est acceptée comme celle
+// du propriétaire — sauf l'ouverture d'une autre session. Le code d'appairage,
+// lui, ne quitte jamais le téléphone. La session tient 1 à 168 h et se
+// prolonge au plus jusqu'à 7 jours après son ouverture ; elle exige une heure
+// fiable (NTP), sans quoi aucune commande du support n'est acceptée.
+struct SessionService {
+  char cle[65];     // vide : aucune session
+  uint32_t ouvert;  // epoch d'ouverture
+  uint32_t jusqua;  // epoch de fin
+};
+const uint32_t SERVICE_MAX_S = 7UL * 86400UL;
+
 class Socle {
 public:
   virtual ~Socle() {}
@@ -80,7 +95,15 @@ public:
   virtual bool restaurer(const char *json, size_t n, char *message, size_t taille) = 0;
   virtual ReglagesReseau &reseau() = 0;
   virtual void sauverReseau() = 0;
+
+  // Accès support : la session, gardée par le socle (NVS) ; sauverService()
+  // la persiste et met l'écran à jour (« Support connecté »).
+  virtual SessionService &service() = 0;
+  virtual void sauverService() = 0;
 };
+
+// Une session d'accès support est ouverte et n'a pas expiré (heure fiable).
+bool serviceActif(Socle &socle);
 
 // Traite une charge reçue sur <base>/cmd. Toujours une réponse, même pour du
 // JSON invalide (req vide alors).

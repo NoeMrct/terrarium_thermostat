@@ -533,6 +533,17 @@ void rafraichir() {
 
   ecran.drawFastHLine(0, 25, OLED_L, SSD1306_WHITE);
   ecran.setTextSize(1);
+  // Accès support ouvert : la dernière ligne le dit, en négatif, tant qu'il vaut.
+  const Protocole::SessionService &sv = Stockage::service();
+  if (sv.cle[0] && heureFiable() && (uint32_t)time(nullptr) < sv.jusqua) {
+    ecran.fillRect(0, 55, OLED_L, 9, SSD1306_WHITE);
+    ecran.setTextColor(SSD1306_BLACK);
+    ecran.setCursor(16, 56);
+    ecran.print(F("Support connecte"));
+    ecran.setTextColor(SSD1306_WHITE);
+    ecran.display();
+    return;
+  }
   ecran.setCursor(0, 56);
   ecran.print(heureFiable() ? horodatage().substring(11, 16) : String("--:--"));
   const String etat = statut();

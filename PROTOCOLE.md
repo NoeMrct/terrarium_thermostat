@@ -153,6 +153,35 @@ telle quelle, horodatée, puis mise dans une enveloppe avec sa signature :
 - En JavaScript : `crypto.subtle.importKey('raw', code, {name: 'HMAC', hash:
   'SHA-256'}, …)` puis `sign('HMAC', clé, c)` ; en Node : `crypto.createHmac`.
 
+### Accès support (firmware 3.5)
+
+Le propriétaire peut ouvrir au support un accès limité dans le temps, sans
+jamais lui donner son code d'appairage :
+
+1. l'application tire une **clé de session** (32 octets aléatoires, 64
+   chiffres hexadécimaux minuscules) et l'envoie au socle dans
+   `{"action":"service","op":"ouvrir","cle":"…","heures":24}`, signée avec le
+   code ;
+2. elle remet cette clé au serveur Terrariums, qui la garde le temps de l'accès ;
+3. tant que l'accès vaut, une commande **signée avec la clé de session** est
+   acceptée comme celle du propriétaire. Le socle note chaque action du support
+   au journal (`Support : <action>`, les lectures exceptées) et affiche
+   « Support connecté » sur son écran ; `sante` porte
+   `"service":{"actif":true,"jusqua":<epoch>}`.
+
+| `op` | Signé par | Effet |
+|---|---|---|
+| `ouvrir` | le code seulement | Nouvelle session : `cle`, `heures` (1-168, défaut 24). Refusé sans heure fiable |
+| `prolonger` | le code ou la clé | Repousse la fin à `heures` d'ici, **jamais plus de 7 jours après l'ouverture** |
+| `fermer` | le code ou la clé | La session disparaît ; la clé ne signe plus rien |
+| `etat` (défaut) | le code ou la clé | Lecture |
+
+Réponse : `"service":{"actif","ouvert","jusqua","par"}` (`par` :
+`proprietaire` ou `support`). Sans heure fiable (NTP), aucune commande du
+support n'est acceptée. La session survit à un redémarrage (NVS) ; échue, elle
+est retirée d'elle-même. Le propriétaire la ferme aussi depuis la page locale
+(`DELETE /api/service`, protégé par son mot de passe).
+
 ### Réponse
 
 ```json
@@ -189,6 +218,7 @@ telle quelle, horodatée, puis mise dans une enveloppe avec sa signature :
 | `sauvegarde` | **oui** | — | `"sauvegarde":{…}` : la configuration (zones, réglages, sondes, réseau non secret), **sans les adresses d'alerte et de heartbeat** |
 | `restaurer` | **oui** | `sauvegarde` (objet) | Réapplique une sauvegarde, tout ou rien ; les adresses absentes gardent celles du socle ; `message` |
 | `reseau` | **oui** | aucun (lecture), ou `urlAlertes`, `urlHeartbeat` (`http(s)://`, 160 car.), `heartbeatMinutes` (1-1440), `formatAlertes` (0 JSON, 1 texte) | La surveillance seulement. Réponse : `ssid`, `ssid2`, `alertes` et `heartbeat` (**l'hôte seul** des adresses, vide si aucune), `heartbeatMinutes`, `formatAlertes`. Tout identifiant Wi-Fi (`ssid`, `ssid2`, `wifiPass`, `wifiPass2`) est refusé : le Wi-Fi se règle sur la page locale |
+| `service` | **oui** | `op` (`ouvrir`, `prolonger`, `fermer`, `etat`), `cle`, `heures` | Accès support : voir « Accès support » ci-dessus |
 
 Les horaires (`debutJour`, `debutNuit`) sont en minutes depuis minuit :
 `8:00` s'écrit `480`.
@@ -311,6 +341,7 @@ et l'application doit le présenter comme tel plutôt que de rester bloquée.
 | Interface locale : connexion par défi/réponse, session `HttpOnly` 24 h, pause après cinq échecs | Le mot de passe ne circule pas, et ne se devine pas en boucle |
 | Retour arrière automatique après une mise à jour | Une image qui plante ne prive pas le terrarium de régulation |
 | Commandes rejouées sans effet | Un doublon livré par le broker (QoS 1) n'agit pas deux fois |
+| Accès support par clé de session (firmware 3.5) | Le support agit sans jamais connaître le code ; l'accès est borné (7 jours au plus), fermable à tout moment par le propriétaire, et chaque geste reste au journal du socle |
 
 **À faire côté broker** : un compte par appareil, avec des droits limités à ses
 propres sujets. Sans ce cloisonnement, un appareil compromis pourrait écouter et

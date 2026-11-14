@@ -175,6 +175,16 @@ class Comptes {
     return u;
   }
 
+  // Rôle « support » : la console pour les demandes et les accès ouverts par
+  // les propriétaires, sans la gestion des comptes ni des comptes d'appareil.
+  definirSupport(login, support) {
+    const u = this.utilisateur(login);
+    if (!u) throw new Error('utilisateur inconnu');
+    u.support = !!support;
+    this.sauver();
+    return u;
+  }
+
   // Sessions en cours d'un compte (sans le jeton, que le disque n'a pas).
   sessionsDe(login) {
     const cle = String(login || '').toLowerCase(), maintenant = Date.now();
@@ -204,7 +214,7 @@ class Comptes {
     }
     return [...this.donnees.utilisateurs.values()].map(u => {
       const x = parLogin.get(u.login.toLowerCase()) || { n: 0, derniere: null };
-      return { login: u.login, email: u.email || null, type: u.empreinte ? 'motdepasse' : 'email', admin: !!u.admin,
+      return { login: u.login, email: u.email || null, type: u.empreinte ? 'motdepasse' : 'email', admin: !!u.admin, support: !!u.support,
         socles: u.socles.slice(), cles: (u.cles || []).length, sessions: x.n, derniereConnexion: x.derniere, cree: u.cree || null };
     });
   }

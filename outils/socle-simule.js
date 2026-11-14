@@ -189,12 +189,16 @@ const VERSION_SIM = '3.4.0-simule';
 const PROTO_SIM = 4;
 // Dernière mise à jour tirée (action « maj ») : le vrai socle la garde en NVS.
 socle.maj = null;
+// Accès support : la session ouverte par le propriétaire (comme la NVS du socle).
+socle.service = null;
+const serviceActif = () => !!socle.service && Date.now() / 1000 < socle.service.jusqua;
 const sante = () => ({
   proto: PROTO_SIM, version: VERSION_SIM, uptime: Math.floor((Date.now() - socle.demarre) / 1000),
   rssi: -58 - Math.round(Math.random() * 6), heap: 171000, heapMin: 142000, blocMax: 98000,
   reset: 'mise sous tension', otaEnAttente: false, signatureOta: false,
   hote: `${ID}.local`, ip: '192.168.1.42',
-  ...(socle.maj ? { maj: socle.maj } : {})
+  ...(socle.maj ? { maj: socle.maj } : {}),
+  ...(serviceActif() ? { service: { actif: true, jusqua: socle.service.jusqua } } : {})
 });
 
 function publier() {
@@ -240,14 +244,17 @@ client.on('message', (sujet, charge) => {
   catch (e) { repondre('', false, { erreur: 'JSON invalide' }); return; }
 
   // Protocole 4 : enveloppe {"c": "<commande>", "sig": HMAC-SHA256(code, c)},
-  // horodatée ; même règle que protocole.cpp (5 min d'écart au plus).
-  let signee = false;
+  // horodatée ; même règle que protocole.cpp (5 min d'écart au plus). Pendant
+  // un accès support ouvert, la clé de session signe aussi (commande du support).
+  let signee = false, parSupport = false;
   if (typeof d.c === 'string') {
-    const attendu = require('crypto').createHmac('sha256', JETON).update(d.c, 'utf8').digest('hex');
+    const hmac = cle => require('crypto').createHmac('sha256', cle).update(d.c, 'utf8').digest('hex');
+    const egal = (a, b) => typeof a === 'string' && a.length === 64 && require('crypto').timingSafeEqual(Buffer.from(a), Buffer.from(b));
     let interieur = {};
     try { interieur = JSON.parse(d.c); } catch (e) { /* refusée plus bas */ }
-    if (typeof d.sig !== 'string' || d.sig.length !== 64 ||
-        !require('crypto').timingSafeEqual(Buffer.from(d.sig), Buffer.from(attendu))) {
+    let valide = egal(d.sig, hmac(JETON));
+    if (!valide && serviceActif() && egal(d.sig, hmac(socle.service.cle))) { valide = true; parSupport = true; }
+    if (!valide) {
       repondre(interieur.req, false, { erreur: 'signature invalide' });
       console.log('Commande refusée (signature)');
       return;
@@ -267,7 +274,34 @@ client.on('message', (sujet, charge) => {
     return;
   }
 
+  if (parSupport && !lecture) journal(`Support : ${String(d.action).slice(0, 40)}`);
+
   switch (d.action) {
+    case 'service': {
+      // Accès support (V11) : mêmes règles que protocole.cpp.
+      const sv = socle.service, maintenant = Math.floor(Date.now() / 1000);
+      const heures = d.heures === undefined ? 24 : d.heures;
+      const op = d.op || 'etat';
+      if (op === 'ouvrir') {
+        if (parSupport) return repondre(d.req, false, { erreur: "seul le proprietaire ouvre l'acces support" });
+        if (!/^[0-9a-f]{64}$/.test(d.cle || '')) return repondre(d.req, false, { erreur: 'cle : 64 caracteres hexadecimaux' });
+        if (!(heures >= 1 && heures <= 168)) return repondre(d.req, false, { erreur: 'duree : 1 a 168 h' });
+        socle.service = { cle: d.cle, ouvert: maintenant, jusqua: maintenant + heures * 3600 };
+        journal('Acces support ouvert par le proprietaire');
+      } else if (op === 'prolonger') {
+        if (!serviceActif()) return repondre(d.req, false, { erreur: 'aucun acces support ouvert' });
+        if (!(heures >= 1 && heures <= 168)) return repondre(d.req, false, { erreur: 'duree : 1 a 168 h' });
+        sv.jusqua = Math.min(Math.max(sv.jusqua, maintenant + heures * 3600), sv.ouvert + 7 * 86400);
+        journal(parSupport ? 'Acces support prolonge par le support' : 'Acces support prolonge par le proprietaire');
+      } else if (op === 'fermer') {
+        if (sv) journal(parSupport ? 'Acces support ferme par le support' : 'Acces support ferme par le proprietaire');
+        socle.service = null;
+      } else if (op !== 'etat') return repondre(d.req, false, { erreur: 'op : ouvrir, prolonger, fermer ou etat' });
+      client.publish(`${base}/sante`, JSON.stringify(sante()), { retain: true });
+      const actif = serviceActif();
+      return repondre(d.req, true, { service: { actif, ouvert: actif ? socle.service.ouvert : 0, jusqua: actif ? socle.service.jusqua : 0, par: parSupport ? 'support' : 'proprietaire' } });
+    }
+
     case 'version':
       return repondre(d.req, true, { version: VERSION_SIM, compile: new Date().toISOString(), proto: PROTO_SIM });
 

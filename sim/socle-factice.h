@@ -18,6 +18,9 @@ struct SocleFactice : public Protocole::Socle {
   std::vector<std::string> actions;
   std::string jetonSecret = "SIMULATIONTESTJETON00001";
   bool heure = true;
+  uint32_t maintenant = 1760000000u;
+  Protocole::SessionService session{};
+  int servicesSauves = 0;
   bool enLigne = true;
   bool autotuneRefuse = false;
   int zonesSauvees = 0, globauxSauves = 0;
@@ -67,7 +70,7 @@ struct SocleFactice : public Protocole::Socle {
     actions.push_back("sauverGlobaux");
   }
   bool heureFiable() override { return heure; }
-  uint32_t epoch() override { return 1760000000u; }
+  uint32_t epoch() override { return maintenant; }
   uint8_t limiteZones() override { return Stockage::zonesSimultanees(glob); }
   void leverDefauts() override { actions.push_back("leverDefauts"); }
   void entretien(uint16_t minutes) override { actions.push_back("entretien " + std::to_string(minutes)); }
@@ -156,6 +159,11 @@ struct SocleFactice : public Protocole::Socle {
   }
   ReglagesReseau &reseau() override { return res; }
   void sauverReseau() override { actions.push_back("sauverReseau"); }
+  Protocole::SessionService &service() override { return session; }
+  void sauverService() override {
+    servicesSauves++;
+    actions.push_back(session.cle[0] ? "sauverService ouverte" : "sauverService fermee");
+  }
 };
 
 #endif
