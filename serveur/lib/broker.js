@@ -67,7 +67,10 @@ class Broker extends EventEmitter {
   // --- authentification et droits ------------------------------------------------
   authentifier(client, username, password, cb) {
     const u = username ? String(username) : '', p = password ? password.toString() : '';
-    if (this.adminJeton && u === 'admin' && p === this.adminJeton) { client.role = 'admin'; return cb(null, true); }
+    if (this.adminJeton && u === 'admin' && crypto.timingSafeEqual(crypto.createHash('sha256').update(p).digest(), crypto.createHash('sha256').update(this.adminJeton).digest())) {
+      client.role = 'admin';
+      return cb(null, true);
+    }
     if (/^terra[0-9A-Za-z]{6}$/.test(u)) {
       if (this.comptes.authentifierAppareil(u, p)) { client.role = 'appareil'; client.socle = u; return cb(null, true); }
     } else if (u) {
@@ -209,13 +212,32 @@ class Broker extends EventEmitter {
   }
 
   etatFlotte() {
-    const maintenant = Date.now();
-    return Object.entries(this.flotte).map(([id, f]) => ({
-      id, statut: f.statut, enLigne: f.statut === 'en ligne' && maintenant - f.vu < 180000, vu: f.vu ? new Date(f.vu).toISOString() : null,
-      version: f.sante && f.sante.version, rssi: f.sante && f.sante.rssi, heap: f.sante && f.sante.heap, maj: f.maj,
-      zones: Object.values(f.zones).map(z => ({ temp: z.temp, consigne: z.consigne, defaut: z.defaut === '1' || z.defaut === 1 || (z.defaut && z.defaut !== '0') ? (z.defaut_libelle || true) : null }))
-    }));
+    return Object.keys(this.flotte).map(id => this.resumeSocle(id));
   }
+
+  // Ce que le socle a publié lui-même (statut, santé, état des zones) : le
+  // serveur n'en sait pas plus, et ne peut rien lui commander sans son code.
+  resumeSocle(id) {
+    const f = this.flotte[id];
+    if (!f) return null;
+    const s = f.sante || {};
+    return {
+      id, statut: f.statut, enLigne: f.statut === 'en ligne' && Date.now() - f.vu < 180000, vu: f.vu ? new Date(f.vu).toISOString() : null,
+      version: s.version, proto: s.proto, rssi: s.rssi, heap: s.heap, uptime: s.uptime, reset: s.reset, plantage: !!s.plantage, maj: f.maj,
+      zones: Object.entries(f.zones).sort((a, b) => a[0] - b[0]).map(([, z]) => ({ temp: z.temp, consigne: z.consigne, nom: z.nom,
+        defaut: z.defaut === '1' || z.defaut === 1 || (z.defaut && z.defaut !== '0') ? (z.defaut_libelle || true) : null }))
+    };
+  }
+
+  detailSocle(id) {
+    const f = this.flotte[id];
+    if (!f) return null;
+    return { ...this.resumeSocle(id), sante: f.sante || null,
+      etatsZones: Object.entries(f.zones).sort((a, b) => a[0] - b[0]).map(([z, e]) => ({ zone: +z + 1, ...e })) };
+  }
+
+  clientsConnectes() { return this.aedes ? this.aedes.connectedClients : 0; }
+  amontConnecte() { return !!(this.amont && this.amont.connected); }
 }
 
 module.exports = { Broker };

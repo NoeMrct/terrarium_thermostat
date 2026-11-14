@@ -49,9 +49,11 @@
   <h2>Si vous utilisez un serveur Terrariums (option)</h2>
   <p>Le dépôt fournit un serveur à héberger soi-même (<code>serveur/</code>) qui remplace le broker nu. <b>Il n'est pas exploité par
     l'éditeur de l'application</b> : celui qui l'installe en devient le responsable. Un tel serveur enregistre, sur sa propre machine :
-    les comptes (adresse électronique et empreinte du mot de passe), la liste des socles rattachés à chaque compte, l'historique de
-    températures des socles (durée de conservation réglable), les abonnements aux notifications push (adresses techniques fournies
-    par le navigateur, jamais le contenu des autres notifications du téléphone) et les rapports de diagnostic envoyés volontairement.
+    les comptes (adresse électronique, empreinte du mot de passe s'il y en a un, clés publiques des clés d'accès), la liste des
+    socles rattachés à chaque compte, l'historique de températures des socles (durée de conservation réglable), les abonnements aux
+    notifications push (adresses techniques fournies par le navigateur, jamais le contenu des autres notifications du téléphone),
+    les rapports de diagnostic envoyés volontairement et un journal d'audit des actions sur les comptes et les socles (12 mois,
+    adresses remplacées par une référence pseudonyme).
     Son administrateur doit publier sa propre politique de confidentialité ; le fichier <code>serveur/README.md</code> indique où et
     combien de temps chaque donnée est gardée, et comment l'effacer.</p>
 

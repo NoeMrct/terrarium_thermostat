@@ -13,14 +13,15 @@
      - rattachement d'un socle à un compte par preuve du code d'appairage ;
      - comptes en libre-service : code par e-mail, puis clés d'accès (passkeys),
        export et effacement du compte par son titulaire ;
-     - état de la flotte pour l'exploitant, rapports de diagnostic.
+     - console d'administration sur /console/ : flotte, comptes, comptes
+       d'appareil, rapports de diagnostic, journal d'audit chaîné (12 mois).
 
    Configuration par variables d'environnement (ou serveur/.env chargé ici) :
      PORT=8080                 HTTP, API et MQTT sur WebSocket (/mqtt)
      PORT_MQTT=1883            MQTT TCP pour les socles (off = désactivé)
      DONNEES=./donnees         comptes, historique, clés, rapports
      PREFIXE=terrarium         racine des sujets
-     ADMIN_JETON=…             jeton d'administration (API /api/admin, utilisateur MQTT « admin »)
+     ADMIN_JETON=…             jeton d'administration (console /console/, API /api/admin, utilisateur MQTT « admin »)
      AMONT_URL=mqtts://…       broker amont, avec AMONT_UTILISATEUR / AMONT_MOT_DE_PASSE
      SERVIR_APP=1              sert aussi l'application (dossier ../app)
      ORIGINES=https://…,…      origines autorisées pour l'API (défaut : toutes)
@@ -36,6 +37,8 @@
      node serveur.js                         démarre
      node serveur.js utilisateur ajouter <login> <mot de passe> [--admin]
      node serveur.js utilisateur mot-de-passe <login> <nouveau>
+     node serveur.js utilisateur admin <login> oui|non     droits sur la console
+     node serveur.js audit verifier          vérifie la chaîne du journal d'audit
      node serveur.js appareil ajouter <terraXXXXXX> [mot de passe]
      node serveur.js appareil retirer <terraXXXXXX>
      node serveur.js attribuer <login> <terraXXXXXX>
@@ -52,6 +55,7 @@ const { Historique } = require('./lib/historique');
 const { Notifications } = require('./lib/notifications');
 const { Api } = require('./lib/api');
 const { Courriel } = require('./lib/courriel');
+const { Audit, refCompte } = require('./lib/audit');
 
 const VERSION = require('./package.json').version;
 
@@ -101,7 +105,8 @@ async function demarrerServeur(surcharge = {}) {
   const historique = new Historique(o.donnees, { retentionJours: o.retentionJours, pasMs: o.pasHistoriqueMs });
   const notifications = o.pushActif ? new Notifications(o.donnees, { contact: o.contactVapid, envoyer: o.envoyerPush, antiSpamMs: o.antiSpamMs }) : null;
   const broker = new Broker(comptes, { prefixe: o.prefixe, adminJeton: o.adminJeton, amont: o.amont, journal: o.journal });
-  const api = new Api({ comptes, broker, historique, notifications, options: o });
+  const audit = new Audit(o.donnees, { retentionMois: o.auditMois || 12 });
+  const api = new Api({ comptes, broker, historique, notifications, audit, options: o });
 
   const serveurHttp = http.createServer((req, res) => api.traiter(req, res));
   await broker.demarrer({ portTcp: o.portMqtt, serveurHttp, cheminWs: '/mqtt' });
@@ -109,6 +114,7 @@ async function demarrerServeur(surcharge = {}) {
   await new Promise((res, rej) => serveurHttp.listen(o.port, err => (err ? rej(err) : res())));
   const port = serveurHttp.address().port;
   const portMqtt = broker.tcp ? broker.tcp.address().port : 0;
+  o.portMqttEcoute = broker.tcp ? portMqtt : null;       // le port réellement ouvert (0 = éphémère en test)
 
   // --- ce que le trafic déclenche ---------------------------------------------------
   broker.on('etat', (id, zone, etat, avant) => {
@@ -146,16 +152,20 @@ async function demarrerServeur(surcharge = {}) {
       notifications.notifierProprietaires(comptes, id, { titre: `${id} — mise à jour ${maj.etape}`, corps: `${maj.version || ''} : ${maj.detail || ''}`, socle: id, urgent: true }, `maj:${id}:${maj.etape}:${maj.version}`).catch(() => {});
     }
   });
-  const purge = setInterval(() => { const n = historique.purger(); if (n) o.journal(`historique : ${n} fichier(s) purgé(s)`); comptes.purgerSessions(); }, 6 * 3600000);
+  const purge = setInterval(() => {
+    const n = historique.purger(); if (n) o.journal(`historique : ${n} fichier(s) purgé(s)`);
+    const m = audit.purger(); if (m) o.journal(`journal d'audit : ${m} mois purgé(s)`);
+    comptes.purgerSessions();
+  }, 6 * 3600000);
   purge.unref();
 
-  o.journal(`Serveur Terrariums ${VERSION} — HTTP ${port} (API /api, MQTT /mqtt)${portMqtt ? `, MQTT TCP ${portMqtt}` : ''}, données ${o.donnees}${o.amont ? `, pont vers ${o.amont.url}` : ''}${o.app ? ', application servie' : ''}`);
-  if (!o.adminJeton) o.journal('ADMIN_JETON absent : administration par la ligne de commande seulement');
+  o.journal(`Serveur Terrariums ${VERSION} — HTTP ${port} (API /api, console /console/, MQTT /mqtt)${portMqtt ? `, MQTT TCP ${portMqtt}` : ''}, données ${o.donnees}${o.amont ? `, pont vers ${o.amont.url}` : ''}${o.app ? ', application servie' : ''}`);
+  if (!o.adminJeton) o.journal('ADMIN_JETON absent : console ouverte aux seuls comptes administrateurs (node serveur.js utilisateur admin <login> oui)');
   if (!o.courriel) o.journal('SMTP_URL absent : pas de comptes en libre-service par e-mail (identifiant et mot de passe seulement)');
   if (!o.rpId) o.journal('RP_ID et ORIGINES absents : chaque clé d\'accès se lie au domaine de la page qui la crée');
 
   return {
-    port, portMqtt, comptes, broker, historique, notifications, api,
+    port, portMqtt, comptes, broker, historique, notifications, api, audit,
     async arreter() { clearInterval(purge); await broker.arreter(); await new Promise(r => serveurHttp.close(r)); }
   };
 }
@@ -169,6 +179,19 @@ async function cli(args) {
   try {
     if (cmd === 'utilisateur' && sous === 'ajouter') { comptes.ajouterUtilisateur(a, b, { admin: args.includes('--admin') }); console.log(`Utilisateur ${a} créé${args.includes('--admin') ? ' (administrateur)' : ''}.`); return 0; }
     if (cmd === 'utilisateur' && sous === 'mot-de-passe') { comptes.changerMotDePasse(a, b); console.log('Mot de passe changé, sessions fermées.'); return 0; }
+    if (cmd === 'utilisateur' && sous === 'admin') {
+      if (!['oui', 'non'].includes(b)) { console.error('utilisateur admin <login> oui|non'); return 2; }
+      comptes.definirAdmin(a, b === 'oui');
+      new Audit(o.donnees).noter({ qui: 'ligne de commande', action: 'compte.admin', cible: refCompte(a), details: { admin: b === 'oui' } });
+      console.log(`${a} : ${b === 'oui' ? 'administrateur' : 'plus administrateur'}.`);
+      return 0;
+    }
+    if (cmd === 'audit' && sous === 'verifier') {
+      const v = new Audit(o.donnees).verifier();
+      console.log(v.ok ? `Journal d'audit intègre : ${v.n} ligne(s)${v.premier ? `, du ${v.premier} au ${v.dernier}` : ''}. Tête : ${v.tete}`
+        : `RUPTURE : ${v.rupture.raison}${v.rupture.fichier ? ` (${v.rupture.fichier}, ligne ${v.rupture.ligne})` : ''}`);
+      return v.ok ? 0 : 1;
+    }
     if (cmd === 'appareil' && sous === 'ajouter') {
       const r = comptes.ajouterAppareil(a, b);
       console.log(`Appareil ${r.id} créé. Sur la console série du socle :\n  mqtt <hôte de ce serveur> ${o.portMqtt || 1883} ${r.id} ${r.motDePasse}\n(mot de passe : ${r.motDePasse})`);

@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex, nofollow">
+<title>Console — serveur Terrariums</title>
+<!-- Servie par le serveur Terrariums lui-même, sur /console/, avec une politique de sécurité
+     stricte en en-tête : même origine seulement, aucun script ni style en ligne, Trusted Types
+     exigés sans aucune politique (le DOM s'écrit élément par élément). -->
+<link rel="icon" href="icone.svg">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="console.css">
+<script src="console.js" defer></script>
+</head>
+<body data-vue="console">
+
+<header id="entete">
+  <h1>Console <span id="nom-serveur" class="discret"></span></h1>
+  <div class="separe">
+    <span id="etat-serveur" class="etat" role="status">Hors connexion</span>
+    <button type="button" id="btn-donnees" class="btn btn-secondaire btn-petit" aria-pressed="false" hidden>Afficher les données personnelles</button>
+    <button type="button" id="btn-sortir" class="btn btn-fantome btn-petit" hidden>Se déconnecter</button>
+  </div>
+</header>
+
+<main class="console">
+
+<section id="connexion" class="carte" aria-labelledby="t-connexion">
+  <h2 id="t-connexion">Connexion</h2>
+  <p class="aide">Réservée à l'exploitant du serveur : un compte administrateur, ou le jeton d'administration (<code>ADMIN_JETON</code>).</p>
+  <div class="segment mt" role="group" aria-label="Façon de se connecter">
+    <button type="button" data-mode="compte" aria-pressed="true">Compte</button>
+    <button type="button" data-mode="jeton" aria-pressed="false">Jeton d'administration</button>
+  </div>
+
+  <form id="form-compte" class="mt" novalidate>
+    <label for="c-login">Identifiant ou e-mail</label>
+    <input id="c-login" name="login" autocomplete="username webauthn" autocapitalize="off" spellcheck="false" required>
+    <label for="c-mdp">Mot de passe</label>
+    <input id="c-mdp" name="mdp" type="password" autocomplete="current-password">
+    <p class="aide" id="c-mdp-aide">Compte ouvert par e-mail : laisser le mot de passe vide, un code arrive par e-mail.</p>
+    <div class="boutons">
+      <button type="submit" class="btn">Se connecter</button>
+      <button type="button" id="btn-cle" class="btn btn-secondaire" hidden>Clé d'accès</button>
+    </div>
+  </form>
+
+  <form id="form-code" class="mt" novalidate hidden>
+    <label for="c-code">Code reçu par e-mail</label>
+    <input id="c-code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" aria-describedby="c-code-aide">
+    <p class="aide" id="c-code-aide"></p>
+    <div class="boutons">
+      <button type="submit" class="btn">Valider</button>
+      <button type="button" class="btn btn-fantome" data-action="annuler-code">Revenir</button>
+    </div>
+  </form>
+
+  <form id="form-jeton" class="mt" novalidate hidden>
+    <label for="c-jeton">Jeton d'administration</label>
+    <input id="c-jeton" name="jeton" type="password" autocomplete="off" spellcheck="false" required>
+    <p class="aide">Gardé dans cet onglet seulement : il disparaît à sa fermeture.</p>
+    <div class="boutons"><button type="submit" class="btn">Ouvrir la console</button></div>
+  </form>
+  <p id="connexion-erreur" class="erreur-code" role="alert"></p>
+</section>
+
+<div id="espace" hidden>
+  <nav class="rubriques-console" aria-label="Rubriques de la console">
+    <button type="button" data-onglet="tableau" aria-current="page">Tableau de bord</button>
+    <button type="button" data-onglet="socles">Socles</button>
+    <button type="button" data-onglet="comptes">Comptes</button>
+    <button type="button" data-onglet="appareils">Appareils</button>
+    <button type="button" data-onglet="rapports">Rapports</button>
+    <button type="button" data-onglet="journal">Journal</button>
+  </nav>
+
+  <section id="v-tableau" class="vue-console" aria-labelledby="t-tableau">
+    <h2 id="t-tableau" class="sr-only">Tableau de bord</h2>
+    <div id="tuiles" class="tuiles"></div>
+    <div class="grille-console">
+      <div class="carte">
+        <h3>À regarder</h3>
+        <ul id="a-regarder" class="liste-simple"></ul>
+      </div>
+      <div class="carte">
+        <h3>Serveur</h3>
+        <dl id="infos-serveur" class="infos"></dl>
+      </div>
+      <div class="carte">
+        <h3>Firmware des socles</h3>
+        <ul id="versions" class="liste-simple"></ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="v-socles" class="vue-console" aria-labelledby="t-socles" hidden>
+    <div class="barre">
+      <h2 id="t-socles">Socles</h2>
+      <div class="filtres" role="group" aria-label="Filtrer les socles" data-filtres="socles">
+        <button type="button" data-filtre="tous" aria-pressed="true">Tous</button>
+        <button type="button" data-filtre="enligne" aria-pressed="false">En ligne</button>
+        <button type="button" data-filtre="horsligne" aria-pressed="false">Hors ligne</button>
+        <button type="button" data-filtre="defaut" aria-pressed="false">En défaut</button>
+        <button type="button" data-filtre="orphelin" aria-pressed="false">Sans propriétaire</button>
+      </div>
+      <label class="sr-only" for="f-socles">Chercher un socle ou un propriétaire</label>
+      <input id="f-socles" type="search" placeholder="terra…, compte" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="table-defile">
+      <table class="table-console">
+        <caption class="sr-only">Socles connus du serveur</caption>
+        <thead><tr><th scope="col">Socle</th><th scope="col">État</th><th scope="col">Vu</th><th scope="col">Firmware</th><th scope="col">Signal</th><th scope="col">Zones</th><th scope="col">Propriétaires</th></tr></thead>
+        <tbody id="corps-socles"></tbody>
+      </table>
+    </div>
+    <p id="socles-vide" class="aide vide" hidden>Aucun socle ne correspond.</p>
+  </section>
+
+  <section id="v-comptes" class="vue-console" aria-labelledby="t-comptes" hidden>
+    <div class="barre">
+      <h2 id="t-comptes">Comptes</h2>
+      <div class="filtres" role="group" aria-label="Filtrer les comptes" data-filtres="comptes">
+        <button type="button" data-filtre="tous" aria-pressed="true">Tous</button>
+        <button type="button" data-filtre="admins" aria-pressed="false">Administrateurs</button>
+        <button type="button" data-filtre="sanssocle" aria-pressed="false">Sans socle</button>
+      </div>
+      <label class="sr-only" for="f-comptes">Chercher un compte</label>
+      <input id="f-comptes" type="search" placeholder="identifiant, e-mail" autocomplete="off" spellcheck="false">
+      <button type="button" class="btn btn-petit" data-action="nouveau-compte" aria-controls="form-nouveau-compte" aria-expanded="false">Créer un compte</button>
+    </div>
+    <form id="form-nouveau-compte" class="carte formulaire-ligne" novalidate hidden>
+      <h3>Nouveau compte (identifiant et mot de passe)</h3>
+      <div class="champs">
+        <div><label for="n-login">Identifiant ou e-mail</label><input id="n-login" autocomplete="off" autocapitalize="off" spellcheck="false" required></div>
+        <div><label for="n-mdp">Mot de passe</label><input id="n-mdp" type="password" autocomplete="new-password" placeholder="vide : tiré au hasard" aria-describedby="n-mdp-aide"></div>
+      </div>
+      <p class="aide" id="n-mdp-aide">Laissé vide, un mot de passe de 16 caractères est tiré et montré une fois. Un client peut aussi ouvrir son compte seul, par e-mail, depuis l'application.</p>
+      <label class="case"><input type="checkbox" id="n-admin"> Administrateur (accès à cette console)</label>
+      <div class="boutons"><button type="submit" class="btn">Créer</button><button type="button" class="btn btn-fantome" data-action="nouveau-compte">Annuler</button></div>
+    </form>
+    <div class="table-defile">
+      <table class="table-console">
+        <caption class="sr-only">Comptes utilisateur</caption>
+        <thead><tr><th scope="col">Compte</th><th scope="col">Connexion</th><th scope="col">Droits</th><th scope="col">Socles</th><th scope="col">Clés d'accès</th><th scope="col">Sessions</th><th scope="col">Dernière connexion</th></tr></thead>
+        <tbody id="corps-comptes"></tbody>
+      </table>
+    </div>
+    <p id="comptes-vide" class="aide vide" hidden>Aucun compte ne correspond.</p>
+  </section>
+
+  <section id="v-appareils" class="vue-console" aria-labelledby="t-appareils" hidden>
+    <div class="barre">
+      <h2 id="t-appareils">Comptes d'appareil</h2>
+      <button type="button" class="btn btn-petit" data-action="nouvel-appareil" aria-controls="form-nouvel-appareil" aria-expanded="false">Créer un compte d'appareil</button>
+    </div>
+    <p class="aide">Le mot de passe MQTT de chaque socle. L'atelier les crée au montage ; ici, pour un socle monté à la main ou un mot de passe à changer.</p>
+    <form id="form-nouvel-appareil" class="carte formulaire-ligne" novalidate hidden>
+      <h3>Nouveau compte d'appareil</h3>
+      <label for="n-appareil">Identifiant du socle</label>
+      <input id="n-appareil" placeholder="terraA1B2C3" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="11" required>
+      <div class="boutons"><button type="submit" class="btn">Créer</button><button type="button" class="btn btn-fantome" data-action="nouvel-appareil">Annuler</button></div>
+    </form>
+    <div class="table-defile">
+      <table class="table-console">
+        <caption class="sr-only">Comptes d'appareil</caption>
+        <thead><tr><th scope="col">Socle</th><th scope="col">Créé</th><th scope="col">Mot de passe changé</th><th scope="col">Vu</th><th scope="col">Propriétaires</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody id="corps-appareils"></tbody>
+      </table>
+    </div>
+    <p id="appareils-vide" class="aide vide" hidden>Aucun compte d'appareil.</p>
+  </section>
+
+  <section id="v-rapports" class="vue-console" aria-labelledby="t-rapports" hidden>
+    <div class="barre"><h2 id="t-rapports">Rapports de diagnostic</h2></div>
+    <p class="aide">Envoyés depuis l'application par les propriétaires. Ils peuvent contenir des données personnelles : chaque lecture est notée au journal.</p>
+    <div class="table-defile">
+      <table class="table-console">
+        <caption class="sr-only">Rapports de diagnostic reçus</caption>
+        <thead><tr><th scope="col">Reçu</th><th scope="col">Compte</th><th scope="col">Taille</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody id="corps-rapports"></tbody>
+      </table>
+    </div>
+    <p id="rapports-vide" class="aide vide" hidden>Aucun rapport reçu.</p>
+  </section>
+
+  <section id="v-journal" class="vue-console" aria-labelledby="t-journal" hidden>
+    <div class="barre">
+      <h2 id="t-journal">Journal d'audit</h2>
+      <label class="sr-only" for="f-journal">Filtrer par socle ou par compte</label>
+      <input id="f-journal" type="search" placeholder="terra… ou e-mail du compte" autocomplete="off" spellcheck="false">
+      <button type="button" class="btn btn-secondaire btn-petit" data-action="exporter-journal">Exporter</button>
+    </div>
+    <p id="etat-chaine" class="bandeau-chaine" role="status"></p>
+    <ol id="liste-journal" class="journal-console" reversed></ol>
+    <p id="journal-vide" class="aide vide" hidden>Aucune ligne.</p>
+  </section>
+</div>
+
+</main>
+
+<dialog id="fiche" class="feuille large fiche-console" aria-labelledby="fiche-titre">
+  <div class="fiche-tete">
+    <h2 id="fiche-titre"></h2>
+    <button type="button" class="btn btn-fantome btn-petit" data-action="fermer-fiche">Fermer</button>
+  </div>
+  <div id="fiche-corps"></div>
+</dialog>
+
+<dialog id="confirmer" class="feuille" aria-labelledby="confirmer-titre" aria-describedby="confirmer-texte">
+  <form id="form-confirmer" novalidate>
+    <h2 id="confirmer-titre"></h2>
+    <p id="confirmer-texte" class="aide"></p>
+    <label for="confirmer-saisie" id="confirmer-label"></label>
+    <input id="confirmer-saisie" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="boutons fin">
+      <button type="button" class="btn btn-fantome" data-action="annuler-confirmation">Annuler</button>
+      <button type="submit" class="btn btn-danger" id="confirmer-ok" disabled></button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="secret" class="feuille" aria-labelledby="secret-titre" aria-describedby="secret-aide">
+  <h2 id="secret-titre"></h2>
+  <p id="secret-aide" class="aide"></p>
+  <pre id="secret-valeur" class="bloc-texte"></pre>
+  <div class="boutons fin">
+    <button type="button" class="btn btn-secondaire" data-action="copier-secret">Copier</button>
+    <button type="button" class="btn" data-action="fermer-secret">C'est noté</button>
+  </div>
+</dialog>
+
+<dialog id="lecture" class="feuille large" aria-labelledby="lecture-titre">
+  <div class="fiche-tete">
+    <h2 id="lecture-titre"></h2>
+    <button type="button" class="btn btn-fantome btn-petit" data-action="fermer-lecture">Fermer</button>
+  </div>
+  <pre id="lecture-texte" class="rapport" tabindex="0"></pre>
+  <div class="boutons fin">
+    <button type="button" class="btn btn-secondaire" data-action="telecharger-lecture">Télécharger</button>
+    <button type="button" class="btn btn-danger" data-action="supprimer-lecture">Supprimer</button>
+  </div>
+</dialog>
+
+<div id="message" role="status" aria-live="polite"></div>
+</body>
+</html>

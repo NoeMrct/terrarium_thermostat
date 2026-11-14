@@ -341,9 +341,10 @@ compromis pourrait écouter et commander tous les autres.
 
 Ou le **serveur Terrariums** du dépôt (`serveur/`, un processus Node ou un
 conteneur Docker, derrière un reverse proxy TLS) : il fait broker, applique
-les droits par socle tout seul, garde l'historique application fermée et
-envoie des notifications push sur le téléphone. `serveur/README.md` pour le
-démarrer ; la page **Atelier** du site (`docs/atelier.md`) crée le compte d'un socle,
+les droits par socle tout seul, garde l'historique application fermée,
+envoie des notifications push sur le téléphone et offre une **console
+d'administration** (`https://votre-serveur/console/` : flotte, comptes,
+rapports, journal d'audit). `serveur/README.md` pour le démarrer ; la page **Atelier** du site (`docs/atelier.md`) crée le compte d'un socle,
 le configure, le rode et imprime son étiquette ; `outils/provisionner.js` fait
 l'essentiel en une commande, sans navigateur.
 

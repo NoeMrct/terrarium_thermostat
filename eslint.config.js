@@ -1,6 +1,7 @@
 // Configuration ESLint (format « flat »). Règles recommandées, deux
-// environnements : le navigateur pour app/, Node pour outils/. Rien
-// d'esthétique : le but est d'attraper ce qui est faux, pas ce qui est moche.
+// environnements : le navigateur pour app/ et la console du serveur
+// (serveur/console/), Node pour outils/ et serveur/. Rien d'esthétique : le
+// but est d'attraper ce qui est faux, pas ce qui est moche.
 'use strict';
 
 const js = require('./outils/node_modules/@eslint/js');
@@ -54,5 +55,9 @@ module.exports = [
       'no-var': 'error',
       'prefer-const': 'error'
     }
+  },
+  {
+    files: ['serveur/console/*.js'],
+    languageOptions: { ecmaVersion: 2022, sourceType: 'script', globals: navigateur }
   }
 ];

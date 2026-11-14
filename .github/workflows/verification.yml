@@ -11,7 +11,7 @@
 #                couverture c8, démonstration, page embarquée, accessibilité,
 #                régression visuelle, charge, Lighthouse (et poids, pour information)
 #   navigateurs  l'application dans WebKit et Firefox (Safari iPhone est la cible)
-#   serveur      le serveur auto-hébergeable (comptes, historique, push)
+#   serveur      le serveur auto-hébergeable (comptes, historique, push, console)
 #   firmware     compilation ESP32 reproductible sans avertissement, taille
 #   installateur intégrité de la copie d'ESP Web Tools
 name: Vérification
@@ -245,9 +245,13 @@ jobs:
       - name: Compte par e-mail et clé d'accès, dans Chromium (authentificateur virtuel)
         working-directory: outils
         run: |
-          npm install --no-save playwright@1.56.0
+          npm install --no-save playwright@1.56.0 axe-core
           npx playwright install --with-deps chromium
           node test-compte.js
+
+      - name: Console d'administration, dans Chromium (CSP, axe-core)
+        working-directory: outils
+        run: node test-console.js
 
   installateur:
     name: Intégrité de l'installateur web

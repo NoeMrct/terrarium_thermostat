@@ -33,6 +33,7 @@
     "hooks": "git -C .. config core.hooksPath .githooks && echo \"Hooks git actives (.githooks/pre-commit)\"",
     "test:serveur": "node test-serveur.js",
     "test:compte": "node test-compte.js",
+    "test:console": "node test-console.js",
     "pdf": "node construire-pdf.js"
   },
   "dependencies": {

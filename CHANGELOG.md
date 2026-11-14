@@ -119,6 +119,22 @@ jour.
   adresse remplie. Le jeton de session est le mot de passe du broker. Testé de
   bout en bout dans Chromium avec un authentificateur virtuel
   (`test-compte`).
+- **Console d'administration** du serveur (V6), sur `/console/` : tableau de
+  bord de la flotte (en ligne, en défaut, mises à jour en échec, plantages,
+  versions), fiche de chaque socle (santé publiée, zones, courbe des 24 heures,
+  propriétaires, compte d'appareil), comptes (création, droits, « déconnecter
+  partout », mot de passe réinitialisé et montré une fois, retrait d'une clé
+  d'accès, export RGPD, effacement), comptes d'appareil, rapports de
+  diagnostic, journal. Connexion par compte administrateur (mot de passe, code
+  par e-mail, clé d'accès) ou `ADMIN_JETON` ; données personnelles masquées par
+  défaut ; référence à taper pour les gestes lourds ; politique de sécurité
+  stricte (Trusted Types, même origine). `node serveur.js utilisateur admin
+  <login> oui|non`.
+- **Journal d'audit chaîné** du serveur (`donnees/audit/`, 12 mois) : gestes de
+  l'administration et des titulaires, comptes sous référence pseudonyme, jamais
+  un secret ; ligne modifiée, retirée ou insérée détectée, fin coupée notée
+  (`node serveur.js audit verifier`). Testé par `test-console` (84 contrôles
+  dans Chromium, axe-core en clair et en sombre) et `test/admin.test.js`.
 - Console : `wifi off` oublie le réseau enregistré (point d'accès de
   configuration au démarrage suivant), pour qu'un socle rodé à l'atelier ne
   cherche pas le Wi-Fi du banc chez l'acheteur.

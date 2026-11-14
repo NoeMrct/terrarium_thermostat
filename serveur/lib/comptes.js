@@ -149,6 +149,77 @@ class Comptes {
     this.sauver();
   }
 
+  // --- administration (console) -------------------------------------------------
+  // Mot de passe tiré au hasard, montré une fois à l'administrateur.
+  static motDePasseAleatoire(n = 16) {
+    const alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let s = '';
+    for (let i = 0; i < n; i++) s += alphabet[crypto.randomInt(alphabet.length)];
+    return s;
+  }
+
+  reinitialiserMotDePasse(login) {
+    const u = this.utilisateur(login);
+    if (!u) throw new Error('utilisateur inconnu');
+    if (!u.empreinte) throw new Error('compte par e-mail : il n\'a pas de mot de passe (connexion par code ou clé d\'accès)');
+    const mdp = Comptes.motDePasseAleatoire();
+    this.changerMotDePasse(u.login, mdp);
+    return mdp;
+  }
+
+  definirAdmin(login, admin) {
+    const u = this.utilisateur(login);
+    if (!u) throw new Error('utilisateur inconnu');
+    u.admin = !!admin;
+    this.sauver();
+    return u;
+  }
+
+  // Sessions en cours d'un compte (sans le jeton, que le disque n'a pas).
+  sessionsDe(login) {
+    const cle = String(login || '').toLowerCase(), maintenant = Date.now();
+    return [...this.donnees.sessions.values()].filter(s_ => s_.login === cle && Date.parse(s_.expire) > maintenant)
+      .map(s_ => ({ ouverte: s_.cree || null, expire: s_.expire, appareil: s_.agent || '' }));
+  }
+
+  // « Déconnecter partout » : toutes les sessions du compte tombent, et avec
+  // elles l'accès au broker (le jeton y servait de mot de passe).
+  fermerSessions(login) {
+    const cle = String(login || '').toLowerCase();
+    let n = 0;
+    for (const [j, s_] of this.donnees.sessions) if (s_.login === cle) { this.donnees.sessions.delete(j); n++; }
+    if (n) this.sauver();
+    return n;
+  }
+
+  // Liste détaillée pour la console : type de compte, sessions, dernière connexion.
+  utilisateursDetail() {
+    const maintenant = Date.now(), parLogin = new Map();
+    for (const s_ of this.donnees.sessions.values()) {
+      if (Date.parse(s_.expire) <= maintenant) continue;
+      const x = parLogin.get(s_.login) || { n: 0, derniere: null };
+      x.n++;
+      if (s_.cree && (!x.derniere || s_.cree > x.derniere)) x.derniere = s_.cree;
+      parLogin.set(s_.login, x);
+    }
+    return [...this.donnees.utilisateurs.values()].map(u => {
+      const x = parLogin.get(u.login.toLowerCase()) || { n: 0, derniere: null };
+      return { login: u.login, email: u.email || null, type: u.empreinte ? 'motdepasse' : 'email', admin: !!u.admin,
+        socles: u.socles.slice(), cles: (u.cles || []).length, sessions: x.n, derniereConnexion: x.derniere, cree: u.cree || null };
+    });
+  }
+
+  // Fiche d'un compte pour la console : rien de secret (ni empreinte, ni clé publique).
+  detailUtilisateur(login) {
+    const u = this.utilisateur(login);
+    if (!u) return null;
+    const ligne = this.utilisateursDetail().find(x => x.login === u.login);
+    return { ...ligne,
+      clesAcces: (u.cles || []).map(c => ({ id: c.id, nom: c.nom, cree: c.cree, vu: c.vu || null, synchronisee: !!c.synchronisee })),
+      sessionsOuvertes: this.sessionsDe(u.login),
+      notificationsPush: this.abonnementsPush(u.login).map(a => ({ appareil: a.agent, cree: a.cree })) };
+  }
+
   utilisateur(login) { return this.donnees.utilisateurs.get(String(login || '').toLowerCase()) || null; }
 
   // Vérifie un couple identifiant / secret, où le secret est le mot de passe ou
@@ -269,7 +340,20 @@ class Comptes {
     return true;
   }
 
+  // Nouveau mot de passe pour un compte d'appareil existant : l'ancien cesse
+  // aussitôt de valoir (le socle doit le recevoir par sa console : mqtt …).
+  renouvelerAppareil(id) {
+    if (!this.appareil(id)) throw new Error('compte d\'appareil inconnu');
+    const a = this.appareil(id);
+    const r = this.ajouterAppareil(id);
+    this.appareil(id).cree = a.cree;
+    this.appareil(id).renouvele = new Date().toISOString();
+    this.sauver();
+    return r;
+  }
+
   appareil(id) { return this.donnees.appareils.get(String(id || '')) || null; }
+  appareilsDetail() { return [...this.donnees.appareils.values()].map(a => ({ id: a.id, cree: a.cree || null, renouvele: a.renouvele || null })); }
 
   authentifierAppareil(id, motDePasse) {
     const a = this.appareil(id);

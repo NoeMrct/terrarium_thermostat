@@ -10,7 +10,7 @@ ne sait pas faire :
 | Historique | seulement quand l'application est ouverte (IndexedDB) | continu, un point par minute, 400 jours, relu par l'application pour combler ses courbes |
 | Notifications | navigateur ouvert, ou ntfy/healthchecks depuis le socle | push sur le téléphone, application fermée : défaut, rétabli, socle disparu, mise à jour en échec |
 | Diagnostic | copier-coller | « Envoyer au serveur » |
-| Exploitation | — | `/api/flotte` : qui est en ligne, version, signal, dernière mise à jour |
+| Exploitation | — | console web sur `/console/` : flotte, comptes, comptes d'appareil, rapports, journal d'audit chaîné |
 
 Les socles s'y connectent comme à n'importe quel broker (MQTT TCP ou TLS
 derrière un reverse proxy), ou restent sur un broker amont (HiveMQ) que le
@@ -21,9 +21,11 @@ commandent ici repart là-bas.
 
 ```sh
 cd serveur && npm ci
-ADMIN_JETON=$(openssl rand -hex 24) node serveur.js        # HTTP 8080 (API, /mqtt), MQTT 1883
+ADMIN_JETON=$(openssl rand -hex 24) node serveur.js        # HTTP 8080 (API, /mqtt, /console/), MQTT 1883
 node serveur.js utilisateur ajouter noe 'un mot de passe'   # un compte pour l'application
 node serveur.js appareil ajouter terraA1B2C3                # un compte pour un socle : affiche la commande série à taper
+node serveur.js utilisateur admin noe oui                   # donne à ce compte l'accès à la console
+node serveur.js audit verifier                              # vérifie la chaîne du journal d'audit
 ```
 
 Ou en conteneur : `docker compose -f serveur/docker-compose.yml up -d` depuis la
@@ -48,7 +50,7 @@ Variables d'environnement, ou `serveur/.env` :
 | `PORT` | 8080 | HTTP : API, MQTT sur WebSocket (`/mqtt`), application si `SERVIR_APP=1` |
 | `PORT_MQTT` | 1883 | MQTT TCP pour les socles (`off` pour désactiver) |
 | `DONNEES` | `serveur/donnees` | comptes, historique, clés VAPID, rapports |
-| `ADMIN_JETON` | — | API d'administration (`Authorization: Bearer`) et utilisateur MQTT `admin` |
+| `ADMIN_JETON` | — | console (`/console/`), API d'administration (`Authorization: Bearer`) et utilisateur MQTT `admin`. Sans lui, la console reste ouverte aux comptes administrateurs |
 | `AMONT_URL`, `AMONT_UTILISATEUR`, `AMONT_MOT_DE_PASSE` | — | pont vers un broker amont |
 | `SERVIR_APP` | 0 | sert `../app` sur `/` |
 | `ORIGINES` | toutes | origines autorisées pour l'API (CORS), séparées par des virgules |
@@ -82,9 +84,11 @@ puis `POST /api/cles` (inscrire une clé d'accès), `GET /api/cles`,
 `GET /api/socles/:id/historique?depuis&jusqua&pas` (même format que le socle :
 `[epoch, t1, consigne1, t2, consigne2]` en centièmes), `POST|DELETE
 /api/push/abonnement`, `POST /api/push/essai`, `POST /api/rapports` (texte).
-Administration : `GET /api/flotte`, `GET /api/admin/comptes`, `POST
-/api/admin/utilisateurs`, `POST /api/admin/appareils` (renvoie le mot de passe
-engendré), `DELETE /api/admin/appareils/:id`, `POST /api/admin/utilisateurs/:login/socles`.
+Administration (jeton d'administration, ou session d'un compte administrateur) :
+voir « Console d'administration ». Les scripts d'avant la console gardent
+`GET /api/flotte`, `GET /api/admin/comptes`, `POST /api/admin/utilisateurs`,
+`POST /api/admin/appareils` (renvoie le mot de passe engendré) et
+`POST /api/admin/utilisateurs/:login/socles`.
 
 Dix échecs de connexion par adresse et par quart d'heure bloquent `/api/session`,
 `/api/compte/verifier` et `/api/cles/connexion`.
@@ -93,6 +97,77 @@ les ferment) ; changer de mot de passe les ferme toutes. Sur le disque, une
 session n'est qu'une empreinte SHA-256 de son jeton. Pour un compte ouvert par
 e-mail, le jeton de session est aussi le mot de passe présenté au broker
 (identifiant : l'adresse e-mail).
+
+## Console d'administration
+
+`https://votre-serveur/console/` : une page servie par le serveur lui-même
+(même origine que l'API), pour l'exploitant.
+
+- **Connexion** : compte administrateur (mot de passe, code par e-mail ou clé
+  d'accès) ou `ADMIN_JETON`. Un compte devient administrateur par
+  `node serveur.js utilisateur admin <login> oui`, ou depuis la console. La
+  session vit dans l'onglet (`sessionStorage`) ; un compte qui n'est pas
+  administrateur est refusé et sa session refermée.
+- **Tableau de bord** : socles en ligne, hors ligne, en défaut, sans
+  propriétaire ; comptes ; rapports de la semaine ; état du journal ; ce qui
+  demande à être regardé (défaut, mise à jour en échec, plantage, socle
+  disparu depuis plus d'une heure) ; serveur (clients MQTT, pont, e-mail,
+  clés d'accès, origines) ; versions de firmware de la flotte.
+- **Socles** : filtres, recherche par identifiant ou propriétaire, fiche
+  (santé publiée, zones, courbe des 24 heures, propriétaires à rattacher ou
+  détacher, compte d'appareil, journal). Le serveur ne voit que ce que le
+  socle publie : sans son code d'appairage, il ne peut rien lui commander.
+- **Comptes** : création (mot de passe tiré et montré une fois si laissé
+  vide), droits d'administration, « déconnecter partout », réinitialisation du
+  mot de passe, retrait d'une clé d'accès, export des données (droit d'accès,
+  avec ce que le journal dit du compte, sans nommer l'équipe), effacement.
+- **Comptes d'appareil** : création et changement du mot de passe MQTT d'un
+  socle (montré une fois, avec la commande à taper sur sa console série),
+  retrait.
+- **Rapports** de diagnostic : lecture (notée au journal), téléchargement,
+  suppression.
+- **Journal d'audit** : vérification de la chaîne, filtre par socle ou par
+  compte, export NDJSON.
+
+Garde-fous : données personnelles masquées par défaut (« no…@exemple.fr »,
+un bouton les montre jusqu'au prochain chargement) ; référence à taper pour
+effacer un compte ou retirer un compte d'appareil ; un administrateur ne peut
+ni effacer son propre compte ni se retirer ses droits ; vingt jetons inconnus
+par adresse et par quart d'heure, puis refus. La page est servie avec une
+politique de sécurité stricte (même origine seulement, aucun script ni style
+en ligne, Trusted Types exigés, pas d'intégration dans un cadre) ; elle reprend
+la feuille de style et la police de l'application.
+
+Routes (`/api/admin/…`) : `GET moi`, `GET tableau` ; `GET socles`,
+`GET socles/:id`, `GET socles/:id/historique`, `POST socles/:id/proprietaires
+{login}`, `DELETE socles/:id/proprietaires/:login` ; `GET|POST appareils`,
+`POST appareils/:id/renouveler`, `DELETE appareils/:id {confirmation: id}` ;
+`GET|POST utilisateurs`, `GET utilisateurs/:login`, `POST
+utilisateurs/:login/admin {admin}`, `POST utilisateurs/:login/sessions/fermer`,
+`POST utilisateurs/:login/mot-de-passe`, `GET utilisateurs/:login/export`,
+`POST|DELETE utilisateurs/:login/socles[/:id]`, `DELETE
+utilisateurs/:login/cles/:id`, `DELETE utilisateurs/:login {confirmation:
+login}` ; `GET rapports`, `GET|DELETE rapports/:nom` ; `GET
+audit?limite&cible&compte`, `GET audit/export?cible&compte`.
+
+## Journal d'audit
+
+Chaque geste de l'administration, et ce que font les titulaires eux-mêmes
+(compte ouvert ou effacé, socle rattaché ou retiré, clé d'accès ajoutée ou
+retirée, rapport envoyé), entre dans `donnees/audit/AAAA-MM.ndjson` : qui,
+quand, quoi, sur quel socle ou quel compte, avec les valeurs utiles — jamais
+un mot de passe, un jeton ni un code. Un compte y figure sous une référence
+pseudonyme (`no…@exemple.fr #3f9a0c21b4`, empreinte de l'adresse) : l'adresse
+effacée avec le compte ne reste pas au journal, et une demande d'accès se
+retrouve en recalculant la référence (filtre « compte » de la console).
+
+Chaque ligne porte l'empreinte SHA-256 de la précédente : une ligne modifiée,
+retirée ou insérée se voit à la vérification (console, ou
+`node serveur.js audit verifier`), qui repart de la plus ancienne ligne
+conservée. Une fin coupée pendant que le serveur tourne se voit aussi, et une
+ligne « audit.rupture » le note. Les mois au-delà de douze partent en entier.
+Contre quelqu'un qui réécrirait tout le disque, noter de temps en temps la
+tête de chaîne (affichée par la console) ailleurs.
 
 ## Clés d'accès
 
@@ -123,6 +198,7 @@ donnees/
   vapid.json                        paire de clés des notifications (engendrée)
   historique/<id>/AAAA-MM-JJ.ndjson un point par ligne
   rapports/<date>-<login>.txt       diagnostics envoyés par l'application
+  audit/AAAA-MM.ndjson              journal d'audit chaîné, 12 mois
 ```
 
 Sauvegarde : copier le dossier. Tout est du texte.
@@ -132,7 +208,9 @@ Sauvegarde : copier le dossier. Tout est du texte.
 `npm test` : comptes, droits, appairage, historique, push (service de push
 simulé), API, pont vers un broker amont ; comptes en libre-service (code par
 e-mail, clés d'accès signées par un authentificateur logiciel, sessions,
-export, effacement) et client SMTP contre un faux serveur — sur des ports
+export, effacement), client SMTP contre un faux serveur, journal d'audit
+(chaîne, ruptures, purge) et routes de la console — sur des ports
 éphémères. Et depuis
 `outils/` : `node test-serveur.js` fait tourner la vraie application (jsdom,
-son propre client MQTT) contre le vrai serveur.
+son propre client MQTT) contre le vrai serveur ; `node test-compte.js` et
+`node test-console.js` ouvrent l'application et la console dans Chromium.

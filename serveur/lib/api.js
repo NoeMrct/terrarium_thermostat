@@ -3,37 +3,68 @@
    identifiant et mot de passe), sessions, rattachement d'un socle à un compte
    (preuve par le code d'appairage, vérifiée auprès du socle), historique,
    abonnements push, rapports de diagnostic, export et effacement du compte,
-   administration et état de la flotte. Les fichiers de l'application peuvent
-   être servis depuis ici (SERVIR_APP=1) pour un déploiement entièrement
-   auto-hébergé. */
+   administration (routes dans admin.js, console web sur /console/). Les
+   fichiers de l'application peuvent être servis depuis ici (SERVIR_APP=1)
+   pour un déploiement entièrement auto-hébergé. */
 
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { Comptes } = require('./comptes');
 const webauthn = require('./webauthn');
+const { Admin } = require('./admin');
+const { refCompte } = require('./audit');
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
                 '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.map': 'application/json',
-                '.webmanifest': 'application/manifest+json', '.ico': 'image/x-icon', '.txt': 'text/plain; charset=utf-8' };
+                '.webmanifest': 'application/manifest+json', '.ico': 'image/x-icon', '.txt': 'text/plain; charset=utf-8', '.woff2': 'font/woff2' };
 const LIMITE_CORPS = 64 * 1024;
 const VALIDITE_CODE_MS = 10 * 60000;
 const VALIDITE_DEFI_MS = 5 * 60000;
 const empreinteCode = (email, code) => crypto.createHash('sha256').update(`${email}:${code}`).digest();
 // Dans le journal : « no…@exemple.fr », jamais l'adresse entière.
 const masquerEmail = e => String(e).replace(/^(.{0,2})[^@]*/, '$1…');
+// Comparaison à temps constant de deux secrets de longueurs quelconques.
+const memeSecret = (a, b) => crypto.timingSafeEqual(crypto.createHash('sha256').update(String(a)).digest(), crypto.createHash('sha256').update(String(b)).digest());
+
+// Console d'administration : quelques fichiers nommés, rien d'autre (pas de
+// chemin construit depuis l'adresse). La feuille de style et la police sont
+// celles de l'application.
+const DOSSIER_CONSOLE = path.join(__dirname, '..', 'console');
+const DOSSIER_APP = path.join(__dirname, '..', '..', 'app');
+const CSP_CONSOLE = "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; " +
+  "manifest-src 'none'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'; require-trusted-types-for 'script'; trusted-types 'none'";
+function fichierConsole(nom) {
+  if (nom === '' || nom === 'index.html') return path.join(DOSSIER_CONSOLE, 'index.html');
+  if (nom === 'console.js' || nom === 'console.css') return path.join(DOSSIER_CONSOLE, nom);
+  if (nom === 'style.css' || nom === 'icone.svg') return path.join(DOSSIER_APP, nom);
+  if (/^polices\/[a-z0-9-]{1,60}\.woff2$/.test(nom)) return path.join(DOSSIER_APP, nom);
+  return null;
+}
 
 class Api {
-  constructor({ comptes, broker, historique, notifications, options }) {
+  constructor({ comptes, broker, historique, notifications, audit, options }) {
     this.comptes = comptes; this.broker = broker; this.historique = historique; this.notifications = notifications;
+    this.audit = audit || { noter() {}, lire: () => [], verifier: () => ({ ok: true, n: 0 }) };
     this.o = options;
+    this.demarre = Date.now();
+    this.admin = new Admin(this);
     this.tentatives = new Map();    // ip -> [instants] des connexions ratées
+    this.tentativesAdmin = new Map(); // ip -> [instants] des jetons inconnus présentés à /api/admin
     this.dossierRapports = path.join(options.donnees, 'rapports');
     this.courriel = options.courriel || null;           // { envoyer({ a, sujet, texte }) } ou rien
     this.codes = new Map();           // e-mail -> { empreinte, expire, essais } : en mémoire seulement
     this.defis = new Map();           // défi WebAuthn -> { type, login, rpId, origine, expire }
     this.demandesIp = new Map();      // ip -> [instants] des codes demandés
     this.demandesEmail = new Map();   // e-mail -> [instants]
+  }
+
+  // Vrai si la clé a déjà `n` événements sur la fenêtre (sans en ajouter).
+  limiteAtteinte(table, cle, n, fenetreMs) {
+    const maintenant = Date.now();
+    const l = (table.get(cle) || []).filter(t => maintenant - t < fenetreMs);
+    if (l.length) table.set(cle, l); else table.delete(cle);
+    return l.length >= n;
   }
 
   // Au plus `n` événements par clé sur la fenêtre ; vrai si la limite est atteinte.
@@ -114,12 +145,16 @@ class Api {
     const jeton = Api.jetonDe(req);
     return jeton ? this.comptes.utilisateurDeSession(jeton) : null;
   }
-  estAdmin(req) {
+  // Qui administre : le jeton d'administration, ou un compte marqué
+  // administrateur (session ouverte). Sert de « qui » au journal d'audit.
+  identiteAdmin(req) {
     const jeton = Api.jetonDe(req);
-    if (jeton && this.o.adminJeton && jeton === this.o.adminJeton) return true;
-    const u = this.utilisateurDe(req);
-    return !!(u && u.admin);
+    if (!jeton) return null;
+    if (this.o.adminJeton && memeSecret(jeton, this.o.adminJeton)) return { qui: 'jeton d\'administration', login: null };
+    const u = this.comptes.utilisateurDeSession(jeton);
+    return u && u.admin ? { qui: u.login, login: u.login } : null;
   }
+  estAdmin(req) { return !!this.identiteAdmin(req); }
 
   // Dix échecs par adresse et par quart d'heure sur l'ouverture de session.
   tropDEssais(ip) {
@@ -131,6 +166,20 @@ class Api {
   noterEchec(ip) {
     if (!this.tentatives.has(ip)) this.tentatives.set(ip, []);
     this.tentatives.get(ip).push(Date.now());
+  }
+
+  // Une ligne au journal d'audit pour ce que fait le titulaire lui-même : la
+  // frise d'un compte ou d'un socle montre aussi ses propres gestes.
+  noterTitulaire(action, cible, details = null) { this.audit.noter({ qui: 'titulaire', action, cible, details }); }
+
+  // Historique d'un socle (application du propriétaire, ou console).
+  repondreHistorique(res, id, url) {
+    const maintenant = Math.floor(Date.now() / 1000);
+    const jusqua = Math.min(maintenant, parseInt(url.searchParams.get('jusqua') || maintenant, 10) || maintenant);
+    const depuis = Math.max(0, parseInt(url.searchParams.get('depuis') || (jusqua - 86400), 10) || (jusqua - 86400));
+    let pas = parseInt(url.searchParams.get('pas') || '60', 10); if (!(pas >= 60)) pas = 60;
+    const points = this.historique.lire(id, depuis, jusqua, pas, 5000);
+    return this.json(res, 200, { format: ['epoch', 't1', 'consigne1', 't2', 'consigne2'], unite: 'centiemes de degre', pas, depuis, jusqua, n: points.length, points });
   }
 
   cors(req, res) {
@@ -156,6 +205,8 @@ class Api {
     if (methode === 'OPTIONS') { res.writeHead(204); res.end(); return; }
     try {
       if (chemin.startsWith('/api/')) return await this.api(req, res, methode, chemin, url, ip);
+      if (chemin === '/console') { res.writeHead(301, { Location: '/console/' }); res.end(); return; }
+      if (chemin.startsWith('/console/')) return this.console(res, chemin.slice('/console/'.length));
       if (this.o.app) return this.statique(req, res, chemin);
       if (chemin === '/') { res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end('Serveur Terrariums ' + this.o.version + ' — API sur /api/, MQTT sur /mqtt\n'); return; }
       this.erreur(res, 404, 'page inconnue');
@@ -167,7 +218,7 @@ class Api {
   async api(req, res, methode, chemin, url, ip) {
     // Public
     if (methode === 'GET' && chemin === '/api/infos') {
-      return this.json(res, 200, { serveur: 'terrariums', version: this.o.version, mqtt: { ws: '/mqtt', tcp: this.o.portMqtt }, push: !!this.notifications, prefixe: this.broker.prefixe,
+      return this.json(res, 200, { serveur: 'terrariums', version: this.o.version, mqtt: { ws: '/mqtt', tcp: this.o.portMqttEcoute !== undefined ? this.o.portMqttEcoute : this.o.portMqtt }, push: !!this.notifications, prefixe: this.broker.prefixe,
         comptes: { email: !!this.courriel, clesAcces: true } });
     }
     if (chemin === '/api/session') {
@@ -222,7 +273,7 @@ class Api {
       this.codes.delete(email);
       const { u, nouveau } = this.comptes.obtenirParEmail(email);
       const jeton = this.comptes.ouvrirSession(u.login, { agent: req.headers['user-agent'] });
-      if (nouveau) this.o.journal(`compte ouvert : ${masquerEmail(email)}`);
+      if (nouveau) { this.o.journal(`compte ouvert : ${masquerEmail(email)}`); this.noterTitulaire('compte.ouvrir', refCompte(email)); }
       return this.json(res, 200, { jeton, login: u.login, socles: u.socles, admin: !!u.admin, nouveau, clesAcces: (u.cles || []).length });
     }
     // Connexion par clé d'accès : clés découvrables, aucune liste de clés
@@ -252,29 +303,17 @@ class Api {
       return this.json(res, 200, { cle: this.notifications.clePublique() });
     }
 
-    // Administration
+    // Administration (console, scripts, atelier). Un jeton inconnu de tous
+    // compte comme un essai raté : vingt par quart d'heure et par adresse.
     if (chemin.startsWith('/api/admin/') || chemin === '/api/flotte') {
-      if (!this.estAdmin(req)) return this.erreur(res, 403, 'réservé à l\'administration');
-      if (methode === 'GET' && chemin === '/api/flotte') return this.json(res, 200, { socles: this.broker.etatFlotte(), comptes: this.comptes.resume() });
-      if (methode === 'GET' && chemin === '/api/admin/comptes') return this.json(res, 200, this.comptes.resume());
-      if (methode === 'POST' && chemin === '/api/admin/utilisateurs') {
-        const d = await this.lireJson(req);
-        const u = this.comptes.ajouterUtilisateur(d.login, d.motDePasse, { admin: !!d.admin });
-        return this.json(res, 201, { login: u.login });
+      if (this.limiteAtteinte(this.tentativesAdmin, ip, 20, 900000)) return this.erreur(res, 429, 'trop de tentatives, réessayer dans un quart d\'heure');
+      const qui = this.identiteAdmin(req);
+      if (!qui) {
+        const jeton = Api.jetonDe(req);
+        if (jeton && !this.comptes.session(jeton)) this.limite(this.tentativesAdmin, ip, Infinity, 900000);
+        return this.erreur(res, 403, 'réservé à l\'administration');
       }
-      if (methode === 'POST' && chemin === '/api/admin/appareils') {
-        const d = await this.lireJson(req);
-        return this.json(res, 201, this.comptes.ajouterAppareil(d.id, d.motDePasse));
-      }
-      const mAppareil = /^\/api\/admin\/appareils\/(terra[0-9A-Za-z]{6})$/.exec(chemin);
-      if (methode === 'DELETE' && mAppareil) return this.json(res, 200, { retire: this.comptes.retirerAppareil(mAppareil[1]) });
-      const mAttr = /^\/api\/admin\/utilisateurs\/([^/]+)\/socles$/.exec(chemin);
-      if (methode === 'POST' && mAttr) {
-        const d = await this.lireJson(req);
-        this.comptes.attribuerSocle(decodeURIComponent(mAttr[1]), d.id);
-        return this.json(res, 200, { ok: true });
-      }
-      return this.erreur(res, 404, 'route inconnue');
+      return await this.admin.traiter(req, res, methode, chemin, url, qui);
     }
 
     // Utilisateur connecté
@@ -290,8 +329,10 @@ class Api {
     if (methode === 'DELETE' && chemin === '/api/moi') {
       const d = await this.lireJson(req);
       if (String(d.confirmation || '').trim().toLowerCase() !== u.login.toLowerCase()) return this.erreur(res, 400, 'confirmation : recopier l\'identifiant du compte');
+      const nbSocles = u.socles.length;
       const r = this.comptes.supprimerUtilisateur(u.login);
       for (const id of r.orphelins) this.historique.supprimer(id);
+      this.noterTitulaire('compte.supprimer', refCompte(u.login), { socles: nbSocles, historiquesEffaces: r.orphelins.length });
       this.o.journal(`compte effacé à la demande de son titulaire${r.orphelins.length ? ` (${r.orphelins.length} historique(s) de socle effacé(s))` : ''}`);
       return this.json(res, 200, { ok: true, historiquesEffaces: r.orphelins.length });
     }
@@ -320,11 +361,17 @@ class Api {
         catch (e) { return this.erreur(res, 400, e.message); }
         if (d.id && d.id !== r.id) return this.erreur(res, 400, 'identifiant de clé incohérent');
         this.comptes.ajouterCle(u.login, { ...r, nom: d.nom });
+        this.noterTitulaire('compte.cle.ajouter', refCompte(u.login), { nom: String(d.nom || 'Clé d\'accès').slice(0, 60) });
         return this.json(res, 201, { id: r.id, nom: String(d.nom || 'Clé d\'accès').slice(0, 60) });
       }
     }
     const mCle = /^\/api\/cles\/([A-Za-z0-9_-]{16,1400})$/.exec(chemin);
-    if (methode === 'DELETE' && mCle) return this.json(res, 200, { retiree: this.comptes.retirerCle(u.login, mCle[1]) });
+    if (methode === 'DELETE' && mCle) {
+      const cle = (u.cles || []).find(x => x.id === mCle[1]);
+      const retiree = this.comptes.retirerCle(u.login, mCle[1]);
+      if (retiree) this.noterTitulaire('compte.cle.retirer', refCompte(u.login), { nom: cle.nom });
+      return this.json(res, 200, { retiree });
+    }
 
     if (methode === 'POST' && chemin === '/api/socles/revendiquer') {
       const d = await this.lireJson(req);
@@ -337,21 +384,19 @@ class Api {
       catch (e) { return this.erreur(res, 504, 'le socle ne répond pas (hors ligne, ou pas encore relié à ce serveur)'); }
       if (!r.ok) return this.erreur(res, 403, 'code d\'appairage refusé par le socle');
       this.comptes.attribuerSocle(u.login, d.id);
+      this.noterTitulaire('socle.rattacher', d.id, { compte: refCompte(u.login) });
       return this.json(res, 200, { ok: true, socles: this.comptes.utilisateur(u.login).socles });
     }
     const mSocle = /^\/api\/socles\/(terra[0-9A-Za-z]{6})(\/historique)?$/.exec(chemin);
     if (mSocle) {
       const id = mSocle[1];
       if (!this.comptes.possede(u, id)) return this.erreur(res, 403, 'socle non rattaché à ce compte');
-      if (methode === 'DELETE' && !mSocle[2]) { this.comptes.retirerSocle(u.login, id); return this.json(res, 200, { ok: true }); }
-      if (methode === 'GET' && mSocle[2]) {
-        const maintenant = Math.floor(Date.now() / 1000);
-        const jusqua = Math.min(maintenant, parseInt(url.searchParams.get('jusqua') || maintenant, 10) || maintenant);
-        const depuis = Math.max(0, parseInt(url.searchParams.get('depuis') || (jusqua - 86400), 10) || (jusqua - 86400));
-        let pas = parseInt(url.searchParams.get('pas') || '60', 10); if (!(pas >= 60)) pas = 60;
-        const points = this.historique.lire(id, depuis, jusqua, pas, 5000);
-        return this.json(res, 200, { format: ['epoch', 't1', 'consigne1', 't2', 'consigne2'], unite: 'centiemes de degre', pas, depuis, jusqua, n: points.length, points });
+      if (methode === 'DELETE' && !mSocle[2]) {
+        this.comptes.retirerSocle(u.login, id);
+        this.noterTitulaire('socle.detacher', id, { compte: refCompte(u.login) });
+        return this.json(res, 200, { ok: true });
       }
+      if (methode === 'GET' && mSocle[2]) return this.repondreHistorique(res, id, url);
     }
 
     if (chemin === '/api/push/abonnement') {
@@ -370,9 +415,23 @@ class Api {
       fs.mkdirSync(this.dossierRapports, { recursive: true });
       const nom = `${new Date().toISOString().replace(/[:.]/g, '-')}-${u.login.replace(/[^a-z0-9]/gi, '_')}.txt`;
       fs.writeFileSync(path.join(this.dossierRapports, nom), texte.slice(0, LIMITE_CORPS));
+      this.noterTitulaire('rapport.envoyer', refCompte(u.login), { fichier: nom });
       return this.json(res, 201, { ok: true, fichier: nom });
     }
     return this.erreur(res, 404, 'route inconnue');
+  }
+
+  console(res, nom) {
+    const f = fichierConsole(nom);
+    if (!f) { this.erreur(res, 404, 'fichier inconnu'); return; }
+    fs.readFile(f, (e, d) => {
+      if (e) { this.erreur(res, 404, 'fichier inconnu'); return; }
+      res.writeHead(200, { 'Content-Type': TYPES[path.extname(f)] || 'application/octet-stream', 'Cache-Control': 'no-cache',
+        'Content-Security-Policy': CSP_CONSOLE, 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer',
+        'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Resource-Policy': 'same-origin',
+        'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), serial=(), usb=()' });
+      res.end(d);
+    });
   }
 
   statique(req, res, chemin) {
