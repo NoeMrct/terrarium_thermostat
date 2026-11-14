@@ -130,9 +130,15 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
     const r = await page.evaluate(() => {
       const tuiles = [...document.querySelectorAll('#detail .stat > div')];
       const fautive = tuiles.find(d => d.scrollWidth > d.clientWidth + 1 || d.getBoundingClientRect().right > window.innerWidth + 1);
-      return { n: tuiles.length, fautive: fautive ? fautive.textContent.trim().slice(0, 40) : '', page: document.documentElement.scrollWidth > window.innerWidth + 1 };
+      const page = document.documentElement.scrollWidth > window.innerWidth + 1;
+      // Ce qui dépasse, au plus profond : de quoi corriger sans deviner.
+      const depasse = el => el.getBoundingClientRect().right > window.innerWidth + 1;
+      const coupables = page ? [...document.body.querySelectorAll('*')].filter(el => depasse(el) && ![...el.children].some(depasse))
+        .slice(0, 4).map(el => `${el.tagName.toLowerCase()}${el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).join('.') : ''} (${Math.round(el.getBoundingClientRect().right)} px) « ${el.textContent.trim().slice(0, 30)} »`) : [];
+      return { n: tuiles.length, fautive: fautive ? fautive.textContent.trim().slice(0, 40) : '', page, coupables, largeur: document.documentElement.scrollWidth };
     });
-    v(`à ${largeur} px, aucune tuile ne déborde`, r.n > 0 && !r.fautive && !r.page, r.fautive || (r.page ? 'la page dépasse l\'écran' : `${r.n} tuiles`));
+    v(`à ${largeur} px, aucune tuile ne déborde`, r.n > 0 && !r.fautive && !r.page,
+      r.fautive || (r.page ? `la page fait ${r.largeur} px : ${r.coupables.join(' ; ') || 'rien de visible'}` : `${r.n} tuiles`));
   }
   await page.setViewportSize({ width: 390, height: 844 });
 
