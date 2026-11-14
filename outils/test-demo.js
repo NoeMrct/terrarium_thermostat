@@ -179,6 +179,20 @@ const attendre = ms => new Promise(r => setTimeout(r, ms));
   v('rien n\'est renotifié tant que l\'état ne change pas',
     w.notifications.length === stable, `${w.notifications.length - stable} de plus`);
 
+  console.log('\n== Installation d\'un socle neuf');
+  App.nouveauSocle({ id: 'terra3F8A1C', jeton: 'K7QM2XRP9WTDH4BNZ8LC3FVA' });
+  App.ajouterSocle();
+  v('le socle neuf est attendu sur son Wi-Fi', !$('[data-pas="reseau"]').hidden, $('#inst-ap').textContent);
+  let pret = false;
+  for (let i = 0; i < 60 && !pret; i++) { await attendre(250); pret = !$('#inst-wifi-suite').hidden; }
+  v('il arrive en ligne, code vérifié, en quelques secondes', pret,
+    Array.from(w.document.querySelectorAll('#inst-suivi li')).map(l => l.className).join(' '));
+  App.instPas('reglages');
+  $('#o-j0').value = '30';
+  await App.instReglages();
+  v('les réglages de départ passent, puis « C\'est prêt »', !$('[data-pas="fin"]').hidden, $('#inst-resume').textContent || $('#message').textContent);
+  App.instVoir();
+
   v('aucune erreur JavaScript', erreurs.length === 0, erreurs.slice(0, 1).join('').slice(0, 70));
 
   console.log(`\n=== ${ko ? 'DES TESTS ONT ECHOUE' : 'DEMONSTRATION FONCTIONNELLE'}` +

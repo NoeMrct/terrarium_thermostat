@@ -38,9 +38,11 @@
   --accent-texte: #ffffff;
   --accent-doux: #e8f3ed;
   --ok: #1e7f4f;
+  --ok-texte: #17683f;       /* sur --accent-doux : 5,7:1 */
   --attention: #9a4a07;
   --attention-doux: #fdf1df;
   --danger: #b42318;
+  --danger-texte: #ffffff;   /* sur --danger */
   --danger-doux: #fbedeb;
   --focus: #2f6fdb;
 
@@ -71,9 +73,11 @@
     --accent-texte: #121315;
     --accent-doux: #173327;
     --ok: #3ccf8e;
+    --ok-texte: #3ccf8e;
     --attention: #fbbf24;
     --attention-doux: #332a12;
     --danger: #f97066;
+    --danger-texte: #121315;
     --danger-doux: #3a1d1d;
     --focus: #6c9cf0;
     --zone-1: #f08a4b;
@@ -354,6 +358,7 @@ input:focus-visible, select:focus-visible {
 
 button { font: inherit; }
 .btn {
+  box-sizing: border-box;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   min-height: 48px; padding: 12px 20px;
   background: var(--accent); color: var(--accent-texte);
@@ -427,7 +432,7 @@ button { font: inherit; }
 }
 #message.visible { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
 #message .btn { background: var(--fond); color: var(--texte); min-height: 34px; padding: 6px 14px; font-size: 13.5px; margin-left: auto; }
-#message.erreur { background: var(--danger); color: #fff; }
+#message.erreur { background: var(--danger); color: var(--danger-texte); }
 
 /* ----------------------------------------------------------------- scanner */
 dialog.scan {
@@ -518,6 +523,141 @@ table.tableau th, table.tableau td { padding: 6px 5px; text-align: right; border
 table.tableau thead th { color: var(--texte-2); font-weight: 600; font-size: 11.5px; }
 table.tableau th[scope="row"], table.tableau thead th:first-child { text-align: left; font-weight: 600; }
 table.tableau tr.avec-defaut td { color: var(--danger); }
+
+/* ----------------------------------------------------------------- bienvenue */
+/* Sans broker : l'accueil, puis la connexion ou « chez moi seulement ». En-tête
+   masqué sur l'accueil et dans l'assistant : ce sont des écrans pleins. */
+body[data-vue="broker"][data-accueil="bienvenue"] #entete,
+body[data-vue="broker"][data-accueil="chezMoi"] #entete,
+body[data-vue="installation"] #entete {
+  /* Masqué à l'œil, pas aux lecteurs d'écran : le titre de l'application reste le h1. */
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+.bienvenue { max-width: 560px; margin: 0 auto; padding-top: calc(16px + env(safe-area-inset-top)); display: flex; flex-direction: column; gap: 12px; }
+.bienvenue-ill svg { width: 100%; max-width: 360px; height: auto; display: block; margin: 0 auto; }
+.bienvenue-ill .lueur + .lueur { animation-delay: -1.7s; }
+.titre-ecran { font-size: 30px; font-weight: 500; letter-spacing: -.02em; line-height: 1.15; }
+.chapeau { font-size: 17px; line-height: 1.45; color: var(--texte-2); }
+.actions-colonne { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.btn-grand { min-height: 54px; font-size: 16px; font-weight: 500; }
+.bandeau-ok {
+  display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 14px;
+  background: var(--accent-doux); color: var(--ok-texte); font-size: 15px; font-weight: 500;
+}
+.chez-moi { max-width: 560px; margin-inline: auto; }
+.chez-moi .ico.grande, .verrou .ico.grande { width: 34px; height: 34px; }
+#form-broker #connexion-retour { display: flex; margin-inline: auto; }
+
+/* ----------------------------------------------------------------- installation */
+#vue-installation { max-width: 560px; margin: 0 auto; padding-top: env(safe-area-inset-top); }
+#vue-installation > * + * { margin-top: 0; }
+.inst-barre { display: grid; grid-template-columns: 48px minmax(0, 1fr) 48px; align-items: center; }
+.rond-nu { background: none; }
+.inst-etape { text-align: center; font-size: 14px; font-weight: 500; color: var(--texte-2); }
+.inst-progres { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 8px 8px 0; }
+.inst-progres span { height: 4px; border-radius: 2px; background: var(--ligne); overflow: hidden; }
+.inst-progres i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .45s ease; }
+.inst-progres i[data-p="25"] { width: 25%; } .inst-progres i[data-p="50"] { width: 50%; }
+.inst-progres i[data-p="75"] { width: 75%; } .inst-progres i[data-p="100"] { width: 100%; }
+.inst-pas { display: flex; flex-direction: column; gap: 12px; padding: 24px 8px 0; min-height: calc(100vh - 90px); min-height: calc(100dvh - 90px); }
+.inst-pas label { margin-top: 6px; }
+.inst-pas .aide { margin-top: 0; }
+.inst-actions { margin-top: auto; padding: 16px 0 calc(24px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 8px; }
+.info { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.45; color: var(--texte-2); }
+.info .ico { width: 20px; height: 20px; flex: none; margin-top: 1px; }
+.info.attention { color: var(--attention); }
+.sur-titre { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--texte-2); margin-top: 6px; }
+
+/* Étape 1 : le viseur, une étiquette penchée et une ligne qui balaie. */
+.inst-viseur {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  height: 300px; margin-top: 8px; border: 0; border-radius: 24px; background: #1a1b1e; color: #fff;
+  font: inherit; cursor: pointer; overflow: hidden;
+}
+.inst-viseur:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+.inst-etiquette {
+  display: flex; flex-direction: column; align-items: center; gap: 8px; width: 168px; padding: 14px; border-radius: 12px;
+  background: #fff; color: #121315; transform: rotate(-4deg); box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+}
+.inst-etiquette .ico { width: 92px; height: 92px; }
+.inst-etiquette b { font-size: 11px; font-weight: 600; letter-spacing: .06em; }
+.inst-etiquette small { font-size: 11px; color: #5f6368; font-variant-numeric: tabular-nums; }
+.inst-coins { position: absolute; inset: 34px calc(50% - 116px) 66px; border-radius: 14px; pointer-events: none;
+  background:
+    linear-gradient(#fff, #fff) top left / 34px 4px no-repeat, linear-gradient(#fff, #fff) top left / 4px 34px no-repeat,
+    linear-gradient(#fff, #fff) top right / 34px 4px no-repeat, linear-gradient(#fff, #fff) top right / 4px 34px no-repeat,
+    linear-gradient(#fff, #fff) bottom left / 34px 4px no-repeat, linear-gradient(#fff, #fff) bottom left / 4px 34px no-repeat,
+    linear-gradient(#fff, #fff) bottom right / 34px 4px no-repeat, linear-gradient(#fff, #fff) bottom right / 4px 34px no-repeat; }
+.inst-balayage { position: absolute; left: calc(50% - 100px); top: 44px; width: 200px; height: 2px; border-radius: 1px;
+  background: var(--zone-1); box-shadow: 0 0 12px var(--zone-1); animation: balayage 2.6s ease-in-out infinite; pointer-events: none; }
+@keyframes balayage { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(170px); } }
+.inst-viseur-lib { position: relative; font-size: 15px; font-weight: 600; padding: 8px 16px; border-radius: 999px; background: rgba(255, 255, 255, .14); }
+
+/* Étape 2 : le réseau du socle, les consignes, le suivi en direct. */
+.inst-ap { padding: 16px; border-radius: 20px; background: var(--carte); display: flex; flex-direction: column; gap: 8px; }
+.inst-ap-nom { display: flex; align-items: center; gap: 12px; font-size: 16px; overflow-wrap: anywhere; }
+.inst-ap-nom strong { flex: 1; min-width: 0; font-weight: 600; }
+.inst-ap-nom .ico { width: 22px; height: 22px; flex: none; }
+.inst-etapes { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; font-size: 15px; line-height: 1.4; }
+.inst-etapes li { display: flex; gap: 12px; align-items: flex-start; }
+.inst-etapes li > span:first-child { width: 28px; height: 28px; border-radius: 50%; background: var(--creux); flex: none;
+  display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; margin-top: -3px; }
+.inst-suivi { list-style: none; margin: 6px 0 0; padding: 0; border-bottom: 1px solid var(--ligne); }
+.inst-suivi li { display: flex; align-items: center; gap: 14px; min-height: 52px; border-top: 1px solid var(--ligne); font-size: 16px; }
+.inst-suivi li svg { width: 24px; height: 24px; flex: none; }
+.inst-suivi .lib { flex: 1; }
+.inst-suivi .detail { font-size: 13px; color: var(--texte-2); font-variant-numeric: tabular-nums; text-align: right; }
+.inst-suivi .attente .lib, .inst-suivi .passe .lib { color: var(--texte-2); }
+.coche circle { fill: var(--ok); } .coche path { fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.inst-suivi .fait svg { animation: apparait .3s ease both; }
+@keyframes apparait { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: none; } }
+.rouet circle, .anneau circle { fill: none; stroke: var(--ligne); stroke-width: 2.5; }
+.rouet path { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; }
+.rouet { animation: tourne .9s linear infinite; }
+@keyframes tourne { to { transform: rotate(360deg); } }
+.pastille-alerte, .pastille-ico { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex: none; }
+.pastille-alerte { background: var(--danger-doux); color: var(--danger); }
+.pastille-ico { width: 40px; height: 40px; background: var(--creux); }
+.pastille-alerte .ico, .pastille-ico .ico { width: 22px; height: 22px; }
+.inst-pistes { list-style: none; margin: 0; padding: 0; border-bottom: 1px solid var(--ligne); }
+.inst-pistes li { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--ligne); font-size: 15px; line-height: 1.4; }
+.inst-pistes .ico { width: 20px; height: 20px; flex: none; }
+
+/* Étape 3 : une grille zone × jour/nuit, des pilules à taper. */
+.inst-grille { display: grid; grid-template-columns: minmax(0, 1fr) 92px 92px; align-items: center; margin-top: 10px; border-bottom: 1px solid var(--ligne); }
+.inst-grille > * { min-height: 60px; border-top: 1px solid var(--ligne); display: flex; align-items: center; justify-content: center; }
+.inst-grille > .inst-zone { justify-content: flex-start; }
+.inst-grille > :nth-child(-n+3) { min-height: 0; border-top: 0; padding-bottom: 8px; }
+.inst-grille .col-tete { justify-content: center; gap: 6px; font-size: 13px; color: var(--texte-2); }
+.inst-grille .col-tete .ico { width: 14px; height: 14px; }
+.inst-zone { gap: 8px; min-width: 0; }
+.pastille { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--zone-1); flex: none; }
+.pastille.z2 { background: var(--zone-2); }
+input.nom-zone { min-height: 44px; padding: 8px 6px; border-color: transparent; background: transparent; font-weight: 500; }
+input.nom-zone:hover { border-color: var(--ligne); }
+input.pilule { width: 80px; min-height: 44px; padding: 0 6px; border-radius: 22px; text-align: center; font-size: 18px; font-variant-numeric: tabular-nums; }
+.inst-horaires { border: 0; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.inst-horaires legend { padding: 0; margin-bottom: 8px; font-size: 13px; font-weight: 500; color: var(--texte-2); }
+
+/* Fin : la courbe des premières minutes et les alertes. */
+.inst-courbe { margin: 8px 0 0; padding: 16px; border-radius: 20px; background: var(--carte); display: flex; flex-direction: column; gap: 10px; }
+.inst-courbe figcaption { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 14px; font-variant-numeric: tabular-nums; }
+.inst-courbe figcaption > span { display: inline-flex; align-items: center; gap: 6px; }
+.inst-courbe svg { width: 100%; height: auto; display: block; overflow: visible; }
+.inst-courbe line { stroke: var(--ligne); stroke-width: 1; }
+.inst-courbe text { font-size: 11px; fill: var(--texte-2); }
+.inst-courbe .trace { fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; animation: trace 1.8s ease-out both; }
+.inst-courbe .trace.z1, .inst-courbe .point.z1 { stroke: var(--zone-1); } .inst-courbe .point.z1 { fill: var(--zone-1); }
+.inst-courbe .trace.z2, .inst-courbe .point.z2 { stroke: var(--zone-2); } .inst-courbe .point.z2 { fill: var(--zone-2); }
+.inst-courbe .point { stroke: var(--carte); stroke-width: 2; animation: apparait .3s ease 1.7s both; }
+@keyframes trace { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.inst-notifs { margin-top: 6px; padding: 16px; border-radius: 20px; border: 1px solid var(--ligne); display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; }
+.inst-notifs strong { display: block; font-size: 16px; font-weight: 600; margin-bottom: 2px; }
+.inst-notifs .btn { grid-column: 1 / -1; }
+.inst-notifs .btn.actif { background: var(--accent-doux); color: var(--ok-texte); box-shadow: inset 0 0 0 1.5px var(--ok); }
+@media (prefers-reduced-motion: reduce) {
+  .inst-balayage, .rouet, .inst-courbe .trace, .inst-courbe .point, .inst-suivi .fait svg, .inst-progres i { animation: none; transition: none; }
+}
 
 /* ----------------------------------------------------------------- démonstration */
 html #bandeau-demo {

@@ -68,6 +68,27 @@ jour.
 - Santé : `mqtt` (état de la connexion au broker) et `webProtege` ; la page
   locale avertit quand elle n'a pas de mot de passe.
 - Application : un conseil sous chaque défaut, marqueur « trop chaud ».
+- **Installation guidée d'un socle** dans l'application, en trois étapes :
+  l'étiquette (scan, ou saisie de la référence et du code), le Wi-Fi (nom du
+  réseau du socle, puis suivi en direct : Wi-Fi rejoint avec son signal,
+  serveur joint, heure réglée, code vérifié ou socle relié au compte), les
+  réglages de départ (nom, consignes jour et nuit et noms des zones, horaires
+  fixes ou soleil). « C'est prêt » montre les premières minutes et propose les
+  alertes. Un mauvais code ramène à l'étiquette, un socle qui n'arrive pas
+  donne les causes habituelles, une relance de l'application reprend l'étape
+  en cours (sans jamais garder le code ailleurs que dans la configuration).
+- **Écran d'accueil** de l'application au premier lancement : se connecter à
+  son serveur, essayer la démo, ou « chez moi seulement » (la page locale).
+- **Étiquette à lien** (`qr-appairage.js --url`, `provisionner.js --url`) :
+  le QR porte `https://<application>/#a/<id>/<code>`, que l'appareil photo de
+  n'importe quel téléphone ouvre ; l'installation démarre remplie, et le
+  fragment (jamais envoyé à un serveur) est effacé de l'adresse aussitôt. Le
+  scanner de l'application lit les deux formats.
+- **Portail captif du socle** : en point d'accès, la page qui s'ouvre seule
+  liste les réseaux que voit le socle ; il essaie celui choisi sans bloquer,
+  dit pourquoi la box refuse (mot de passe, réseau introuvable ou en 5 GHz,
+  pas de réponse) et redémarre dessus. L'interface complète passe à
+  `/interface` (et reste `/` hors point d'accès).
 - Tests : bancs `test-liaisons` et `test-soleil`, scénarios 21 à 28 du
   simulateur (sondes inversées, couplage légitime, pic isolé, canicule,
   priorité, essai de chauffe, soleil), fuzzing des liaisons et du soleil, tests
@@ -169,6 +190,11 @@ jour.
 
 ### Corrigé
 
+- Application : à la toute première visite, l'agent de service rechargeait la
+  page en prenant la main ; ce qui venait d'être saisi était perdu. Il ne
+  recharge plus qu'à l'arrivée d'une nouvelle version acceptée.
+- Application : Firefox signalait la police préchargée comme inutilisée ; elle
+  n'est plus préchargée (la feuille de style la découvre aussitôt).
 - Application : un socle éteint passait pour « en ligne » à l'ouverture. Le
   broker rejoue l'état retenu à l'abonnement, et cet état suffisait à déclarer
   le socle présent. La présence ne vient plus que du sujet `statut` (et de son

@@ -229,10 +229,11 @@ par USB avec effacement complet (`docs/decisions/0010-repartitionnement.md`).
    `terrarium-config-XXXXXX` (les six derniers caractères de son identifiant),
    avec le mot de passe affiché sur l'écran (propre à chaque socle, tiré à la
    première ouverture ; aussi donné par la commande série `etat`). S'y
-   connecter avec un téléphone : la page de
-   configuration s'ouvre d'elle-même (portail captif ; sinon
-   `http://192.168.4.1`). Ou passer par le série, qui essaie le réseau tout de
-   suite et dit s'il répond :
+   connecter avec un téléphone : une page s'ouvre d'elle-même (portail
+   captif ; sinon `http://192.168.4.1`) avec les réseaux que voit le socle ;
+   choisir le sien, donner son mot de passe, et le socle l'essaie puis
+   redémarre dessus (l'interface complète reste à `/interface`). Ou passer par
+   le série, qui essaie le réseau tout de suite et dit s'il répond :
    ```
    wifi MonReseau MonMotDePasse
    ```

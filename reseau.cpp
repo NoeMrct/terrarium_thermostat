@@ -1,6 +1,7 @@
 #include "reseau.h"
 #include "stockage.h"
-#include "page_web_gz.h"  // page embarquée, compressée par outils/compresser-page.js
+#include "page_web_gz.h"   // page embarquée, compressée par outils/compresser-page.js
+#include "page_wifi_gz.h"  // portail captif : choix du Wi-Fi (idem)
 #include "sondes.h"
 #include "format.h"
 #include "courant.h"
@@ -56,6 +57,23 @@ uint8_t g_echecsAuth = 0;
 uint32_t g_blocageAuth = 0;
 uint32_t g_dernierEssai = 0, g_debutConnexion = 0, g_dernierHeartbeat = 0;
 bool g_essaiSecours = false;  // dernier essai Wi-Fi fait sur le réseau de secours
+
+// Portail captif : le Wi-Fi choisi sur la page du point d'accès est essayé
+// sans bloquer le serveur web, et la page interroge /api/wifi/etat pendant ce
+// temps. Le téléphone peut perdre le point d'accès quelques secondes (son
+// canal suit celui de la box) : il y revient, et la réponse l'attend.
+enum EtatPortail : uint8_t { PORTAIL_LIBRE, PORTAIL_ESSAI, PORTAIL_OK, PORTAIL_ECHEC };
+EtatPortail g_portail = PORTAIL_LIBRE;
+uint32_t g_portailDebut = 0;
+char g_portailSsid[33] = "";
+char g_portailMdp[65] = "";
+const char *g_portailErreur = "";
+// Écrits par l'événement de déconnexion du Wi-Fi : la dernière raison, et le
+// nombre de coupures de la tentative en cours.
+volatile uint8_t g_portailRaison = 0;
+volatile uint8_t g_portailCoupures = 0;
+const uint32_t PORTAIL_DELAI_MS = 20000;        // au-delà, la box n'a pas répondu
+const uint32_t PORTAIL_REDEMARRAGE_MS = 12000;  // le temps que la page lise le succès
 uint32_t g_dernierMqtt = 0, g_dernierEssaiMqtt = 0;
 // Délai avant le prochain essai MQTT : 15 s, doublé à chaque refus jusqu'à
 // 5 min. Un broker qui refuse un mot de passe n'a pas à être sollicité toutes
@@ -447,11 +465,122 @@ String corpsSante() {
 }
 
 // --------------------------- routes ----------------------------------------
-void routeRacine() {
+void routeInterface() {
   // La page est stockée compressée : trois fois moins de flash programme, et
   // un envoi d'autant plus court sur le WiFi. Tous les navigateurs décompressent.
   serveur.sendHeader("Content-Encoding", "gzip");
   serveur.send_P(200, "text/html; charset=utf-8", (PGM_P)PAGE_HTML_GZ, PAGE_HTML_GZ_LEN);
+}
+
+// En point d'accès, la racine est le portail : la page que le téléphone
+// ouvre de lui-même sert à choisir le Wi-Fi. L'interface reste à /interface.
+void routeRacine() {
+  if (!g_ap) {
+    routeInterface();
+    return;
+  }
+  serveur.sendHeader("Content-Encoding", "gzip");
+  serveur.sendHeader("Cache-Control", "no-store");
+  serveur.send_P(200, "text/html; charset=utf-8", (PGM_P)PAGE_WIFI_GZ, PAGE_WIFI_GZ_LEN);
+}
+
+// GET /api/wifi/reseaux : les réseaux vus par le socle, le plus fort d'abord.
+// Sans mot de passe en point d'accès (on y est entré avec celui affiché sur
+// l'écran du socle) ; derrière l'authentification sinon. La recherche est
+// asynchrone : « enCours » tant qu'elle n'est pas finie, la page redemande.
+void routeWifiReseaux() {
+  if (!g_ap && !autorise()) return;
+  int16_t n = WiFi.scanComplete();
+  if (serveur.hasArg("nouveau") && n >= 0) {
+    WiFi.scanDelete();
+    n = WIFI_SCAN_FAILED;
+  }
+  if (n == WIFI_SCAN_RUNNING || n < 0) {
+    if (n != WIFI_SCAN_RUNNING) WiFi.scanNetworks(true);
+    serveur.send(200, "application/json", "{\"enCours\":true}");
+    return;
+  }
+  // Un même nom peut venir de plusieurs bornes : la plus forte seule, tri par
+  // signal décroissant, vingt au plus. Les réseaux masqués (nom vide) se
+  // saisissent à la main.
+  int16_t retenus[20];
+  uint8_t k = 0;
+  for (int16_t i = 0; i < n; i++) {
+    if (WiFi.SSID(i).length() == 0) continue;
+    int16_t j = -1;
+    for (uint8_t x = 0; x < k; x++)
+      if (WiFi.SSID(retenus[x]) == WiFi.SSID(i)) j = x;
+    if (j >= 0) {
+      if (WiFi.RSSI(i) > WiFi.RSSI(retenus[j])) retenus[j] = i;
+    } else if (k < 20) {
+      retenus[k++] = i;
+    }
+  }
+  for (uint8_t a = 1; a < k; a++)
+    for (uint8_t b = a; b > 0 && WiFi.RSSI(retenus[b - 1]) < WiFi.RSSI(retenus[b]); b--) {
+      const int16_t t = retenus[b];
+      retenus[b] = retenus[b - 1];
+      retenus[b - 1] = t;
+    }
+  String j;
+  j.reserve(24 + 64 * k);
+  j = "{\"reseaux\":[";
+  for (uint8_t x = 0; x < k; x++) {
+    const int16_t i = retenus[x];
+    if (x) j += ",";
+    j += "{\"ssid\":\"" + echapperJson(WiFi.SSID(i).c_str()) + "\",\"rssi\":" + String(WiFi.RSSI(i)) +
+         ",\"securise\":" + String(WiFi.encryptionType(i) == WIFI_AUTH_OPEN ? "false" : "true") + "}";
+  }
+  j += "]}";
+  serveur.send(200, "application/json", j);
+}
+
+// POST /api/wifi (point d'accès seulement) : lance l'essai du réseau choisi.
+// La réponse part tout de suite ; l'issue se lit sur /api/wifi/etat.
+void routeWifiPost() {
+  if (!g_ap) {
+    serveur.send(404, "text/plain", "Page inconnue");
+    return;
+  }
+  if (!origineSure()) return;
+  if (g_portail == PORTAIL_ESSAI || g_portail == PORTAIL_OK) {
+    serveur.send(409, "application/json", "{\"erreur\":\"Un essai est deja en cours.\"}");
+    return;
+  }
+  const String ssid = serveur.arg("ssid"), mdp = serveur.arg("mdp");
+  if (ssid.length() == 0 || ssid.length() > 32 || mdp.length() > 63 ||
+      (mdp.length() > 0 && mdp.length() < 8)) {
+    serveur.send(400, "application/json",
+                 "{\"erreur\":\"Nom de 1 a 32 caracteres ; mot de passe vide ou de 8 a 63 caracteres.\"}");
+    return;
+  }
+  snprintf(g_portailSsid, sizeof g_portailSsid, "%s", ssid.c_str());
+  snprintf(g_portailMdp, sizeof g_portailMdp, "%s", mdp.c_str());
+  WiFi.scanDelete();
+  WiFi.mode(WIFI_AP_STA);
+  WiFi.setHostname(g_id.c_str());
+  g_portailRaison = 0;
+  g_portailCoupures = 0;
+  WiFi.begin(g_portailSsid, g_portailMdp);
+  g_portail = PORTAIL_ESSAI;
+  g_portailDebut = millis();
+  g_portailErreur = "";
+  journal("Portail : essai du Wi-Fi '%s'", g_portailSsid);
+  serveur.send(200, "application/json", "{\"ok\":true}");
+}
+
+// GET /api/wifi/etat : où en est l'essai. Jamais le mot de passe.
+void routeWifiEtat() {
+  if (!g_ap && !autorise()) return;
+  static const char *const NOMS[] = { "libre", "essai", "connecte", "echec" };
+  String j = "{\"id\":\"" + g_id + "\",\"etat\":\"" + String(NOMS[g_portail]) + "\",\"ssid\":\"" +
+             echapperJson(g_portailSsid) + "\"";
+  if (g_portail == PORTAIL_OK)
+    j += ",\"rssi\":" + String(WiFi.RSSI()) + ",\"ip\":\"" + WiFi.localIP().toString() + "\"";
+  if (g_portail == PORTAIL_ECHEC)
+    j += ",\"erreur\":\"" + String(g_portailErreur) + "\",\"raison\":" + String(g_portailRaison);
+  j += "}";
+  serveur.send(200, "application/json", j);
 }
 
 void routeStatus() {
@@ -2199,6 +2328,58 @@ void ouvrirPointAcces() {
   g_dns.start(53, "*", WiFi.softAPIP());
   g_ap = true;
   g_connecte = true;
+  // La raison d'une déconnexion dit au portail pourquoi un essai échoue.
+  static bool suiviPose = false;
+  if (!suiviPose) {
+    suiviPose = true;
+    WiFi.onEvent(
+        [](WiFiEvent_t, WiFiEventInfo_t info) {
+          if (g_portail != PORTAIL_ESSAI) return;
+          g_portailRaison = info.wifi_sta_disconnected.reason;
+          if (g_portailCoupures < 255) g_portailCoupures = (uint8_t)(g_portailCoupures + 1);
+        },
+        ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+  }
+  // Liste des réseaux prête quand le téléphone ouvre la page.
+  WiFi.scanNetworks(true);
+}
+
+// L'essai lancé par le portail, suivi sans bloquer. Réussi : les identifiants
+// sont enregistrés, la page a quelques secondes pour le lire, puis le socle
+// redémarre en mode station (services, heure, MQTT repartent proprement).
+// Raté : la raison est classée pour que la page dise quoi corriger.
+void suivrePortail(uint32_t maintenant) {
+  if (g_portail == PORTAIL_OK && maintenant - g_portailDebut > PORTAIL_REDEMARRAGE_MS) {
+    journal("Portail : redemarrage en mode station");
+    delay(200);
+    ESP.restart();
+  }
+  if (g_portail != PORTAIL_ESSAI) return;
+  if (WiFi.status() == WL_CONNECTED) {
+    ReglagesReseau &r = Stockage::reseau();
+    snprintf(r.ssid, sizeof r.ssid, "%s", g_portailSsid);
+    snprintf(r.motDePasse, sizeof r.motDePasse, "%s", g_portailMdp);
+    Stockage::sauverReseau();
+    memset(g_portailMdp, 0, sizeof g_portailMdp);
+    g_portail = PORTAIL_OK;
+    g_portailDebut = maintenant;
+    journal("Portail : Wi-Fi '%s' rejoint (%d dBm, %s)", g_portailSsid, (int)WiFi.RSSI(),
+            WiFi.localIP().toString().c_str());
+    return;
+  }
+  // Raisons ESP-IDF : 2, 14, 15, 202, 204 = authentification ; 201, 210, 211 =
+  // réseau introuvable (absent, ou en 5 GHz seulement). Trois coupures de la
+  // même tentative, ou vingt secondes sans réponse, et l'on s'arrête.
+  const uint8_t raison = g_portailRaison;
+  const bool mdp = raison == 2 || raison == 14 || raison == 15 || raison == 202 || raison == 204;
+  const bool introuvable = raison == 201 || raison == 210 || raison == 211;
+  if (g_portailCoupures < 3 && maintenant - g_portailDebut < PORTAIL_DELAI_MS) return;
+  g_portailErreur = mdp ? "mdp" : introuvable ? "introuvable" : "delai";
+  g_portail = PORTAIL_ECHEC;
+  memset(g_portailMdp, 0, sizeof g_portailMdp);
+  WiFi.disconnect(false, false);
+  WiFi.mode(WIFI_AP);
+  journal("Portail : echec vers '%s' (%s, raison %u)", g_portailSsid, g_portailErreur, (unsigned)raison);
 }
 
 // --------------------------- démarrage des services -------------------------
@@ -2213,6 +2394,10 @@ void lancerServices() {
   MDNS.addServiceTxt("http", "tcp", "version", FW_VERSION);
 
   serveur.on("/", HTTP_GET, routeRacine);
+  serveur.on("/interface", HTTP_GET, routeInterface);
+  serveur.on("/api/wifi/reseaux", HTTP_GET, routeWifiReseaux);
+  serveur.on("/api/wifi/etat", HTTP_GET, routeWifiEtat);
+  serveur.on("/api/wifi", HTTP_POST, routeWifiPost);
   serveur.on("/api/defi", HTTP_GET, routeDefi);
   serveur.on("/api/premier-acces", HTTP_POST, routePremierAcces);
   serveur.on("/api/session", HTTP_POST, routeSession);
@@ -2396,6 +2581,7 @@ void boucle(uint32_t maintenant) {
     }
   }
 
+  if (g_ap) suivrePortail(maintenant);
   if (g_servicesLances) {
     if (g_ap) g_dns.processNextRequest();
     serveur.handleClient();

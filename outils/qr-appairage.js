@@ -6,6 +6,14 @@
    la principale source d'échec à la mise en service.
 
      node qr-appairage.js --id terraA1B2C3 --jeton K7M2QX... > etiquette.svg
+     node qr-appairage.js --id … --jeton … --url https://app.exemple.fr > etiquette.svg
+
+   Avec --url (ou TERRARIUM_URL_APP), le QR porte un lien vers l'application,
+   « https://app.exemple.fr/#a/<id>/<code> » : l'appareil photo de n'importe
+   quel téléphone l'ouvre, sans application de scan, et l'installation démarre
+   avec la référence et le code déjà remplis. Ce qui suit le « # » n'est envoyé
+   à aucun serveur ; l'application l'efface de l'adresse dès l'ouverture.
+   Sans --url : « terrarium:<id>:<code> », lu par le scanner de l'application.
    ============================================================================= */
 
 const QRCode = require('qrcode');
@@ -16,6 +24,7 @@ const JETON = (arg('jeton') || '').toUpperCase();
 // Facultatif : « utilisateur:mot de passe » de l'interface locale, généré à
 // l'atelier (provisionner.js) et imprimé sous le code (S2).
 const WEB = arg('web');
+const URL_APP = arg('url', process.env.TERRARIUM_URL_APP || '');
 
 if (!ID || JETON.length !== 24) {
   console.error('Usage : node qr-appairage.js --id terraA1B2C3 --jeton <24 caracteres>');
@@ -24,7 +33,18 @@ if (!ID || JETON.length !== 24) {
 
 // Format lu par l'application. Volontairement court : plus la charge est
 // longue, plus le QR est dense, et plus il faut de place pour l'imprimer.
-const charge = `terrarium:${ID}:${JETON}`;
+let charge = `terrarium:${ID}:${JETON}`;
+if (URL_APP) {
+  let u;
+  try { u = new URL(URL_APP); } catch (e) { u = null; }
+  // HTTPS : l'application signe ses commandes avec WebCrypto, qui n'existe
+  // qu'en contexte sécurisé.
+  if (!u || u.protocol !== 'https:') {
+    console.error('--url : adresse https:// de l\'application attendue (exemple : https://app.exemple.fr)');
+    process.exit(2);
+  }
+  charge = `${u.origin}${u.pathname.replace(/\/?$/, '/')}#a/${ID}/${JETON}`;
+}
 const groupes = JETON.match(/.{1,6}/g).join('-');
 
 const COTE = 260;   // taille voulue du QR sur l'etiquette, en points

@@ -45,7 +45,14 @@ const ECRANS = [
   ['reglages', () => App.panneau('reglages')],
   ['courbes',  () => App.panneau('courbes')],
   ['appareil', () => App.panneau('general')],
-  ['verrou',   () => App.montrer('verrou')]
+  ['verrou',   () => App.montrer('verrou')],
+  // L'assistant d'installation, étiquette déjà lue ; le socle de démonstration
+  // neuf arrive en ligne au bout de six secondes (troisième terme : horloge
+  // avancée avant l'action).
+  ['installation', () => App.nouveauSocle({ id: 'terra3F8A1C', jeton: 'K7QM2XRP9WTDH4BNZ8LC3FVA' })],
+  ['installation-wifi', () => App.ajouterSocle()],
+  ['installation-reglages', () => App.instPas('reglages'), 9000],
+  ['bienvenue', () => { App.instQuitter(); localStorage.removeItem('terrarium.config.v1'); App.accueil('bienvenue'); }]
 ];
 
 // Rendu déterministe : générateur pseudo-aléatoire amorcé (mulberry32) et
@@ -96,7 +103,8 @@ function comparer(a, b) {
     page.on('pageerror', e => erreurs.push(e.message));
     await page.goto(DEMO);
     await page.clock.runFor(6000);
-    for (const [ecran, action] of ECRANS) {
+    for (const [ecran, action, avance] of ECRANS) {
+      if (avance) await page.clock.runFor(avance);
       await page.evaluate(action);
       await page.clock.runFor(1500);
       await page.waitForTimeout(150);

@@ -48,5 +48,37 @@ const charge = 'TERRARIUM:TERRAA1B2C3:K7M2QX9PL4ZB8CN3VD6HT5WR';
 const m = /^terrarium:([^:]+):([A-Z0-9]{24})$/i.exec(decoder(charge) || '');
 v('la charge correspond au format lu par l\'application', !!m && m[1] === 'TERRAA1B2C3' && m[2].length === 24);
 
+// L'étiquette imprimée (qr-appairage.js) : avec --url, un lien que l'appareil
+// photo ouvre ; le fragment porte l'identifiant et le code, lus comme par
+// lireEtiquette() dans app.js.
+console.log('\n== Étiquette imprimée, relue par jsQR');
+const QRCode = require('qrcode');
+function decoderMatrice(texte) {
+  const q = QRCode.create(texte, { errorCorrectionLevel: 'M' });
+  const n = q.modules.size, marge = 4, L = (n + 2 * marge) * ECHELLE;
+  const rgba = new Uint8ClampedArray(L * L * 4).fill(255);
+  for (let y = 0; y < n; y++)
+    for (let x = 0; x < n; x++)
+      if (q.modules.get(x, y))
+        for (let dy = 0; dy < ECHELLE; dy++)
+          for (let dx = 0; dx < ECHELLE; dx++) {
+            const i = (((y + marge) * ECHELLE + dy) * L + (x + marge) * ECHELLE + dx) * 4;
+            rgba[i] = rgba[i + 1] = rgba[i + 2] = 0;
+          }
+  const r = jsQR(rgba, L, L);
+  return { lu: r ? r.data : null, version: q.version };
+}
+const svg = execFileSync(process.execPath, [path.join(__dirname, 'qr-appairage.js'), '--id', 'terraA1B2C3', '--jeton', 'K7M2QX9PL4ZB8CN3VD6HT5WR', '--url', 'https://app.exemple.fr'], { encoding: 'utf8' });
+v('qr-appairage --url produit une étiquette', svg.startsWith('<svg') && svg.includes('terraA1B2C3'));
+const lien = 'https://app.exemple.fr/#a/terraA1B2C3/K7M2QX9PL4ZB8CN3VD6HT5WR';
+const { lu, version } = decoderMatrice(lien);
+v('le lien est relu tel quel', lu === lien, `version ${version} (${17 + 4 * version} modules)`);
+const e = /#a\/([^/?#]+)\/([A-Z0-9-]{24,29})$/i.exec(lu || '');
+v('…identifiant et code se lisent dans le fragment', !!e && e[1] === 'terraA1B2C3' && e[2] === 'K7M2QX9PL4ZB8CN3VD6HT5WR');
+let refuse = false;
+try { execFileSync(process.execPath, [path.join(__dirname, 'qr-appairage.js'), '--id', 'terraA1B2C3', '--jeton', 'K7M2QX9PL4ZB8CN3VD6HT5WR', '--url', 'http://app.exemple.fr'], { stdio: 'pipe' }); }
+catch (err) { refuse = err.status === 2; }
+v('une adresse sans HTTPS est refusée', refuse);
+
 console.log(`\n=== ${ko ? 'ECHECS' : 'QR RELU'} (${ok} reussite(s), ${ko} echec(s)) ===`);
 process.exit(ko ? 1 : 0);

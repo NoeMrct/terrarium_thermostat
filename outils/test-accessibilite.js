@@ -35,8 +35,17 @@ const ECRANS = [
   ['appareil', () => App.panneau('general')],
   ['service', () => App.panneau('service')],
   ['diagnostic', () => App.diagnostic()],
-  ['verrou', () => App.montrer('verrou')],
-  ['broker', () => { localStorage.clear(); App.montrer('broker'); }]
+  // L'assistant d'installation : le socle de démonstration neuf arrive en
+  // ligne au bout de six secondes.
+  ['installation', () => { document.querySelector('#diag').close(); App.nouveauSocle({ id: 'terra3F8A1C', jeton: 'K7QM2XRP9WTDH4BNZ8LC3FVA' }); }],
+  ['installation-wifi', () => App.ajouterSocle()],
+  ['installation-reglages', async () => { await new Promise(r => setTimeout(r, 9000)); App.instPas('reglages'); }],
+  ['installation-fin', async () => { await App.instReglages(); await new Promise(r => setTimeout(r, 1500)); }],
+  ['installation-echec', () => App.instPas('echec')],
+  ['verrou', () => { App.instQuitter(); App.montrer('verrou'); }],
+  ['broker', () => { localStorage.clear(); App.montrer('broker'); }],
+  ['connexion', () => App.accueil('connexion')],
+  ['chez-moi', () => App.accueil('chezMoi')]
 ];
 
 const STATIQUES = ['aide.html', 'aide.en.html', 'mentions-legales.html', 'mentions-legales.en.html',

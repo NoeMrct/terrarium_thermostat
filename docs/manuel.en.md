@@ -47,11 +47,15 @@ Without Chrome: the Arduino IDE, with the board settings described in the reposi
 2. If Wi-Fi was not given at flashing time, the base opens a **terrarium-config-XXXXXX** network
    (the last six characters of its identifier; its password, unique to each base, shows on the screen
    alternating with "AP config"). Connect your phone to
-   it: the configuration page opens by itself (otherwise `http://192.168.4.1`).
-3. On first opening, the page asks you to create the interface password (8 characters at least;
-   a base assembled at the workshop already has one, on its label). Then the **Network** tab: your
-   Wi-Fi, an OTA password if you want to update without a cable, and, for remote control, the MQTT server. Save: the base
-   restarts on your network.
+   it: a page opens by itself (otherwise `http://192.168.4.1`) with the networks the base sees. Pick
+   yours, enter its password, **Connect the base**: it tries, tells you whether the router accepted
+   (or why it refuses: password, 5 GHz-only network, signal too weak), then restarts on it. The app,
+   if you use it, guides you through these steps (§ 6).
+3. Everything else is set in the **full interface** (link at the bottom of that page, then
+   `http://terraXXXXXX.local`). On first opening, it asks you to create its password (8 characters
+   at least; a base assembled at the workshop already has one, on its label). **Network** tab: an
+   OTA password if you want to update without a cable, and, for remote control, the MQTT server
+   (already set on a base assembled at the workshop).
 4. It is then reachable at `http://terraXXXXXX.local` (its identifier, shown on the screen and
    in the app) or at its IP address. The interface asks for the username and password you chose;
    the password never leaves the browser (challenge login).
@@ -87,10 +91,25 @@ Check with an infrared thermometer before putting an animal in.
 
 ## 6. Pairing in the app
 
-Open the app, enter the broker address (`wss://…:8884/mqtt`), the username and the password
-your broker gave you. **Test the connection** tells you right away whether it works. Then
-**Add a base**: scan the QR (base screen or label), or type the identifier (`terraXXXXXX`) and
-the pairing code. The base appears with its two zones.
+At first launch, the app welcomes you: **Connect to my server** (broker address
+`wss://…:8884/mqtt`, username and password from your broker; **Test the connection** tells you right
+away whether it works), **Try the demo**, or **No server, at home only**, which explains the base's
+local page.
+
+The **+** button starts **installing a base**, in three steps:
+
+1. **The label**: scan the QR (under the base, on the box, or on its screen), or copy the reference
+   (`terraXXXXXX`) and the pairing code. A recent label carries a link: the phone's camera opens it
+   directly, and the app starts with everything filled in.
+2. **The Wi-Fi**: the app names the base's network (`terrarium-config-…`); join it, pick your Wi-Fi
+   on the page that opens, then come back. The app ticks what it sees: Wi-Fi joined (with the signal
+   strength), server reached, clock set, code verified (or "base linked to your account" with the
+   Terrariums server). A wrong code brings you back to the label; a base that has not arrived after
+   four minutes gets the usual causes. **Finish later** keeps the base in the list.
+3. **Starting settings**: the terrarium's name, each zone's day and night setpoints (and their
+   names), fixed times or following the sun. The safety cut-off is recalled.
+
+**All set** shows the first minutes of heating and offers to enable alerts.
 
 The app can be installed like a real application ("Install the app" button, or Share → Add to
 Home Screen on iPhone). It then works offline for its interface part, and updates itself by

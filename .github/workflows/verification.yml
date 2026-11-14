@@ -69,7 +69,7 @@ jobs:
       - name: Mise en forme (clang-format sur tout le C++, sauf l'en-tête généré)
         run: |
           sudo apt-get install -y -qq clang-format
-          clang-format --dry-run --Werror $(ls *.cpp *.h *.ino sim/*.cpp sim/*.h | grep -v page_web_gz)
+          clang-format --dry-run --Werror $(ls *.cpp *.h *.ino sim/*.cpp sim/*.h | grep -v '_gz\.h$')
 
   reseau:
     name: Protocole, application et interface web

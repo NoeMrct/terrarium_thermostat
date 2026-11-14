@@ -117,6 +117,20 @@ function creerApp(adressePage) {
     verifier('un socle déjà rattaché à « autre » l\'est aussi à « noe » avec le bon code', /rattaché/.test(texte('#message')), texte('#message').slice(0, 60));
     App.ouvrir('terraD4E5F6'); App.retirerSocle(); await attendre(300);
 
+    titre('Installation avec le serveur : le rattachement fait la preuve du code');
+    App.nouveauSocle();
+    $('#a-id').value = 'terraD4E5F6'; $('#a-jeton').value = 'MAUVAISMAUVAISMAUVAISXYZ';
+    App.ajouterSocle();
+    verifier('un code refusé par le socle, via le serveur, ramène à la saisie',
+             await jusqua(() => !$('[data-pas="reference"]').hidden && /Code refusé/.test(texte('#message'))), texte('#message').slice(0, 50));
+    $('#a-jeton').value = JETON;
+    App.ajouterSocle();
+    verifier('le bon code : « Socle relié à ton compte » est coché, la suite proposée',
+             await jusqua(() => !$('#inst-wifi-suite').hidden && /relié à ton compte/.test(($('#inst-suivi li.fait[data-suivi="code"]') || {}).textContent || '')),
+             Array.from(w.document.querySelectorAll('#inst-suivi li')).map(l => l.className + ':' + l.dataset.suivi).join(' '));
+    App.instQuitter();
+    App.ouvrir('terraD4E5F6'); App.retirerSocle(); await attendre(300);
+
     titre('Courbes : comblées par l\'historique du serveur');
     App.ouvrir('terraA1B2C3');
     App.panneau('courbes');

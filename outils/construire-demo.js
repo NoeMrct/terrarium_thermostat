@@ -138,6 +138,22 @@ const FAUX_MQTT = `
     if (s.historique.length > 2000) s.historique.shift();
   }
 
+  // Un socle ajouté dans la démonstration sort de l'atelier : hors ligne le
+  // temps d'un Wi-Fi imaginaire, puis en ligne, à température ambiante, et il
+  // chauffe. N'importe quel code d'appairage lui convient (commandes signées).
+  function creerSocle(id) {
+    const zone = (nom, jour, nuit, temp) => ({ nom, consigneJour: jour, consigneNuit: nuit, bande: 2, tempMax: 40,
+      debutJour: 480, debutNuit: 1200, offset: 0, rampe: 45, temp, defaut: null, demande: 0, chauffe: false, autotune: false });
+    socles[id] = { nom: 'Nouveau terrarium', enLigne: false, neuf: true, entretienFin: 0, alim: 3,
+      saison: { active: false, delta: 5, descente: 21, plateau: 60, remontee: 21 }, historique: [],
+      zones: [zone('Zone 1', 32, 26, 22.4), zone('Zone 2', 28, 24, 22.1)] };
+    setTimeout(() => {
+      socles[id].enLigne = true;
+      publier('terrarium/' + id + '/statut', 'en ligne', true);
+      publierEtat(id);
+    }, 6000);
+  }
+
   // Protocole 4 : sondes, essai, surveillance et journal du socle simulé.
   function f1(s) {
     if (!s.f1) {
@@ -185,13 +201,16 @@ const FAUX_MQTT = `
     let d; try { d = JSON.parse(texte); } catch (e) { return; }
     // Protocole 4 : commande signée {"c": "<commande>", "sig": "…"}. La
     // démonstration n'a pas de secret à défendre : elle lit la commande.
-    if (typeof d.c === 'string') { try { d = JSON.parse(d.c); d.jeton = 'DEMONSTRATION0000000001'; } catch (e) { return; } }
+    let signee = false;
+    if (typeof d.c === 'string') { try { d = JSON.parse(d.c); d.jeton = 'DEMONSTRATION0000000001'; signee = true; } catch (e) { return; } }
     const rep = (ok, corps) =>
       publier(\`terrarium/\${id}/reponse\`, JSON.stringify({ req: d.req, ok, ...corps }), false);
 
     if (!s.enLigne) return;                       // un socle éteint ne répond pas
     const lecture = ['etat', 'version', 'stats', 'historique'].includes(d.action);
-    if (!lecture && d.jeton !== 'DEMONSTRATION0000000001') return rep(false, { erreur: 'jeton invalide' });
+    // Un socle ajouté dans la démonstration accepte le code qu'on lui donne.
+    const codeOk = signee || (s.neuf ? /^[A-Z0-9]{24}$/.test(d.jeton || '') : d.jeton === 'DEMONSTRATION0000000001');
+    if (!lecture && !codeOk) return rep(false, { erreur: 'jeton invalide' });
 
     switch (d.action) {
       case 'version': return rep(true, { version: '3.5.0-demo', compile: 'demonstration', proto: 4 });
@@ -206,6 +225,7 @@ const FAUX_MQTT = `
         uptime: 128400,
         entretienS: Math.max(0, Math.floor((s.entretienFin - Date.now()) / 1000)),
         zonesSimultanees: zonesSimultanees(s), saison: 0, alertesEnAttente: 0,
+        heure: new Date().toISOString().slice(0, 19).replace('T', ' '),
         proto: 4, sante: sante(id)
       });
       case 'stats': return rep(true, {
@@ -454,6 +474,8 @@ const FAUX_MQTT = `
         subscribe(filtres) {
           (Array.isArray(filtres) ? filtres : [filtres]).forEach(f => {
             abonnements.push(f);
+            const neuf = /^terrarium\\/(terra[0-9A-F]{6})\\/statut$/.exec(f);
+            if (neuf && !socles[neuf[1]]) creerSocle(neuf[1]);
             Object.keys(retenus).forEach(sujet => {
               if (correspond(f, sujet))
                 ecouteurs.message.forEach(cb => setTimeout(() => cb(sujet, Buffer_(retenus[sujet])), 0));
@@ -494,6 +516,7 @@ const FAUX_MQTT = `
 
   Object.keys(socles).forEach(amorcerHistorique);
   setInterval(() => Object.keys(socles).forEach(id => {
+    if (!socles[id].enLigne) return;              // un socle éteint ne publie rien
     pas(id); enregistrerPoint(id); publierEtat(id);
   }), 2000);
 

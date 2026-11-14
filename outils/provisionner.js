@@ -13,7 +13,7 @@
       qr-appairage.js, mot de passe de l'interface compris) et une fiche JSON
       dans provisionnement/ (ignorée par git : elle contient les secrets).
 
-     node provisionner.js --port /dev/ttyUSB0 [--serveur https://… --admin <jeton>] [--hote mqtt.exemple.fr]
+     node provisionner.js --port /dev/ttyUSB0 [--serveur https://… --admin <jeton>] [--hote mqtt.exemple.fr] [--url https://app…]
      node provisionner.js --id terraA1B2C3 --jeton K7M2QX… [--serveur … --admin …]
 
    Sans --serveur : seulement l'auto-test et l'étiquette (socle destiné à un
@@ -31,6 +31,7 @@ const SERVEUR = (arg('serveur') || '').replace(/\/$/, '');
 const ADMIN = arg('admin') || process.env.ADMIN_JETON;
 const HOTE = arg('hote');                                  // hôte MQTT à donner au socle (défaut : celui de --serveur)
 const PORT_MQTT = +arg('port-mqtt', 1883);
+const URL_APP = arg('url', process.env.TERRARIUM_URL_APP || '');   // étiquette : lien vers l'application (voir qr-appairage.js)
 const SORTIE = path.resolve(__dirname, 'provisionnement');
 const attendre = ms => new Promise(r => setTimeout(r, ms));
 // Mot de passe de l'interface locale : 12 caractères sans ambiguïté à la
@@ -88,7 +89,7 @@ const motDePasseWeb = () => Array.from({ length: 12 }, () => 'abcdefghjkmnpqrstu
   fs.mkdirSync(SORTIE, { recursive: true });
   const etiquette = path.join(SORTIE, `${ID}-etiquette.svg`);
   const svg = execFileSync(process.execPath, [path.join(__dirname, 'qr-appairage.js'), '--id', ID, '--jeton', JETON,
-    ...(fiche.web ? ['--web', `${fiche.web.utilisateur}:${fiche.web.motDePasse}`] : [])], { encoding: 'utf8' });
+    ...(fiche.web ? ['--web', `${fiche.web.utilisateur}:${fiche.web.motDePasse}`] : []), ...(URL_APP ? ['--url', URL_APP] : [])], { encoding: 'utf8' });
   fs.writeFileSync(etiquette, svg);
   fiche.etiquette = etiquette;
   fs.writeFileSync(path.join(SORTIE, `${ID}.json`), JSON.stringify(fiche, null, 1) + '\n', { mode: 0o600 });

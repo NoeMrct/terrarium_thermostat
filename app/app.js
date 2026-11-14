@@ -67,7 +67,7 @@ const App = (() => {
       conseilSurchauffe: 'La coupure max a été dépassée : vérifie que la sonde est bien en place, puis lève le défaut.',
       conseilFigee: 'La mesure ne bouge plus du tout : sonde débranchée ou abîmée.',
       conseilInefficace: 'Le tapis chauffe sans faire monter sa sonde : sondes inversées le plus souvent, sinon tapis débranché ou sonde hors de la zone.',
-      aucunSocle: 'Aucun socle pour l\'instant', aucunSocleAide: 'Ajoute ton premier socle ci-dessous, ou scanne le QR code collé dessous.',
+      aucunSocle: 'Aucun socle pour l\'instant', aucunSocleAide: 'Installe ton premier socle : l\'application te guide pas à pas, de l\'étiquette au Wi-Fi.',
       heuresService: '{h} h de service', horlogeSocle: 'horloge du socle {h}', entretienMin: 'entretien : {m} min',
       alertesAttente: '{n} alerte(s) en attente', majAppli: 'mets à jour l\'application', majSocle: 'firmware à mettre à jour',
       socleNeRepondPas: 'Ce socle ne répond pas. Il continue de réguler tout seul : seule la commande à distance est indisponible.',
@@ -151,7 +151,7 @@ const App = (() => {
       horaireInvalide: 'Horaire invalide : « {v} », attendu HH:MM.', enregistreZones: 'Enregistré : {n} zone(s) simultanée(s).',
       commandeAcceptee: 'Commande acceptée.',
       qrIndispo: 'Lecture de QR indisponible sur ce navigateur.', viserQr: 'Vise le QR code collé sous le socle, ou celui affiché sur son écran.',
-      aucunQr: 'Aucun QR détecté.', qrNonReconnu: 'QR non reconnu.', codeLu: 'Code lu, complète le nom puis valide.', cameraIndispo: 'Caméra indisponible : {m}',
+      aucunQr: 'Aucun QR détecté.', qrNonReconnu: 'QR non reconnu.', codeLu: 'Étiquette lue.', cameraIndispo: 'Caméra indisponible : {m}',
       nouvelleVersion: 'Nouvelle version de l\'application disponible.', recharger: 'Recharger',
       installer: 'Installer l\'application', installIos: 'Sur iPhone et iPad : bouton Partager, puis « Sur l\'écran d\'accueil ».', installee: 'Application installée.',
       exportConfigQ: 'Exporter la configuration ?', exportConfigTexte: 'Le fichier contient les codes d\'appairage de tes socles et le mot de passe du broker : garde-le pour toi.',
@@ -183,7 +183,22 @@ const App = (() => {
       pushTexte: 'Le serveur peut prévenir ce téléphone même application fermée : défaut, retour à la normale, socle disparu, mise à jour en échec.',
       activerPush: 'Activer les notifications du serveur', pushActif: 'notifications du serveur actives', pushActifTexte: 'Ce téléphone est prévenu même application fermée.',
       pushActive: 'Notifications du serveur activées sur cet appareil.', pushRefuse: 'Impossible d\'activer : {m}', pushIndispo: 'notifications push indisponibles ici',
-      envoyerRapport: 'Envoyer au serveur', rapportEnvoye: 'Rapport envoyé au serveur ({f}).', rapportNonEnvoye: 'Rapport non envoyé : {m}'
+      envoyerRapport: 'Envoyer au serveur', rapportEnvoye: 'Rapport envoyé au serveur ({f}).', rapportNonEnvoye: 'Rapport non envoyé : {m}',
+      // installation d'un socle
+      etapeSur: 'Étape {n} sur 3', instTermine: 'Terminé', installerSocle: 'Installer un socle',
+      etiquetteLue: 'Étiquette lue : socle {id}.',
+      instRefTitre: 'Recopie l\'étiquette', instRefTexte: 'Elle est sous le socle et sur la boîte, sous le QR. L\'écran du socle affiche aussi sa référence et son code.',
+      instRefLueTitre: 'Socle trouvé', instRefLueTexte: 'La référence et le code viennent de l\'étiquette : vérifie que c\'est bien ce socle, puis continue.', etiquetteAvantServeur: 'Étiquette du socle {id} lue : connecte-toi d\'abord à ton serveur, l\'installation suivra.',
+      suiviWifi: 'Wi-Fi rejoint', suiviServeur: 'Serveur joint', suiviHeure: 'Heure réglée', suiviCode: 'Code vérifié', suiviCompte: 'Socle relié à ton compte',
+      suiviAttente: 'en attente…', suiviHeureSans: 'pas encore : le socle continue sans',
+      instJour: 'Jour', instNuit: 'Nuit', instZoneNom: 'Nom de la zone {n}', instJourZone: 'Consigne de jour, {z}', instNuitZone: 'Consigne de nuit, {z}',
+      instHorairesFixes: 'Jour {j} · nuit {n} · rampe {r} min', instHorairesSoleil: 'Le jour suit le lever et le coucher du soleil à cette position ; un degré près suffit.',
+      instSecurite: 'La nuit reste sous le jour, et tout se coupe à {max}°.', instPositionRequise: 'Pour suivre le soleil, donne la latitude et la longitude.',
+      instValeurInvalide: 'Consigne invalide : « {v} ».', instResume: '{id} · jour {j}, nuit {n}', instResumeSoleil: '{id} · au rythme du soleil',
+      instCourbe: 'Températures depuis le début de l\'installation : {zones}.', instCourbeVide: 'La courbe se dessine au fil des mesures.',
+      ilYaMin: 'il y a {m} min', ilYaS: 'il y a {s} s', maintenant: 'maintenant', instAlertesActives: 'Alertes activées', instActiverAlertes: 'Activer les alertes',
+      instPlusTard: 'Le socle reste dans ta liste : il s\'y montrera en ligne dès qu\'il aura rejoint le Wi-Fi.',
+      instHorsLigne: 'Le socle ne répond pas : réglages non envoyés. Réessaie quand il est en ligne.'
     }
   };
 
@@ -242,6 +257,9 @@ const App = (() => {
   let vueCourante = 'broker';
   let socleOuvert = null;
   let panneauActif = 'etat';        // etat (accueil) ou la feuille ouverte : zone, reglages, programme…
+  let etapeAccueil = 'bienvenue';   // écran sans broker : bienvenue, connexion ou chezMoi
+  let installation = null;          // assistant d'installation en cours (voir plus bas)
+  let etiquetteLue = null;          // { id, jeton } lus dans l'adresse (étiquette scannée par l'appareil photo)
   let minuteurCible = null;
   const etats = {};                 // id -> { enLigne, zones, uptime, entretienS, sante, … }
   const attentes = {};              // req -> { resoudre, rejeter, minuteur }
@@ -369,7 +387,7 @@ const App = (() => {
                                           body: corps === undefined ? undefined : (typeof corps === 'string' ? corps : JSON.stringify(corps)) });
       let d = null; try { d = await r.json(); } catch (e) { /* vide */ }
       if (r.status === 401 && await serveur.ouvrirSession()) return serveur.appel(methode, chemin, corps);
-      if (!r.ok) throw new Error((d && d.erreur) || ('HTTP ' + r.status));
+      if (!r.ok) throw Object.assign(new Error((d && d.erreur) || ('HTTP ' + r.status)), { statut: r.status });
       return d;
     },
     // Détecte le serveur et ouvre une session avec les identifiants du broker.
@@ -560,6 +578,7 @@ const App = (() => {
         hist.noter(id, e);
       }
     }
+    suivreInstallation(id, sujet, paquet);
     surveillerAlertes(id);
     invalider();
   }
@@ -631,6 +650,21 @@ const App = (() => {
   }
   // Pas de « / », « + », « # » : ils casseraient les sujets MQTT du socle.
   const ID_VALIDE = /^[A-Za-z0-9_-]{1,40}$/;
+
+  // Étiquette d'un socle, sous l'une de ses deux formes : « terrarium:<id>:<code> »
+  // (écran du socle : QR alphanumérique, le plus compact), ou l'adresse de
+  // l'application suivie de « #a/<id>/<code> » (étiquette imprimée : l'appareil
+  // photo du téléphone l'ouvre sans application de scan). Le fragment après le
+  // « # » n'est envoyé à aucun serveur, pas même à celui qui sert l'application.
+  function lireEtiquette(brut) {
+    const s_ = String(brut || '').trim();
+    const m = /^terrarium:([^:]+):([A-Z0-9]{24})$/i.exec(s_) || /#a\/([^/?#]+)\/([A-Z0-9-]{24,29})$/i.exec(s_);
+    if (!m) return null;
+    let id;
+    try { id = normaliserId(decodeURIComponent(m[1])); } catch (e) { return null; }
+    const jeton = m[2].replace(/-/g, '').toUpperCase();
+    return ID_VALIDE.test(id) && jeton.length === 24 ? { id, jeton } : null;
+  }
 
   // Retire un socle de l'appareil : abonnements (sans quoi le broker continuait
   // d'envoyer son état, qui réapparaissait dans les notifications), état, configuration.
@@ -934,7 +968,8 @@ const App = (() => {
   function montrer(vue) {
     if (verrouille) vue = 'verrou';    // rien d'autre ne s'affiche tant que le code n'est pas donné
     vueCourante = vue;
-    ['broker', 'liste', 'socle', 'verrou'].forEach(v => {
+    if (vue !== 'installation') { clearInterval(minuteurSonde); minuteurSonde = null; }
+    ['broker', 'liste', 'socle', 'verrou', 'installation'].forEach(v => {
       const el = $('#vue-' + v);
       if (el) el.style.display = (v === vue) ? 'block' : 'none';
     });
@@ -956,6 +991,8 @@ const App = (() => {
     peindreVerrou();
     if (vueCourante === 'liste') dessinerListe();
     else if (vueCourante === 'socle') dessinerSocle();
+    else if (vueCourante === 'installation') dessinerInstallation();
+    else if (vueCourante === 'broker') dessinerAccueil();
     peindreVersion();
   }
 
@@ -1107,14 +1144,13 @@ const App = (() => {
       try { h = new URL(config.broker.url).host; } catch (e) { /* adresse brute */ }
       texte(hote, t('brokerAffiche', { h }));
     }
-    const form = $('#form-socle');
 
     if (!config.socles.length) {
       cartes.forEach(c => c.remove()); cartes.clear();
-      if (form) form.hidden = false;
       peindre($('#bandeau-liste'), '');
       peindre(conteneur, `<div class="carte etat-vide">${illustration({ zones: [] }, 'v', true)}
-        <h2>${t('aucunSocle')}</h2><p class="aide">${t('aucunSocleAide')}</p></div>`);
+        <h2>${t('aucunSocle')}</h2><p class="aide">${t('aucunSocleAide')}</p>
+        <button type="button" class="btn btn-grand mt" data-action="ajoutSocle">${icone('i-plus')}${t('installerSocle')}</button></div>`);
       return;
     }
     if (!cartes.size) { html(conteneur, ''); memo.delete(conteneur); }
@@ -1915,6 +1951,14 @@ const App = (() => {
         case 'cible':             api.cible(+d.pas); break;
         case 'periode':           api.periode(d.p); break;
         case 'ajoutSocle':        api.montrerAjout(); break;
+        case 'accueil':           api.accueil(d.etape); break;
+        case 'instPas':           api.instPas(d.pas); break;
+        case 'instRetour':        api.instRetour(); break;
+        case 'instQuitter':       api.instQuitter(); break;
+        case 'instPlusTard':      api.instPlusTard(); break;
+        case 'instHoraires':      horairesInst = d.mode === 'soleil' ? 'soleil' : 'fixe'; peindreHoraires(); break;
+        case 'instNotifs':        api.instNotifs(); break;
+        case 'instVoir':          api.instVoir(); break;
       }
     });
     // Les cartes de socle sont des boutons : clavier compris.
@@ -1935,6 +1979,7 @@ const App = (() => {
       switch (f.dataset.form) {
         case 'broker':       api.enregistrerBroker(); break;
         case 'socle':        api.ajouterSocle(); break;
+        case 'instReglages': api.instReglages(); break;
         case 'zone':         api.reglerZone(+f.dataset.z); break;
         case 'zone-complet': api.reglerZoneComplet(+f.dataset.z); break;
         case 'generaux':     api.reglerGeneraux(); break;
@@ -2006,9 +2051,14 @@ const App = (() => {
       suivre(reg.installing);
       reg.addEventListener('updatefound', () => suivre(reg.installing));
     }).catch(() => {});
+    // Un changement d'agent, c'est une nouvelle version acceptée : on recharge.
+    // Pas à la toute première visite, où l'agent prend la main sur une page
+    // déjà à jour : le rechargement perdait ce qui venait d'être saisi, et
+    // l'étiquette lue dans l'adresse, déjà effacée de celle-ci.
+    const avaitUnAgent = !!navigator.serviceWorker.controller;
     let recharge = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (!recharge) { recharge = true; location.reload(); }
+      if (avaitUnAgent && !recharge) { recharge = true; location.reload(); }
     });
   }
 
@@ -2059,9 +2109,364 @@ const App = (() => {
     return l.join('\n');
   }
 
+  // ------------------------------------------------------------ installation
+  // L'assistant d'installation d'un socle, en trois étapes : l'étiquette (scan
+  // ou saisie), le Wi-Fi, les réglages de départ. Le Wi-Fi se donne au socle
+  // sur sa propre page, téléphone branché sur le réseau qu'il crée : une page
+  // servie en HTTPS ne peut pas parler à une adresse locale en HTTP, le
+  // navigateur l'interdit. L'application, elle, suit l'arrivée du socle sur le
+  // broker et coche ce qu'elle voit : Wi-Fi, serveur, heure, code.
+  //
+  // L'état tient en quelques champs, gardés pour qu'une relance (le téléphone
+  // change de Wi-Fi en cours de route, le système recharge la page) reprenne où
+  // l'on en était. Le code d'appairage n'y figure pas : il est dans la
+  // configuration, avec le socle, dès la fin de la première étape.
+  const CLE_INSTALLATION = 'terrarium.installation';
+  // Sans nouvelles du socle au-delà (dont une minute avec le téléphone sur
+  // Internet) : écran d'échec et pistes. Réglables pour les bancs d'essai.
+  const delaisInstallation = { socle: 4 * 60000, lien: 60000 };
+  const PAS_ORDRE = { scan: 1, reference: 1, reseau: 2, echec: 2, reglages: 3 };
+  let minuteurSonde = null;
+
+  const scanPossible = () => 'BarcodeDetector' in window && !!navigator.mediaDevices;
+
+  function sauverInstallation() {
+    try {
+      const i = installation;
+      if (i && i.id && i.pas !== 'fin') localStorage.setItem(CLE_INSTALLATION, JSON.stringify({ pas: i.pas, id: i.id, debut: i.debut }));
+      else localStorage.removeItem(CLE_INSTALLATION);
+    } catch (e) { /* stockage indisponible : seule la reprise est perdue */ }
+  }
+
+  // Reprise après relance : seulement une installation récente, dont le socle
+  // est toujours dans la configuration.
+  function reprendreInstallation() {
+    let r;
+    try { r = JSON.parse(localStorage.getItem(CLE_INSTALLATION) || 'null'); } catch (e) { r = null; }
+    if (!r || !r.id || !socle(r.id) || !['reseau', 'echec', 'reglages'].includes(r.pas) || !(Date.now() - r.debut < 3600000)) {
+      try { localStorage.removeItem(CLE_INSTALLATION); } catch (e) { /* rien à effacer */ }
+      return false;
+    }
+    installation = { pas: r.pas, id: r.id, debut: r.debut };
+    instAller(r.pas === 'echec' ? 'reseau' : r.pas);
+    return true;
+  }
+
+  function finirInstallation() {
+    installation = null;
+    clearInterval(minuteurSonde); minuteurSonde = null;
+    sauverInstallation();
+  }
+
+  function instAller(pas) {
+    if (!installation) installation = { pas, id: null, debut: Date.now() };
+    const inst = installation;
+    if (pas === 'scan' && !scanPossible()) pas = 'reference';
+    if ((pas === 'reseau' || pas === 'reglages' || pas === 'fin') && !(inst.id && socle(inst.id))) pas = 'reference';
+    inst.pas = pas;
+    clearInterval(minuteurSonde); minuteurSonde = null;
+    if (pas === 'reseau') {
+      inst.attente = Date.now(); inst.lienDepuis = null;
+      // Même nom que le firmware : « terrarium-config- » et l'identifiant sans « terra ».
+      texte($('#inst-ap'), 'terrarium-config-' + (inst.id.startsWith('terra') ? inst.id.slice(5) : inst.id));
+      minuteurSonde = setInterval(() => { sonderInstallation(); invalider(); }, 4000);
+      sonderInstallation();
+    }
+    if (pas === 'reglages') remplirReglages();
+    if (pas === 'fin') { courbeFin = ''; chargerCourbeFin(); minuteurSonde = setInterval(chargerCourbeFin, 20000); }
+    sauverInstallation();
+    if (vueCourante !== 'installation') montrer('installation'); else dessiner();
+    const titre = doc.querySelector(`#vue-installation .inst-pas[data-pas="${pas}"] .titre-ecran`);
+    if (titre) { try { /** @type {any} */ (titre).focus({ preventScroll: true }); } catch (e) { /* hors écran */ } }
+  }
+
+  // Ce que l'application a vu du socle depuis le début de l'attente.
+  function etatSuivi() {
+    const inst = installation;
+    const e = etats[inst.id] || {};
+    const rssi = inst.vu && e.sante && e.sante.rssi ? `${String(e.sante.rssi).replace('-', '−')} dBm` : '';
+    const heureSans = inst.vu && !e.heure && inst.vuA && Date.now() - inst.vuA > 60000;
+    const lignes = [
+      ['wifi', t('suiviWifi'), !!inst.vu, rssi],
+      ['serveur', t('suiviServeur'), !!inst.vu, ''],
+      ['heure', t('suiviHeure'), !!(inst.vu && e.heure), heureSans ? t('suiviHeureSans') : (e.heure ? String(e.heure).slice(11, 16) : '')],
+      ['code', serveur.actif() ? t('suiviCompte') : t('suiviCode'), !!inst.verifie, '']
+    ];
+    const faits = lignes.filter(l => l[2]).length;
+    return { lignes, faits, pret: !!(inst.vu && inst.verifie), heureSans };
+  }
+
+  function peindreSuivi(suivi) {
+    let enCours = false;
+    peindre($('#inst-suivi'), suivi.lignes.map(([cle, lib, fait, detail]) => {
+      // La première ligne non cochée tourne ; les suivantes attendent leur tour.
+      const etat = fait ? 'fait' : (!enCours && (enCours = true)) ? 'en-cours' : (cle === 'heure' && suivi.heureSans ? 'passe' : 'attente');
+      const ico = etat === 'fait' ? `<svg class="coche" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M7.5 12.5l3 3 6-6.5"/></svg>`
+        : etat === 'en-cours' ? `<svg class="rouet" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M21 12a9 9 0 0 0-9-9"/></svg>`
+          : `<svg class="anneau" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>`;
+      return `<li class="${etat}" data-suivi="${cle}">${ico}<span class="lib">${esc(lib)}</span><span class="detail">${esc(detail || (etat === 'en-cours' ? t('suiviAttente') : ''))}</span></li>`;
+    }).join(''));
+  }
+
+  function dessinerInstallation() {
+    const inst = installation;
+    if (!inst) return;
+    doc.querySelectorAll('#vue-installation .inst-pas').forEach((/** @type {any} */ el) => { el.hidden = el.dataset.pas !== inst.pas; });
+    const n = PAS_ORDRE[inst.pas];
+    texte($('#inst-etape'), n ? t('etapeSur', { n }) : t('instTermine'));
+    const suivi = (inst.pas === 'reseau' && inst.id) ? etatSuivi() : null;
+    const p = [n === 1 ? 50 : 100, n === 1 ? 0 : n === 2 ? (suivi ? 25 + 25 * Math.min(3, suivi.faits) : 75) : 100, n === 3 ? 50 : inst.pas === 'fin' ? 100 : 0];
+    ['#inst-p1', '#inst-p2', '#inst-p3'].forEach((sel, i) => { const el = $(sel); if (el && el.dataset.p !== String(p[i])) el.dataset.p = String(p[i]); });
+    if (suivi) {
+      peindreSuivi(suivi);
+      const connecte_ = !!(client && client.connected);
+      if (connecte_ && !inst.lienDepuis) inst.lienDepuis = Date.now();
+      if (!connecte_) inst.lienDepuis = null;
+      const sansLien = $('#inst-sans-lien'); if (sansLien) sansLien.hidden = connecte_;
+      const suite = $('#inst-wifi-suite'); if (suite) suite.hidden = !suivi.pret;
+      // Échec : quatre minutes sans nouvelles, dont une minute au moins avec le
+      // téléphone revenu sur Internet (sinon c'est lui qui ne voit rien).
+      if (!inst.vu && connecte_ && Date.now() - inst.attente > delaisInstallation.socle && Date.now() - inst.lienDepuis > delaisInstallation.lien) {
+        setTimeout(() => { if (installation === inst && inst.pas === 'reseau') instAller('echec'); }, 0);
+      }
+    }
+    if (inst.pas === 'fin') peindreFin();
+  }
+
+  // Le code est refusé : le socle repart de la configuration, le formulaire
+  // revient rempli, prêt pour la correction.
+  function codeRefuseInstallation(s) {
+    oublierSocle(s.id);
+    if (installation) installation.id = null;
+    $('#a-id').value = s.id; $('#a-jeton').value = s.jeton;
+    instAller('reference');
+    message(t('codeRefuse'), true);
+    const champ = $('#a-jeton');
+    if (champ) champ.focus();
+  }
+
+  // Une sonde à la fois : lecture de l'état (le socle est-il là ? a-t-il
+  // l'heure ?), puis lecture protégée des réglages globaux, qui prouve le
+  // code. Avec le serveur Terrariums, c'est le rattachement qui fait la
+  // preuve : le broker ne laisse rien lire d'un socle avant.
+  function sonderInstallation() {
+    const inst = installation;
+    if (!inst || inst.pas !== 'reseau' || !inst.id || inst.sonde) return;
+    const s = socle(inst.id);
+    if (!s || !client || !client.connected) return;
+    const e = etats[s.id] || {};
+    inst.sonde = true;
+    const fin = () => { inst.sonde = false; invalider(); };
+    const vu = () => { if (!inst.vu) { inst.vu = true; inst.vuA = Date.now(); } };
+    if (serveur.actif() && !inst.verifie) {
+      serveur.revendiquer(s.id, s.jeton)
+        .then(() => { vu(); inst.verifie = true; abonner(s); return commander(s.id, 'etat').catch(() => {}); })
+        .catch(err => { if (err && err.statut === 403) codeRefuseInstallation(s); })   // 504 : pas encore là
+        .then(fin, fin);
+      return;
+    }
+    const lireEtat = !inst.vu || (!e.heure && Date.now() - (inst.vuA || 0) < 60000);
+    (lireEtat ? commander(s.id, 'etat').then(vu) : Promise.resolve())
+      .then(() => (inst.vu && !inst.verifie ? commander(s.id, 'globaux').then(r => { generaux[s.id] = r; inst.verifie = true; }, err => {
+        if (err && err.jeton) codeRefuseInstallation(s);
+        else if (err && err.refus) inst.verifie = true;   // refus pour une autre raison : le code, lui, est passé
+      }) : null))
+      .catch(() => { /* pas encore de réponse : la prochaine sonde réessaiera */ })
+      .then(fin, fin);
+  }
+
+  // Un message du socle en cours d'installation : présence, points de courbe.
+  // Les points sont pris toutes les dix secondes au plus : l'historique du socle
+  // et celui de l'application n'en gardent qu'un par minute, trop peu pour
+  // montrer les premières minutes.
+  function suivreInstallation(id, sujet, paquet) {
+    const inst = installation;
+    if (!inst || inst.id !== id) return;
+    const direct = !(paquet && paquet.retain);
+    const z = (etats[id] || {}).zones || [];
+    const maintenant = Math.floor(Date.now() / 1000);
+    if (direct && z[0] && typeof z[0].temp === 'number' && !(inst.points && inst.points.length && maintenant - inst.points[inst.points.length - 1][0] < 10)) {
+      const c = v => (typeof v === 'number' && !isNaN(v) ? Math.round(v * 100) : null);
+      (inst.points || (inst.points = [])).push([maintenant, z[0].defaut ? null : c(z[0].temp), c(z[0].consigne), z[1] && !z[1].defaut ? c(z[1].temp) : null, z[1] ? c(z[1].consigne) : null]);
+      if (inst.points.length > 400) inst.points.shift();
+    }
+    if (inst.pas !== 'reseau') return;
+    // Le socle arrive : une sonde envoyée avant n'aura jamais de réponse (il
+    // n'était pas abonné) ; on n'attend pas qu'elle expire pour en lancer une.
+    if (sujet.endsWith('/statut') && etats[id] && etats[id].enLigne && direct) { inst.sonde = false; sonderInstallation(); }
+    else if (direct && (sujet.endsWith('/etat') || sujet.endsWith('/sante')) && !inst.vu) sonderInstallation();
+  }
+
+  // ---- étape 3 : réglages de départ
+  let horairesInst = 'fixe';
+  const fixe1 = v => (v === undefined || v === null || isNaN(v)) ? '' : deg(v);
+
+  function remplirReglages() {
+    const inst = installation;
+    const s = socle(inst.id), e = etats[inst.id] || {}, g = generaux[inst.id] || {};
+    const zones = (e.zones && e.zones.length ? e.zones : [{}, {}]).slice(0, 4);
+    $('#a-nom').value = s && s.nom && s.nom !== s.id ? s.nom : '';
+    peindre($('#inst-zones'), `<span></span><span class="col-tete">${icone('i-soleil')}${t('instJour')}</span><span class="col-tete">${icone('i-lune')}${t('instNuit')}</span>` +
+      zones.map((z, i) => {
+        const nom = (z && z.nom) || t('zoneN', { n: i + 1 });
+        return `<span class="inst-zone"><span class="pastille z${i + 1}" aria-hidden="true"></span><input id="o-z${i}" class="nom-zone" value="${attr(nom)}" maxlength="17" autocomplete="off" aria-label="${attr(t('instZoneNom', { n: i + 1 }))}"></span>` +
+          `<span><input id="o-j${i}" class="pilule" inputmode="decimal" autocomplete="off" value="${attr(fixe1(z && z.jour))}" aria-label="${attr(t('instJourZone', { z: nom }))}"></span>` +
+          `<span><input id="o-n${i}" class="pilule" inputmode="decimal" autocomplete="off" value="${attr(fixe1(z && z.nuit))}" aria-label="${attr(t('instNuitZone', { z: nom }))}"></span>`;
+      }).join(''));
+    memo.delete($('#inst-zones'));   // les champs sont à l'utilisateur jusqu'à la prochaine entrée dans l'étape
+    horairesInst = g.soleilActif ? 'soleil' : 'fixe';
+    $('#o-lat').value = g.latitude ? fixe1(g.latitude).replace(/,?0+$/, '') : '';
+    $('#o-lon').value = g.longitude ? fixe1(g.longitude).replace(/,?0+$/, '') : '';
+    peindreHoraires();
+    const max = Math.min(...zones.map(z => (z && +z.max) || 40));
+    texte($('#inst-securite'), t('instSecurite', { max: deg(max) }));
+  }
+
+  function peindreHoraires() {
+    const inst = installation;
+    const z = ((etats[inst.id] || {}).zones || [])[0] || {};
+    doc.querySelectorAll('[data-action="instHoraires"]').forEach((/** @type {any} */ b) => b.setAttribute('aria-pressed', String(b.dataset.mode === horairesInst)));
+    const pos = $('#inst-position'); if (pos) pos.hidden = horairesInst !== 'soleil';
+    texte($('#inst-horaires-resume'), horairesInst === 'soleil' ? t('instHorairesSoleil')
+      : t('instHorairesFixes', { j: enHHMM(z.debutJour !== undefined ? z.debutJour : 480), n: enHHMM(z.debutNuit !== undefined ? z.debutNuit : 1200), r: z.rampe !== undefined ? z.rampe : 45 }));
+  }
+
+  // Un nom de zone tient en 17 octets dans le socle : coupé sur un caractère
+  // entier, jamais au milieu d'un « é ».
+  function couperOctets(texte_, n) {
+    let r = '', total = 0;
+    for (const c of texte_) {
+      const p = c.codePointAt(0) || 0;
+      total += p < 0x80 ? 1 : p < 0x800 ? 2 : p < 0x10000 ? 3 : 4;
+      if (total > n) break;
+      r += c;
+    }
+    return r;
+  }
+
+  async function enregistrerReglagesInstallation() {
+    const inst = installation;
+    const s = socle(inst.id);
+    if (!s) return;
+    const e = etats[s.id] || {}, g = generaux[s.id] || {};
+    const commandes = [];
+    (e.zones || []).forEach((z, i) => {
+      const params = { z: i };
+      const nom = couperOctets(String(($('#o-z' + i) || { value: '' }).value).trim(), 17);
+      if (nom && nom !== z.nom) params.nom = nom;
+      for (const [k, cle] of [['j', 'jour'], ['n', 'nuit']]) {
+        const el = $(`#o-${k}${i}`);
+        if (!el || el.value.trim() === '') continue;
+        const v = nombre(el.value);
+        if (isNaN(v)) { message(t('instValeurInvalide', { v: el.value }), true); el.focus(); throw new Error('saisie'); }
+        if (v !== z[cle]) params[cle] = v;
+      }
+      if (Object.keys(params).length > 1) commandes.push(['zone', params]);
+    });
+    if (horairesInst === 'soleil') {
+      const lat = champNombre('o-lat'), lon = champNombre('o-lon');
+      if (lat === undefined || lon === undefined) { message(t('instPositionRequise'), true); throw new Error('saisie'); }
+      commandes.push(['globaux', { soleilActif: true, latitude: lat, longitude: lon }]);
+    } else if (g.soleilActif) commandes.push(['globaux', { soleilActif: false }]);
+    for (const [action, params] of commandes) {
+      const r = await commander(s.id, action, params);
+      if (action === 'globaux') generaux[s.id] = r;
+    }
+    const nomSocle = String($('#a-nom').value || '').trim();
+    if (nomSocle && nomSocle !== s.nom) { s.nom = nomSocle; sauver(); }
+    if (commandes.length) commander(s.id, 'etat').catch(() => {});
+  }
+
+  // ---- fin : la courbe des premières minutes
+  function courbeInstallation(points, zones) {
+    const ok = v => typeof v === 'number' && v > -10000 && v < 10000;   // centièmes de degré ; une sonde absente sort de ces bornes
+    const pts = points.filter(p => p && typeof p[0] === 'number').sort((a, b) => a[0] - b[0]);
+    const series = [1, 3].map(k => pts.filter(p => ok(p[k])).map(p => [p[0], p[k] / 100]));
+    const vals = series.flat().map(p => p[1]);
+    if (vals.length < 2 || pts.length < 2) return '';
+    const bas = Math.floor(Math.min(...vals) - .5);
+    let haut = Math.ceil(Math.max(...vals) + .5);
+    if (haut - bas < 4) haut = bas + 4;
+    if ((haut - bas) % 2) haut++;              // graduation du milieu sur un degré entier
+    const t0 = pts[0][0], t1 = pts[pts.length - 1][0], dt = Math.max(1, t1 - t0);
+    const X = tt => (34 + (tt - t0) / dt * 268).toFixed(1), Y = v => (96 - (v - bas) / (haut - bas) * 82).toFixed(1);
+    const graduations = [haut, (haut + bas) / 2, bas].map(v => `<line x1="34" x2="306" y1="${Y(v)}" y2="${Y(v)}"/><text x="0" y="${(+Y(v) + 4).toFixed(1)}">${Math.round(v)}°</text>`).join('');
+    const traces = series.map((serie, i) => serie.length < 2 ? '' : `<path class="trace z${i + 1}" pathLength="1" d="${serie.map((p, j) => `${j ? 'L' : 'M'}${X(p[0])} ${Y(p[1])}`).join('')}"/>` +
+      `<circle class="point z${i + 1}" r="4.5" cx="${X(serie[serie.length - 1][0])}" cy="${Y(serie[serie.length - 1][1])}"/>`).join('');
+    const derniers = series.map((serie, i) => serie.length ? `${(zones[i] && zones[i].nom) || t('zoneN', { n: i + 1 })} ${deg(serie[serie.length - 1][1])}°` : '').filter(Boolean).join(', ');
+    return `<svg viewBox="0 0 310 120" role="img" aria-label="${attr(t('instCourbe', { zones: derniers }))}">${graduations}${traces}
+      <text x="34" y="116">${esc(dt < 90 ? t('ilYaS', { s: Math.round(dt) }) : t('ilYaMin', { m: Math.round(dt / 60) }))}</text><text x="306" y="116" text-anchor="end">${esc(t('maintenant'))}</text></svg>`;
+  }
+
+  // Fin : la légende suit les mesures en direct ; la courbe est redessinée de
+  // loin en loin, avec ce que l'application a vu et l'historique du socle.
+  let courbeFin = '';
+  function peindreFin() {
+    const inst = installation;
+    const s = socle(inst.id);
+    if (!s) return;
+    const e = etats[s.id] || {}, g = generaux[s.id] || {};
+    const zones = e.zones || [];
+    const z = zones[0] || {};
+    texte($('#inst-resume'), g.soleilActif ? t('instResumeSoleil', { id: s.id })
+      : t('instResume', { id: s.id, j: enHHMM(z.debutJour !== undefined ? z.debutJour : 480), n: enHHMM(z.debutNuit !== undefined ? z.debutNuit : 1200) }));
+    const legende = zones.map((zz, i) => `<span><span class="pastille z${i + 1}" aria-hidden="true"></span>${nomZone(zz, i)} <strong>${deg(zz.temp)}°</strong></span>`).join('');
+    peindre($('#inst-courbe'), `<figcaption>${legende}</figcaption>${courbeFin || `<p class="aide">${t('instCourbeVide')}</p>`}`);
+    peindreNotifsInstallation();
+  }
+
+  async function chargerCourbeFin() {
+    const inst = installation;
+    const s = inst && socle(inst.id);
+    if (!s) return;
+    const depuis = Math.floor(Date.now() / 1000) - 1800;
+    let points = (await hist.lire(s.id, depuis).catch(() => [])).concat(inst.points || []);
+    try { const r = await commander(s.id, 'historique', { heures: 1, max: 60 }); points = points.concat((r.points || []).filter(p => p[0] >= depuis)); } catch (err) { /* hors ligne : les points vus suffisent */ }
+    if (installation !== inst || inst.pas !== 'fin') return;
+    // Trois sources qui se recouvrent : un point par seconde au plus.
+    let dernier = -Infinity;
+    points = points.sort((a, b) => a[0] - b[0]).filter(p => {
+      if (p[0] < depuis || p[0] === dernier) return false;
+      dernier = p[0];
+      return true;
+    });
+    courbeFin = courbeInstallation(points, (etats[s.id] || {}).zones || []);
+    peindreFin();
+  }
+
+  function peindreNotifsInstallation() {
+    const b = $('#inst-notifs-btn');
+    if (!b) return;
+    const actif = (config.serveur && config.serveur.pushActif) || (notificationsPossibles() && Notification.permission === 'granted');
+    b.setAttribute('aria-pressed', String(!!actif));
+    b.classList.toggle('actif', !!actif);
+    texte(b, actif ? t('instAlertesActives') : t('instActiverAlertes'));
+  }
+
+  // ---- écran sans broker : bienvenue, connexion, « chez moi seulement »
+  function dessinerAccueil() {
+    const e = etapeAccueil;
+    const b = $('#bienvenue'), c = $('#chez-moi'), f = $('#form-broker');
+    if (b) b.hidden = e !== 'bienvenue';
+    if (c) c.hidden = e !== 'chezMoi';
+    if (f) f.hidden = e !== 'connexion';
+    doc.body.dataset.accueil = e;
+    if (e === 'bienvenue') peindre($('#bienvenue-ill'), illustration({ enLigne: true, zones: [{ chauffe: true }, { chauffe: true }] }, 'b'));
+    const lue = $('#bienvenue-etiquette');
+    if (lue) { lue.hidden = !etiquetteLue; if (etiquetteLue) texte(lue, t('etiquetteAvantServeur', { id: etiquetteLue.id })); }
+  }
+
   // ----------------------------------------------------------------- actions
   const api = {
     demarrer() {
+      // Étiquette scannée par l'appareil photo : l'identifiant et le code sont
+      // gardés en mémoire et retirés de l'adresse aussitôt (historique, favoris,
+      // capture d'écran partagée).
+      const lue = lireEtiquette(location.hash);
+      if (lue) {
+        etiquetteLue = lue;
+        try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* file:// */ }
+      }
       choisirLangue();
       if (!TEXTES[langue]) { chargerTextes(langue).then(() => api.demarrer()); return; }
       traduirePage();
@@ -2092,15 +2497,21 @@ const App = (() => {
         $('#b-prefixe').value = config.broker.prefixe || 'terrarium';
         if (!client) connecter();
         montrer('liste');
+        if (etiquetteLue) { const lue = etiquetteLue; etiquetteLue = null; api.nouveauSocle(lue); }
+        else reprendreInstallation();
       } else {
         lien(t('nonConnecte'), 'ko');
+        etapeAccueil = 'bienvenue';
         montrer('broker');
       }
-      // Raccourcis du manifeste : ouvrir directement le scanner ou le diagnostic.
+      // Raccourcis du manifeste : installer un socle (scanner ouvert) ou le diagnostic.
       const h = location.hash;
       if (h === '#scanner' || h === '#diagnostic') {
         try { history.replaceState(null, '', location.pathname); } catch (e) { /* file:// */ }
-        setTimeout(() => (h === '#scanner' ? api.scanner() : api.diagnostic()), 300);
+        setTimeout(() => {
+          if (h === '#diagnostic') api.diagnostic();
+          else if (config.broker) { api.nouveauSocle(); api.scanner(); }
+        }, 300);
       }
     },
 
@@ -2109,6 +2520,8 @@ const App = (() => {
     // Pour les bancs d'essai : injecte un version.json (version publiée du
     // firmware) sans passer par le réseau.
     _versionPubliee(v) { versionApp = v; peindreVersion(); },
+    // Pour les bancs d'essai : délais de l'assistant avant l'écran d'échec.
+    _delaisInstallation(socleMs, lienMs) { delaisInstallation.socle = socleMs; delaisInstallation.lien = lienMs; },
 
     changerLangue(l) {
       if (l !== 'fr' && l !== 'en') return;
@@ -2135,6 +2548,7 @@ const App = (() => {
       sauver();
       connecter();
       montrer('liste');
+      if (etiquetteLue) { const lue = etiquetteLue; etiquetteLue = null; api.nouveauSocle(lue); }
     },
 
     // Essai de connexion sans rien enregistrer : on sait tout de suite si
@@ -2223,7 +2637,7 @@ const App = (() => {
     // On repart de zéro ; les codes d'appairage sont sur les socles.
     async effacerTout() {
       if (!await confirmer({ titre: t('effacerToutQ'), texte: t('effacerToutTexte'), ok: t('effacerTout'), danger: true })) return;
-      try { localStorage.removeItem(CLE_CONFIG); } catch (e) { /* stockage indisponible */ }
+      try { localStorage.removeItem(CLE_CONFIG); localStorage.removeItem(CLE_INSTALLATION); } catch (e) { /* stockage indisponible */ }
       await hist.toutEffacer();
       location.reload();
     },
@@ -2252,6 +2666,8 @@ const App = (() => {
       sauver();
       if (client) { client.end(true); client = null; }
       lien(t('nonConnecte'), 'ko');
+      finirInstallation();
+      etapeAccueil = 'connexion';
       montrer('broker');
     },
 
@@ -2262,11 +2678,27 @@ const App = (() => {
       if (!id) { message(t('idManquant'), true); return; }
       if (!ID_VALIDE.test(id)) { message(t('idInvalide'), true); return; }
       if (jeton.length !== 24) { message(t('jeton24'), true); return; }
+      const assistant = !!installation && vueCourante === 'installation';
+      if (assistant && installation.id === id && socle(id)) {
+        // Retour arrière dans l'assistant : le même socle, code peut-être corrigé.
+        const deja = socle(id);
+        if (deja.jeton !== jeton) { deja.jeton = jeton; sauver(); installation.verifie = false; }
+        instAller('reseau');
+        return;
+      }
       if (socle(id)) { message(t('dejaEnregistre'), true); return; }
 
       const s = { id, jeton, nom: nom || id };
       config.socles.push(s);
       sauver();
+      if (assistant) {
+        // L'assistant vérifie lui-même le code, une fois le socle en ligne :
+        // un socle neuf n'a pas encore de Wi-Fi, il ne répondrait pas ici.
+        Object.assign(installation, { id, vu: false, verifie: false });
+        abonner(s);
+        instAller('reseau');
+        return;
+      }
       if (serveur.actif()) {
         // Le broker n'accepte l'abonnement qu'une fois le socle rattaché au compte.
         serveur.revendiquer(id, jeton).then(() => { abonner(s); commander(id, 'etat').catch(() => {}); message(t('socleRattache')); })
@@ -2378,12 +2810,65 @@ const App = (() => {
       }, 1000);
     },
 
-    montrerAjout() {
-      const f = $('#form-socle');
-      if (!f) return;
-      f.hidden = false;
-      const champ = $('#a-id');
-      if (champ) champ.focus();
+    montrerAjout() { api.nouveauSocle(); },
+
+    // Ouvre l'assistant d'installation ; avec une étiquette déjà lue, l'étape
+    // de saisie arrive remplie.
+    nouveauSocle(lue) {
+      if (lue && socle(lue.id)) { message(t('dejaEnregistre')); api.ouvrir(lue.id); return; }
+      installation = { pas: 'scan', id: null, debut: Date.now() };
+      $('#a-id').value = lue ? lue.id : ''; $('#a-jeton').value = lue ? lue.jeton : ''; $('#a-nom').value = '';
+      const bandeau = $('#inst-lue');
+      if (bandeau) { bandeau.hidden = !lue; if (lue) texte(bandeau, t('etiquetteLue', { id: lue.id })); }
+      // Étiquette déjà lue : rien à recopier, seulement à confirmer.
+      texte(doc.querySelector('[data-pas="reference"] .titre-ecran'), t(lue ? 'instRefLueTitre' : 'instRefTitre'));
+      texte(doc.querySelector('[data-pas="reference"] .chapeau'), t(lue ? 'instRefLueTexte' : 'instRefTexte'));
+      instAller(lue ? 'reference' : 'scan');
+    },
+
+    accueil(etape) {
+      etapeAccueil = ['bienvenue', 'connexion', 'chezMoi'].includes(etape) ? etape : 'bienvenue';
+      if (vueCourante !== 'broker') montrer('broker'); else dessiner();
+      const cible = etapeAccueil === 'connexion' ? $('#b-url') : doc.querySelector(etapeAccueil === 'chezMoi' ? '#chez-moi h2' : '#bienvenue h2');
+      if (cible) { try { cible.focus(); } catch (e) { /* hors écran */ } }
+    },
+
+    instPas(pas) {
+      if (!installation) return;
+      if (pas === 'reglages' && installation.pas === 'reseau' && !etatSuivi().pret) return;
+      instAller(pas);
+    },
+
+    instRetour() {
+      const inst = installation;
+      if (!inst) { montrer('liste'); return; }
+      const precedent = { reference: scanPossible() ? 'scan' : null, reseau: 'reference', echec: 'reseau', reglages: 'reseau', fin: 'reglages' }[inst.pas];
+      if (!precedent) { api.instQuitter(); return; }
+      const s = inst.id && socle(inst.id);
+      if (precedent === 'reference' && s) { $('#a-id').value = s.id; $('#a-jeton').value = s.jeton; }
+      instAller(precedent);
+    },
+
+    instQuitter() { finirInstallation(); montrer('liste'); },
+
+    instPlusTard() { finirInstallation(); montrer('liste'); message(t('instPlusTard')); },
+
+    async instReglages() {
+      try { await enregistrerReglagesInstallation(); }
+      catch (e) { if (e.message !== 'saisie') message(e.delai ? t('instHorsLigne') : e.message, true); return; }
+      instAller('fin');
+    },
+
+    async instNotifs() {
+      if (serveur.actif() && config.serveur.push && !config.serveur.pushActif) await api.activerPush();
+      else await api.activerNotifications();
+      peindreNotifsInstallation();
+    },
+
+    instVoir() {
+      const id = installation && installation.id;
+      finirInstallation();
+      if (id && socle(id)) api.ouvrir(id); else montrer('liste');
     },
 
     async courbes(heures) {
@@ -2694,14 +3179,15 @@ const App = (() => {
           const codes = await detecteur.detect(video).catch(() => []);
           if (codes.length) {
             fermerScanner();
-            // Format : terrarium:<id>:<jeton>. L'écran du socle l'affiche en
-            // majuscules (QR alphanumérique, plus petit) : l'identifiant retrouve
-            // sa casse « terraXXXXXX ».
-            const m = /^terrarium:([^:]+):([A-Z0-9]{24})$/i.exec(codes[0].rawValue || '');
-            if (!m) { message(t('qrNonReconnu'), true); return; }
-            $('#a-id').value = normaliserId(m[1]); $('#a-jeton').value = m[2].toUpperCase();
-            $('#a-nom').focus();
+            // Écran du socle (terrarium:<id>:<code>, en majuscules : QR
+            // alphanumérique, plus petit ; l'identifiant retrouve sa casse) ou
+            // étiquette imprimée (adresse de l'application, #a/<id>/<code>).
+            const lue = lireEtiquette(codes[0].rawValue || '');
+            if (!lue) { message(t('qrNonReconnu'), true); return; }
             message(t('codeLu'));
+            if (vueCourante === 'installation') { $('#a-id').value = lue.id; $('#a-jeton').value = lue.jeton; api.ajouterSocle(); }
+            else if (config.broker) api.nouveauSocle(lue);
+            else { etiquetteLue = lue; dessiner(); }
             return;
           }
           requestAnimationFrame(boucle);

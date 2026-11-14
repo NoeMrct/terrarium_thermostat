@@ -454,6 +454,58 @@ const dernier = (socle, chemin, methode) =>
     v('la page se connecte d\'elle-même et se remplit', s9.auth && s9.auth.session === true && q.$('#creation').hidden && q.html('#zones').includes('Point'));
   }
 
+  titre('14. Portail captif (page_wifi.h) : choisir le Wi-Fi de la maison');
+  {
+    // Faux socle en point d'accès : recherche asynchrone, essai, issue.
+    const p = { envois: [], etat: { id: 'terraA1B2C3', etat: 'libre', ssid: '' }, recherches: 0, issue: null };
+    const src = fs.readFileSync(path.join(__dirname, '..', 'page_wifi.h'), 'utf8');
+    const html = src.split('R"HTML(')[1].split(')HTML"')[0];
+    const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'http://192.168.4.1/', pretendToBeVisual: true });
+    const w = dom.window;
+    w.fetch = (u, opts = {}) => {
+      const chemin = String(u).split('?')[0];
+      p.envois.push({ chemin, methode: opts.method || 'GET', entetes: opts.headers || {}, corps: String(opts.body || '') });
+      const rendre = (d, status = 200) => Promise.resolve({ ok: status < 400, status, json: async () => d });
+      if (chemin === '/api/wifi/reseaux') {
+        // Un nom de réseau vient du voisinage : celui-ci essaie d'injecter du HTML.
+        return rendre(++p.recherches < 2 ? { enCours: true } : { reseaux: [
+          { ssid: 'Maison', rssi: -55, securise: true }, { ssid: '<img src=x onerror="window.pirate=1">', rssi: -82, securise: false }] });
+      }
+      if (chemin === '/api/wifi' && opts.method === 'POST') {
+        p.etat = { id: 'terraA1B2C3', etat: 'essai', ssid: new URLSearchParams(String(opts.body)).get('ssid') };
+        setTimeout(() => { p.etat = Object.assign({}, p.etat, p.issue); }, 300);
+        return rendre({ ok: true });
+      }
+      if (chemin === '/api/wifi/etat') return rendre(p.etat);
+      return rendre('Page inconnue', 404);
+    };
+    w.eval(w.document.querySelector('script').textContent);
+    const $ = sel => w.document.querySelector(sel);
+    await attendre(2200);
+    v('la page nomme le socle', $('#id').textContent === 'terraA1B2C3');
+    const boutons = Array.from(w.document.querySelectorAll('#liste button'));
+    v('les réseaux arrivent après la recherche, le plus fort d\'abord', boutons.length === 2 && boutons[0].dataset.ssid === 'Maison', boutons.map(b => b.dataset.ssid).join(' | ').slice(0, 40));
+    v('un nom de réseau hostile reste du texte', !$('#liste img') && !w.pirate && boutons[1].textContent.includes('<img'));
+    boutons[0].click();
+    v('choisir un réseau remplit son nom', $('#ssid').value === 'Maison' && boutons[0].getAttribute('aria-pressed') === 'true');
+    $('#mdp').value = 'court';
+    $('#f').onsubmit({ preventDefault() {} });
+    v('un mot de passe de moins de 8 caractères est refusé sur place', /8 caractères/.test($('#msg').textContent) && !p.envois.some(e => e.chemin === '/api/wifi'));
+    p.issue = { etat: 'echec', erreur: 'mdp' };
+    $('#mdp').value = 'mauvais mot de passe';
+    await $('#f').onsubmit({ preventDefault() {} });
+    const envoi = p.envois.find(e => e.chemin === '/api/wifi');
+    v('l\'essai part avec X-Terrarium, en formulaire', envoi && envoi.entetes['X-Terrarium'] === '1' && /ssid=Maison&mdp=mauvais/.test(envoi.corps));
+    await attendre(2000);
+    v('un refus de la box est expliqué', /refusé le mot de passe de « Maison »/.test($('#msg').textContent) && !$('#go').disabled, $('#msg').textContent.slice(0, 50));
+    p.issue = { etat: 'connecte', rssi: -58, ip: '192.168.1.41' };
+    $('#mdp').value = 'le bon mot de passe';
+    await $('#f').onsubmit({ preventDefault() {} });
+    await attendre(2000);
+    v('réussite : le socle a rejoint « Maison », retour à l\'application', /rejoint « Maison » \(−58 dBm\)/.test($('#msg').textContent) && $('#f').hidden, $('#msg').textContent.slice(0, 50));
+    v('le mot de passe ne repasse jamais par la page', !JSON.stringify(p.etat).includes('mot de passe'));
+  }
+
   console.log(`\n=== ${ko ? 'DES TESTS ONT ECHOUE' : 'INTERFACE WEB EMBARQUEE OK'}` +
               ` (${ok} reussite(s), ${ko} echec(s)) ===`);
   process.exit(ko ? 1 : 0);

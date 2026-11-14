@@ -47,6 +47,11 @@
   <symbol id="i-soleil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
   <symbol id="i-lune" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M20 13.5A8 8 0 1 1 10.5 4a7 7 0 0 0 9.5 9.5z"/></symbol>
   <symbol id="i-alerte" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l9 16H3zM12 10v4.5M12 17.5v.5"/></symbol>
+  <symbol id="i-fermer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-wifi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 9a14 14 0 0 1 19 0M5.5 12.2a9.5 9.5 0 0 1 13 0M8.6 15.4a5 5 0 0 1 6.8 0"/><circle cx="12" cy="18.6" r="1"/></symbol>
+  <symbol id="i-sans-wifi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 9a14 14 0 0 1 19 0M5.5 12.5a9.5 9.5 0 0 1 13 0M9 16a4.5 4.5 0 0 1 6 0M12 19.5h.01M4 4l16 16"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8v.5"/></symbol>
+  <symbol id="i-maison" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-6.5 8 6.5M6 9.5V19h12V9.5M10 19v-5h4v5"/></symbol>
   <symbol id="i-telecharger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 19h14"/></symbol>
 </svg>
 
@@ -70,9 +75,32 @@
   </form>
 </section>
 
-<section id="vue-broker" class="vue" aria-label="Connexion au broker">
-  <form class="carte" data-form="broker" novalidate>
-    <h2 data-i18n="connexion-titre">Connexion</h2>
+<section id="vue-broker" class="vue" aria-label="Bienvenue">
+  <div id="bienvenue" class="bienvenue">
+    <div class="bienvenue-ill" id="bienvenue-ill"></div>
+    <h2 class="titre-ecran" tabindex="-1" data-i18n="bienvenue">Bienvenue</h2>
+    <p class="chapeau" data-i18n="bienvenue-texte">Tes socles chauffants, d'un coup d'œil : températures, alertes et réglages, où que tu sois.</p>
+    <p class="bandeau-ok" id="bienvenue-etiquette" role="status" hidden></p>
+    <div class="actions-colonne">
+      <button class="btn btn-plein btn-grand" type="button" data-action="accueil" data-etape="connexion" data-i18n="se-connecter-serveur">Se connecter à mon serveur</button>
+      <a class="btn btn-secondaire btn-plein btn-grand" href="demo.html" data-i18n="essayer-demo">Essayer la démo</a>
+      <button class="btn btn-fantome btn-plein" type="button" data-action="accueil" data-etape="chezMoi" data-i18n="chez-moi">Sans serveur, chez moi seulement</button>
+    </div>
+  </div>
+  <div id="chez-moi" class="carte chez-moi" hidden>
+    <svg class="ico grande" aria-hidden="true"><use href="#i-maison"/></svg>
+    <h2 tabindex="-1" data-i18n="chez-moi-titre">Chez moi seulement</h2>
+    <p class="aide" data-i18n="chez-moi-texte">Le socle n'a besoin ni de l'application ni d'Internet pour chauffer : tout se règle sur sa propre page, depuis un téléphone ou un ordinateur branché sur le même Wi-Fi.</p>
+    <ol class="inst-etapes">
+      <li><span>1</span><span data-i18n="chez-moi-1">Branche le socle. Au premier démarrage, il crée son propre Wi-Fi « terrarium-config-… » ; son mot de passe s'affiche sur l'écran.</span></li>
+      <li><span>2</span><span data-i18n="chez-moi-2">Rejoins ce Wi-Fi : la page du socle s'ouvre toute seule. Choisis-y le Wi-Fi de la maison.</span></li>
+      <li><span>3</span><span data-i18n="chez-moi-3">Ensuite, ouvre l'adresse affichée sur l'écran du socle (terraXXXXXX.local) depuis n'importe quel appareil de la maison.</span></li>
+    </ol>
+    <p class="aide" data-i18n="chez-moi-plus-tard">Tu pourras relier un serveur plus tard, pour suivre le socle de loin et recevoir ses alertes.</p>
+    <button class="btn btn-secondaire btn-plein mt" type="button" data-action="accueil" data-etape="bienvenue" data-i18n="retour">Retour</button>
+  </div>
+  <form class="carte" id="form-broker" data-form="broker" novalidate>
+    <h2 tabindex="-1" data-i18n="connexion-titre">Connexion</h2>
     <p class="aide" data-i18n="connexion-aide">Ces informations viennent de ton fournisseur MQTT. Elles restent sur cet
       appareil et ne sont envoyées à personne d'autre qu'au broker.</p>
     <label for="b-url" data-i18n="b-url">Adresse du broker (WebSocket sécurisé)</label>
@@ -87,6 +115,7 @@
       <button class="btn" type="submit" data-i18n="se-connecter">Se connecter</button>
       <button class="btn btn-secondaire" type="button" data-action="testerBroker" data-i18n="tester">Tester la connexion</button>
     </div>
+    <button class="btn btn-fantome btn-petit mt" type="button" id="connexion-retour" data-action="accueil" data-etape="bienvenue" data-i18n="retour">Retour</button>
   </form>
   <footer class="pied colonne">
     <div class="pied-ligne">
@@ -110,21 +139,6 @@
     <button type="button" class="rond" data-action="ajoutSocle"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg><span class="sr-only" data-i18n="ajouter-titre">Ajouter un socle</span></button></div>
   <div id="bandeau-liste"></div>
   <div id="socles"></div>
-  <form class="carte" id="form-socle" data-form="socle" novalidate hidden>
-    <h2 data-i18n="ajouter-titre">Ajouter un socle</h2>
-    <p class="aide" data-i18n="ajouter-aide">L'identifiant et le code d'appairage s'affichent à l'écran du socle au premier
-      démarrage, et se retrouvent avec la commande <code>jeton</code>.</p>
-    <div class="rangee">
-      <div><label for="a-id" data-i18n="a-id">Identifiant</label><input id="a-id" placeholder="terraA1B2C3" autocapitalize="off" spellcheck="false"></div>
-      <div><label for="a-jeton" data-i18n="a-jeton">Code d'appairage</label><input id="a-jeton" placeholder="24 caractères" data-i18n-ph="a-jeton-ph" autocapitalize="characters" spellcheck="false"></div>
-    </div>
-    <label for="a-nom" data-i18n="a-nom">Nom (pour t'y retrouver)</label>
-    <input id="a-nom" placeholder="Terrarium du salon" data-i18n-ph="a-nom-ph">
-    <div class="boutons">
-      <button class="btn" type="submit"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg><span data-i18n="ajouter">Ajouter</span></button>
-      <button class="btn btn-secondaire" type="button" id="btn-scan" data-action="scanner"><svg class="ico" aria-hidden="true"><use href="#i-qr"/></svg><span data-i18n="scanner">Scanner un QR</span></button>
-    </div>
-  </form>
   <footer class="pied colonne">
     <div class="pied-ligne">
       <span class="discret" id="broker-hote"></span>
@@ -146,6 +160,123 @@
         <select id="langue-liste"><option value="fr">Français</option><option value="en">English</option></select></label>
     </div>
   </footer>
+</section>
+
+<section id="vue-installation" class="vue" aria-label="Installer un socle">
+  <div class="inst-barre">
+    <button type="button" class="rond rond-nu" data-action="instRetour"><svg class="ico" aria-hidden="true"><use href="#i-retour"/></svg><span class="sr-only" data-i18n="retour">Retour</span></button>
+    <span class="inst-etape" id="inst-etape">Étape 1 sur 3</span>
+    <button type="button" class="rond rond-nu" data-action="instQuitter"><svg class="ico" aria-hidden="true"><use href="#i-fermer"/></svg><span class="sr-only" data-i18n="quitter-installation">Quitter l'installation</span></button>
+  </div>
+  <div class="inst-progres" aria-hidden="true"><span><i id="inst-p1"></i></span><span><i id="inst-p2"></i></span><span><i id="inst-p3"></i></span></div>
+
+  <div class="inst-pas" data-pas="scan" hidden>
+    <h2 class="titre-ecran" tabindex="-1" data-i18n="inst-scan-titre">Branche le socle et scanne-le</h2>
+    <p class="chapeau" data-i18n="inst-scan-texte">Pose ton terrarium dessus et branche l'alimentation. L'étiquette est sous le socle et sur la boîte.</p>
+    <button type="button" class="inst-viseur" data-action="scanner">
+      <span class="inst-etiquette" aria-hidden="true"><svg class="ico"><use href="#i-qr"/></svg><b>SOCLE CHAUFFANT</b><small>terra······</small></span>
+      <span class="inst-coins" aria-hidden="true"></span><span class="inst-balayage" aria-hidden="true"></span>
+      <span class="inst-viseur-lib" data-i18n="inst-scanner">Scanner l'étiquette</span>
+    </button>
+    <p class="info"><svg class="ico" aria-hidden="true"><use href="#i-info"/></svg><span data-i18n="inst-scan-info">Le QR porte la référence du socle et son code d'appairage : rien à recopier.</span></p>
+    <div class="inst-actions">
+      <button class="btn btn-secondaire btn-plein btn-grand" type="button" data-action="instPas" data-pas="reference" data-i18n="inst-saisir">Saisir la référence à la main</button>
+    </div>
+  </div>
+
+  <form class="inst-pas" data-pas="reference" id="form-socle" data-form="socle" novalidate hidden>
+    <h2 class="titre-ecran" tabindex="-1" data-i18n="inst-ref-titre">Recopie l'étiquette</h2>
+    <p class="chapeau" data-i18n="inst-ref-texte">Elle est sous le socle et sur la boîte, sous le QR. L'écran du socle affiche aussi sa référence et son code.</p>
+    <p class="bandeau-ok" id="inst-lue" role="status" hidden></p>
+    <label for="a-id" data-i18n="a-id">Référence</label>
+    <input id="a-id" placeholder="terraA1B2C3" autocapitalize="off" autocomplete="off" spellcheck="false" aria-describedby="a-id-aide">
+    <p class="aide" id="a-id-aide" data-i18n="a-id-aide">« terra » puis 6 caractères. Majuscules ou non, peu importe.</p>
+    <label for="a-jeton" data-i18n="a-jeton">Code d'appairage</label>
+    <input id="a-jeton" placeholder="XXXXXX-XXXXXX-XXXXXX-XXXXXX" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-describedby="a-jeton-aide">
+    <p class="aide" id="a-jeton-aide" data-i18n="a-jeton-aide">24 caractères, tirets facultatifs. Ni I, ni O, ni 0, ni 1 : ils prêteraient à confusion.</p>
+    <div class="inst-actions">
+      <button class="btn btn-plein btn-grand" type="submit" data-i18n="continuer">Continuer</button>
+      <button class="btn btn-fantome btn-plein" type="button" id="btn-scan" data-action="scanner"><svg class="ico" aria-hidden="true"><use href="#i-qr"/></svg><span data-i18n="scanner">Scanner un QR</span></button>
+    </div>
+  </form>
+
+  <div class="inst-pas" data-pas="reseau" hidden>
+    <h2 class="titre-ecran" tabindex="-1" data-i18n="inst-wifi-titre">Connecte le socle au Wi-Fi</h2>
+    <p class="chapeau" data-i18n="inst-wifi-texte">Au premier démarrage, le socle crée son propre Wi-Fi le temps de l'installation.</p>
+    <div class="inst-ap">
+      <div class="inst-ap-nom"><svg class="ico" aria-hidden="true"><use href="#i-wifi"/></svg><strong id="inst-ap">terrarium-config-······</strong><svg class="ico discret" aria-hidden="true"><use href="#i-cadenas"/></svg></div>
+      <p class="aide" data-i18n="inst-ap-mdp">Son mot de passe s'affiche sur l'écran du socle.</p>
+    </div>
+    <ol class="inst-etapes">
+      <li><span>1</span><span data-i18n="inst-wifi-1">Dans les réglages Wi-Fi du téléphone, rejoins ce réseau.</span></li>
+      <li><span>2</span><span data-i18n="inst-wifi-2">La page du socle s'ouvre toute seule : choisis le Wi-Fi de la maison et donne son mot de passe.</span></li>
+      <li><span>3</span><span data-i18n="inst-wifi-3">Reviens ici : la suite se fait toute seule.</span></li>
+    </ol>
+    <ul class="inst-suivi" id="inst-suivi" aria-live="polite"></ul>
+    <p class="info attention" id="inst-sans-lien" hidden><svg class="ico" aria-hidden="true"><use href="#i-sans-wifi"/></svg><span data-i18n="inst-sans-lien">Le téléphone n'a pas Internet : il est sans doute encore sur le Wi-Fi du socle. Repasse sur ton Wi-Fi pour suivre la suite.</span></p>
+    <div class="inst-actions">
+      <button class="btn btn-plein btn-grand" type="button" id="inst-wifi-suite" data-action="instPas" data-pas="reglages" hidden data-i18n="continuer">Continuer</button>
+      <button class="btn btn-fantome btn-plein" type="button" data-action="instPlusTard" data-i18n="inst-plus-tard">Terminer plus tard</button>
+    </div>
+  </div>
+
+  <div class="inst-pas" data-pas="echec" hidden>
+    <span class="pastille-alerte" aria-hidden="true"><svg class="ico"><use href="#i-sans-wifi"/></svg></span>
+    <h2 class="titre-ecran" tabindex="-1" data-i18n="inst-echec-titre">Le socle n'est pas encore en ligne</h2>
+    <p class="chapeau" data-i18n="inst-echec-texte">Rien de grave : il chauffe déjà, et rouvre son propre Wi-Fi au bout de trois minutes s'il ne trouve pas celui de la maison.</p>
+    <h3 class="sur-titre" data-i18n="inst-echec-pistes">Les causes habituelles</h3>
+    <ul class="inst-pistes">
+      <li><svg class="ico" aria-hidden="true"><use href="#i-wifi"/></svg><span data-i18n="inst-piste-24">Le socle ne voit que les réseaux en 2,4 GHz. Si ta box sépare les bandes, choisis celle en 2,4 GHz.</span></li>
+      <li><svg class="ico" aria-hidden="true"><use href="#i-cadenas"/></svg><span data-i18n="inst-piste-mdp">Mot de passe du Wi-Fi : majuscules comprises. L'écran du socle affiche la raison d'un échec.</span></li>
+      <li><svg class="ico" aria-hidden="true"><use href="#i-maison"/></svg><span data-i18n="inst-piste-signal">Signal trop faible : rapproche le socle de la box le temps de l'installer.</span></li>
+      <li><svg class="ico" aria-hidden="true"><use href="#i-info"/></svg><span data-i18n="inst-piste-serveur">Le socle doit joindre le même serveur que l'application : c'est réglé à l'atelier, sinon dans sa page (onglet Réseau).</span></li>
+    </ul>
+    <div class="inst-actions">
+      <button class="btn btn-plein btn-grand" type="button" data-action="instPas" data-pas="reseau" data-i18n="reessayer">Réessayer</button>
+      <button class="btn btn-fantome btn-plein" type="button" data-action="instPlusTard" data-i18n="inst-plus-tard">Terminer plus tard</button>
+    </div>
+  </div>
+
+  <form class="inst-pas" data-pas="reglages" data-form="instReglages" novalidate hidden>
+    <h2 class="titre-ecran" tabindex="-1" data-i18n="inst-reg-titre">Réglages de départ</h2>
+    <p class="chapeau" data-i18n="inst-reg-texte">Ton socle sort de l'atelier avec ces réglages. Ajuste-les à ton animal, tu pourras y revenir.</p>
+    <label for="a-nom" data-i18n="inst-nom">Nom du terrarium</label>
+    <input id="a-nom" placeholder="Terrarium du salon" data-i18n-ph="a-nom-ph" maxlength="40" autocomplete="off">
+    <div class="inst-grille" id="inst-zones"></div>
+    <fieldset class="inst-horaires">
+      <legend data-i18n="inst-horaires">Horaires</legend>
+      <div class="segment" role="group" aria-labelledby="inst-horaires-lib">
+        <span class="sr-only" id="inst-horaires-lib" data-i18n="inst-horaires">Horaires</span>
+        <button type="button" data-action="instHoraires" data-mode="fixe" aria-pressed="true" data-i18n="inst-fixes">Horaires fixes</button>
+        <button type="button" data-action="instHoraires" data-mode="soleil" aria-pressed="false" data-i18n="inst-soleil">Suivre le soleil</button>
+      </div>
+      <p class="aide" id="inst-horaires-resume"></p>
+      <div class="rangee" id="inst-position" hidden>
+        <div><label for="o-lat" data-i18n="latitude">Latitude</label><input id="o-lat" inputmode="decimal" autocomplete="off" placeholder="48,9"></div>
+        <div><label for="o-lon" data-i18n="longitude">Longitude</label><input id="o-lon" inputmode="decimal" autocomplete="off" placeholder="2,3"></div>
+      </div>
+    </fieldset>
+    <p class="info"><svg class="ico" aria-hidden="true"><use href="#i-bouclier"/></svg><span id="inst-securite"></span></p>
+    <div class="inst-actions">
+      <button class="btn btn-plein btn-grand" type="submit" data-i18n="continuer">Continuer</button>
+    </div>
+  </form>
+
+  <div class="inst-pas" data-pas="fin" hidden>
+    <h2 class="titre-ecran" tabindex="-1" data-i18n="inst-fin-titre">C'est prêt</h2>
+    <p class="chapeau" data-i18n="inst-fin-texte">Ton terrarium chauffe. Voici ses premières minutes.</p>
+    <figure class="inst-courbe" id="inst-courbe"></figure>
+    <p class="discret" id="inst-resume"></p>
+    <div class="inst-notifs" id="inst-notifs">
+      <span class="pastille-ico" aria-hidden="true"><svg class="ico"><use href="#i-cloche"/></svg></span>
+      <div><strong data-i18n="inst-prevenu">Être prévenu</strong><p class="aide" data-i18n="inst-prevenu-texte">Sonde en défaut, coup de chaud, socle qui ne répond plus : une alerte sur ce téléphone.</p></div>
+      <button class="btn btn-secondaire btn-plein" type="button" id="inst-notifs-btn" data-action="instNotifs" data-i18n="inst-activer-alertes">Activer les alertes</button>
+    </div>
+    <div class="inst-actions">
+      <button class="btn btn-plein btn-grand" type="button" data-action="instVoir" data-i18n="inst-voir">Voir mon terrarium</button>
+      <button class="btn btn-fantome btn-plein" type="button" data-action="ajoutSocle" data-i18n="inst-autre">Ajouter un autre socle</button>
+    </div>
+  </div>
 </section>
 
 <section id="vue-socle" class="vue" aria-label="Détail du socle">

@@ -59,7 +59,10 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   await page.waitForTimeout(600);
 
   console.log('\n== Connexion');
-  v('écran broker affiché', await page.isVisible('#vue-broker'));
+  v('premier lancement : l\'accueil s\'affiche', await page.isVisible('#bienvenue') && !(await page.isVisible('#form-broker')));
+  await page.click('[data-action="accueil"][data-etape="connexion"]');
+  v('« Se connecter à mon serveur » ouvre le formulaire, le focus sur l\'adresse',
+    await page.isVisible('#form-broker') && await page.evaluate(() => document.activeElement && document.activeElement.id === 'b-url'));
   await page.fill('#b-url', BROKER);
   await page.click('[data-action="testerBroker"]');
   await page.waitForFunction(() => /Connexion réussie|impossible/.test(document.querySelector('#message').textContent), null, { timeout: 12000 }).catch(() => {});
@@ -68,11 +71,27 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   await page.waitForFunction(() => document.querySelector('#lien').textContent === 'connecté', null, { timeout: 8000 }).catch(() => {});
   v('connecté au broker via le client maison', (await page.textContent('#lien')) === 'connecté', await page.textContent('#lien'));
 
-  console.log('\n== Socle');
+  console.log('\n== Installation du socle');
+  await page.click('.titre-page [data-action="ajoutSocle"]');
+  await page.waitForTimeout(300);
+  if (await page.isVisible('[data-pas="scan"]')) await page.click('[data-pas="scan"] [data-action="instPas"]');
+  v('l\'assistant s\'ouvre, étape 1 sur 3', await page.isVisible('#form-socle') && (await page.textContent('#inst-etape')) === 'Étape 1 sur 3');
   await page.fill('#a-id', ID);
   await page.fill('#a-jeton', JETON);
+  await page.click('#form-socle button[type=submit]');
+  await page.waitForSelector('#inst-wifi-suite', { state: 'visible', timeout: 15000 }).catch(() => {});
+  v('étape 2 : le socle est vu en ligne, code vérifié', await page.isVisible('#inst-wifi-suite'),
+    await page.evaluate(() => Array.from(document.querySelectorAll('#inst-suivi li')).map(l => l.className).join(' ')));
+  await page.click('#inst-wifi-suite');
+  await page.waitForSelector('#o-j0', { state: 'visible', timeout: 5000 }).catch(() => {});
+  v('étape 3 : réglages de départ, consignes du socle', /^\d+,\d$/.test(await page.inputValue('#o-j0').catch(() => '')));
   await page.fill('#a-nom', 'Banc réel');
-  await page.click('#vue-liste form[data-form=socle] button[type=submit]');
+  await page.click('form[data-form="instReglages"] button[type=submit]');
+  await page.waitForSelector('[data-pas="fin"]', { state: 'visible', timeout: 8000 }).catch(() => {});
+  v('« C\'est prêt »', await page.isVisible('[data-pas="fin"]'), await page.textContent('#inst-resume'));
+  await page.click('[data-action="instVoir"]');
+  await page.waitForTimeout(300);
+  await page.evaluate(() => App.montrer('liste'));
   await page.waitForFunction(() => /\d+,\d°/.test(document.querySelector('#socles').innerHTML), null, { timeout: 8000 }).catch(() => {});
   v('températures affichées', /\d+,\d°/.test(await page.innerHTML('#socles')));
   const police = await page.evaluate(() => document.fonts.check('200 60px Inter'));

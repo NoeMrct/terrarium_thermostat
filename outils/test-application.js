@@ -503,6 +503,66 @@ function creerApp(adressePage) {
     App.panneau('etat');
   }
 
+  titre('23. Assistant d\'installation : étiquette, Wi-Fi suivi en direct, réglages de départ');
+  {
+    App.ouvrir(ID); App.retirerSocle(); await attendre(300);
+    App.nouveauSocle();
+    verifier('l\'assistant s\'ouvre sur la saisie (pas de lecteur de QR ici)',
+             $('#vue-installation').style.display !== 'none' && !$('[data-pas="reference"]').hidden, texte('#inst-etape'));
+    $('#a-id').value = ID; $('#a-jeton').value = 'MAUVAISCODEMAUVAISCODE00';
+    App.ajouterSocle();
+    verifier('étape 2 : le Wi-Fi du socle est nommé comme le firmware le nomme',
+             !$('[data-pas="reseau"]').hidden && texte('#inst-ap') === 'terrarium-config-' + ID.slice(5), texte('#inst-ap'));
+    verifier('…et la reprise après relance est notée (sans le code)',
+             /"pas":"reseau"/.test(w.localStorage.getItem('terrarium.installation') || '') && !/MAUVAIS/.test(w.localStorage.getItem('terrarium.installation') || ''));
+    verifier('un mauvais code, prouvé faux par le socle, ramène à la saisie',
+             await jusqua(() => !$('[data-pas="reference"]').hidden && texte('#message').includes('Code refusé'), 12000), texte('#message').slice(0, 40));
+    verifier('…le socle n\'est pas gardé, la référence reste remplie',
+             !JSON.parse(w.localStorage.getItem('terrarium.config.v1')).socles.some(s => s.id === ID) && $('#a-id').value === ID);
+    $('#a-jeton').value = JETON;
+    App.ajouterSocle();
+    verifier('le socle est vu en ligne, son code vérifié', await jusqua(() => !$('#inst-wifi-suite').hidden, 12000),
+             Array.from(w.document.querySelectorAll('#inst-suivi li')).map(l => l.className).join(' '));
+    verifier('les quatre lignes du suivi finissent cochées (heure comprise)',
+             await jusqua(() => w.document.querySelectorAll('#inst-suivi li.fait').length === 4, 12000),
+             Array.from(w.document.querySelectorAll('#inst-suivi li')).map(l => l.className).join(' '));
+    App.instPas('reglages');
+    verifier('étape 3 : les consignes du socle sont proposées', !!$('#o-j0') && /^\d+,\d$/.test($('#o-j0').value), $('#o-j0') && $('#o-j0').value);
+    $('#a-nom').value = 'Terrarium du salon';
+    $('#o-j0').value = '31,5';
+    $('#o-j1').value = 'trente';
+    await App.instReglages();
+    verifier('une consigne illisible est refusée avant tout envoi', texte('#message').includes('trente') && !$('[data-pas="reglages"]').hidden, texte('#message').slice(0, 40));
+    $('#o-j1').value = '';
+    await App.instReglages();
+    verifier('les réglages partent, puis l\'écran de fin', await jusqua(() => !$('[data-pas="fin"]').hidden, 6000), texte('#inst-etape'));
+    verifier('le nom choisi est gardé', JSON.parse(w.localStorage.getItem('terrarium.config.v1')).socles.some(s => s.id === ID && s.nom === 'Terrarium du salon'));
+    verifier('l\'installation terminée n\'est plus à reprendre', !w.localStorage.getItem('terrarium.installation'));
+    App.instVoir();
+    // Une feuille garde ses champs tant que sa structure ne change pas : on
+    // rouvre le socle, ce qui la reconstruit d'après le dernier état reçu.
+    verifier('le socle a pris la consigne de jour', await jusqua(() => {
+      App.ouvrir(ID); App.panneau('reglages');
+      return !!$('#j0') && /^31[.,]5$/.test($('#j0').value);
+    }, 8000, 500), $('#j0') && $('#j0').value);
+    App.panneau('etat');
+  }
+
+  titre('24. Lien de l\'étiquette : l\'installation part de l\'adresse, sans rien recopier');
+  {
+    const b = creerApp('http://localhost:8080/#a/terra3f8a1c/K7QM2X-RP9WTD-H4BNZ8-LC3FVA');
+    verifier('le fragment (code compris) est retiré de l\'adresse aussitôt', b.w.location.hash === '', b.w.location.href);
+    verifier('l\'accueil annonce l\'étiquette lue', !b.$('#bienvenue-etiquette').hidden && b.texte('#bienvenue-etiquette').includes('terra3F8A1C'));
+    b.$('#b-url').value = BROKER;
+    b.App.enregistrerBroker();
+    verifier('une fois connecté, l\'installation s\'ouvre avec l\'étiquette',
+             !b.$('[data-pas="reference"]').hidden && b.$('#a-id').value === 'terra3F8A1C' && b.$('#a-jeton').value === 'K7QM2XRP9WTDH4BNZ8LC3FVA',
+             `${b.$('#a-id').value} ${b.$('#a-jeton').value}`);
+    b.App.instQuitter();
+    const c = creerApp('http://localhost:8080/#a/terra3f8a1c/TROPCOURT');
+    verifier('une étiquette illisible est ignorée', c.$('#bienvenue-etiquette').hidden);
+  }
+
   console.log(`\n=== ${echecs ? 'DES TESTS ONT ECHOUE' : 'TOUS LES TESTS PASSENT'}` +
               ` (${reussites} reussite(s), ${echecs} echec(s)) ===`);
   process.exit(echecs ? 1 : 0);

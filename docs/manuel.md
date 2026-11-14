@@ -46,11 +46,15 @@ Sans Chrome : l'IDE Arduino, avec les réglages de carte décrits dans `INSTALLA
 2. Si le Wi-Fi n'a pas été donné au flashage, le socle ouvre un réseau **terrarium-config-XXXXXX**
    (les six derniers caractères de son identifiant ; son mot de passe, propre à chaque socle, s'affiche
    sur l'écran en alternance avec « AP config »). Connecte ton
-   téléphone dessus : la page de configuration s'ouvre d'elle-même (sinon `http://192.168.4.1`).
-3. À la première ouverture, la page demande de créer le mot de passe de l'interface (8 caractères au
-   moins ; un socle monté à l'atelier a déjà le sien, sur son étiquette). Puis onglet **Réseau** : ton
-   Wi-Fi, un mot de passe OTA si tu veux mettre à jour sans câble, et, pour le pilotage à distance, le serveur MQTT. Enregistre :
-   le socle redémarre sur ton réseau.
+   téléphone dessus : une page s'ouvre d'elle-même (sinon `http://192.168.4.1`) avec les réseaux que
+   le socle voit. Choisis le tien, donne son mot de passe, **Connecter le socle** : il essaie, dit si la
+   box a accepté (ou pourquoi elle refuse : mot de passe, réseau en 5 GHz seulement, signal trop
+   faible), puis redémarre dessus. L'application, si tu t'en sers, guide ces gestes pas à pas (§ 6).
+3. Le reste se règle dans l'**interface complète** (lien en bas de cette page, puis
+   `http://terraXXXXXX.local`). À la première ouverture, elle demande de créer son mot de passe
+   (8 caractères au moins ; un socle monté à l'atelier a déjà le sien, sur son étiquette). Onglet
+   **Réseau** : un mot de passe OTA si tu veux mettre à jour sans câble, et, pour le pilotage à
+   distance, le serveur MQTT (déjà réglé sur un socle monté à l'atelier).
 4. Il est ensuite joignable sur `http://terraXXXXXX.local` (son identifiant, affiché sur l'écran et
    dans l'application) ou sur son adresse IP. L'interface demande l'utilisateur et le mot de passe
    choisis ; le mot de passe ne quitte jamais le navigateur (connexion par défi).
@@ -86,10 +90,26 @@ thermomètre infrarouge avant d'installer un animal.
 
 ## 6. Appairer dans l'application
 
-Ouvre l'application, saisis l'adresse du broker (`wss://…:8884/mqtt`), l'identifiant et le mot de
-passe fournis par ton broker. **Tester la connexion** dit tout de suite si c'est bon. Puis
-**Ajouter un socle** : scanne le QR (écran du socle ou étiquette), ou tape l'identifiant
-(`terraXXXXXX`) et le code d'appairage. Le socle apparaît avec ses deux zones.
+À la première ouverture, l'application accueille : **Se connecter à mon serveur** (adresse du broker
+`wss://…:8884/mqtt`, identifiant et mot de passe fournis par ton broker ; **Tester la connexion** dit
+tout de suite si c'est bon), **Essayer la démo**, ou **Sans serveur, chez moi seulement**, qui
+explique la page locale du socle.
+
+Le bouton **+** lance l'**installation d'un socle**, en trois étapes :
+
+1. **L'étiquette** : scanne le QR (sous le socle, sur la boîte, ou sur son écran), ou recopie la
+   référence (`terraXXXXXX`) et le code d'appairage. Une étiquette récente porte un lien : l'appareil
+   photo du téléphone l'ouvre directement, et l'application démarre avec tout déjà rempli.
+2. **Le Wi-Fi** : l'application donne le nom du réseau du socle (`terrarium-config-…`) ; rejoins-le,
+   choisis ton Wi-Fi sur la page qui s'ouvre, puis reviens. L'application coche ce qu'elle voit :
+   Wi-Fi rejoint (avec la force du signal), serveur joint, heure réglée, code vérifié (ou « socle
+   relié à ton compte » avec le serveur Terrariums). Un mauvais code ramène à l'étiquette ; un socle
+   qui n'arrive pas au bout de quatre minutes donne les causes habituelles. **Terminer plus tard**
+   garde le socle dans la liste.
+3. **Les réglages de départ** : le nom du terrarium, les consignes de jour et de nuit de chaque zone
+   (et leurs noms), horaires fixes ou au rythme du soleil. La coupure de sécurité est rappelée.
+
+**C'est prêt** montre les premières minutes de chauffe et propose d'activer les alertes.
 
 L'application peut s'installer comme une vraie application (bouton « Installer l'application », ou
 Partager → Sur l'écran d'accueil sur iPhone). Elle fonctionne alors hors ligne pour sa partie

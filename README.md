@@ -146,8 +146,12 @@ Aucun réseau n'est configuré au départ. Trois façons de le donner :
   **`terrarium-config-XXXXXX`** (les six derniers caractères de son
   identifiant), avec le mot de passe affiché sur l'écran du socle (propre à
   chaque socle, en alternance avec « AP config »). Connecte-toi avec ton téléphone :
-  la page de configuration s'ouvre d'elle-même (portail captif ; sinon
-  http://192.168.4.1), onglet Réseau.
+  une page s'ouvre d'elle-même (portail captif ; sinon http://192.168.4.1) avec
+  les réseaux que voit le socle. Choisis le tien, donne son mot de passe : le
+  socle l'essaie, dit ce qui cloche s'il échoue (mot de passe, réseau en 5 GHz
+  seulement, signal), puis redémarre dessus. L'interface complète reste à
+  `/interface` ; l'application guide ces gestes depuis son assistant
+  d'installation.
 - **Au moniteur série** : `wifi MonReseau MonMotDePasse` essaie le réseau tout
   de suite, dit s'il répond, et l'enregistre.
 
@@ -772,6 +776,16 @@ sont dans des zones de mémoire que le téléversement ne touche pas.
 | `/api/coredump` | GET / DELETE | Dernier rapport de plantage |
 | `/metrics` | GET | Format Prometheus |
 | `/manifest.json`, `/icone.svg`, `/sw.js` | GET | Application installable |
+| `/interface` | GET | L'interface complète ; c'est aussi `/` hors point d'accès |
+| `/api/wifi/reseaux` (`?nouveau=1` relance) | GET | Réseaux vus par le socle, le plus fort d'abord ; `{"enCours":true}` pendant la recherche |
+| `/api/wifi` | POST | **Point d'accès seulement**, sans mot de passe d'interface : essayer `ssid` / `mdp` (réponse immédiate, essai en arrière-plan) |
+| `/api/wifi/etat` | GET | Issue de l'essai : `essai`, `connecte` (signal, adresse ; redémarrage 12 s plus tard), `echec` (`mdp`, `introuvable`, `delai`) |
+
+En point d'accès, `/` est le **portail** : la page de choix du Wi-Fi, que le
+téléphone ouvre de lui-même. Les routes `/api/wifi…` y répondent sans mot de
+passe d'interface (on n'y entre qu'avec celui affiché sur l'écran du socle) et
+ne lisent rien d'autre que les réseaux alentour ; ailleurs, elles exigent la
+connexion comme le reste.
 
 Les requêtes qui **modifient** quelque chose exigent un en-tête maison. Un
 navigateur ne l'ajoute pas sur une requête venue d'un autre site, ce qui écarte

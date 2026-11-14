@@ -119,9 +119,14 @@ mais tout le reste fonctionne.
 
 ## 4. Première utilisation
 
-1. Ouvrir l'application, saisir l'adresse du broker et les identifiants.
-2. Ajouter un socle : identifiant, code d'appairage, et un nom pour t'y
-   retrouver.
+1. Ouvrir l'application : l'accueil propose de se connecter à son serveur
+   (adresse du broker et identifiants), d'essayer la démo, ou explique la page
+   locale du socle (« chez moi seulement »).
+2. **+** ouvre l'assistant d'installation : l'étiquette (scan ou saisie de la
+   référence et du code), le Wi-Fi (rejoindre `terrarium-config-…`, choisir son
+   réseau sur la page qui s'ouvre ; l'application coche Wi-Fi, serveur, heure et
+   code à mesure qu'elle les voit), puis les réglages de départ (nom,
+   consignes, horaires). Une relance de l'application reprend l'étape en cours.
 3. « Ajouter à l'écran d'accueil » depuis le menu du navigateur : l'application
    s'installe avec son icône, sans barre d'adresse. Les icônes PNG de
    `icones/` sont là pour ça — iOS ignore les icônes SVG, et sans elles
@@ -146,20 +151,26 @@ feuilles :
 | **Service** | Sondes, essai de chauffe, calibration, journal, résumés, surveillance, sauvegarde du socle (firmware 3.5, module chargé à la demande) |
 | **Mises à jour** | Firmware : version publiée, installation par le socle, étape en cours |
 
-Le Wi-Fi reste sur l'interface locale du socle : c'est une opération qu'on fait
-chez soi, et aucun identifiant Wi-Fi ne passe par le broker.
+Le Wi-Fi se donne au socle sur sa propre page (portail captif de son point
+d'accès) : une page servie en HTTPS ne peut pas parler à une adresse locale en
+HTTP, et aucun identifiant Wi-Fi ne passe par le broker. L'assistant guide ces
+gestes et suit l'arrivée du socle sur le broker.
 
 L'interface suit le réglage clair ou sombre du téléphone et s'adapte à la
 largeur de l'écran ; Échap referme une feuille.
 
-Le bouton « Scanner un QR » apparaît sur les navigateurs qui savent lire les
-codes-barres, essentiellement Chrome sur Android. Format attendu :
+Le scanner de l'assistant apparaît sur les navigateurs qui savent lire les
+codes-barres, essentiellement Chrome sur Android. Il lit les deux formats :
 
 ```
-terrarium:terraA1B2C3:K7M2QX4TBW9HRPFZ3NXCVJ8D
+terrarium:terraA1B2C3:K7M2QX4TBW9HRPFZ3NXCVJ8D                  (écran du socle)
+https://app.exemple.fr/#a/terraA1B2C3/K7M2QX4TBW9HRPFZ3NXCVJ8D   (étiquette, --url)
 ```
 
-C'est ce qu'il faudra imprimer sous les socles pour un produit fini.
+Le second est celui à imprimer sous les socles (`qr-appairage.js --url`) :
+l'appareil photo de n'importe quel téléphone l'ouvre, iPhone compris, et
+l'installation démarre remplie. Ce qui suit le `#` n'est envoyé à aucun
+serveur ; l'application l'efface de l'adresse dès l'ouverture.
 
 ---
 

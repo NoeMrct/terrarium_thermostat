@@ -182,11 +182,17 @@ de durée qui restait vide sur les petites partitions.
 
 ```
 node qr-appairage.js --id terraA1B2C3 --jeton K7M2QX4TBW9HRPFZ3NXCVJ8D > etiquette.svg
+node qr-appairage.js --id … --jeton … --url https://app.exemple.fr > etiquette.svg
 ```
 
 Produit une étiquette SVG de 300 × 400 avec le QR code, l'identifiant et le code
-en clair groupé par six. Le QR contient `terrarium:<id>:<jeton>`, format que
-l'application sait lire.
+en clair groupé par six. Sans `--url`, le QR contient `terrarium:<id>:<jeton>`,
+que le scanner de l'application lit. Avec `--url` (ou `TERRARIUM_URL_APP`,
+repris aussi par `provisionner.js --url`), il contient
+`https://app.exemple.fr/#a/<id>/<jeton>` : l'appareil photo de n'importe quel
+téléphone l'ouvre et l'installation démarre remplie. L'adresse doit être en
+HTTPS (l'application signe ses commandes avec WebCrypto, réservé aux contextes
+sécurisés). `test-qr.js` relit ce lien avec jsQR.
 
 Le QR est mis à l'échelle depuis le `viewBox` du SVG produit par la
 bibliothèque, qui dessine en **modules** et non en points : le nombre de modules

@@ -23,7 +23,7 @@
     { "src": "icones/capture-large.png", "sizes": "2560x1800", "type": "image/png", "form_factor": "wide", "label": "Vue détaillée d'un socle sur grand écran" }
   ],
   "shortcuts": [
-    { "name": "Scanner un socle", "short_name": "Scanner", "description": "Ajouter un socle en lisant son QR code", "url": "./index.html#scanner", "icons": [{ "src": "icones/icone-192.png", "sizes": "192x192" }] },
+    { "name": "Installer un socle", "short_name": "Installer", "description": "Lire l'étiquette d'un socle et l'installer pas à pas", "url": "./index.html#scanner", "icons": [{ "src": "icones/icone-192.png", "sizes": "192x192" }] },
     { "name": "Diagnostic", "short_name": "Diagnostic", "description": "Rapport à joindre à une demande d'aide", "url": "./index.html#diagnostic", "icons": [{ "src": "icones/icone-192.png", "sizes": "192x192" }] }
   ]
 }
