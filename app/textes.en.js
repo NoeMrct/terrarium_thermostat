@@ -101,6 +101,7 @@ export default {
     codeCompteRefuse: 'Wrong or expired code.', tropDeDemandes: 'Too many requests: try again in fifteen minutes.',
     cleAccesRefusee: 'Passkey refused: {m}', cleAccesAnnulee: 'Passkey cancelled.',
     proposerCle: 'Next time, sign in without a code: create a passkey on this device.', creerCle: 'Create',
+    supportDemande: 'Support asks for access to {s}.', voirDemande: 'View',
     cleCreee: 'Passkey created: next time, signing in takes one gesture.', cleImpossible: 'Passkey not created: {m}',
     sessionExpiree: 'Your session has expired: please sign in again.', monCompte: 'My account', clesAcces: 'Passkeys',
     aucuneCle: 'No passkey: you sign in with a code sent by e-mail.', ajouterCle: 'Add a passkey on this device',

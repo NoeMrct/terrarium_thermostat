@@ -291,3 +291,19 @@ avec le serveur Terrariums, **Envoyer au serveur** le dépose directement.
 Sur le socle, la commande série `test usine` vérifie l'écran, les sondes, la mémoire, les
 partitions et le Wi-Fi en une fois (`test usine oui` actionne aussi chaque MOSFET une fraction de
 seconde : jamais avec un animal dessus).
+
+### Assistance à distance (avec le serveur Terrariums)
+
+Dans l'onglet **Service** d'un socle, la carte **Assistance** sert à écrire au support et à lire
+ses réponses (une notification prévient d'une réponse). Si le support a besoin de regarder le
+socle, il vous le demande : l'application l'affiche, et vous choisissez **Autoriser le support
+(24 h)** ou **Refuser**.
+
+- L'accès dure 24 heures ; le support peut le prolonger pour une recherche poussée (vous en êtes
+  prévenu), jamais au-delà de 7 jours. Vous le fermez à tout moment : **Fermer l'accès** dans
+  l'application, ou sur la page locale du socle.
+- Pendant l'accès, l'écran du socle affiche **Support connecté** ; chaque geste du support est
+  noté au journal du socle (onglet Service, ou page locale).
+- Votre code d'appairage ne quitte pas votre téléphone : l'application tire une clé valable le
+  temps de l'accès, que le socle accepte et refuse ensuite de lui-même. La coupure de sécurité à
+  40 °C reste active quoi qu'il arrive.

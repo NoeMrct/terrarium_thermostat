@@ -146,6 +146,7 @@ const App = (() => {
       codeCompteRefuse: 'Code incorrect ou expiré.', tropDeDemandes: 'Trop de demandes : réessaie dans un quart d\'heure.',
       cleAccesRefusee: 'Clé d\'accès refusée : {m}', cleAccesAnnulee: 'Clé d\'accès annulée.',
       proposerCle: 'La prochaine fois, connecte-toi sans code : crée une clé d\'accès sur cet appareil.', creerCle: 'Créer',
+      supportDemande: 'Le support demande l\'accès à {s}.', voirDemande: 'Voir',
       cleCreee: 'Clé d\'accès créée : la prochaine connexion se fera d\'un geste.', cleImpossible: 'Clé d\'accès non créée : {m}',
       sessionExpiree: 'Ta session a expiré : reconnecte-toi.', monCompte: 'Mon compte', clesAcces: 'Clés d\'accès',
       aucuneCle: 'Aucune clé d\'accès : la connexion se fait par un code envoyé par e-mail.', ajouterCle: 'Ajouter une clé sur cet appareil',
@@ -568,7 +569,7 @@ const App = (() => {
     if (!config.broker || !config.broker.url) { montrer('broker'); return; }
     // Serveur déjà connu de cette configuration : session rouverte tout de
     // suite ; sinon, c'est son annonce MQTT qui déclenchera la détection.
-    if (config.serveur) serveur.detecter().then(() => invalider());
+    if (config.serveur) serveur.detecter().then(ok => { invalider(); if (ok) verifierDemandesSupport(); });
     if (client) { try { client.end(true); } catch (e) { /* déjà fermé */ } }
 
     lien(t('connexion'), 'attente');
@@ -592,6 +593,26 @@ const App = (() => {
       if (config.broker && config.broker.compte && /identifiants incorrects|non autorisé/.test(e.message)) api.sessionExpiree();
     });
     client.on('message', recevoir);
+  }
+
+  // Le support demande l'accès à un socle : dit une fois par demande, avec de
+  // quoi y répondre (l'onglet Service du socle, carte Assistance).
+  const demandesSupportVues = new Set();
+  async function verifierDemandesSupport() {
+    if (!serveur.actif()) return;
+    let r;
+    try { r = await serveur.appel('GET', '/api/support/acces'); } catch (e) { return; }
+    for (const a of (r && r.acces) || []) {
+      if (!a.demandeAcces || demandesSupportVues.has(a.id + a.demandeAcces.t)) continue;
+      demandesSupportVues.add(a.id + a.demandeAcces.t);
+      const s = socle(a.id);
+      message(t('supportDemande', { s: s ? (s.nom || a.id) : a.id }), false,
+        { libelle: t('voirDemande'), faire: () => {
+          api.ouvrir(a.id); api.panneau('service');
+          chargerService().then(() => { if (serviceMod) serviceMod.rafraichirSupport(a.id); });
+        } }, 30000);
+      return;
+    }
   }
 
   function abonner(s) {
@@ -1429,6 +1450,7 @@ const App = (() => {
   let serviceMod = null, serviceCharge = null;
   const outilsService = {
     langue: () => langue, esc, icone, peindre, commander, message, confirmer, telecharger, lireFichier,
+    serveur: { actif: () => serveur.actif(), appel: (methode, chemin, corps) => serveur.appel(methode, chemin, corps) },
     socleOuvert: () => socleOuvert, etat: id => etats[id], racine: () => $('#detail [data-r="panneau"]'),
     ouvert: () => vueCourante === 'socle' && panneauActif === 'service'
   };
@@ -2103,7 +2125,7 @@ const App = (() => {
         case 'zone-complet': api.reglerZoneComplet(+f.dataset.z); break;
         case 'generaux':     api.reglerGeneraux(); break;
         case 'verrou':       api.deverrouiller(); break;
-        case 'sv-surveillance': if (serviceMod) serviceMod.soumettre(f); break;
+        case 'sv-surveillance': case 'sv-message': case 'sv-nouvelle': if (serviceMod) serviceMod.soumettre(f); break;
       }
     });
     doc.addEventListener('change', ev => {
@@ -2147,6 +2169,7 @@ const App = (() => {
     });
     // Les durées relatives (« silencieux depuis 3 min ») vieillissent sans message.
     setInterval(invalider, 30000);
+    setInterval(() => verifierDemandesSupport(), 300000);
   }
 
   // -------------------------------------------------------- agent de service
@@ -2579,6 +2602,9 @@ const App = (() => {
 
   // ----------------------------------------------------------------- actions
   const api = {
+    // Le support demande-t-il l'accès à un socle ? (aussi toutes les 5 min)
+    verifierSupport() { return verifierDemandesSupport(); },
+
     demarrer() {
       // Étiquette scannée par l'appareil photo : l'identifiant et le code sont
       // gardés en mémoire et retirés de l'adresse aussitôt (historique, favoris,

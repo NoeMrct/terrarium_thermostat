@@ -287,3 +287,18 @@ the server** files it directly.
 On the base, the serial command `test usine` checks the screen, the probes, the memory, the
 partitions and Wi-Fi in one go (`test usine oui` also drives each MOSFET for a fraction of a
 second: never with an animal on it).
+
+### Remote support (with the Terrariums server)
+
+In a base's **Service** tab, the **Support** card lets you write to support and read their
+answers (a notification tells you when they reply). If support needs to look at the base, they
+ask you: the app shows it, and you choose **Allow support (24 h)** or **Decline**.
+
+- Access lasts 24 hours; support may extend it for a deeper investigation (you are notified),
+  never beyond 7 days. You close it at any time: **Close access** in the app, or on the base's
+  local page.
+- While access is open, the base's screen shows **Support connecté**; every action by support is
+  written in the base's log (Service tab, or local page).
+- Your pairing code never leaves your phone: the app draws a key valid for the duration of the
+  access, which the base accepts and then refuses on its own. The 40 °C safety cut-off stays
+  active whatever happens.

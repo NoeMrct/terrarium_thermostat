@@ -296,6 +296,29 @@ const JETON = 'admin-console-test';
     v('et le code ouvre la console', await visible('#espace'));
     await page.click('#btn-sortir');
 
+    titre('Rôle support');
+    await api('POST', '/api/admin/utilisateurs', { login: 'agent', motDePasse: 'mot-de-passe-agent' });
+    await api('POST', '/api/admin/utilisateurs/agent/support', { support: true });
+    await page.fill('#c-login', 'agent');
+    await page.fill('#c-mdp', 'mot-de-passe-agent');
+    await page.click('#form-compte [type="submit"]');
+    await page.waitForSelector('#espace:not([hidden])', { timeout: 5000 }).catch(() => {});
+    v('un compte « support » entre', await visible('#espace'));
+    v('sans les rubriques Comptes ni Appareils', await visible('[data-onglet="support"]') && !(await visible('[data-onglet="comptes"]')) && !(await visible('[data-onglet="appareils"]')));
+    await attendreTexte('#tuiles', /demandes ouvertes/);
+    v('ni la tuile des comptes', !/comptes \(/.test(await texte('#tuiles')));
+    await page.click('[data-onglet="socles"]');
+    await page.waitForSelector('#corps-socles button[data-socle="terraA1B2C3"]', { timeout: 5000 }).catch(() => {});
+    await page.click('#corps-socles button[data-socle="terraA1B2C3"]');
+    await attendreTexte('#fiche-corps', /Frise/);
+    const ficheSupport = await texte('#fiche-corps');
+    v('la fiche d\'un socle, sans rattacher ni compte d\'appareil', !(await page.$('#fiche-corps [data-form="rattacher"]')) && !/Compte d'appareil \(MQTT\)/.test(ficheSupport) && /Accès support/.test(ficheSupport),
+      `${!!(await page.$('#fiche-corps [data-form="rattacher"]'))} ${/Compte d'appareil/.test(ficheSupport)} ${/Accès support/.test(ficheSupport)}`);
+    await page.click('[data-action="fermer-fiche"]');
+    const refus = await page.evaluate(async () => (await fetch('/api/admin/utilisateurs', { headers: { Authorization: 'Bearer ' + JSON.parse(sessionStorage.getItem('terrarium.console.session')).jeton } })).status);
+    v('l\'API refuse aussi (403), la session reste', refus === 403 && await visible('#espace'));
+    await page.click('#btn-sortir');
+
     const violations = await page.evaluate(() => window.__violations);
     v('aucune violation de la politique de sécurité', violations.length === 0, violations.join(' ; '));
     v('aucune erreur dans la page', erreurs.length === 0, erreurs.join(' | '));

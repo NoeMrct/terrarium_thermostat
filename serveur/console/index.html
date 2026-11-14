@@ -69,6 +69,7 @@
 <div id="espace" hidden>
   <nav class="rubriques-console" aria-label="Rubriques de la console">
     <button type="button" data-onglet="tableau" aria-current="page">Tableau de bord</button>
+    <button type="button" data-onglet="support">Support</button>
     <button type="button" data-onglet="socles">Socles</button>
     <button type="button" data-onglet="comptes">Comptes</button>
     <button type="button" data-onglet="appareils">Appareils</button>
@@ -93,6 +94,40 @@
         <ul id="versions" class="liste-simple"></ul>
       </div>
     </div>
+  </section>
+
+  <section id="v-support" class="vue-console" aria-labelledby="t-support" hidden>
+    <div class="barre">
+      <h2 id="t-support">Support</h2>
+      <div class="filtres" role="group" aria-label="Filtrer les demandes" data-filtres="demandes">
+        <button type="button" data-filtre="ouvertes" aria-pressed="true">Ouvertes</button>
+        <button type="button" data-filtre="nouvelle" aria-pressed="false">Nouvelles</button>
+        <button type="button" data-filtre="attente client" aria-pressed="false">Attente client</button>
+        <button type="button" data-filtre="résolue" aria-pressed="false">Résolues</button>
+        <button type="button" data-filtre="toutes" aria-pressed="false">Toutes</button>
+      </div>
+      <button type="button" class="btn btn-petit" data-action="nouvelle-demande" aria-controls="form-nouvelle-demande" aria-expanded="false">Nouvelle demande</button>
+    </div>
+    <form id="form-nouvelle-demande" class="carte formulaire-ligne" novalidate hidden>
+      <h3>Écrire à un client, à propos d'un socle</h3>
+      <div class="champs">
+        <div><label for="nd-socle">Socle</label><input id="nd-socle" placeholder="terraA1B2C3" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="11" required></div>
+        <div><label for="nd-gravite">Gravité</label><select id="nd-gravite"><option value="urgente">urgente</option><option value="normale" selected>normale</option><option value="faible">faible</option></select></div>
+      </div>
+      <label for="nd-texte">Message au client</label>
+      <textarea id="nd-texte" rows="4" required aria-describedby="nd-aide"></textarea>
+      <p class="aide" id="nd-aide">Le client le lit dans son application (et reçoit une notification) ; il peut répondre de là.</p>
+      <div class="boutons"><button type="submit" class="btn">Envoyer au client</button><button type="button" class="btn btn-fantome" data-action="nouvelle-demande">Annuler</button></div>
+    </form>
+    <div id="acces-ouverts" class="acces-ouverts" aria-live="polite"></div>
+    <div class="table-defile">
+      <table class="table-console">
+        <caption class="sr-only">Demandes au support</caption>
+        <thead><tr><th scope="col">Demande</th><th scope="col">Gravité</th><th scope="col">Statut</th><th scope="col">Socle</th><th scope="col">Client</th><th scope="col">Responsable</th><th scope="col">Depuis</th><th scope="col">Dernier message</th></tr></thead>
+        <tbody id="corps-demandes"></tbody>
+      </table>
+    </div>
+    <p id="demandes-vide" class="aide vide" hidden>Aucune demande.</p>
   </section>
 
   <section id="v-socles" class="vue-console" aria-labelledby="t-socles" hidden>

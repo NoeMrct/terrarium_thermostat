@@ -130,10 +130,27 @@ jour.
   défaut ; référence à taper pour les gestes lourds ; politique de sécurité
   stricte (Trusted Types, même origine). `node serveur.js utilisateur admin
   <login> oui|non`.
+- **Assistance à distance (V11)**. Firmware : action `service` (protocole 4) —
+  le propriétaire ouvre au support une session de 24 h par une clé tirée dans
+  l'application (le code d'appairage ne quitte pas le téléphone) ; tant
+  qu'elle vaut, les commandes signées avec elle sont acceptées, notées
+  « Support : … » au journal du socle, l'écran affiche « Support connecté » ;
+  prolongation bornée à 7 jours, fermeture par le propriétaire (application ou
+  page locale, `DELETE /api/service`) ou le support, retrait à l'échéance ;
+  rien sans heure fiable. Serveur : demandes (messages, notes internes,
+  statut, gravité, responsable), accès prouvé puis gardé le temps voulu,
+  diagnostics signés par la clé et audités avec leurs valeurs, copie des
+  réglages et « tout remettre », transfert vers un socle de remplacement, rôle
+  `support`, frise de chaque socle (événements vus par le serveur, gestes,
+  messages), alertes proactives. Console : onglet **Support**. Application :
+  carte **Assistance** de l'onglet Service (écrire, lire les réponses,
+  autoriser, refuser, fermer), notification d'une demande d'accès. Testé par
+  `test-protocole.cpp` (98), `test/support.test.js` et `test-support.js`
+  (application, console et socle simulé ensemble, axe-core).
 - **Journal d'audit chaîné** du serveur (`donnees/audit/`, 12 mois) : gestes de
   l'administration et des titulaires, comptes sous référence pseudonyme, jamais
   un secret ; ligne modifiée, retirée ou insérée détectée, fin coupée notée
-  (`node serveur.js audit verifier`). Testé par `test-console` (84 contrôles
+  (`node serveur.js audit verifier`). Testé par `test-console` (contrôles
   dans Chromium, axe-core en clair et en sombre) et `test/admin.test.js`.
 - Console : `wifi off` oublie le réseau enregistré (point d'accès de
   configuration au démarrage suivant), pour qu'un socle rodé à l'atelier ne

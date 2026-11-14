@@ -161,7 +161,7 @@ feuilles :
 | **Alertes** | Notifications du navigateur ou du serveur |
 | **Sécurité** | Coupure max par zone, alimentation, zone prioritaire |
 | **Appareil** | Santé, écran, coût et rapport, cyclage saisonnier, statistiques 24 h, sauvegardes, redémarrage |
-| **Service** | Sondes, essai de chauffe, calibration, journal, résumés, surveillance, sauvegarde du socle (firmware 3.5, module chargé à la demande) |
+| **Service** | Assistance (avec le serveur Terrariums : écrire au support, autoriser ou fermer son accès au socle), sondes, essai de chauffe, calibration, journal, résumés, surveillance, sauvegarde du socle (firmware 3.5, module chargé à la demande) |
 | **Mises à jour** | Firmware : version publiée, installation par le socle, étape en cours |
 
 Le Wi-Fi se donne au socle sur sa propre page (portail captif de son point

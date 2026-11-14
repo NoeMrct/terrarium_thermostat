@@ -34,6 +34,7 @@
     "test:serveur": "node test-serveur.js",
     "test:compte": "node test-compte.js",
     "test:console": "node test-console.js",
+    "test:support": "node test-support.js",
     "pdf": "node construire-pdf.js"
   },
   "dependencies": {

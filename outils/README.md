@@ -25,7 +25,8 @@ simulé et aux tests : l'application, elle, a son propre client (`app/mqtt.js`).
 | `npm run test:navigateur:webkit`, `:firefox` | Le même test de navigateur dans WebKit ou Firefox (`npx playwright install webkit firefox`) |
 | `npm run test:serveur` | Le serveur Terrariums de bout en bout : comptes, droits par socle, revendication par le code d'appairage, historique, push, rapports |
 | `npm run test:compte` | Compte en libre-service dans Chromium : e-mail, code, clé d'accès (authentificateur virtuel), « Mon compte », effacement (Playwright) |
-| `npm run test:console` | Console d'administration du serveur dans Chromium : connexions, flotte, fiches, comptes, comptes d'appareil, rapports, journal, CSP, axe-core (Playwright, axe-core) |
+| `npm run test:console` | Console d'administration du serveur dans Chromium : connexions, flotte, fiches, comptes, comptes d'appareil, rapports, journal, rôle support, CSP, axe-core (Playwright, axe-core) |
+| `npm run test:support` | Assistance de bout en bout : l'application du propriétaire, la console du support et le socle simulé autour d'un vrai serveur — demande, accès par clé de session, diagnostics, prolongation, fermeture (Playwright, axe-core) |
 | `npm run couverture` | Couverture de `app/app.js` et `app/mqtt.js` par c8 sur les tests jsdom (seuils dans `package.json`) |
 | `npm run test:qr` | L'encodeur QR du firmware relu par jsQR |
 | `npm run lighthouse` | Lighthouse CI : performance, accessibilité, bonnes pratiques, SEO ≥ seuils de `.lighthouserc.json` |

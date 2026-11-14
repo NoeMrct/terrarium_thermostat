@@ -33,8 +33,9 @@
     infos: null,              // /api/infos (public)
     onglet: 'tableau',
     donneesVisibles: false,
-    filtres: { socles: 'tous', comptes: 'tous' },
+    filtres: { socles: 'tous', comptes: 'tous', demandes: 'ouvertes' },
     tableau: null, socles: [], comptes: [], appareils: [], rapports: [], journal: null,
+    demandes: [], accesOuverts: [], equipe: null, sortie: {},
     fiche: null,              // { type: 'socle' | 'compte', id }
     lecture: null,            // nom du rapport ouvert
     emailEnCours: null,
@@ -117,12 +118,13 @@
 
   // ------------------------------------------------------------------ API
   class ErreurApi extends Error {
-    constructor(message, statut) { super(message); this.statut = statut; }
+    constructor(message, statut, donnees = null) { super(message); this.statut = statut; this.donnees = donnees; }
   }
 
   /** @param {string} methode @param {string} chemin @param {any} [corps] @param {{ jeton?: string, brut?: boolean }} [options] */
   async function requete(methode, chemin, corps, options = {}) {
     const { jeton, brut } = options;
+    /** @type {Record<string, string>} */
     const entetes = {};
     if (corps !== undefined) entetes['Content-Type'] = 'application/json';
     if (jeton) entetes.Authorization = `Bearer ${jeton}`;
@@ -132,7 +134,7 @@
     if (brut && r.ok) return r;
     let d = null;
     try { d = await r.json(); } catch (e) { /* corps vide ou texte */ }
-    if (!r.ok) throw new ErreurApi((d && d.erreur) || `erreur ${r.status}`, r.status);
+    if (!r.ok) throw new ErreurApi((d && d.erreur) || `erreur ${r.status}`, r.status, d);
     return d;
   }
 
@@ -141,11 +143,14 @@
     if (!etat.session) throw new ErreurApi('session requise', 401);
     try { return await requete(methode, chemin, corps, { ...options, jeton: etat.session.jeton }); }
     catch (e) {
-      if (e.statut === 401 || e.statut === 403) { sortir(e.statut === 403 ? 'Accès refusé : session expirée ou droits retirés.' : 'Session expirée.'); }
+      // Un refus de rôle (« réservé aux administrateurs ») n'est pas une session perdue.
+      if (e.statut === 401 || (e.statut === 403 && !(e.donnees && e.donnees.droits))) {
+        sortir(e.statut === 403 ? 'Accès refusé : session expirée ou droits retirés.' : 'Session expirée.');
+      }
       throw e;
     }
   }
-  const echec = e => { if (e && e.statut !== 401 && e.statut !== 403) message(e.message || String(e), true); };
+  const echec = e => { if (e && (e.statut !== 401 && (e.statut !== 403 || (e.donnees && e.donnees.droits)))) message(e.message || String(e), true); };
 
   // ------------------------------------------------------------------ connexion
   function mode(m) {
@@ -166,13 +171,15 @@
     entrer();
   }
 
-  // Une session de compte qui n'est pas administrateur est refermée aussitôt.
+  // Le serveur dit si le compte a accès (administrateur ou support) ; sinon la
+  // session ouverte pour l'essai est refermée aussitôt.
   async function sessionCompte(r) {
-    if (!r.admin) {
+    try { await ouvrirAvec(r.jeton, 'compte'); }
+    catch (e) {
       await requete('DELETE', '/api/session', undefined, { jeton: r.jeton }).catch(() => {});
-      throw new ErreurApi('ce compte n\'a pas accès à la console (il n\'est pas administrateur)', 403);
+      if (e.statut === 403) throw new ErreurApi('ce compte n\'a pas accès à la console (ni administrateur, ni support)', 403);
+      throw e;
     }
-    await ouvrirAvec(r.jeton, 'compte');
   }
 
   async function connexionCompte() {
@@ -227,7 +234,13 @@
     catch (e) { erreurConnexion(e.statut === 403 ? 'Jeton refusé.' : e.message); }
   }
 
+  const ONGLETS_ADMIN = ['comptes', 'appareils'];
+  const estSupport = () => !!(etat.moi && etat.moi.role === 'support');
   function entrer() {
+    // Rôle « support » : ni comptes, ni comptes d'appareil.
+    document.body.dataset.role = estSupport() ? 'support' : 'admin';
+    for (const b of $$('.rubriques-console [data-onglet]')) b.hidden = estSupport() && ONGLETS_ADMIN.includes(b.dataset.onglet);
+    if (estSupport() && ONGLETS_ADMIN.includes(etat.onglet)) etat.onglet = 'support';
     $('#connexion').hidden = true;
     $('#espace').hidden = false;
     $('#btn-sortir').hidden = false;
@@ -249,6 +262,10 @@
     for (const d of $$('dialog[open]')) d.close();
     for (const id of ['#corps-socles', '#corps-comptes', '#corps-appareils', '#corps-rapports', '#liste-journal', '#tuiles', '#a-regarder', '#infos-serveur', '#versions', '#fiche-corps', '#lecture-texte']) vider($(id));
     etat.tableau = null; etat.socles = []; etat.comptes = []; etat.appareils = []; etat.rapports = []; etat.journal = null;
+    etat.demandes = []; etat.accesOuverts = []; etat.equipe = null; etat.sortie = {};
+    vider($('#corps-demandes')); vider($('#acces-ouverts'));
+    for (const b of $$('.rubriques-console [data-onglet]')) b.hidden = false;
+    delete document.body.dataset.role;
     etat.donneesVisibles = false;
     $('#btn-donnees').setAttribute('aria-pressed', 'false');
     remplir($('#btn-donnees'), 'Afficher les données personnelles');
@@ -280,6 +297,7 @@
       etat.tableau = t; etat.socles = sl.socles;
       vueTableau();
     } else if (nom === 'socles') { etat.socles = (await admin('GET', '/api/admin/socles')).socles; vueSocles(); }
+    else if (nom === 'support') { await chargerSupport(); }
     else if (nom === 'comptes') { etat.comptes = (await admin('GET', '/api/admin/utilisateurs')).utilisateurs; vueComptes(); }
     else if (nom === 'appareils') { etat.appareils = (await admin('GET', '/api/admin/appareils')).appareils; vueAppareils(); }
     else if (nom === 'rapports') { etat.rapports = (await admin('GET', '/api/admin/rapports')).rapports; vueRapports(); }
@@ -293,24 +311,34 @@
     etat.minuteur = setTimeout(async () => {
       if (etat.session && document.visibilityState === 'visible') {
         try {
-          if (etat.onglet === 'tableau' || etat.onglet === 'socles') await charger(etat.onglet);
-          if (etat.fiche && etat.fiche.type === 'socle' && $('#fiche').open) await ficheSocle(etat.fiche.id, false);
+          if (['tableau', 'socles', 'support'].includes(etat.onglet)) await charger(etat.onglet);
+          if (etat.fiche && etat.fiche.type === 'socle' && $('#fiche').open && !ficheOccupee()) await ficheSocle(etat.fiche.id, false);
         } catch (e) { /* une coupure passagère : on réessaie au tour suivant */ }
       }
       if (etat.session) planifier();
     }, RAFRAICHIR_MS);
   }
 
+  // Une fiche où l'on écrit ne se repeint pas toute seule : rien de tapé ne se perd.
+  function ficheOccupee() {
+    const f = $('#fiche');
+    const actif = document.activeElement;
+    if (actif && f.contains(actif) && /^(INPUT|TEXTAREA|SELECT)$/.test(actif.tagName)) return true;
+    return [...f.querySelectorAll('input, textarea')].some(x => /** @type {HTMLInputElement} */ (x).value.trim() !== '');
+  }
+
   function rerendre() {
+    if (etat.onglet === 'support') vueSupport();
     if (etat.onglet === 'tableau' && etat.tableau) vueTableau();
     else if (etat.onglet === 'socles') vueSocles();
     else if (etat.onglet === 'comptes') vueComptes();
     else if (etat.onglet === 'appareils') vueAppareils();
     else if (etat.onglet === 'rapports') vueRapports();
     else if (etat.onglet === 'journal' && etat.journal) vueJournal();
-    if (etat.fiche && $('#fiche').open) (etat.fiche.type === 'socle' ? ficheSocle : ficheCompte)(etat.fiche.id, false).catch(echec);
+    if (etat.fiche && $('#fiche').open) rouvrirFiche().catch(echec);
     if (etat.session) remplir($('#etat-serveur'), etat.session.type === 'jeton' ? 'Jeton d\'administration' : pii(etat.session.qui));
   }
+  const rouvrirFiche = () => ({ socle: ficheSocle, compte: ficheCompte, demande: ficheDemande })[etat.fiche.type](etat.fiche.id, false);
 
   // ------------------------------------------------------------------ vues
   const badge = (texte, ton) => h('span', { class: `badge ${ton || 'neutre'}`, texte });
@@ -339,29 +367,25 @@
 
   function vueTableau() {
     const t = etat.tableau;
+    const sup = t.support || { ouvertes: 0, nouvelles: 0, acces: 0 };
     remplir($('#tuiles'),
       tuile(`${nombre(t.socles.enLigne)} / ${nombre(t.socles.total)}`, 'socles en ligne', 'socles:enligne'),
       tuile(nombre(t.socles.horsLigne), 'hors ligne', 'socles:horsligne', t.socles.horsLigne ? 'warn' : null),
       tuile(nombre(t.socles.enDefaut), 'en défaut', 'socles:defaut', t.socles.enDefaut ? 'ko' : null),
+      tuile(nombre(sup.ouvertes), `demandes ouvertes (${nombre(sup.nouvelles)} nouvelle${sup.nouvelles > 1 ? 's' : ''})`, 'support:ouvertes', sup.nouvelles ? 'warn' : null),
+      tuile(nombre(sup.acces), 'accès support ouverts', 'support:ouvertes'),
       tuile(nombre(t.socles.sansProprietaire), 'sans propriétaire', 'socles:orphelin'),
-      tuile(nombre(t.comptes.total), `comptes (${nombre(t.comptes.email)} par e-mail)`, 'comptes:tous'),
-      tuile(nombre(t.comptes.admins), 'administrateurs', 'comptes:admins'),
+      estSupport() ? null : tuile(nombre(t.comptes.total), `comptes (${nombre(t.comptes.email)} par e-mail)`, 'comptes:tous'),
       tuile(nombre(t.rapports.semaine), 'rapports sur 7 jours', 'rapports'),
       tuile(t.audit.ok ? nombre(t.audit.n) : 'rupture', t.audit.ok ? 'lignes au journal, chaîne intègre' : 'journal d\'audit', 'journal', t.audit.ok ? null : 'ko'));
 
-    // À regarder : du plus urgent au plus doux.
-    const items = [];
-    for (const x of etat.socles) {
-      const def = (x.zones || []).filter(z => z.defaut);
-      if (def.length) items.push(h('li', {}, h('span', {}, lienSocle(x.id), ` — défaut : ${def.map(z => (typeof z.defaut === 'string' ? z.defaut : 'défaut')).join(', ')}`), h('span', { texte: depuis(x.vu) })));
-    }
-    for (const x of etat.socles) if (x.maj && /echec|retour/.test(x.maj.etape || '')) items.push(h('li', {}, h('span', {}, lienSocle(x.id), ` — mise à jour ${x.maj.etape} (${x.maj.version || '?'})`), h('span', { texte: '' })));
-    for (const x of etat.socles) if (x.plantage) items.push(h('li', {}, h('span', {}, lienSocle(x.id), ' — un plantage attend d\'être lu (coredump)'), h('span', { texte: '' })));
-    for (const x of etat.socles) {
-      if (!x.jamaisVu && !x.enLigne && x.proprietaires.length && Date.now() - Date.parse(x.vu) > 3600000) {
-        items.push(h('li', {}, h('span', {}, lienSocle(x.id), ' — hors ligne'), h('span', { texte: depuis(x.vu) })));
-      }
-    }
+    // À regarder : les alertes proactives du serveur, de la plus grave à la plus douce,
+    // chacune avec sa demande au support (ou de quoi en ouvrir une).
+    const items = (t.alertes || []).map(a => h('li', { class: 'alerte-proactive' },
+      h('span', {}, badge(a.gravite, a.gravite === 'urgente' ? 'ko' : a.gravite === 'normale' ? 'warn' : 'neutre'), ' ', lienSocle(a.socle), ` — ${a.texte}`),
+      h('span', {}, a.depuis ? depuis(a.depuis) + ' ' : '',
+        a.demande ? h('button', { type: 'button', class: 'lien', 'data-demande': a.demande, texte: `demande n°${a.demande}` })
+          : a.proprietaires ? h('button', { type: 'button', class: 'btn btn-secondaire btn-petit', 'data-action': 'ouvrir-demande', 'data-socle': a.socle, 'data-gravite': a.gravite, 'data-texte': a.texte, texte: 'Ouvrir une demande' }) : null)));
     if (!t.audit.ok) items.unshift(h('li', {}, h('span', { texte: `Journal d'audit : ${t.audit.rupture ? t.audit.rupture.raison : 'rupture'}` }), h('span', { texte: '' })));
     remplir($('#a-regarder'), items.length ? items : h('li', {}, h('span', { texte: 'Rien à signaler.' })));
 
@@ -412,7 +436,7 @@
     remplir($('#corps-comptes'), liste.map(x => h('tr', {},
       h('th', { scope: 'row' }, lienCompte(x.login)),
       h('td', {}, x.type === 'email' ? 'e-mail' : 'mot de passe'),
-      h('td', {}, x.admin ? badge('administrateur', 'warn') : h('span', { class: 'discret', texte: 'propriétaire' })),
+      h('td', {}, x.admin ? badge('administrateur', 'warn') : x.support ? badge('support', 'warn') : h('span', { class: 'discret', texte: 'propriétaire' })),
       h('td', { class: 'num' }, x.socles.length ? x.socles.map((id, i) => [i ? ' ' : '', lienSocle(id)]) : '0'),
       h('td', { class: 'num' }, nombre(x.cles)),
       h('td', { class: 'num' }, nombre(x.sessions)),
@@ -442,6 +466,52 @@
     $('#rapports-vide').hidden = etat.rapports.length > 0;
   }
 
+  // ------------------------------------------------------------------ support
+  const tonGravite = g => g === 'urgente' ? 'ko' : g === 'normale' ? 'warn' : 'neutre';
+  const tonStatut = st => st === 'nouvelle' ? 'warn' : st === 'résolue' ? 'ok' : 'neutre';
+  async function chargerSupport() {
+    const f = etat.filtres.demandes;
+    const [d, acc] = await Promise.all([
+      admin('GET', `/api/admin/support/demandes${f === 'toutes' ? '' : `?statut=${encodeURIComponent(f)}`}`),
+      admin('GET', '/api/admin/support/acces')]);
+    etat.demandes = d.demandes;
+    etat.accesOuverts = acc.acces;
+    vueSupport();
+  }
+  function vueSupport() {
+    remplir($('#acces-ouverts'), etat.accesOuverts.length ? [
+      h('h3', { texte: `Accès ouverts par les propriétaires (${etat.accesOuverts.length})` }),
+      h('ul', { class: 'liste-actions' }, etat.accesOuverts.map(x => h('li', {},
+        h('span', {}, lienSocle(x.id), ' ', x.enLigne ? badge('en ligne', 'ok') : badge('hors ligne', 'warn'),
+          h('span', { class: 'discret', texte: `jusqu'au ${date(x.jusqua)}${x.prolonge ? ' (prolongé)' : ''} · ${x.proprietaires.map(pii).join(', ') || 'sans propriétaire'}` })),
+        (() => { const dm = etat.demandes.find(y => y.socle === x.id && y.statut !== 'résolue'); return dm
+          ? h('button', { type: 'button', class: 'btn btn-secondaire btn-petit', 'data-demande': dm.n, texte: `Demande n°${dm.n}` })
+          : h('button', { type: 'button', class: 'btn btn-secondaire btn-petit', 'data-action': 'ouvrir-demande', 'data-socle': x.id, 'data-gravite': 'normale', 'data-texte': '', texte: 'Ouvrir une demande' }); })())))] : []);
+    remplir($('#corps-demandes'), etat.demandes.map(d => h('tr', {},
+      h('th', { scope: 'row' }, h('button', { type: 'button', class: 'lien', 'data-demande': d.n, texte: `n°${d.n}` })),
+      h('td', {}, badge(d.gravite, tonGravite(d.gravite))),
+      h('td', {}, badge(d.statut, tonStatut(d.statut)), d.demandeAcces ? [' ', badge('accès demandé', 'neutre')] : null, d.acces && d.acces.actif ? [' ', badge('accès ouvert', 'ok')] : null),
+      h('td', {}, d.socle ? lienSocle(d.socle) : '—'),
+      h('td', {}, d.compte ? pii(d.compte) : '—'),
+      h('td', {}, d.responsable ? pii(d.responsable) : h('span', { class: 'discret', texte: 'personne' })),
+      h('td', { class: 'num' }, depuis(d.cree)),
+      h('td', { class: 'extrait' }, d.dernier ? [h('span', { class: 'discret', texte: d.dernier.de === 'client' ? 'client : ' : 'support : ' }), d.dernier.extrait] : '—'))));
+    $('#demandes-vide').hidden = etat.demandes.length > 0;
+  }
+
+  // La frise d'un socle : socle, client, support, serveur, du plus récent au plus ancien.
+  function frise(elements) {
+    if (!elements.length) return h('p', { class: 'aide', texte: 'Rien encore sur la frise de ce socle.' });
+    const ton = { socle: 'neutre', client: 'ok', support: 'warn', serveur: 'neutre' };
+    return h('ol', { class: 'journal-console frise' }, elements.map(e => h('li', { 'data-source': e.source },
+      h('time', { datetime: e.t, texte: date(e.t) }),
+      h('span', {}, badge(e.source, ton[e.source] || 'neutre'), ' ',
+        h('span', { class: 'quoi', texte: e.source === 'socle' || e.type === 'message' ? (EVENEMENTS[e.type] || e.type) : (ACTIONS[e.type] || e.type) }),
+        e.qui && e.source === 'support' ? h('span', { class: 'discret', texte: ` · ${quiAffiche(e.qui)}` }) : null),
+      e.details ? h('span', { class: 'detail', texte: e.type === 'message' ? `demande n°${e.details.demande} : ${e.details.extrait}`
+        : texteDetails(Object.fromEntries(Object.entries(e.details).filter(([k]) => !['t', 'type'].includes(k)))) }) : null)));
+  }
+
   // ------------------------------------------------------------------ journal
   const ACTIONS = {
     'compte.creer': 'Compte créé', 'compte.ouvrir': 'Compte ouvert par e-mail', 'compte.supprimer': 'Compte effacé',
@@ -450,13 +520,26 @@
     'socle.rattacher': 'Socle rattaché à un compte', 'socle.detacher': 'Socle détaché d\'un compte',
     'appareil.creer': 'Compte d\'appareil créé', 'appareil.renouveler': 'Mot de passe d\'appareil changé', 'appareil.retirer': 'Compte d\'appareil retiré',
     'rapport.envoyer': 'Rapport de diagnostic envoyé', 'rapport.lire': 'Rapport lu', 'rapport.supprimer': 'Rapport supprimé',
-    'audit.export': 'Journal exporté', 'audit.rupture': 'Fin du journal coupée (rupture notée)'
+    'audit.export': 'Journal exporté', 'audit.rupture': 'Fin du journal coupée (rupture notée)',
+    'compte.support': 'Rôle support',
+    'support.acces.ouvrir': 'Accès support ouvert par le propriétaire', 'support.acces.prolonger': 'Accès support prolongé',
+    'support.acces.fermer': 'Accès support fermé', 'support.acces.echu': 'Accès support échu', 'support.acces.demander': 'Accès demandé au propriétaire',
+    'support.acces.refuser': 'Accès refusé par le propriétaire', 'support.commande': 'Commande du support', 'support.copie': 'Copie des réglages',
+    'support.remettre': 'Réglages remis comme à l\'ouverture', 'support.transfert': 'Réglages transférés depuis un autre socle',
+    'support.demande.creer': 'Demande ouverte', 'support.demande.maj': 'Demande mise à jour', 'support.demande.message': 'Message', 'support.demande.note': 'Note interne'
   };
+  // Ce que le serveur a vu du socle lui-même (frise).
+  const EVENEMENTS = { 'en ligne': 'Revenu en ligne', 'hors ligne': 'Hors ligne', redemarrage: 'Redémarrage', defaut: 'Défaut',
+    trop_chaud: 'Trop chaud', derive: 'Dérive', retabli: 'Retour à la normale', maj: 'Mise à jour', message: 'Message' };
   const LIBELLES_DETAILS = { compte: 'compte', admin: 'administrateur', sessions: 'sessions', socles: 'socles', historiquesEffaces: 'historiques effacés',
-    motDePasse: 'mot de passe', proprietairesDetaches: 'propriétaires détachés', nom: 'nom', fichier: 'fichier', lignes: 'lignes', raison: 'raison', teteAttendue: 'tête attendue' };
+    motDePasse: 'mot de passe', proprietairesDetaches: 'propriétaires détachés', nom: 'nom', fichier: 'fichier', lignes: 'lignes', raison: 'raison', teteAttendue: 'tête attendue',
+    support: 'support', jusqua: 'jusqu\'au', heures: 'heures', action: 'action', valeurs: 'valeurs', ok: 'réussie', erreur: 'erreur', demande: 'demande n°',
+    gravite: 'gravité', statut: 'statut', responsable: 'responsable', de: 'de', longueur: 'caractères', copie: 'copie du', par: 'par', proprietaires: 'propriétaires' };
+  const valeurDetail = (k, v) => typeof v === 'boolean' ? (v ? 'oui' : 'non')
+    : (v && typeof v === 'object') ? JSON.stringify(v) : (k === 'jusqua' || k === 'copie') && /^\d{4}-/.test(String(v)) ? date(v) : v;
   function texteDetails(d) {
     if (!d) return '';
-    return Object.entries(d).map(([k, v]) => `${LIBELLES_DETAILS[k] || k} : ${typeof v === 'boolean' ? (v ? 'oui' : 'non') : v}`).join(' · ');
+    return Object.entries(d).map(([k, v]) => `${LIBELLES_DETAILS[k] || k} : ${valeurDetail(k, v)}`).join(' · ');
   }
   function ligneJournal(e) {
     return h('li', { 'data-action': e.action },
@@ -523,8 +606,9 @@
   }
 
   async function ficheSocle(id, ouvrir = true) {
-    const x = await admin('GET', `/api/admin/socles/${id}`);
-    const hist = await admin('GET', `/api/admin/socles/${id}/historique?pas=300`).catch(() => null);
+    const [x, hist, fr] = await Promise.all([admin('GET', `/api/admin/socles/${id}`),
+      admin('GET', `/api/admin/socles/${id}/historique?pas=300`).catch(() => null),
+      admin('GET', `/api/admin/socles/${id}/frise`).catch(() => null)]);
     etat.fiche = { type: 'socle', id };
     if (!ouvrir && !$('#fiche').open) return;
     const corps = ouvrirFiche(id);
@@ -548,25 +632,119 @@
           h('span', { class: 'discret', texte: `demande ${z.demande !== undefined ? z.demande + ' %' : '—'} · ${z.chauffe === '1' || z.chauffe === 1 ? 'chauffe' : 'au repos'}` })),
         z.defaut && z.defaut !== '0' && z.defaut !== 0 ? badge(z.defaut_libelle || 'défaut', 'ko') : badge('normal', 'ok')))) : h('p', { class: 'aide', texte: 'Aucun état de zone reçu depuis le démarrage du serveur.' })),
       section('Dernières 24 heures', courbe(hist ? hist.points : []), h('p', { class: 'legende-courbe' }, h('span', { texte: 'zone 1' }), h('span', { texte: 'zone 2' }))),
+      section('Accès support', x.acces && x.acces.actif
+        ? h('div', {}, h('p', { class: 'aide', texte: `Ouvert par le propriétaire jusqu'au ${date(x.acces.jusqua)}${x.acces.prolonge ? ' (prolongé)' : ''}.` }),
+          h('div', { class: 'boutons' }, x.demandes.find(d => d.statut !== 'résolue')
+            ? h('button', { type: 'button', class: 'btn btn-secondaire btn-petit', 'data-demande': x.demandes.find(d => d.statut !== 'résolue').n, texte: 'Ouvrir la demande et les diagnostics' })
+            : h('button', { type: 'button', class: 'btn btn-secondaire btn-petit', 'data-action': 'ouvrir-demande', 'data-socle': id, 'data-gravite': 'normale', 'data-texte': '', texte: 'Ouvrir une demande' })))
+        : h('p', { class: 'aide', texte: 'Fermé. Diagnostics et réglages à distance demandent l\'accès support, ouvert par le propriétaire depuis son application (« Demander l\'accès » depuis une demande).' }),
+        x.demandes.length ? h('p', { class: 'aide' }, 'Demandes : ', x.demandes.map((d, i) => [i ? ', ' : '', h('button', { type: 'button', class: 'lien', 'data-demande': d.n, texte: `n°${d.n} (${d.statut})` })])) : null),
       section('Propriétaires',
         x.proprietairesDetail.length ? h('ul', { class: 'liste-actions' }, x.proprietairesDetail.map(p => h('li', {},
-          h('span', {}, lienCompte(p.login), h('span', { class: 'discret', texte: p.type === 'email' ? 'compte par e-mail' : 'compte à mot de passe' })),
-          h('button', { type: 'button', class: 'btn btn-secondaire btn-petit', 'data-action': 'detacher', 'data-socle': id, 'data-login': p.login, texte: 'Détacher' }))))
+          h('span', {}, estSupport() ? pii(p.login) : lienCompte(p.login), h('span', { class: 'discret', texte: p.type === 'email' ? 'compte par e-mail' : 'compte à mot de passe' })),
+          estSupport() ? null : h('button', { type: 'button', class: 'btn btn-secondaire btn-petit', 'data-action': 'detacher', 'data-socle': id, 'data-login': p.login, texte: 'Détacher' }))))
           : h('p', { class: 'aide', texte: 'Aucun : le socle n\'est rattaché à aucun compte.' }),
-        h('form', { class: 'ligne-ajout', 'data-form': 'rattacher', 'data-socle': id, novalidate: true },
+        estSupport() ? null : h('form', { class: 'ligne-ajout', 'data-form': 'rattacher', 'data-socle': id, novalidate: true },
           h('label', { class: 'sr-only', for: 'rattacher-login', texte: 'Compte à rattacher' }),
           h('input', { id: 'rattacher-login', placeholder: 'identifiant ou e-mail du compte', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false' }),
           h('button', { type: 'submit', class: 'btn btn-secondaire btn-petit', texte: 'Rattacher' }))),
-      section('Compte d\'appareil (MQTT)', x.appareil
+      estSupport() ? null : section('Compte d\'appareil (MQTT)', x.appareil
         ? h('div', {}, h('p', { class: 'aide', texte: `Créé le ${date(x.appareil.cree)}${x.appareil.renouvele ? `, mot de passe changé le ${date(x.appareil.renouvele)}` : ''}.` }),
           h('div', { class: 'boutons' },
             h('button', { type: 'button', class: 'btn btn-secondaire btn-petit', 'data-action': 'renouveler-appareil', 'data-id': id, texte: 'Changer le mot de passe' }),
             h('button', { type: 'button', class: 'btn btn-danger btn-petit', 'data-action': 'retirer-appareil', 'data-id': id, texte: 'Retirer' })))
         : h('div', {}, h('p', { class: 'aide', texte: 'Aucun : ce socle se connecte ailleurs (broker amont) ou n\'a pas encore été monté.' }),
           h('div', { class: 'boutons' }, h('button', { type: 'button', class: 'btn btn-secondaire btn-petit', 'data-action': 'creer-appareil', 'data-id': id, texte: 'Créer le compte d\'appareil' })))),
-      h('p', { class: 'aide', texte: 'Diagnostics et réglages à distance : ils demandent l\'accès support, ouvert par le propriétaire depuis son application.' }),
       x.sante ? h('details', {}, h('summary', { texte: 'Santé publiée par le socle (JSON)' }), h('pre', { class: 'bloc-texte json-sante', texte: JSON.stringify(x.sante, null, 1) })) : null,
-      section('Journal', x.journal.length ? h('ol', { class: 'journal-console' }, x.journal.map(ligneJournal)) : h('p', { class: 'aide', texte: 'Rien au journal pour ce socle.' })));
+      section('Frise', fr ? frise(fr.frise) : h('p', { class: 'aide', texte: 'Frise indisponible.' })));
+  }
+
+  // ------------------------------------------------------------------ fiche d'une demande
+  // Diagnostics proposés pendant un accès ouvert : action, libellé, paramètres,
+  // et la question à poser avant (les gestes qui chauffent ou coupent).
+  /** @type {Array<Array<any>>} */
+  const DIAGNOSTICS = [
+    ['sondes', 'Relire le bus', { relire: true }],
+    ['etat', 'État complet', {}],
+    ['journal', 'Journal du socle', {}],
+    ['rapport', 'Rapport du jour', {}],
+    ['jours', 'Résumés journaliers', { n: 14 }],
+    ['essai', 'Essai de chauffe zone 1', { z: 0 }, 'La zone 1 va chauffer seule à pleine puissance, 10 minutes au plus (la coupure à 40 °C reste active). Le client est-il prévenu ?'],
+    ['essai', 'Essai de chauffe zone 2', { z: 1 }, 'La zone 2 va chauffer seule à pleine puissance, 10 minutes au plus (la coupure à 40 °C reste active). Le client est-il prévenu ?'],
+    ['reset', 'Lever les défauts', {}, 'Lever les défauts verrouillés ? La chauffe reprend si la cause a disparu.'],
+    ['redemarrer', 'Redémarrer le socle', {}, 'Redémarrer le socle ? Il revient en une minute environ, régulation comprise.']
+  ];
+  function texteSortie(r) {
+    if (!r) return '';
+    if (typeof r.texte === 'string') return r.texte;
+    if (r.message) return r.message;
+    const reste = { ...r };
+    delete reste.req;
+    delete reste.ok;
+    return JSON.stringify(reste, null, 1);
+  }
+
+  async function ficheDemande(n, ouvrir = true) {
+    const d = await admin('GET', `/api/admin/support/demandes/${n}`);
+    const [acc, fr, eq] = await Promise.all([
+      d.socle ? admin('GET', `/api/admin/support/acces/${d.socle}`).catch(() => null) : null,
+      d.socle ? admin('GET', `/api/admin/socles/${d.socle}/frise`).catch(() => null) : null,
+      etat.equipe ? etat.equipe : admin('GET', '/api/admin/support/equipe').then(r => r.equipe).catch(() => [])]);
+    etat.equipe = eq;
+    etat.fiche = { type: 'demande', id: d.n };
+    if (!ouvrir && !$('#fiche').open) return;
+    const corps = ouvrirFiche(`Demande n°${d.n}${d.socle ? ` — ${d.socle}` : ''}`);
+    const choix = (id, libelle, valeurs, actuelle, nomChamp) => h('div', {},
+      h('label', { for: id, texte: libelle }),
+      h('select', { id, 'data-champ': nomChamp, 'data-n': d.n }, valeurs.map(([v, t]) => h('option', { value: v, selected: v === actuelle, texte: t }))));
+    const sortie = etat.sortie[d.socle];
+    corps.append(
+      h('div', { class: 'champs-demande' },
+        choix('dm-statut', 'Statut', [['nouvelle', 'nouvelle'], ['en cours', 'en cours'], ['attente client', 'attente client'], ['résolue', 'résolue']], d.statut, 'statut'),
+        choix('dm-gravite', 'Gravité', [['urgente', 'urgente'], ['normale', 'normale'], ['faible', 'faible']], d.gravite, 'gravite'),
+        choix('dm-responsable', 'Responsable', [['', 'personne']].concat(eq.map(m => [m.login, pii(m.login)])), d.responsable || '', 'responsable')),
+      h('p', { class: 'aide' }, `Client : ${d.compte ? pii(d.compte) : '—'} · ouverte ${depuis(d.cree)} (${date(d.cree)})`,
+        d.socle ? [' · socle ', lienSocle(d.socle), ' ', d.socleEtat ? badgesSocle({ ...d.socleEtat, jamaisVu: false }) : badge('jamais vu', 'neutre')] : null,
+        ' ', h('button', { type: 'button', class: 'btn btn-fantome btn-petit', 'data-action': 'actualiser-fiche', texte: 'Actualiser' })),
+      section('Échanges avec le client',
+        d.messages.length ? h('ol', { class: 'fil' }, d.messages.map(m => h('li', { 'data-de': m.de },
+          h('span', { class: 'discret' }, m.de === 'client' ? 'Client' : `Support${m.qui ? ` (${quiAffiche(m.qui)})` : ''}`, ' · ', h('time', { datetime: m.t, texte: date(m.t) })),
+          h('p', { class: 'texte-message', texte: m.texte })))) : h('p', { class: 'aide', texte: 'Aucun message.' }),
+        h('form', { class: 'ligne-message', 'data-form': 'repondre', 'data-n': d.n, novalidate: true },
+          h('label', { for: 'dm-reponse', texte: 'Répondre au client' }),
+          h('textarea', { id: 'dm-reponse', rows: '3' }),
+          h('div', { class: 'boutons' }, h('button', { type: 'submit', class: 'btn btn-petit', texte: 'Envoyer au client' })))),
+      section('Notes internes',
+        d.notes.length ? h('ul', { class: 'liste-actions' }, d.notes.map(no => h('li', {},
+          h('span', {}, h('span', { class: 'texte-message', texte: no.texte }), h('span', { class: 'discret', texte: `${quiAffiche(no.qui)} · ${date(no.t)}` }))))) : null,
+        h('form', { class: 'ligne-message', 'data-form': 'note', 'data-n': d.n, novalidate: true },
+          h('label', { for: 'dm-note', texte: 'Ajouter une note (jamais montrée au client)' }),
+          h('textarea', { id: 'dm-note', rows: '2' }),
+          h('div', { class: 'boutons' }, h('button', { type: 'submit', class: 'btn btn-secondaire btn-petit', texte: 'Ajouter la note' })))),
+      d.socle ? section('Accès au socle', acc && acc.actif
+        ? h('div', { class: 'panneau-acces' },
+          h('p', { class: 'aide', texte: `Ouvert par le propriétaire jusqu'au ${date(acc.jusqua)}${acc.prolonge ? ' (prolongé)' : ''}. Chaque geste est signé avec la clé de session et noté au journal ; la coupure à 40 °C du socle reste active.` }),
+          h('h4', { texte: 'Diagnostics' }),
+          h('div', { class: 'boutons' }, DIAGNOSTICS.map(([, libelle], i) => h('button', { type: 'button', class: 'btn btn-secondaire btn-petit', 'data-action': 'acces-cmd', 'data-socle': d.socle, 'data-i': i, texte: libelle }))),
+          h('h4', { texte: 'Réglages' }),
+          h('p', { class: 'aide', texte: acc.copie ? `Copie des réglages du ${date(acc.copie)}.` : 'Pas encore de copie des réglages.' }),
+          h('div', { class: 'boutons' },
+            h('button', { type: 'button', class: 'btn btn-secondaire btn-petit', 'data-action': 'copie', 'data-socle': d.socle, texte: 'Copier les réglages maintenant' }),
+            h('button', { type: 'button', class: 'btn btn-secondaire btn-petit', 'data-action': 'remettre', 'data-socle': d.socle, disabled: !acc.copie, texte: 'Tout remettre comme à la copie' })),
+          h('form', { class: 'ligne-ajout', 'data-form': 'transferer', 'data-socle': d.socle, novalidate: true },
+            h('label', { class: 'sr-only', for: 'dm-vers', texte: 'Socle de remplacement' }),
+            h('input', { id: 'dm-vers', placeholder: 'socle de remplacement (terra…)', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', maxlength: '11' }),
+            h('button', { type: 'submit', class: 'btn btn-secondaire btn-petit', texte: 'Transférer les réglages' })),
+          h('h4', { texte: 'Accès' }),
+          h('div', { class: 'boutons' },
+            h('button', { type: 'button', class: 'btn btn-secondaire btn-petit', 'data-action': 'prolonger', 'data-socle': d.socle, texte: 'Prolonger de 24 h' }),
+            h('button', { type: 'button', class: 'btn btn-danger btn-petit', 'data-action': 'fermer-acces', 'data-socle': d.socle, texte: 'Fermer l\'accès' })),
+          sortie ? h('div', {}, h('h4', { texte: `Dernier résultat : ${sortie.libelle} (${date(sortie.t)})` }),
+            h('pre', { class: 'bloc-texte sortie-support', tabindex: '0', texte: sortie.texte })) : null)
+        : h('div', {},
+          h('p', { class: 'aide', texte: d.demandeAcces ? `Accès demandé au propriétaire le ${date(d.demandeAcces)} : il l'accorde (24 h) ou le refuse depuis son application.` : 'Fermé. Le propriétaire l\'ouvre depuis son application ; on peut le lui demander (il reçoit une notification).' }),
+          h('div', { class: 'boutons' }, h('button', { type: 'button', class: 'btn btn-secondaire btn-petit', 'data-action': 'demander-acces', 'data-n': d.n, texte: d.demandeAcces ? 'Redemander l\'accès' : 'Demander l\'accès au propriétaire' })))) : null,
+      d.socle ? section('Frise du socle', fr ? frise(fr.frise) : h('p', { class: 'aide', texte: 'Frise indisponible.' })) : null);
   }
 
   async function ficheCompte(login, ouvrir = true) {
@@ -576,7 +754,8 @@
     const moiMeme = etat.session && etat.session.type === 'compte' && etat.session.qui.toLowerCase() === x.login.toLowerCase();
     const corps = ouvrirFiche(pii(x.login));
     corps.append(
-      h('span', { class: 'badges' }, badge(x.type === 'email' ? 'compte par e-mail' : 'compte à mot de passe', 'neutre'), x.admin ? badge('administrateur', 'warn') : null, moiMeme ? badge('vous', 'ok') : null),
+      h('span', { class: 'badges' }, badge(x.type === 'email' ? 'compte par e-mail' : 'compte à mot de passe', 'neutre'), x.admin ? badge('administrateur', 'warn') : null,
+        x.support ? badge('support', 'warn') : null, moiMeme ? badge('vous', 'ok') : null),
       stat([['créé', date(x.cree)], ['dernière connexion', depuis(x.derniereConnexion)], ['sessions ouvertes', nombre(x.sessions)],
         ['clés d\'accès', nombre(x.cles)], ['téléphones notifiés', nombre(x.notificationsPush.length)], ['référence au journal', x.reference]]),
       section('Socles',
@@ -599,6 +778,8 @@
       section('Actions', h('div', { class: 'boutons' },
         moiMeme && x.admin ? null : h('button', { type: 'button', class: 'btn btn-secondaire btn-petit', 'data-action': 'basculer-admin', 'data-login': x.login, 'data-admin': x.admin ? '0' : '1',
           texte: x.admin ? 'Retirer les droits d\'administration' : 'Donner les droits d\'administration' }),
+        x.admin ? null : h('button', { type: 'button', class: 'btn btn-secondaire btn-petit', 'data-action': 'basculer-support', 'data-login': x.login, 'data-support': x.support ? '0' : '1',
+          texte: x.support ? 'Retirer le rôle support' : 'Donner le rôle support' }),
         x.type === 'motdepasse' ? h('button', { type: 'button', class: 'btn btn-secondaire btn-petit', 'data-action': 'reinitialiser', 'data-login': x.login, texte: 'Réinitialiser le mot de passe' }) : null,
         h('button', { type: 'button', class: 'btn btn-secondaire btn-petit', 'data-action': 'exporter-compte', 'data-login': x.login, texte: 'Exporter ses données (RGPD)' }),
         moiMeme ? null : h('button', { type: 'button', class: 'btn btn-danger btn-petit', 'data-action': 'supprimer-compte', 'data-login': x.login, texte: 'Effacer le compte' }))),
@@ -650,7 +831,7 @@
   // ------------------------------------------------------------------ actions
   async function actualiser() {
     await charger(etat.onglet);
-    if (etat.fiche && $('#fiche').open) await (etat.fiche.type === 'socle' ? ficheSocle : ficheCompte)(etat.fiche.id, false);
+    if (etat.fiche && $('#fiche').open) await rouvrirFiche();
   }
 
   const actions = {
@@ -740,6 +921,7 @@
     },
     async 'fermer-lecture'() { $('#lecture').close(); },
     async 'fermer-fiche'() { $('#fiche').close(); },
+    async 'actualiser-fiche'() { if (etat.fiche) await rouvrirFiche(); },
     async 'exporter-journal'() {
       const p = paramsJournal();
       const r = await admin('GET', `/api/admin/audit/export${p ? '?' + p : ''}`, undefined, { brut: true });
@@ -753,6 +935,65 @@
     },
     async 'fermer-secret'() { $('#secret').close(); },
     async 'nouveau-compte'() { basculerFormulaire('#form-nouveau-compte', '[data-action="nouveau-compte"]', '#n-login'); },
+    async 'nouvelle-demande'() { basculerFormulaire('#form-nouvelle-demande', '[data-action="nouvelle-demande"]', '#nd-socle'); },
+    // Depuis une alerte : le formulaire de la demande, prérempli, à relire avant l'envoi.
+    async 'ouvrir-demande'(el) {
+      if ($('#fiche').open) $('#fiche').close();
+      onglet('support', false);
+      const f = $('#form-nouvelle-demande');
+      if (f.hidden) basculerFormulaire('#form-nouvelle-demande', '[data-action="nouvelle-demande"]', '#nd-socle');
+      /** @type {HTMLInputElement} */ ($('#nd-socle')).value = el.dataset.socle || '';
+      /** @type {HTMLSelectElement} */ ($('#nd-gravite')).value = el.dataset.gravite || 'normale';
+      /** @type {HTMLTextAreaElement} */ ($('#nd-texte')).value = el.dataset.texte
+        ? `Bonjour,\n\nVotre socle ${el.dataset.socle} nous signale : ${el.dataset.texte}. Nous aimerions vérifier cela avec vous : pouvez-vous nous ouvrir l'accès depuis l'application (rubrique Service, « Autoriser le support ») ?\n\nL'équipe Terrariums`
+        : '';
+      $('#nd-texte').focus();
+    },
+    async 'demander-acces'(el) {
+      await admin('POST', `/api/admin/support/demandes/${el.dataset.n}/demander-acces`);
+      message('Demande d\'accès envoyée au propriétaire.');
+      await actualiser();
+    },
+    async 'acces-cmd'(el) {
+      const [action, libelle, params, question] = /** @type {[string, string, Record<string, any>, string?]} */ (DIAGNOSTICS[+el.dataset.i]);
+      const id = el.dataset.socle;
+      if (question && !await confirmer({ titre: libelle, texte: question, bouton: 'Lancer' })) return;
+      const r = await admin('POST', `/api/admin/support/acces/${id}/commande`, { action, ...params });
+      etat.sortie[id] = { libelle, t: new Date().toISOString(), texte: (r.ok ? '' : 'REFUS : ') + (r.ok ? texteSortie(r) : (r.erreur || 'refusé')) };
+      message(r.ok ? `${libelle} : fait.` : `${libelle} : ${r.erreur || 'refusé'}`, !r.ok);
+      await actualiser();
+    },
+    async 'copie'(el) {
+      const r = await admin('POST', `/api/admin/support/acces/${el.dataset.socle}/copie`);
+      message(`Réglages copiés (${date(r.copie)}).`);
+      await actualiser();
+    },
+    async 'remettre'(el) {
+      const id = el.dataset.socle;
+      if (!await confirmer({ titre: 'Tout remettre comme à la copie ?', texte: 'Les réglages du socle (zones, réglages généraux, sondes) redeviennent ceux de la copie. Tout ou rien.', reference: id, bouton: 'Tout remettre' })) return;
+      const r = await admin('POST', `/api/admin/support/acces/${id}/remettre`, { confirmation: id });
+      etat.sortie[id] = { libelle: 'Tout remettre', t: new Date().toISOString(), texte: r.message || 'Réglages remis.' };
+      message('Réglages remis comme à la copie.');
+      await actualiser();
+    },
+    async 'prolonger'(el) {
+      const r = await admin('POST', `/api/admin/support/acces/${el.dataset.socle}/prolonger`, { heures: 24 });
+      message(`Accès prolongé jusqu'au ${date(r.jusqua)} ; le propriétaire est prévenu.`);
+      await actualiser();
+    },
+    async 'fermer-acces'(el) {
+      if (!await confirmer({ titre: 'Fermer l\'accès au socle ?', texte: 'La clé de session est effacée ; il faudra que le propriétaire rouvre l\'accès pour toute autre intervention.', bouton: 'Fermer l\'accès' })) return;
+      await admin('POST', `/api/admin/support/acces/${el.dataset.socle}/fermer`);
+      message('Accès fermé ; le propriétaire est prévenu.');
+      await actualiser();
+    },
+    async 'basculer-support'(el) {
+      const donner = el.dataset.support === '1', login = el.dataset.login;
+      await admin('POST', `/api/admin/utilisateurs/${encodeURIComponent(login)}/support`, { support: donner });
+      message(donner ? 'Rôle support donné.' : 'Rôle support retiré.');
+      etat.equipe = null;
+      await actualiser();
+    },
     async 'nouvel-appareil'() { basculerFormulaire('#form-nouvel-appareil', '[data-action="nouvel-appareil"]', '#n-appareil'); },
     async 'annuler-code'() { $('#form-code').hidden = true; $('#form-compte').hidden = false; erreurConnexion(''); $('#c-login').focus(); }
   };
@@ -778,7 +1019,8 @@
     if (el.dataset.onglet) { onglet(el.dataset.onglet); return; }
     if (el.dataset.aller) {
       const [o, f] = el.dataset.aller.split(':');
-      if (f) { etat.filtres[o] = f; for (const b of $$(`[data-filtres="${o}"] [data-filtre]`)) b.setAttribute('aria-pressed', String(b.dataset.filtre === f)); }
+      const groupe = o === 'support' ? 'demandes' : o;
+      if (f) { etat.filtres[groupe] = f; for (const b of $$(`[data-filtres="${groupe}"] [data-filtre]`)) b.setAttribute('aria-pressed', String(b.dataset.filtre === f)); }
       onglet(o);
       return;
     }
@@ -786,9 +1028,11 @@
       const groupe = /** @type {HTMLElement} */ (el.closest('[data-filtres]')).dataset.filtres;
       etat.filtres[groupe] = el.dataset.filtre;
       for (const b of el.parentElement.querySelectorAll('[data-filtre]')) b.setAttribute('aria-pressed', String(b === el));
-      (groupe === 'socles' ? vueSocles : vueComptes)();
+      if (groupe === 'demandes') chargerSupport().catch(echec);
+      else (groupe === 'socles' ? vueSocles : vueComptes)();
       return;
     }
+    if (el.dataset.demande && !el.dataset.action) { ficheDemande(el.dataset.demande).catch(echec); return; }
     if (el.dataset.socle && el.classList.contains('lien')) { ficheSocle(el.dataset.socle).catch(echec); return; }
     if (el.dataset.compte) { ficheCompte(el.dataset.compte).catch(echec); return; }
     const a = el.dataset.action && actions[el.dataset.action];
@@ -822,11 +1066,50 @@
       const login = f.querySelector('input').value.trim();
       if (!login) return;
       admin('POST', `/api/admin/socles/${f.dataset.socle}/proprietaires`, { login }).then(() => { message('Socle rattaché.'); return actualiser(); }).catch(echec);
+    } else if (f.id === 'form-nouvelle-demande') {
+      const socle = /** @type {HTMLInputElement} */ ($('#nd-socle')).value.trim();
+      const texte = /** @type {HTMLTextAreaElement} */ ($('#nd-texte')).value.trim();
+      if (!/^terra[0-9A-Za-z]{6}$/.test(socle)) { message('Identifiant attendu : terraA1B2C3.', true); return; }
+      if (!texte) { message('Écrire le message au client.', true); return; }
+      admin('POST', '/api/admin/support/demandes', { socle, texte, gravite: /** @type {HTMLSelectElement} */ ($('#nd-gravite')).value }).then(async d => {
+        /** @type {HTMLInputElement} */ ($('#nd-socle')).value = ''; /** @type {HTMLTextAreaElement} */ ($('#nd-texte')).value = '';
+        basculerFormulaire('#form-nouvelle-demande', '[data-action="nouvelle-demande"]', '#nd-socle');
+        message(`Demande n°${d.n} ouverte ; le client est prévenu.`);
+        await chargerSupport();
+      }).catch(echec);
+    } else if (f.dataset.form === 'repondre' || f.dataset.form === 'note') {
+      const champ = /** @type {HTMLTextAreaElement} */ (f.querySelector('textarea'));
+      const texte = champ.value.trim();
+      if (!texte) return;
+      const route = f.dataset.form === 'repondre' ? 'messages' : 'notes';
+      admin('POST', `/api/admin/support/demandes/${f.dataset.n}/${route}`, { texte }).then(async () => {
+        champ.value = '';
+        message(route === 'messages' ? 'Réponse envoyée ; le client est prévenu.' : 'Note ajoutée.');
+        await actualiser();
+      }).catch(echec);
+    } else if (f.dataset.form === 'transferer') {
+      const de = f.dataset.socle, vers = /** @type {HTMLInputElement} */ (f.querySelector('input')).value.trim();
+      if (!/^terra[0-9A-Za-z]{6}$/.test(vers) || vers === de) { message('Identifiant du socle de remplacement attendu (terra…).', true); return; }
+      confirmer({ titre: `Transférer les réglages de ${de} vers ${vers} ?`, texte: `Les réglages de ${de} remplacent ceux de ${vers}, dont l'accès doit être ouvert ; les propriétaires de ${de} sont rattachés à ${vers}.`, reference: vers, bouton: 'Transférer' })
+        .then(ok => ok && admin('POST', '/api/admin/support/transferer', { de, vers, confirmation: vers }).then(async r => {
+          /** @type {HTMLInputElement} */ (f.querySelector('input')).value = '';
+          etat.sortie[de] = { libelle: `Transfert vers ${vers}`, t: new Date().toISOString(), texte: r.message || 'Réglages transférés.' };
+          message(`Réglages transférés vers ${vers}.`);
+          await actualiser();
+        })).catch(echec);
     } else if (f.dataset.form === 'rattacher-socle') {
       const id = f.querySelector('input').value.trim();
       if (!/^terra[0-9A-Za-z]{6}$/.test(id)) { message('Identifiant attendu : terraA1B2C3.', true); return; }
       admin('POST', `/api/admin/utilisateurs/${encodeURIComponent(f.dataset.login)}/socles`, { id }).then(() => { message('Socle rattaché.'); return actualiser(); }).catch(echec);
     }
+  });
+
+  // Statut, gravité, responsable d'une demande : enregistrés dès qu'ils changent.
+  document.addEventListener('change', e => {
+    const el = /** @type {HTMLSelectElement} */ (e.target);
+    if (!el.dataset || !el.dataset.champ) return;
+    admin('POST', `/api/admin/support/demandes/${el.dataset.n}`, { [el.dataset.champ]: el.value || null })
+      .then(() => { message('Demande mise à jour.'); return chargerSupport(); }).catch(err => { echec(err); actualiser().catch(() => {}); });
   });
 
   let minuteurRecherche = null;

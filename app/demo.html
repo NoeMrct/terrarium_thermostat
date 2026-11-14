@@ -513,6 +513,25 @@ label.inline { display: inline-flex; align-items: center; gap: 8px; margin: 0; f
 label.inline select { width: auto; min-height: 36px; padding: 4px 28px 4px 10px; font-size: 13px; border-radius: 11px; }
 a.btn { text-decoration: none; }
 
+/* ----------------------------------------------------------------- assistance */
+/* Onglet Service, carte Assistance : l'accès du support et les échanges. */
+textarea {
+  width: 100%; box-sizing: border-box; min-height: 80px; resize: vertical;
+  background: var(--champ); color: var(--texte);
+  border: 1px solid var(--ligne-forte); border-radius: var(--rayon-petit);
+  padding: 10px 12px; font: inherit; font-size: 16px; line-height: 1.45;
+}
+textarea:focus-visible { outline: none; border-color: var(--focus); box-shadow: 0 0 0 3px color-mix(in oklab, var(--focus) 25%, transparent); }
+.demande-support { margin-top: 10px; }
+.demande-support > summary { cursor: pointer; font-weight: 500; padding: 4px 0; }
+.demande-support form { margin-top: 8px; }
+.fil-support { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.fil-support li { max-width: 88%; padding: 10px 12px; border-radius: var(--rayon-petit); background: var(--fond); }
+.fil-support li[data-de="client"] { margin-left: auto; background: var(--accent-doux); }
+.fil-support p { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Sur le vert pâle d'une bulle, le gris discret ne tient pas 4,5:1 : un cran plus foncé. */
+.fil-support .discret { color: var(--texte-2); }
+
 /* ----------------------------------------------------------------- santé */
 .signal { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; margin-right: 8px; vertical-align: -1px; }
 .signal i { width: 4px; border-radius: 1px; background: var(--ligne); }
@@ -1397,6 +1416,7 @@ window.TEXTES_EN = {
     codeCompteRefuse: 'Wrong or expired code.', tropDeDemandes: 'Too many requests: try again in fifteen minutes.',
     cleAccesRefusee: 'Passkey refused: {m}', cleAccesAnnulee: 'Passkey cancelled.',
     proposerCle: 'Next time, sign in without a code: create a passkey on this device.', creerCle: 'Create',
+    supportDemande: 'Support asks for access to {s}.', voirDemande: 'View',
     cleCreee: 'Passkey created: next time, signing in takes one gesture.', cleImpossible: 'Passkey not created: {m}',
     sessionExpiree: 'Your session has expired: please sign in again.', monCompte: 'My account', clesAcces: 'Passkeys',
     aucuneCle: 'No passkey: you sign in with a code sent by e-mail.', ajouterCle: 'Add a passkey on this device',
@@ -1534,9 +1554,12 @@ window.TEXTES_EN = {
    anglais) et ne touche au DOM que par les outils que l'application lui passe
    (peindre, esc…), donc sous la même politique de sécurité qu'elle.
 
-   Sondes (inventaire, liaison, identification), essai de chauffe, calibration,
-   rapport du jour, journal, résumés journaliers, alertes et surveillance,
-   sauvegarde du socle. Rien de secret ne revient du socle : une adresse
+   Assistance (avec un serveur Terrariums) : écrire au support, lire ses
+   réponses, lui ouvrir l'accès au socle pour 24 h — une clé de session tirée
+   ici, donnée au socle puis au serveur ; le code d'appairage ne quitte pas le
+   téléphone — et le refermer. Sondes (inventaire, liaison, identification),
+   essai de chauffe, calibration, rapport du jour, journal, résumés
+   journaliers, alertes et surveillance, sauvegarde du socle. Rien de secret ne revient du socle : une adresse
    d'alerte s'écrit, seul son serveur s'affiche ; le Wi-Fi reste sur la page
    locale.
    ============================================================================= */
@@ -1585,7 +1608,24 @@ const TEXTES = {
     telecharger: 'Télécharger', restaurer: 'Restaurer…',
     confirmRestaurer: 'Remplacer les réglages du socle par ceux de « {f} » ? Tout ou rien : un seul réglage refusé et rien ne change.',
     fichierInvalide: 'Ce fichier n\'est pas une sauvegarde de socle.',
-    oui: 'Continuer'
+    oui: 'Continuer',
+    assistance: 'Assistance',
+    sansServeur: 'L\'assistance à distance passe par un serveur Terrariums : ce socle n\'y est pas relié.',
+    accesFerme: 'Le support n\'a pas accès à ce socle. S\'il vous le demande, autorisez-le ici : 24 h, refermable à tout moment, sans donner votre code d\'appairage.',
+    accesDemande: 'Le support demande l\'accès à ce socle (demande n°{n}).',
+    accesOuvert: 'Le support a accès à ce socle jusqu\'au {d}{p}.',
+    prolonge: ' (prolongé)',
+    accesAide: 'Il peut lancer des diagnostics et changer des réglages ; chaque geste est noté au journal du socle, et son écran affiche « Support connecté ».',
+    autoriser: 'Autoriser le support (24 h)', refuser: 'Refuser', fermerAcces: 'Fermer l\'accès',
+    autoriserTitre: 'Ouvrir l\'accès au support ?',
+    autoriserTexte: 'Pendant 24 h, le support pourra diagnostiquer et régler ce socle à distance. Vous pourrez fermer l\'accès à tout moment.',
+    confirmFermer: 'Le support ne pourra plus agir sur ce socle.',
+    ouvertOk: 'Accès ouvert pour 24 h.', fermeOk: 'Accès fermé.', refuseOk: 'Demande d\'accès refusée.',
+    demandes: 'Vos échanges avec le support', vous: 'Vous', support: 'Support', demandeN: 'Demande n°{n} — {s}',
+    repondre: 'Répondre', envoyer2: 'Envoyer', envoye: 'Message envoyé.',
+    ecrire: 'Écrire au support', aideEcrire: 'Décrivez ce que vous constatez (depuis quand, quelle zone) : la réponse arrive ici, avec une notification.',
+    nouveauMessage: 'Votre message', actualiser: 'Actualiser',
+    statuts: { nouvelle: 'reçue', 'en cours': 'en cours', 'attente client': 'réponse du support', 'résolue': 'résolue' }
   },
   en: {
     protoAncien: 'These tools need firmware 3.5 (protocol 4). Update the base from the Device tab.',
@@ -1630,7 +1670,24 @@ const TEXTES = {
     telecharger: 'Download', restaurer: 'Restore…',
     confirmRestaurer: 'Replace the base\'s settings with those of “{f}”? All or nothing: a single refused setting and nothing changes.',
     fichierInvalide: 'This file is not a base backup.',
-    oui: 'Continue'
+    oui: 'Continue',
+    assistance: 'Support',
+    sansServeur: 'Remote support goes through a Terrariums server: this base is not linked to one.',
+    accesFerme: 'Support has no access to this base. If they ask you, allow it here: 24 h, closable at any time, without giving your pairing code.',
+    accesDemande: 'Support asks for access to this base (request #{n}).',
+    accesOuvert: 'Support has access to this base until {d}{p}.',
+    prolonge: ' (extended)',
+    accesAide: 'They can run diagnostics and change settings; every action is written in the base\'s log, and its screen shows “Support connecté”.',
+    autoriser: 'Allow support (24 h)', refuser: 'Decline', fermerAcces: 'Close access',
+    autoriserTitre: 'Open access to support?',
+    autoriserTexte: 'For 24 h, support will be able to diagnose and adjust this base remotely. You can close the access at any time.',
+    confirmFermer: 'Support will no longer be able to act on this base.',
+    ouvertOk: 'Access open for 24 h.', fermeOk: 'Access closed.', refuseOk: 'Access request declined.',
+    demandes: 'Your conversations with support', vous: 'You', support: 'Support', demandeN: 'Request #{n} — {s}',
+    repondre: 'Reply', envoyer2: 'Send', envoye: 'Message sent.',
+    ecrire: 'Write to support', aideEcrire: 'Describe what you see (since when, which zone): the answer arrives here, with a notification.',
+    nouveauMessage: 'Your message', actualiser: 'Refresh',
+    statuts: { nouvelle: 'received', 'en cours': 'in progress', 'attente client': 'support replied', 'résolue': 'solved' }
   }
 };
 
@@ -1650,6 +1707,22 @@ window.SERVICE = function service(app) {
   const memoire = {};          // par socle : ce que le socle a rendu
   const m = id => memoire[id] || (memoire[id] = {});
   let suivi = null;            // relecture tant qu'une identification ou un essai court
+
+  const dateCourte = iso => new Date(iso).toLocaleString(app.langue() === 'en' ? 'en-GB' : 'fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+  const serveur = app.serveur || { actif: () => false };
+
+  // Assistance : l'accès et les échanges, lus auprès du serveur.
+  async function chargerSupport(id) {
+    if (!serveur.actif()) return;
+    m(id).supportLu = Date.now();          // une lecture à la fois, pas plus d'une par 20 s à l'ouverture
+    try {
+      const [a, d] = await Promise.all([serveur.appel('GET', '/api/support/acces'), serveur.appel('GET', '/api/support/demandes')]);
+      m(id).support = { acces: (a.acces || []).find(x => x.id === id) || { actif: false }, demandes: (d.demandes || []).filter(x => x.socle === id) };
+    } catch (e) {
+      m(id).support = { erreur: e.message };
+    }
+    peindreTout();
+  }
 
   const btn = (sv, libelle, classe = 'btn btn-secondaire', extra = '') =>
     `<button type="button" class="${classe}" data-action="sv" data-sv="${sv}"${extra}>${libelle}</button>`;
@@ -1811,8 +1884,48 @@ window.SERVICE = function service(app) {
         <input type="file" id="sv-fichier" accept="application/json,.json" hidden></div>`;
   }
 
+  function carteSupport(id) {
+    let h = `<h2>${tx('assistance')}</h2>`;
+    if (!serveur.actif()) return h + `<p class="aide">${tx('sansServeur')}</p>`;
+    const sp = m(id).support;
+    if (!sp) return h + `<p class="aide" aria-busy="true">${tx('chargement')}</p>`;
+    if (sp.erreur) return h + `<p class="aide">${esc(sp.erreur)}</p>`;
+    const a = sp.acces;
+    const actualiser = btn('actualiserSupport', tx('actualiser'), 'btn btn-fantome');
+    if (a.actif) {
+      h += `<p class="bandeau-ok" role="status">${tx('accesOuvert', { d: dateCourte(a.jusqua), p: a.prolonge ? tx('prolonge') : '' })}</p>
+        <p class="aide">${tx('accesAide')}</p>
+        <div class="boutons">${btn('fermerSupport', tx('fermerAcces'), 'btn btn-danger')}${actualiser}</div>`;
+    } else if (a.demandeAcces) {
+      h += `<p class="aide" role="status"><b>${tx('accesDemande', { n: a.demandeAcces.n })}</b></p>
+        <div class="boutons">${btn('autoriserSupport', tx('autoriser'), 'btn')}${btn('refuserSupport', tx('refuser'))}${actualiser}</div>`;
+    } else {
+      h += `<p class="aide">${tx('accesFerme')}</p><div class="boutons">${btn('autoriserSupport', tx('autoriser'))}${actualiser}</div>`;
+    }
+    if (sp.demandes.length) {
+      h += `<h3 class="mt">${tx('demandes')}</h3>`;
+      sp.demandes.forEach((d, i) => {
+        const statut = (tx('statuts') || {})[d.statut] || d.statut;
+        h += `<details class="demande-support"${i === 0 && d.statut !== 'résolue' ? ' open' : ''}><summary>${tx('demandeN', { n: d.n, s: esc(statut) })}</summary>
+          <ol class="fil-support">${d.messages.map(x => `<li data-de="${x.de === 'client' ? 'client' : 'support'}"><span class="discret">${x.de === 'client' ? tx('vous') : tx('support')} · ${dateCourte(x.t)}</span><p>${esc(x.texte)}</p></li>`).join('')}</ol>
+          <form data-form="sv-message" data-n="${d.n}" novalidate>
+            <label for="sv-rep-${d.n}">${tx('repondre')}</label>
+            <textarea id="sv-rep-${d.n}" rows="3"></textarea>
+            <div class="boutons"><button type="submit" class="btn btn-secondaire">${tx('envoyer2')}</button></div>
+          </form></details>`;
+      });
+    }
+    h += `<h3 class="mt">${tx('ecrire')}</h3><p class="aide">${tx('aideEcrire')}</p>
+      <form data-form="sv-nouvelle" novalidate>
+        <label for="sv-nouvelle">${tx('nouveauMessage')}</label>
+        <textarea id="sv-nouvelle" rows="3"></textarea>
+        <div class="boutons"><button type="submit" class="btn btn-secondaire">${tx('envoyer2')}</button></div>
+      </form>`;
+    return h;
+  }
+
   /** @type {Array<[string, (id: string, e: any) => string]>} */
-  const CARTES = [['sondes', carteSondes], ['essai', carteEssai], ['surv', carteSurveillance],
+  const CARTES = [['support', carteSupport], ['sondes', carteSondes], ['essai', carteEssai], ['surv', carteSurveillance],
                   ['rapport', carteRapport], ['journal', carteJournal], ['jours', carteJours], ['sauv', carteSauvegarde]];
 
   function peindreTout() {
@@ -1835,7 +1948,8 @@ window.SERVICE = function service(app) {
         d.lu = true;
         relireEtat(s.id);
         faire(s.id, 'reseau', {}, 'reseau');
-      }
+        chargerSupport(s.id);
+      } else if (!d.supportLu || Date.now() - d.supportLu > 20000) chargerSupport(s.id);
       return CARTES.map(([cle]) => `<section class="carte" data-sv-carte="${cle}"></section>`).join('');
     },
 
@@ -1898,13 +2012,54 @@ window.SERVICE = function service(app) {
           if (f) f.click();
           return undefined;
         }
+        // Accès support : une clé de session tirée ici ; le socle l'apprend par
+        // une commande signée avec le code, le serveur ensuite (et vérifie qu'elle
+        // signe). Si le serveur la refuse, le socle referme aussitôt.
+        case 'autoriserSupport': {
+          if (!await app.confirmer({ titre: tx('autoriserTitre'), texte: tx('autoriserTexte'), ok: tx('autoriser') })) return undefined;
+          const cle = Array.from(crypto.getRandomValues(new Uint8Array(32)), x => x.toString(16).padStart(2, '0')).join('');
+          try {
+            await app.commander(id, 'service', { op: 'ouvrir', cle, heures: 24 });
+            try { await serveur.appel('POST', '/api/support/acces', { socle: id, cle }); }
+            catch (e) { await app.commander(id, 'service', { op: 'fermer' }).catch(() => {}); throw e; }
+            app.message(tx('ouvertOk'));
+          } catch (e) { app.message(e.message, true); }
+          return chargerSupport(id);
+        }
+        case 'fermerSupport': {
+          if (!await app.confirmer({ titre: tx('fermerAcces'), texte: tx('confirmFermer'), ok: tx('fermerAcces'), danger: true })) return undefined;
+          // Le serveur referme avec la clé ; le socle aussi, avec le code : l'un suffit.
+          const r = await Promise.allSettled([serveur.appel('DELETE', `/api/support/acces/${id}`), app.commander(id, 'service', { op: 'fermer' })]);
+          if (r.every(x => x.status === 'rejected')) app.message(/** @type {any} */ (r[0]).reason.message, true);
+          else app.message(tx('fermeOk'));
+          return chargerSupport(id);
+        }
+        case 'actualiserSupport': return chargerSupport(id);
+        case 'refuserSupport':
+          try { await serveur.appel('POST', `/api/support/acces/${id}/refuser`); app.message(tx('refuseOk')); }
+          catch (e) { app.message(e.message, true); }
+          return chargerSupport(id);
       }
       return undefined;
     },
 
     async soumettre(form) {
       const id = app.socleOuvert();
-      if (!id || form.dataset.form !== 'sv-surveillance') return;
+      if (!id) return;
+      if (form.dataset.form === 'sv-message' || form.dataset.form === 'sv-nouvelle') {
+        const champ = /** @type {any} */ (form.querySelector('textarea'));
+        const texte = String(champ.value || '').trim();
+        if (!texte) return;
+        try {
+          if (form.dataset.form === 'sv-nouvelle') await serveur.appel('POST', '/api/support/demandes', { socle: id, texte });
+          else await serveur.appel('POST', `/api/support/demandes/${form.dataset.n}/messages`, { texte });
+          champ.value = '';
+          app.message(tx('envoye'));
+        } catch (e) { app.message(e.message, true); }
+        await chargerSupport(id);
+        return;
+      }
+      if (form.dataset.form !== 'sv-surveillance') return;
       const racine = app.racine();
       const val = sel => String(/** @type {any} */ (racine.querySelector(sel)).value || '').trim();
       /** @type {Record<string, any>} */
@@ -1928,6 +2083,9 @@ window.SERVICE = function service(app) {
       await faire(id, 'restaurer', { sauvegarde });
       relireEtat(id);
     },
+
+    // Une demande d'accès vient d'être signalée : relire tout de suite.
+    rafraichirSupport(id) { return chargerSupport(id); },
 
     // Socle oublié ou rechargé : ce qui a été lu ne vaut plus.
     oublier(id) { delete memoire[id]; }
@@ -2085,6 +2243,7 @@ const App = (() => {
       codeCompteRefuse: 'Code incorrect ou expiré.', tropDeDemandes: 'Trop de demandes : réessaie dans un quart d\'heure.',
       cleAccesRefusee: 'Clé d\'accès refusée : {m}', cleAccesAnnulee: 'Clé d\'accès annulée.',
       proposerCle: 'La prochaine fois, connecte-toi sans code : crée une clé d\'accès sur cet appareil.', creerCle: 'Créer',
+      supportDemande: 'Le support demande l\'accès à {s}.', voirDemande: 'Voir',
       cleCreee: 'Clé d\'accès créée : la prochaine connexion se fera d\'un geste.', cleImpossible: 'Clé d\'accès non créée : {m}',
       sessionExpiree: 'Ta session a expiré : reconnecte-toi.', monCompte: 'Mon compte', clesAcces: 'Clés d\'accès',
       aucuneCle: 'Aucune clé d\'accès : la connexion se fait par un code envoyé par e-mail.', ajouterCle: 'Ajouter une clé sur cet appareil',
@@ -2507,7 +2666,7 @@ const App = (() => {
     if (!config.broker || !config.broker.url) { montrer('broker'); return; }
     // Serveur déjà connu de cette configuration : session rouverte tout de
     // suite ; sinon, c'est son annonce MQTT qui déclenchera la détection.
-    if (config.serveur) serveur.detecter().then(() => invalider());
+    if (config.serveur) serveur.detecter().then(ok => { invalider(); if (ok) verifierDemandesSupport(); });
     if (client) { try { client.end(true); } catch (e) { /* déjà fermé */ } }
 
     lien(t('connexion'), 'attente');
@@ -2531,6 +2690,26 @@ const App = (() => {
       if (config.broker && config.broker.compte && /identifiants incorrects|non autorisé/.test(e.message)) api.sessionExpiree();
     });
     client.on('message', recevoir);
+  }
+
+  // Le support demande l'accès à un socle : dit une fois par demande, avec de
+  // quoi y répondre (l'onglet Service du socle, carte Assistance).
+  const demandesSupportVues = new Set();
+  async function verifierDemandesSupport() {
+    if (!serveur.actif()) return;
+    let r;
+    try { r = await serveur.appel('GET', '/api/support/acces'); } catch (e) { return; }
+    for (const a of (r && r.acces) || []) {
+      if (!a.demandeAcces || demandesSupportVues.has(a.id + a.demandeAcces.t)) continue;
+      demandesSupportVues.add(a.id + a.demandeAcces.t);
+      const s = socle(a.id);
+      message(t('supportDemande', { s: s ? (s.nom || a.id) : a.id }), false,
+        { libelle: t('voirDemande'), faire: () => {
+          api.ouvrir(a.id); api.panneau('service');
+          chargerService().then(() => { if (serviceMod) serviceMod.rafraichirSupport(a.id); });
+        } }, 30000);
+      return;
+    }
   }
 
   function abonner(s) {
@@ -3368,6 +3547,7 @@ const App = (() => {
   let serviceMod = null, serviceCharge = null;
   const outilsService = {
     langue: () => langue, esc, icone, peindre, commander, message, confirmer, telecharger, lireFichier,
+    serveur: { actif: () => serveur.actif(), appel: (methode, chemin, corps) => serveur.appel(methode, chemin, corps) },
     socleOuvert: () => socleOuvert, etat: id => etats[id], racine: () => $('#detail [data-r="panneau"]'),
     ouvert: () => vueCourante === 'socle' && panneauActif === 'service'
   };
@@ -4042,7 +4222,7 @@ const App = (() => {
         case 'zone-complet': api.reglerZoneComplet(+f.dataset.z); break;
         case 'generaux':     api.reglerGeneraux(); break;
         case 'verrou':       api.deverrouiller(); break;
-        case 'sv-surveillance': if (serviceMod) serviceMod.soumettre(f); break;
+        case 'sv-surveillance': case 'sv-message': case 'sv-nouvelle': if (serviceMod) serviceMod.soumettre(f); break;
       }
     });
     doc.addEventListener('change', ev => {
@@ -4086,6 +4266,7 @@ const App = (() => {
     });
     // Les durées relatives (« silencieux depuis 3 min ») vieillissent sans message.
     setInterval(invalider, 30000);
+    setInterval(() => verifierDemandesSupport(), 300000);
   }
 
   // -------------------------------------------------------- agent de service
@@ -4518,6 +4699,9 @@ const App = (() => {
 
   // ----------------------------------------------------------------- actions
   const api = {
+    // Le support demande-t-il l'accès à un socle ? (aussi toutes les 5 min)
+    verifierSupport() { return verifierDemandesSupport(); },
+
     demarrer() {
       // Étiquette scannée par l'appareil photo : l'identifiant et le code sont
       // gardés en mémoire et retirés de l'adresse aussitôt (historique, favoris,

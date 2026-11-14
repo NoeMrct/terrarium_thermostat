@@ -253,6 +253,10 @@ jobs:
         working-directory: outils
         run: node test-console.js
 
+      - name: Assistance de bout en bout (application, console, socle simulé)
+        working-directory: outils
+        run: node test-support.js
+
   installateur:
     name: Intégrité de l'installateur web
     runs-on: ubuntu-latest

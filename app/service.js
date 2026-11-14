@@ -7,9 +7,12 @@
    anglais) et ne touche au DOM que par les outils que l'application lui passe
    (peindre, esc…), donc sous la même politique de sécurité qu'elle.
 
-   Sondes (inventaire, liaison, identification), essai de chauffe, calibration,
-   rapport du jour, journal, résumés journaliers, alertes et surveillance,
-   sauvegarde du socle. Rien de secret ne revient du socle : une adresse
+   Assistance (avec un serveur Terrariums) : écrire au support, lire ses
+   réponses, lui ouvrir l'accès au socle pour 24 h — une clé de session tirée
+   ici, donnée au socle puis au serveur ; le code d'appairage ne quitte pas le
+   téléphone — et le refermer. Sondes (inventaire, liaison, identification),
+   essai de chauffe, calibration, rapport du jour, journal, résumés
+   journaliers, alertes et surveillance, sauvegarde du socle. Rien de secret ne revient du socle : une adresse
    d'alerte s'écrit, seul son serveur s'affiche ; le Wi-Fi reste sur la page
    locale.
    ============================================================================= */
@@ -58,7 +61,24 @@ const TEXTES = {
     telecharger: 'Télécharger', restaurer: 'Restaurer…',
     confirmRestaurer: 'Remplacer les réglages du socle par ceux de « {f} » ? Tout ou rien : un seul réglage refusé et rien ne change.',
     fichierInvalide: 'Ce fichier n\'est pas une sauvegarde de socle.',
-    oui: 'Continuer'
+    oui: 'Continuer',
+    assistance: 'Assistance',
+    sansServeur: 'L\'assistance à distance passe par un serveur Terrariums : ce socle n\'y est pas relié.',
+    accesFerme: 'Le support n\'a pas accès à ce socle. S\'il vous le demande, autorisez-le ici : 24 h, refermable à tout moment, sans donner votre code d\'appairage.',
+    accesDemande: 'Le support demande l\'accès à ce socle (demande n°{n}).',
+    accesOuvert: 'Le support a accès à ce socle jusqu\'au {d}{p}.',
+    prolonge: ' (prolongé)',
+    accesAide: 'Il peut lancer des diagnostics et changer des réglages ; chaque geste est noté au journal du socle, et son écran affiche « Support connecté ».',
+    autoriser: 'Autoriser le support (24 h)', refuser: 'Refuser', fermerAcces: 'Fermer l\'accès',
+    autoriserTitre: 'Ouvrir l\'accès au support ?',
+    autoriserTexte: 'Pendant 24 h, le support pourra diagnostiquer et régler ce socle à distance. Vous pourrez fermer l\'accès à tout moment.',
+    confirmFermer: 'Le support ne pourra plus agir sur ce socle.',
+    ouvertOk: 'Accès ouvert pour 24 h.', fermeOk: 'Accès fermé.', refuseOk: 'Demande d\'accès refusée.',
+    demandes: 'Vos échanges avec le support', vous: 'Vous', support: 'Support', demandeN: 'Demande n°{n} — {s}',
+    repondre: 'Répondre', envoyer2: 'Envoyer', envoye: 'Message envoyé.',
+    ecrire: 'Écrire au support', aideEcrire: 'Décrivez ce que vous constatez (depuis quand, quelle zone) : la réponse arrive ici, avec une notification.',
+    nouveauMessage: 'Votre message', actualiser: 'Actualiser',
+    statuts: { nouvelle: 'reçue', 'en cours': 'en cours', 'attente client': 'réponse du support', 'résolue': 'résolue' }
   },
   en: {
     protoAncien: 'These tools need firmware 3.5 (protocol 4). Update the base from the Device tab.',
@@ -103,7 +123,24 @@ const TEXTES = {
     telecharger: 'Download', restaurer: 'Restore…',
     confirmRestaurer: 'Replace the base\'s settings with those of “{f}”? All or nothing: a single refused setting and nothing changes.',
     fichierInvalide: 'This file is not a base backup.',
-    oui: 'Continue'
+    oui: 'Continue',
+    assistance: 'Support',
+    sansServeur: 'Remote support goes through a Terrariums server: this base is not linked to one.',
+    accesFerme: 'Support has no access to this base. If they ask you, allow it here: 24 h, closable at any time, without giving your pairing code.',
+    accesDemande: 'Support asks for access to this base (request #{n}).',
+    accesOuvert: 'Support has access to this base until {d}{p}.',
+    prolonge: ' (extended)',
+    accesAide: 'They can run diagnostics and change settings; every action is written in the base\'s log, and its screen shows “Support connecté”.',
+    autoriser: 'Allow support (24 h)', refuser: 'Decline', fermerAcces: 'Close access',
+    autoriserTitre: 'Open access to support?',
+    autoriserTexte: 'For 24 h, support will be able to diagnose and adjust this base remotely. You can close the access at any time.',
+    confirmFermer: 'Support will no longer be able to act on this base.',
+    ouvertOk: 'Access open for 24 h.', fermeOk: 'Access closed.', refuseOk: 'Access request declined.',
+    demandes: 'Your conversations with support', vous: 'You', support: 'Support', demandeN: 'Request #{n} — {s}',
+    repondre: 'Reply', envoyer2: 'Send', envoye: 'Message sent.',
+    ecrire: 'Write to support', aideEcrire: 'Describe what you see (since when, which zone): the answer arrives here, with a notification.',
+    nouveauMessage: 'Your message', actualiser: 'Refresh',
+    statuts: { nouvelle: 'received', 'en cours': 'in progress', 'attente client': 'support replied', 'résolue': 'solved' }
   }
 };
 
@@ -123,6 +160,22 @@ export default function service(app) {
   const memoire = {};          // par socle : ce que le socle a rendu
   const m = id => memoire[id] || (memoire[id] = {});
   let suivi = null;            // relecture tant qu'une identification ou un essai court
+
+  const dateCourte = iso => new Date(iso).toLocaleString(app.langue() === 'en' ? 'en-GB' : 'fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+  const serveur = app.serveur || { actif: () => false };
+
+  // Assistance : l'accès et les échanges, lus auprès du serveur.
+  async function chargerSupport(id) {
+    if (!serveur.actif()) return;
+    m(id).supportLu = Date.now();          // une lecture à la fois, pas plus d'une par 20 s à l'ouverture
+    try {
+      const [a, d] = await Promise.all([serveur.appel('GET', '/api/support/acces'), serveur.appel('GET', '/api/support/demandes')]);
+      m(id).support = { acces: (a.acces || []).find(x => x.id === id) || { actif: false }, demandes: (d.demandes || []).filter(x => x.socle === id) };
+    } catch (e) {
+      m(id).support = { erreur: e.message };
+    }
+    peindreTout();
+  }
 
   const btn = (sv, libelle, classe = 'btn btn-secondaire', extra = '') =>
     `<button type="button" class="${classe}" data-action="sv" data-sv="${sv}"${extra}>${libelle}</button>`;
@@ -284,8 +337,48 @@ export default function service(app) {
         <input type="file" id="sv-fichier" accept="application/json,.json" hidden></div>`;
   }
 
+  function carteSupport(id) {
+    let h = `<h2>${tx('assistance')}</h2>`;
+    if (!serveur.actif()) return h + `<p class="aide">${tx('sansServeur')}</p>`;
+    const sp = m(id).support;
+    if (!sp) return h + `<p class="aide" aria-busy="true">${tx('chargement')}</p>`;
+    if (sp.erreur) return h + `<p class="aide">${esc(sp.erreur)}</p>`;
+    const a = sp.acces;
+    const actualiser = btn('actualiserSupport', tx('actualiser'), 'btn btn-fantome');
+    if (a.actif) {
+      h += `<p class="bandeau-ok" role="status">${tx('accesOuvert', { d: dateCourte(a.jusqua), p: a.prolonge ? tx('prolonge') : '' })}</p>
+        <p class="aide">${tx('accesAide')}</p>
+        <div class="boutons">${btn('fermerSupport', tx('fermerAcces'), 'btn btn-danger')}${actualiser}</div>`;
+    } else if (a.demandeAcces) {
+      h += `<p class="aide" role="status"><b>${tx('accesDemande', { n: a.demandeAcces.n })}</b></p>
+        <div class="boutons">${btn('autoriserSupport', tx('autoriser'), 'btn')}${btn('refuserSupport', tx('refuser'))}${actualiser}</div>`;
+    } else {
+      h += `<p class="aide">${tx('accesFerme')}</p><div class="boutons">${btn('autoriserSupport', tx('autoriser'))}${actualiser}</div>`;
+    }
+    if (sp.demandes.length) {
+      h += `<h3 class="mt">${tx('demandes')}</h3>`;
+      sp.demandes.forEach((d, i) => {
+        const statut = (tx('statuts') || {})[d.statut] || d.statut;
+        h += `<details class="demande-support"${i === 0 && d.statut !== 'résolue' ? ' open' : ''}><summary>${tx('demandeN', { n: d.n, s: esc(statut) })}</summary>
+          <ol class="fil-support">${d.messages.map(x => `<li data-de="${x.de === 'client' ? 'client' : 'support'}"><span class="discret">${x.de === 'client' ? tx('vous') : tx('support')} · ${dateCourte(x.t)}</span><p>${esc(x.texte)}</p></li>`).join('')}</ol>
+          <form data-form="sv-message" data-n="${d.n}" novalidate>
+            <label for="sv-rep-${d.n}">${tx('repondre')}</label>
+            <textarea id="sv-rep-${d.n}" rows="3"></textarea>
+            <div class="boutons"><button type="submit" class="btn btn-secondaire">${tx('envoyer2')}</button></div>
+          </form></details>`;
+      });
+    }
+    h += `<h3 class="mt">${tx('ecrire')}</h3><p class="aide">${tx('aideEcrire')}</p>
+      <form data-form="sv-nouvelle" novalidate>
+        <label for="sv-nouvelle">${tx('nouveauMessage')}</label>
+        <textarea id="sv-nouvelle" rows="3"></textarea>
+        <div class="boutons"><button type="submit" class="btn btn-secondaire">${tx('envoyer2')}</button></div>
+      </form>`;
+    return h;
+  }
+
   /** @type {Array<[string, (id: string, e: any) => string]>} */
-  const CARTES = [['sondes', carteSondes], ['essai', carteEssai], ['surv', carteSurveillance],
+  const CARTES = [['support', carteSupport], ['sondes', carteSondes], ['essai', carteEssai], ['surv', carteSurveillance],
                   ['rapport', carteRapport], ['journal', carteJournal], ['jours', carteJours], ['sauv', carteSauvegarde]];
 
   function peindreTout() {
@@ -308,7 +401,8 @@ export default function service(app) {
         d.lu = true;
         relireEtat(s.id);
         faire(s.id, 'reseau', {}, 'reseau');
-      }
+        chargerSupport(s.id);
+      } else if (!d.supportLu || Date.now() - d.supportLu > 20000) chargerSupport(s.id);
       return CARTES.map(([cle]) => `<section class="carte" data-sv-carte="${cle}"></section>`).join('');
     },
 
@@ -371,13 +465,54 @@ export default function service(app) {
           if (f) f.click();
           return undefined;
         }
+        // Accès support : une clé de session tirée ici ; le socle l'apprend par
+        // une commande signée avec le code, le serveur ensuite (et vérifie qu'elle
+        // signe). Si le serveur la refuse, le socle referme aussitôt.
+        case 'autoriserSupport': {
+          if (!await app.confirmer({ titre: tx('autoriserTitre'), texte: tx('autoriserTexte'), ok: tx('autoriser') })) return undefined;
+          const cle = Array.from(crypto.getRandomValues(new Uint8Array(32)), x => x.toString(16).padStart(2, '0')).join('');
+          try {
+            await app.commander(id, 'service', { op: 'ouvrir', cle, heures: 24 });
+            try { await serveur.appel('POST', '/api/support/acces', { socle: id, cle }); }
+            catch (e) { await app.commander(id, 'service', { op: 'fermer' }).catch(() => {}); throw e; }
+            app.message(tx('ouvertOk'));
+          } catch (e) { app.message(e.message, true); }
+          return chargerSupport(id);
+        }
+        case 'fermerSupport': {
+          if (!await app.confirmer({ titre: tx('fermerAcces'), texte: tx('confirmFermer'), ok: tx('fermerAcces'), danger: true })) return undefined;
+          // Le serveur referme avec la clé ; le socle aussi, avec le code : l'un suffit.
+          const r = await Promise.allSettled([serveur.appel('DELETE', `/api/support/acces/${id}`), app.commander(id, 'service', { op: 'fermer' })]);
+          if (r.every(x => x.status === 'rejected')) app.message(/** @type {any} */ (r[0]).reason.message, true);
+          else app.message(tx('fermeOk'));
+          return chargerSupport(id);
+        }
+        case 'actualiserSupport': return chargerSupport(id);
+        case 'refuserSupport':
+          try { await serveur.appel('POST', `/api/support/acces/${id}/refuser`); app.message(tx('refuseOk')); }
+          catch (e) { app.message(e.message, true); }
+          return chargerSupport(id);
       }
       return undefined;
     },
 
     async soumettre(form) {
       const id = app.socleOuvert();
-      if (!id || form.dataset.form !== 'sv-surveillance') return;
+      if (!id) return;
+      if (form.dataset.form === 'sv-message' || form.dataset.form === 'sv-nouvelle') {
+        const champ = /** @type {any} */ (form.querySelector('textarea'));
+        const texte = String(champ.value || '').trim();
+        if (!texte) return;
+        try {
+          if (form.dataset.form === 'sv-nouvelle') await serveur.appel('POST', '/api/support/demandes', { socle: id, texte });
+          else await serveur.appel('POST', `/api/support/demandes/${form.dataset.n}/messages`, { texte });
+          champ.value = '';
+          app.message(tx('envoye'));
+        } catch (e) { app.message(e.message, true); }
+        await chargerSupport(id);
+        return;
+      }
+      if (form.dataset.form !== 'sv-surveillance') return;
       const racine = app.racine();
       const val = sel => String(/** @type {any} */ (racine.querySelector(sel)).value || '').trim();
       /** @type {Record<string, any>} */
@@ -401,6 +536,9 @@ export default function service(app) {
       await faire(id, 'restaurer', { sauvegarde });
       relireEtat(id);
     },
+
+    // Une demande d'accès vient d'être signalée : relire tout de suite.
+    rafraichirSupport(id) { return chargerSupport(id); },
 
     // Socle oublié ou rechargé : ce qui a été lu ne vaut plus.
     oublier(id) { delete memoire[id]; }

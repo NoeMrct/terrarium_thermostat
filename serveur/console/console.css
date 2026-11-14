@@ -137,3 +137,31 @@ label.case input { width: 18px; height: 18px; min-height: 0; margin: 0; }
   .journal-console li { grid-template-columns: minmax(0, 1fr); }
   .journal-console .detail { grid-column: 1; }
 }
+
+/* ---- support ----------------------------------------------------------------------- */
+.console textarea, .fiche-console textarea {
+  width: 100%; box-sizing: border-box; min-height: 72px; resize: vertical;
+  background: var(--champ); color: var(--texte);
+  border: 1px solid var(--ligne-forte); border-radius: var(--rayon-petit);
+  padding: 10px 12px; font: inherit; font-size: 15px; line-height: 1.45;
+}
+.console textarea:focus-visible, .fiche-console textarea:focus-visible {
+  outline: none; border-color: var(--focus); box-shadow: 0 0 0 3px color-mix(in oklab, var(--focus) 25%, transparent);
+}
+.acces-ouverts:empty { display: none; }
+.acces-ouverts h3 { margin-bottom: 6px; }
+.table-console .extrait { max-width: 340px; color: var(--texte); font-size: 13.5px; overflow-wrap: anywhere; }
+.alerte-proactive > span:first-child { white-space: normal; }
+.alerte-proactive > span:last-child { display: inline-flex; align-items: center; gap: 8px; }
+.champs-demande { display: grid; gap: 0 12px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.fil { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.fil li { max-width: 88%; padding: 10px 12px; border-radius: var(--rayon-petit); background: var(--carte); }
+.fil li[data-de="support"] { margin-left: auto; background: var(--accent-doux); }
+.fil .discret { color: var(--texte-2); }
+.texte-message { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14.5px; color: var(--texte); }
+.liste-actions .texte-message { display: block; margin: 0 0 2px; }
+.ligne-message { margin-top: 10px; }
+.panneau-acces h4 { margin: 12px 0 6px; font-size: 13px; font-weight: 600; color: var(--texte-2); }
+.sortie-support { max-height: 260px; }
+.frise li[data-source="client"] { box-shadow: inset 3px 0 0 var(--ok); }
+.frise li[data-source="support"] { box-shadow: inset 3px 0 0 var(--attention); }

@@ -497,6 +497,25 @@ label.inline { display: inline-flex; align-items: center; gap: 8px; margin: 0; f
 label.inline select { width: auto; min-height: 36px; padding: 4px 28px 4px 10px; font-size: 13px; border-radius: 11px; }
 a.btn { text-decoration: none; }
 
+/* ----------------------------------------------------------------- assistance */
+/* Onglet Service, carte Assistance : l'accès du support et les échanges. */
+textarea {
+  width: 100%; box-sizing: border-box; min-height: 80px; resize: vertical;
+  background: var(--champ); color: var(--texte);
+  border: 1px solid var(--ligne-forte); border-radius: var(--rayon-petit);
+  padding: 10px 12px; font: inherit; font-size: 16px; line-height: 1.45;
+}
+textarea:focus-visible { outline: none; border-color: var(--focus); box-shadow: 0 0 0 3px color-mix(in oklab, var(--focus) 25%, transparent); }
+.demande-support { margin-top: 10px; }
+.demande-support > summary { cursor: pointer; font-weight: 500; padding: 4px 0; }
+.demande-support form { margin-top: 8px; }
+.fil-support { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.fil-support li { max-width: 88%; padding: 10px 12px; border-radius: var(--rayon-petit); background: var(--fond); }
+.fil-support li[data-de="client"] { margin-left: auto; background: var(--accent-doux); }
+.fil-support p { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Sur le vert pâle d'une bulle, le gris discret ne tient pas 4,5:1 : un cran plus foncé. */
+.fil-support .discret { color: var(--texte-2); }
+
 /* ----------------------------------------------------------------- santé */
 .signal { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; margin-right: 8px; vertical-align: -1px; }
 .signal i { width: 4px; border-radius: 1px; background: var(--ligne); }
