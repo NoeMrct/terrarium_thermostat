@@ -140,16 +140,24 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
       // pseudo-élément. Le conteneur le plus profond dont la largeur défilable
       // dépasse l'écran le situe, et son style dit pourquoi.
       if (page && !coupables.length) {
-        const large = el => el.scrollWidth > window.innerWidth + 1;
-        let el = document.body;
-        for (;;) { const enfant = [...el.children].find(large); if (!enfant) break; el = enfant; }
-        const st = window.getComputedStyle(el);
-        coupables.push(`${nom(el)} défile sur ${el.scrollWidth} px (boîte ${Math.round(el.getBoundingClientRect().width)} px, white-space ${st.whiteSpace}, overflow-wrap ${st.overflowWrap}) « ${el.textContent.trim().replace(/\s+/g, ' ').slice(0, 60)} »`);
+        // WebKit compte la marge intérieure de fin de <main> dans la largeur
+        // défilable : un élément qui empiète sur elle suffit, même s'il reste
+        // dans l'écran. On cherche donc ce qui dépasse la boîte de contenu.
+        const main = document.querySelector('main');
+        const limite = main.getBoundingClientRect().right - parseFloat(window.getComputedStyle(main).paddingRight) + 0.5;
+        const empiete = el => el.getBoundingClientRect().right > limite;
+        const fautifs = [...main.querySelectorAll('*')].filter(el => empiete(el) && ![...el.children].some(empiete));
+        for (const el of fautifs.slice(0, 3)) {
+          const st = window.getComputedStyle(el);
+          coupables.push(`${nom(el)} ${Math.round(el.getBoundingClientRect().width)} px, fin à ${Math.round(el.getBoundingClientRect().right)} px pour ${Math.round(limite)} (display ${st.display}, white-space ${st.whiteSpace}, min-width ${st.minWidth}) « ${el.textContent.trim().replace(/\s+/g, ' ').slice(0, 40)} »`);
+        }
+        if (!fautifs.length) coupables.push('aucun élément de <main> ne dépasse sa boîte de contenu');
       }
       return { n: tuiles.length, fautive: fautive ? fautive.textContent.trim().slice(0, 40) : '', page, coupables, largeur: document.documentElement.scrollWidth };
     });
     v(`à ${largeur} px, aucune tuile ne déborde`, r.n > 0 && !r.fautive && !r.page,
-      r.fautive || (r.page ? `la page fait ${r.largeur} px : ${r.coupables.join(' ; ') || 'rien de visible'}` : `${r.n} tuiles`));
+      r.fautive || (r.page ? `la page fait ${r.largeur} px (détail ci-dessous)` : `${r.n} tuiles`));
+    if (r.page) r.coupables.forEach(c => console.log(`          → ${c}`));
   }
   await page.setViewportSize({ width: 390, height: 844 });
 
