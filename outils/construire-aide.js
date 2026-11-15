@@ -7,8 +7,12 @@
    convertisseur suffit : titres, paragraphes, listes, tableaux, citations,
    blocs de code, gras, italique, code en ligne, liens. Pas de dépendance.
 
-     node construire-aide.js             # écrit app/aide.html
+     node construire-aide.js             # écrit app/aide.html (et l'index de recherche)
      node construire-aide.js --verifier  # échoue si app/aide.html n'est pas à jour
+
+   L'index de recherche (app/aide-index.json) : chaque section du manuel, son
+   ancre et son texte nu, dans les deux langues ; l'application y cherche
+   sans rien demander à personne.
    ============================================================================= */
 
 const fs = require('fs');
@@ -160,15 +164,32 @@ ${corps.replace('</h1>', '</h1>\n' + toc)}
 `;
 }
 
-for (const p of PAGES) {
-  const html = page(fs.readFileSync(p.source, 'utf8'), p);
-  const nom = path.relative(path.join(__dirname, '..'), p.sortie);
+// Les sections (## et ###) du manuel en texte nu, pour la recherche de l'application.
+function sections(md) {
+  const nu = s => s.replace(/`([^`]+)`/g, '$1').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/(^|[^*])\*([^*]+)\*/g, '$1$2')
+    .replace(/\[([^\]]+)\]\([^)\s]+\)/g, '$1').replace(/^\s*(-|\d+\.|>)\s+/gm, '').replace(/\|/g, ' ').replace(/^-{3,}.*$/gm, '')
+    .replace(/\s+/g, ' ').trim();
+  const l = [];
+  let cur = null;
+  for (const ligne of md.split('\n')) {
+    const m = /^(#{2,3}) (.+)$/.exec(ligne);
+    if (m) { cur = { t: m[2].trim(), a: ancre(m[2].trim()), x: '' }; l.push(cur); continue; }
+    if (cur && !/^```/.test(ligne)) cur.x += ' ' + ligne;
+  }
+  return l.map(s => ({ t: s.t, a: s.a, x: nu(s.x).slice(0, 1600) }));
+}
+
+const SORTIES = PAGES.map(p => [p.sortie, page(fs.readFileSync(p.source, 'utf8'), p)]);
+const INDEX = path.join(__dirname, '..', 'app', 'aide-index.json');
+SORTIES.push([INDEX, JSON.stringify(Object.fromEntries(PAGES.map(p => [p.langue, sections(fs.readFileSync(p.source, 'utf8'))]))) + '\n']);
+for (const [sortie, contenu] of SORTIES) {
+  const nom = path.relative(path.join(__dirname, '..'), sortie);
   if (process.argv.includes('--verifier')) {
-    const actuel = fs.existsSync(p.sortie) ? fs.readFileSync(p.sortie, 'utf8') : '';
-    if (actuel !== html) { console.error(`${nom} n'est pas à jour : lancer node outils/construire-aide.js`); process.exit(1); }
+    const actuel = fs.existsSync(sortie) ? fs.readFileSync(sortie, 'utf8') : '';
+    if (actuel !== contenu) { console.error(`${nom} n'est pas à jour : lancer node outils/construire-aide.js`); process.exit(1); }
     console.log(`${nom} à jour`);
   } else {
-    fs.writeFileSync(p.sortie, html);
-    console.log(`${nom} écrit (${(html.length / 1024).toFixed(1)} Ko)`);
+    fs.writeFileSync(sortie, contenu);
+    console.log(`${nom} écrit (${(contenu.length / 1024).toFixed(1)} Ko)`);
   }
 }

@@ -1112,3 +1112,15 @@ div.ligne-reglage, label.ligne-reglage { cursor: default; }
 .lien-pret small { font-size: 13px; color: var(--texte-2); }
 .attention-texte { color: var(--attention) !important; }
 .lien-invitation { font-size: 13px; color: var(--texte-2); }
+
+/* Aide dans l'application. */
+.recherche-aide { position: relative; }
+.recherche-aide .ico { position: absolute; left: 16px; top: 15px; width: 18px; height: 18px; color: var(--texte-2); }
+.recherche-aide input { padding-left: 44px; border-radius: 24px; background: var(--creux); border-color: transparent; }
+[data-r="ai-resultats"]:not(:empty) { margin-top: 12px; }
+.faq details { border-top: 1px solid var(--ligne); }
+.faq details:last-child { border-bottom: 1px solid var(--ligne); }
+.faq summary { min-height: 56px; display: flex; align-items: center; font-size: 16px; cursor: pointer; }
+.faq summary:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; }
+.faq p { padding-bottom: 14px; color: var(--texte-2); line-height: 1.5; }
+.boutons-pile { display: flex; flex-direction: column; gap: 10px; margin-top: 22px; }

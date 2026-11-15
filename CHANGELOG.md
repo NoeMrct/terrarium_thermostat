@@ -84,6 +84,10 @@ jour.
 - **Délai de grâce hors ligne** (U34) : un socle qui quitte le broker n'est
   notifié qu'au bout de 5 minutes (`DELAI_HORS_LIGNE_MIN`) ; revenu avant,
   rien ne part ; notifié, son retour en ligne l'est aussi.
+- **Aide dans l'application** : « Aide et notice » cherche dans la notice,
+  même hors ligne (index `app/aide-index.json` construit avec elle, mis en
+  cache), et mène au diagnostic, au dépannage, aux questions fréquentes et,
+  avec le serveur, au support.
 - **Partager un socle** (F12, U4, serveur Terrariums) : dans les réglages de
   l'application, un lien d'invitation à usage unique (48 h), en « Lecture
   seule » (voir, être prévenu) ou « Peut régler » (consignes et horaires, le

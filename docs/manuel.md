@@ -387,6 +387,11 @@ L'arbre de décision complet est dans `docs/depannage.md`. Les trois cas les plu
 
 ## 15. Diagnostic et aide
 
+**Aide et notice** (Réglages de l'application) cherche dans cette notice, même hors ligne : tape un
+mot (« sonde », « vacances »…), chaque section qui en parle s'ouvre d'un appui. La même page mène au
+diagnostic, au dépannage, aux questions les plus fréquentes et, avec le serveur Terrariums, au
+support.
+
 **Diagnostic** (Réglages de l'application) assemble un rapport : version de
 l'application, navigateur, état du broker, pour chaque socle sa version, son signal Wi-Fi, sa
 mémoire, son dernier redémarrage, et les erreurs récentes. Il ne contient ni mot de passe ni code

@@ -332,6 +332,18 @@ const App = (() => {
       serveurLib: 'Serveur', changerServeur: 'Changer',
       codeVerrou: 'Code de verrouillage', codeActifLib: 'Actif : il est demandé à l\'ouverture', codeInactifLib: 'Aucun',
       definirCodeLib: 'Définir', retirerCodeLib: 'Retirer', verrouillerApres: 'Verrouiller après', verrouillerMaintenant: 'Verrouiller maintenant',
+      aiTitre: 'Aide', aiChercher: 'Rechercher dans l\'aide', aiExemple: 'Une question ? Par ex. « sonde »',
+      aiDepannage: 'Dépannage', aiDiagnostic: 'Diagnostic de l\'application', aiDepanner: 'Dépanner un socle (sondes, Wi-Fi, port USB)',
+      aiFaq: 'Questions fréquentes', aiNotice: 'Toute la notice', aiSupport: 'Écrire au support',
+      aiIndexAbsent: 'La recherche n\'est pas disponible ici : ouvre toute la notice.', aiRien: 'Rien sur « {q} » dans la notice.',
+      aiFaqTour: 'Pourquoi une zone « attend son tour » ?',
+      aiFaqTourR: 'Le bloc d\'alimentation ne peut pas alimenter les deux tapis en même temps : le socle les chauffe à tour de rôle, la zone prioritaire d\'abord (rubrique Sécurité).',
+      aiFaqInternet: 'Le socle chauffe-t-il sans Internet ?',
+      aiFaqInternetR: 'Oui. Il régule et protège tout seul. Sans réseau, seuls l\'application à distance et les alertes s\'arrêtent ; il garde son historique, et ses alertes en attente partent au retour.',
+      aiFaqCoupure: 'Et après une coupure de courant ?',
+      aiFaqCoupureR: 'Il redémarre seul avec tes réglages, reprend l\'heure sur Internet, et note la coupure dans son journal.',
+      aiFaqSupport: 'Que voit le support quand je l\'autorise ?',
+      aiFaqSupportR: 'Pendant la durée accordée (24 h), il voit l\'état et les réglages du socle, et peut les régler, le tester ou le mettre à jour. Tu fermes l\'accès quand tu veux, dans Service.',
       aideNotice: 'Aide et notice', installerAppli: 'Installer l\'application', conditionsLib: 'Conditions et confidentialité', mentionsLib: 'Mentions légales',
       toutEffacerTel: 'Tout effacer sur ce téléphone', toutEffacerAide: 'Socles enregistrés, historique local et réglages de l\'appli. Tes socles continuent de chauffer.',
       resumeSocles1: '1 socle', resumeSoclesN: '{n} socles',
@@ -489,7 +501,7 @@ const App = (() => {
   let vueCourante = 'broker';
   let demarre = false;              // demarrer() a déjà tout branché
   let pageReglages = 'menu';        // Réglages de l'application : menu, ou une de PAGES_REGLAGES
-  const PAGES_REGLAGES = ['organiser', 'transfert', 'exports', 'partage'];
+  const PAGES_REGLAGES = ['organiser', 'transfert', 'exports', 'partage', 'aide'];
   let socleOuvert = null;
   let panneauActif = 'etat';        // etat (accueil) ou la feuille ouverte : zone, reglages, programme…
   let etapeAccueil = 'bienvenue';   // écran sans broker : bienvenue, connexion, compte ou chezMoi
@@ -1943,7 +1955,7 @@ const App = (() => {
           <button type="button" class="btn btn-secondaire btn-petit" id="btn-retirer-code" data-action="retirerCode" hidden>${t('retirerCodeLib')}</button></div>
         <label class="ligne-reglage" for="verrou-min" hidden><span class="lib">${t('verrouillerApres')}</span><select id="verrou-min" hidden>${minutes}</select></label>
         <button type="button" class="ligne-reglage" id="btn-verrouiller" data-action="verrouiller" hidden><span class="lib">${t('verrouillerMaintenant')}</span>${icone('i-cadenas')}</button>`)}
-      ${sectionRg('rg-aide', t('rgAide'), lienRg(pageStatique('aide'), t('aideNotice'))
+      ${sectionRg('rg-aide', t('rgAide'), ligneRg('data-action="reglagesApp" data-page="aide"', t('aideNotice'))
         + ligneRg('data-action="diagnostic"', t('diagnostic'))
         + `<button type="button" class="ligne-reglage" data-action="installer"${evenementInstall ? '' : ' hidden'}><span class="lib">${t('installerAppli')}</span>${icone('i-telecharger')}</button>`
         + lienRg(pageStatique('confidentialite'), t('conditionsLib')) + lienRg(pageStatique('mentions-legales'), t('mentionsLib')))}
@@ -1965,6 +1977,48 @@ const App = (() => {
     peindreVerrou();
     const l = /** @type {any} */ ($('#langue-liste'));
     if (l && l.value !== langue) l.value = langue;
+  }
+
+  // --- Aide dans l'application : recherche dans la notice (index construit
+  // avec elle, servi hors ligne), dépannage, questions fréquentes, support.
+  const ai = { index: /** @type {any} */ (null), chargement: false, q: '' };
+  const FAQ = ['aiFaqTour', 'aiFaqInternet', 'aiFaqCoupure', 'aiFaqSupport'];
+  function structureAide() {
+    if (!ai.index && !ai.chargement && typeof fetch === 'function') {
+      ai.chargement = true;
+      fetch('aide-index.json').then(r => (r.ok ? r.json() : null)).then(d => { ai.index = d || {}; invalider(); }, () => { ai.index = {}; invalider(); });
+    }
+    return `<div class="recherche-aide">${icone('i-loupe')}<label for="ai-q" class="sr-only">${t('aiChercher')}</label>
+        <input id="ai-q" type="search" autocomplete="off" placeholder="${attr(t('aiExemple'))}" value="${attr(ai.q)}"></div>
+      <div aria-live="polite" data-r="ai-resultats"></div>
+      ${sectionRg('ai-dep', t('aiDepannage'), ligneRg('data-action="diagnostic"', t('aiDiagnostic'))
+        + lienRg(pageStatique('aide') + '#' + (langue === 'en' ? '14-troubleshooting' : '14-depanner'), t('aiDepanner')))}
+      <section aria-labelledby="ai-faq"><h3 class="titre-section" id="ai-faq">${t('aiFaq')}</h3>
+        <div class="faq">${FAQ.map(k => `<details><summary>${t(k)}</summary><p>${t(k + 'R')}</p></details>`).join('')}</div></section>
+      <div class="boutons-pile"><a class="btn btn-secondaire" href="${pageStatique('aide')}">${t('aiNotice')}</a>
+        <button type="button" class="btn" data-action="aiSupport" data-r="ai-support" hidden>${t('aiSupport')}</button></div>`;
+  }
+  function patcherAide() {
+    const r = k => $(`#reglages [data-r="${k}"]`);
+    const sup = r('ai-support');
+    if (sup) sup.hidden = !(serveur.actif() && config.socles.some(s => !lectureSeule(s)));
+    const q = ai.q.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    if (q.length < 2) { peindre(r('ai-resultats'), ''); return; }
+    const liste = (ai.index && (ai.index[langue] || ai.index.fr)) || [];
+    if (!liste.length) { peindre(r('ai-resultats'), ai.index ? `<p class="aide">${t('aiIndexAbsent')}</p>` : `<p class="aide" aria-busy="true">${t('chargementReglages')}</p>`); return; }
+    const sansAccent = x => x.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const mots = q.split(/\s+/).filter(Boolean);
+    const trouves = liste.map(s => {
+      const titre = sansAccent(s.t), corps = sansAccent(s.x);
+      if (!mots.every(m => titre.includes(m) || corps.includes(m))) return null;
+      const i = corps.indexOf(mots[0]);
+      const debut = Math.max(0, i - 60);
+      return { s, score: mots.filter(m => titre.includes(m)).length * 10 + (i >= 0 ? 1 : 0),
+        extrait: (debut ? '…' : '') + s.x.slice(debut, debut + 160).trim() + (s.x.length > debut + 160 ? '…' : '') };
+    }).filter(Boolean).sort((a, b) => b.score - a.score).slice(0, 6);
+    peindre(r('ai-resultats'), trouves.length
+      ? `<div class="groupe-reglages">${trouves.map(x => `<a class="ligne-reglage" href="${attr(pageStatique('aide') + '#' + x.s.a)}"><span class="lib">${esc(x.s.t)}<small>${esc(x.extrait)}</small></span>${icone('i-suite')}</a>`).join('')}</div>`
+      : `<p class="aide">${t('aiRien', { q: esc(ai.q.trim()) })}</p>`);
   }
 
   // --- Partager un socle (F12, U4) : qui y a accès, inviter (lecture seule ou
@@ -2954,14 +3008,16 @@ const App = (() => {
     const cle = pageReglages + '|' + langue;
     if (racine.dataset.page !== cle) {
       racine.dataset.page = cle;
-      texte($('#titre-reglages'), t({ organiser: 'orgTitre', transfert: 'trTitre', exports: 'exTitre', partage: 'paTitre' }[pageReglages] || 'reglagesTitre'));
+      texte($('#titre-reglages'), t({ organiser: 'orgTitre', transfert: 'trTitre', exports: 'exTitre', partage: 'paTitre', aide: 'aiTitre' }[pageReglages] || 'reglagesTitre'));
       html(racine, pageReglages === 'organiser' ? structureOrganiser() : pageReglages === 'transfert' ? structureTransfert()
-        : pageReglages === 'exports' ? structureExports() : pageReglages === 'partage' ? structurePartage() : structureMenuReglages());
+        : pageReglages === 'exports' ? structureExports() : pageReglages === 'partage' ? structurePartage()
+        : pageReglages === 'aide' ? structureAide() : structureMenuReglages());
     }
     if (pageReglages === 'organiser') patcherOrganiser();
     else if (pageReglages === 'transfert') patcherTransfert();
     else if (pageReglages === 'exports') patcherExports();
     else if (pageReglages === 'partage') patcherPartage();
+    else if (pageReglages === 'aide') patcherAide();
     else patcherMenuReglages();
   }
 
@@ -4591,6 +4647,12 @@ const App = (() => {
         case 'paSocle':           if (pa.socle !== d.id) { pa.socle = d.id; pa.lien = null; invalider(); } break;
         case 'paDuree':           pa.jours = +d.j; pa.lien = null; invalider(); break;
         case 'paCreer':           creerInvitation(); break;
+        case 'aiSupport': {
+          // Écrire au support : depuis l'onglet Service d'un socle (le premier qu'on peut régler).
+          const s = config.socles.find(x => !lectureSeule(x));
+          if (s) { api.ouvrir(s.id); api.panneau('service'); }
+          break;
+        }
         case 'paCopier':          partagerLien(false); break;
         case 'paEnvoyer':         partagerLien(true); break;
         case 'paRetirer': {
@@ -4695,6 +4757,11 @@ const App = (() => {
         case 'verrou':       api.deverrouiller(); break;
         case 'sv-surveillance': case 'sv-message': case 'sv-nouvelle': case 'sv-alim': if (serviceMod) serviceMod.soumettre(f); break;
       }
+    });
+    // Recherche dans l'aide : à chaque frappe.
+    doc.addEventListener('input', ev => {
+      const el = /** @type {any} */ (ev.target);
+      if (el && el.id === 'ai-q') { ai.q = el.value; patcherAide(); }
     });
     doc.addEventListener('change', ev => {
       const el = /** @type {any} */ (ev.target);

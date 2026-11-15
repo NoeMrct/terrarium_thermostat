@@ -373,6 +373,10 @@ The full decision tree is in `docs/depannage.md`. The three most frequent cases:
 
 ## 15. Diagnostics and help
 
+**Help and manual** (App settings) searches this manual, even offline: type a word ("probe",
+"holiday"…), each section that mentions it opens in one tap. The same page leads to diagnostics,
+troubleshooting, the most frequent questions and, with the Terrariums server, to support.
+
 **Diagnostics** (App settings) assembles a report: app version,
 browser, broker state, and for each base its version, its Wi-Fi signal, its memory, its last
 restart, and the recent errors. It contains no password and no pairing code. **Copy the report**

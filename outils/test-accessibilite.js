@@ -47,6 +47,7 @@ const ECRANS = [
     App.ouvrir('terraFANTOME');
   }],
   ['réglages de l\'application', () => App.reglagesApp('menu')],
+  ['aide', () => App.reglagesApp('aide')],
   ['organiser', () => { App.reglagesApp('organiser'); const c = document.querySelector('#org-compacte'); c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); }],
   ['liste compacte', () => App.montrer('liste')],
   ['copier des réglages', async () => { App.reglagesApp('transfert'); await new Promise(r => setTimeout(r, 1200)); }],

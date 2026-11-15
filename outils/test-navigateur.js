@@ -202,6 +202,17 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   v('Mode vacances tient dans 320 px', await tientDansLEcran());
   await page.click('#vue-socle [data-action="remonter"]');
 
+  console.log('\n== Aide dans l\'application');
+  await page.evaluate(() => App.reglagesApp('aide'));
+  await page.fill('#ai-q', 'sonde');
+  await page.waitForFunction(() => document.querySelectorAll('#reglages [data-r="ai-resultats"] a[href*="aide.html#"]').length > 0, null, { timeout: 8000 }).catch(() => {});
+  v('la recherche trouve des sections de la notice', (await page.$$('#reglages [data-r="ai-resultats"] a')).length > 0,
+    (await page.textContent('#reglages [data-r="ai-resultats"]')).replace(/\s+/g, ' ').slice(0, 50));
+  await page.click('#reglages .faq summary');
+  v('une question fréquente se déplie', await page.evaluate(() => document.querySelector('#reglages .faq details').open));
+  await page.evaluate(id => { App.ouvrir(id); App.panneau('programme'); }, ID);
+  await page.waitForTimeout(400);
+
   console.log('\n== Service (module importé à la demande)');
   await page.click('#vue-socle [data-action="remonter"]');
   await page.click('.rubrique[data-nom=service]');
