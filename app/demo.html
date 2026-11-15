@@ -2601,8 +2601,6 @@ const App = (() => {
   let etiquetteLue = null;          // { id, jeton } lus dans l'adresse (étiquette scannée par l'appareil photo)
   let minuteurCible = null;
   let routeEnCours = false;         // une adresse est en train d'être appliquée : rien à empiler
-  let retourAttendu = null;         // adresse d'un history.back() lancé pour remonter (l'écran y est déjà)
-  let aResynchroniser = false;      // l'écran a encore changé pendant ce retour
   const etats = {};                 // id -> { enLigne, zones, uptime, entretienS, sante, … }
   const attentes = {};              // req -> { resoudre, rejeter, minuteur }
   const courbes = {};               // id -> { heures, points, chargement, erreur }
@@ -3442,8 +3440,10 @@ const App = (() => {
   // --- Adresse de la page : #/<socle>[/<rubrique> | /zone/<n>] -------------
   // Le bouton retour du téléphone ferme la feuille au lieu de quitter
   // l'application, un rechargement rouvre le même écran, une notification
-  // ouvre son socle. Remonter (feuille → accueil → liste) revient dans
-  // l'historique plutôt que d'y empiler un écran de plus.
+  // ouvre son socle. Descendre empile une entrée ; remonter depuis
+  // l'application passe par l'historique quand l'entrée précédente est le
+  // parent (remonter()), sinon réécrit l'entrée courante : jamais un écran
+  // déjà quitté ne revient au retour suivant.
   const PANNEAUX = RUBRIQUES.map(r => r[0]);
   function adresseCourante() {
     if (vueCourante === 'liste') return '#/';
@@ -3452,35 +3452,32 @@ const App = (() => {
     if (panneauActif === 'zone') return `${base}/zone/${zoneOuverte + 1}`;
     return PANNEAUX.includes(panneauActif) ? `${base}/${panneauActif}` : base;
   }
+  const adresseActuelle = () => (location.hash && location.hash !== '#' ? location.hash : '#/');
+  const profondeur = a => { const p = a.replace(/^#\/?/, '').split('/').filter(Boolean); return p[1] === 'zone' ? 2 : p.length; };
+  const parentDe = a => (profondeur(a) === 2 ? '#/' + a.replace(/^#\//, '').split('/')[0] : profondeur(a) === 1 ? '#/' : null);
   function noterAdresse() {
     if (routeEnCours) return;
-    // Un retour est en route (il est asynchrone) : l'adresse sera remise à
-    // jour à son arrivée, pas empilée par-dessus.
-    if (retourAttendu) { aResynchroniser = true; return; }
-    const a = adresseCourante();
-    const h = location.hash && location.hash !== '#' ? location.hash : '#/';
+    const a = adresseCourante(), h = adresseActuelle();
     if (!a || a === h) return;
-    const etat = history.state;
     try {
-      if (etat && etat.terrarium && etat.avant === a) {
-        retourAttendu = a;
-        setTimeout(() => { if (retourAttendu === a) { retourAttendu = null; resynchroniser(); } }, 1000);
-        history.back();
-      } else history.pushState({ terrarium: true, avant: h }, '', a);
-    } catch (e) { retourAttendu = null; /* file:// d'un vieux navigateur : l'écran change, l'adresse non */ }
+      if (profondeur(a) < profondeur(h)) history.replaceState({ terrarium: true, avant: parentDe(a) }, '', a);
+      else history.pushState({ terrarium: true, avant: h }, '', a);
+    } catch (e) { /* file:// d'un vieux navigateur : l'écran change, l'adresse non */ }
   }
-  function resynchroniser() {
-    if (!aResynchroniser) return;
-    aResynchroniser = false;
-    noterAdresse();
-  }
-  // Retour du téléphone (ou arrivée d'un retour lancé par l'application).
-  function surRetour() {
-    if (retourAttendu) {
-      const attendu = retourAttendu;
-      retourAttendu = null;
-      if (location.hash === attendu) { resynchroniser(); return; }
+  // Le retour de l'application (flèche d'une feuille, Échap, « Tous les
+  // socles ») : comme celui du téléphone quand l'entrée précédente est le
+  // parent — l'écran change à l'arrivée du popstate —, sinon tout de suite.
+  function remonter() {
+    const a = adresseCourante(), etat = history.state;
+    const parent = a && parentDe(a);
+    if (parent && a === adresseActuelle() && etat && etat.terrarium && etat.avant === parent) {
+      try { history.back(); return; } catch (e) { /* repli ci-dessous */ }
     }
+    if (vueCourante === 'socle' && panneauActif !== 'etat') api.panneau('etat');
+    else montrer('liste');
+  }
+  // Retour du téléphone, ou arrivée d'un retour lancé par remonter().
+  function surRetour() {
     if (!verrouille) suivreAdresse(false);
   }
   function lireAdresse(h) {
@@ -3800,7 +3797,7 @@ const App = (() => {
             `<button type="button" class="rubrique" data-action="panneau" data-nom="${k}">${icone(ic)}<span><strong>${t(cle)}</strong><small data-r="s-${k}"></small></span>${icone('i-suite')}</button>`).join('')}</nav>
         </div>
         <section class="feuille-panneau" data-r="feuille" aria-labelledby="titre-feuille" hidden>
-          <header class="feuille-tete"><button type="button" class="rond" data-action="panneau" data-nom="etat" aria-label="${t('retourAccueil')}">${icone('i-retour')}</button>
+          <header class="feuille-tete"><button type="button" class="rond" data-action="remonter" aria-label="${t('retourAccueil')}">${icone('i-retour')}</button>
             <div><h2 id="titre-feuille" tabindex="-1" data-r="titre"></h2><small class="discret">${esc(s.nom || s.id)}</small></div><span></span></header>
           <div class="pile" data-r="panneau"></div>
         </section>`);
@@ -4777,7 +4774,8 @@ const App = (() => {
       if (d.dlg) { repondreConfirmation(d.dlg === 'oui'); return; }
       switch (d.action) {
         case 'ouvrir':            api.ouvrir(d.id); break;
-        case 'montrer':           montrer(d.vue); break;
+        case 'montrer':           if (d.vue === 'liste' && vueCourante === 'socle' && panneauActif === 'etat') remonter(); else montrer(d.vue); break;
+        case 'remonter':          remonter(); break;
         case 'panneau':           api.panneau(d.nom); break;
         case 'filtreJournal':     filtreJournal = d.filtre || 'tout'; invalider(); break;
         case 'actualiserJournal': if (socleOuvert) chargerJournal(socleOuvert); break;
@@ -4831,7 +4829,7 @@ const App = (() => {
     // Les cartes de socle sont des boutons : clavier compris.
     doc.addEventListener('keydown', ev => {
       if (ev.key === 'Escape' && vueCourante === 'socle' && panneauActif !== 'etat' && !doc.querySelector('dialog[open]')) {
-        api.panneau('etat'); return;
+        remonter(); return;
       }
       if (ev.key !== 'Enter' && ev.key !== ' ') return;
       const el = /** @type {any} */ (ev.target);

@@ -193,8 +193,8 @@ function creerApp(adressePage, avantChargement) {
 
   titre('8 bis. Adresse de la page : retour du téléphone, rechargement');
   {
-    // L'adresse suit l'écran, parfois un instant après lui : remonter passe
-    // par history.back(), qui est asynchrone.
+    // L'adresse suit l'écran ; la flèche de l'application remonte par
+    // history.back(), asynchrone : on attend l'adresse plutôt que de la lire.
     const adresse = (h, ms = 3000) => jusqua(() => w.location.hash === h, ms, 30);
     App.montrer('liste');
     await adresse('#/');
@@ -208,10 +208,14 @@ function creerApp(adressePage, avantChargement) {
     App.zone(0);
     verifier('l\'écran d\'une zone a son adresse', await adresse(`#/${ID}/zone/1`), w.location.hash);
     const longueur = w.history.length;
-    App.panneau('etat');                 // le bouton retour de l'application
-    const remonte = await adresse('#/' + ID);
-    verifier('le retour de l\'appli remonte sans empiler d\'écran', remonte && w.history.length === longueur,
+    $('#detail [data-action="remonter"]').click();     // la flèche de la feuille
+    const remonte = await adresse('#/' + ID) && await jusqua(() => $('#detail [data-r="feuille"]').hidden, 2000, 30);
+    verifier('la flèche de l\'appli remonte par l\'historique, sans empiler d\'écran', remonte && w.history.length === longueur,
              `${w.history.length} entrées pour ${longueur}`);
+    App.panneau('courbes');
+    App.panneau('etat');                 // remontée décidée par l'application elle-même
+    verifier('…une remontée programmée réécrit l\'entrée courante', w.location.hash === '#/' + ID && w.history.length === longueur,
+             `${w.location.hash}, ${w.history.length} entrées pour ${longueur}`);
     // Rechargement sur une rubrique : même écran ; le retour passe par
     // l'accueil du socle, puis par la liste.
     // Broker injoignable pour cette copie : l'adresse suffit, et le socle

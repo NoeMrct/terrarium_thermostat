@@ -120,7 +120,7 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
     page.click('[data-action="exporterCsv"]')
   ]);
   v('export CSV téléchargé', !!telechargement && /\.csv$/.test(telechargement.suggestedFilename()), telechargement ? telechargement.suggestedFilename() : 'aucun');
-  await page.click('[data-action="panneau"][data-nom="etat"]');
+  await page.click('[data-action="remonter"]');
   await page.click('.rubrique[data-nom=general]');
   await page.waitForFunction(() => !!document.querySelector('#gSD') && document.querySelector('#detail').textContent.includes('Sur 24 heures'), null, { timeout: 8000 }).catch(() => {});
   v('feuille Appareil chargée, santé affichée', !!(await page.$('#gSD')) && (await page.innerHTML('#detail')).includes('Santé'));
@@ -175,11 +175,11 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   await page.setViewportSize({ width: 390, height: 844 });
 
   console.log('\n== Service (module importé à la demande)');
-  await page.click('[data-action="panneau"][data-nom="etat"]');
+  await page.click('[data-action="remonter"]');
   await page.click('.rubrique[data-nom=service]');
   await page.waitForFunction(() => document.querySelector('#detail').textContent.includes('28FF0000000000A1'), null, { timeout: 8000 }).catch(() => {});
   v('le module Service s\'importe et liste les sondes', (await page.innerHTML('#detail')).includes('28FF0000000000A1'));
-  await page.click('[data-action="panneau"][data-nom="etat"]');
+  await page.click('[data-action="remonter"]');
   for (const largeur of [320, 390]) {
     await page.setViewportSize({ width: largeur, height: 800 });
     await page.waitForTimeout(150);
@@ -204,7 +204,7 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   await page.click('[data-action="diagnostic"]').catch(() => {});
   // Le bouton Diagnostic est au pied de la liste : on y revient (d'une
   // feuille, d'abord l'accueil du socle, puis la liste).
-  await page.click('[data-action="panneau"][data-nom="etat"]');
+  await page.click('[data-action="remonter"]');
   await page.click('[data-action="montrer"][data-vue="liste"]');
   await page.click('#vue-liste [data-action="diagnostic"]');
   await page.waitForTimeout(300);
