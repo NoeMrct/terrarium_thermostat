@@ -73,11 +73,18 @@ self.addEventListener('push', e => {
   })));
 });
 
+// Un appui ouvre l'application sur le socle de la notification : la fenêtre
+// déjà ouverte le reçoit par message, sinon l'adresse le désigne (#/<socle>).
 self.addEventListener('notificationclick', e => {
   e.notification.close();
+  const d = e.notification.data || {};
+  const id = typeof d.socle === 'string' && d.socle ? d.socle : null;
   e.waitUntil(sw.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(fenetres => {
     const f = fenetres.find(w => 'focus' in w);
-    if (f) return f.focus();
-    return sw.clients.openWindow('./');
+    if (f) {
+      if (id) f.postMessage({ type: 'ouvrirSocle', socle: id });
+      return f.focus();
+    }
+    return sw.clients.openWindow('./' + (id ? '#/' + encodeURIComponent(id) : ''));
   }));
 });

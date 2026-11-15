@@ -2451,6 +2451,9 @@ const App = (() => {
   let installation = null;          // assistant d'installation en cours (voir plus bas)
   let etiquetteLue = null;          // { id, jeton } lus dans l'adresse (étiquette scannée par l'appareil photo)
   let minuteurCible = null;
+  let routeEnCours = false;         // une adresse est en train d'être appliquée : rien à empiler
+  let retourAttendu = null;         // adresse d'un history.back() lancé pour remonter (l'écran y est déjà)
+  let aResynchroniser = false;      // l'écran a encore changé pendant ce retour
   const etats = {};                 // id -> { enLigne, zones, uptime, entretienS, sante, … }
   const attentes = {};              // req -> { resoudre, rejeter, minuteur }
   const courbes = {};               // id -> { heures, points, chargement, erreur }
@@ -3035,9 +3038,10 @@ const App = (() => {
   // « new Notification() » (il lève une exception), et c'est le téléphone où
   // l'alerte compte le plus. Le constructeur reste le recours d'un navigateur
   // de bureau sans agent de service.
-  function notifier(titre, corps) {
+  function notifier(titre, corps, id) {
     if (etatNotifications() !== 'granted') return;
-    const o = { body: corps, tag: titre, icon: 'icone.svg' };
+    // Le socle voyage avec la notification : un appui l'ouvre (sw.js).
+    const o = { body: corps, tag: titre, icon: 'icone.svg', data: { socle: id || null } };
     const directe = () => { try { new Notification(titre, o); } catch (e) { /* refusée par ce navigateur */ } };
     const sw = /** @type {any} */ (navigator).serviceWorker;
     (sw && sw.getRegistration ? sw.getRegistration() : Promise.resolve())
@@ -3073,10 +3077,10 @@ const App = (() => {
       alertesVues[id][i] = courant;
       if (precedent === undefined) return;      // premier état connu : rien à signaler
       const zone = z.nom || t('zoneN', { n: i + 1 });
-      if (courant === 'trop_chaud') notifier(t('notifTropChaud', { nom }), t('notifTropChaudCorps', { zone }));
-      else if (courant === 'derive') notifier(t('notifDerive', { nom }), t('notifDeriveCorps', { zone }));
-      else if (courant)            { notifier(t('notifDefaut', { nom }), t('notifDefautCorps', { zone, d: courant })); nouveauDefaut = true; }
-      else                           notifier(t('notifRetabli', { nom }), t('notifRetabliCorps', { zone }));
+      if (courant === 'trop_chaud') notifier(t('notifTropChaud', { nom }), t('notifTropChaudCorps', { zone }), id);
+      else if (courant === 'derive') notifier(t('notifDerive', { nom }), t('notifDeriveCorps', { zone }), id);
+      else if (courant)            { notifier(t('notifDefaut', { nom }), t('notifDefautCorps', { zone, d: courant }), id); nouveauDefaut = true; }
+      else                           notifier(t('notifRetabli', { nom }), t('notifRetabliCorps', { zone }), id);
     });
     // Une vibration brève sur un nouveau défaut : la régulation vient de couper
     // le chauffage d'un animal, ce n'est pas un message comme les autres.
@@ -3283,7 +3287,90 @@ const App = (() => {
     doc.body.dataset.vue = vue;
     doc.documentElement.scrollTop = 0;
     dessiner();
+    noterAdresse();
   }
+
+  // --- Adresse de la page : #/<socle>[/<rubrique> | /zone/<n>] -------------
+  // Le bouton retour du téléphone ferme la feuille au lieu de quitter
+  // l'application, un rechargement rouvre le même écran, une notification
+  // ouvre son socle. Remonter (feuille → accueil → liste) revient dans
+  // l'historique plutôt que d'y empiler un écran de plus.
+  const PANNEAUX = RUBRIQUES.map(r => r[0]);
+  function adresseCourante() {
+    if (vueCourante === 'liste') return '#/';
+    if (vueCourante !== 'socle' || !socleOuvert) return null;   // verrou, installation, broker : l'adresse ne bouge pas
+    const base = '#/' + encodeURIComponent(socleOuvert);
+    if (panneauActif === 'zone') return `${base}/zone/${zoneOuverte + 1}`;
+    return PANNEAUX.includes(panneauActif) ? `${base}/${panneauActif}` : base;
+  }
+  function noterAdresse() {
+    if (routeEnCours) return;
+    // Un retour est en route (il est asynchrone) : l'adresse sera remise à
+    // jour à son arrivée, pas empilée par-dessus.
+    if (retourAttendu) { aResynchroniser = true; return; }
+    const a = adresseCourante();
+    const h = location.hash && location.hash !== '#' ? location.hash : '#/';
+    if (!a || a === h) return;
+    const etat = history.state;
+    try {
+      if (etat && etat.terrarium && etat.avant === a) {
+        retourAttendu = a;
+        setTimeout(() => { if (retourAttendu === a) { retourAttendu = null; resynchroniser(); } }, 1000);
+        history.back();
+      } else history.pushState({ terrarium: true, avant: h }, '', a);
+    } catch (e) { retourAttendu = null; /* file:// d'un vieux navigateur : l'écran change, l'adresse non */ }
+  }
+  function resynchroniser() {
+    if (!aResynchroniser) return;
+    aResynchroniser = false;
+    noterAdresse();
+  }
+  // Retour du téléphone (ou arrivée d'un retour lancé par l'application).
+  function surRetour() {
+    if (retourAttendu) {
+      const attendu = retourAttendu;
+      retourAttendu = null;
+      if (location.hash === attendu) { resynchroniser(); return; }
+    }
+    if (!verrouille) suivreAdresse(false);
+  }
+  function lireAdresse(h) {
+    const m = /^#\/([^/]*)(?:\/zone\/([1-9])|\/([a-z]+))?$/.exec(h || '');
+    if (!m) return null;
+    let id;
+    try { id = m[1] ? decodeURIComponent(m[1]) : null; } catch (e) { return null; }
+    return { id, zone: m[2] ? Number(m[2]) - 1 : null, panneau: m[3] && PANNEAUX.includes(m[3]) ? m[3] : null };
+  }
+  // Applique l'adresse. Au démarrage, une adresse profonde (rechargement,
+  // notification) reçoit ses écrans parents dans l'historique : le retour
+  // passe par l'accueil du socle puis par la liste.
+  function suivreAdresse(demarrage) {
+    const r = lireAdresse(location.hash);
+    const ouvrable = !!(r && r.id && socle(r.id));
+    routeEnCours = true;
+    try {
+      if (!ouvrable) {
+        if (vueCourante === 'socle') montrer('liste');
+      } else {
+        if (vueCourante !== 'socle' || socleOuvert !== r.id) api.ouvrir(r.id);
+        const nbZones = (etats[r.id] && etats[r.id].zones && etats[r.id].zones.length) || 2;
+        if (r.zone !== null && r.zone < nbZones) api.zone(r.zone);
+        else if (r.panneau) { if (panneauActif !== r.panneau) api.panneau(r.panneau); }
+        else if (panneauActif !== 'etat') api.panneau('etat');
+      }
+    } finally { routeEnCours = false; }
+    // Une entrée déjà à nous (rechargement) a déjà ses parents dans l'historique.
+    if (!demarrage || !r || !r.id || (history.state && history.state.terrarium)) return;
+    try {
+      const ici = adresseCourante() || '#/';
+      history.replaceState({ terrarium: true, avant: null }, '', '#/');
+      if (ici === '#/') return;
+      const base = '#/' + encodeURIComponent(socleOuvert);
+      history.pushState({ terrarium: true, avant: '#/' }, '', base);
+      if (ici !== base) history.pushState({ terrarium: true, avant: base }, '', ici);
+    } catch (e) { /* file:// d'un vieux navigateur */ }
+  }
+
 
   function peindreVerrou() {
     const actif = codeVerrouActif(), dispo = cryptoDispo();
@@ -4257,6 +4344,7 @@ const App = (() => {
 
   // -------------------------------------------------------------- événements
   function brancher() {
+    window.addEventListener('popstate', surRetour);
     doc.addEventListener('click', ev => {
       const cible = /** @type {any} */ (ev.target);
       const el = cible && cible.closest ? cible.closest('[data-action],[data-dlg]') : null;
@@ -4411,6 +4499,15 @@ const App = (() => {
     // Pas à la toute première visite, où l'agent prend la main sur une page
     // déjà à jour : le rechargement perdait ce qui venait d'être saisi, et
     // l'étiquette lue dans l'adresse, déjà effacée de celle-ci.
+    // Une notification touchée, application déjà ouverte : l'agent de service
+    // demande d'ouvrir son socle (sw.js). Verrouillée, l'adresse attend le code.
+    navigator.serviceWorker.addEventListener('message', e => {
+      const d = e.data;
+      if (!d || d.type !== 'ouvrirSocle' || typeof d.socle !== 'string') return;
+      if (verrouille) {
+        try { history.replaceState(null, '', '#/' + encodeURIComponent(d.socle)); } catch (err) { /* file:// */ }
+      } else if (socle(d.socle)) api.ouvrir(d.socle);
+    });
     const avaitUnAgent = !!navigator.serviceWorker.controller;
     let recharge = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -4857,9 +4954,11 @@ const App = (() => {
         $('#b-user').value = config.broker.compte ? '' : (config.broker.user || '');
         $('#b-prefixe').value = config.broker.prefixe || 'terrarium';
         if (!client) connecter();
-        montrer('liste');
+        routeEnCours = true;            // l'adresse de la page est lue juste après
+        try { montrer('liste'); } finally { routeEnCours = false; }
         if (etiquetteLue) { const lue = etiquetteLue; etiquetteLue = null; api.nouveauSocle(lue); }
         else reprendreInstallation();
+        if (vueCourante === 'liste') suivreAdresse(true);
       } else {
         lien(t('nonConnecte'), 'ko');
         etapeAccueil = 'bienvenue';
@@ -5298,6 +5397,7 @@ const App = (() => {
       const avant = panneauActif;
       panneauActif = nom;
       dessiner();
+      noterAdresse();
       const id = socleOuvert;
       if (!id) return;
       // Retour à l'accueil : le focus revient là d'où l'on venait.

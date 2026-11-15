@@ -14,6 +14,12 @@ réglages persistés s'enrichissent par la fin : rien n'est perdu à la mise à
 jour.
 
 ### Ajouté
+- **Chaque écran a son adresse** (U8, B10) : `#/<socle>`, `#/<socle>/<rubrique>`
+  ou `#/<socle>/zone/<n>`. Le retour du téléphone ferme la feuille ouverte au
+  lieu de quitter l'application, un rechargement rouvre le même écran, et une
+  notification touchée ouvre son socle (application ouverte ou non ;
+  verrouillée, l'écran attend le code). Remonter avec le bouton de
+  l'application revient dans l'historique au lieu d'y empiler un écran.
 - **Sondes sûres.** Chaque zone suit l'adresse de sa sonde et une sonde n'est
   jamais liée à deux zones. Plus de repli sur « la n-ième sonde du bus » : une
   zone sans sonde liée reste en défaut SONDE, chauffe coupée. La liaison

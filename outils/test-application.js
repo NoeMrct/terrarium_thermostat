@@ -43,7 +43,7 @@ async function jusqua(condition, limiteMs = 12000, pas = 150) {
 // Construit une instance de l'application dans un DOM neuf. L'adresse de la
 // page compte : l'application n'accepte une liaison non chiffrée que sur
 // localhost, il faut donc pouvoir simuler une publication ailleurs.
-function creerApp(adressePage) {
+function creerApp(adressePage, avantChargement) {
   const html = fs.readFileSync(path.join(DOSSIER, 'index.html'), 'utf8');
   const dom = new JSDOM(html, {
     runScripts: 'outside-only',
@@ -62,6 +62,7 @@ function creerApp(adressePage) {
   // L'application suit la langue du navigateur ; jsdom se déclare anglophone,
   // et ces tests lisent les textes français.
   w.localStorage.setItem('terrarium.langue', 'fr');
+  if (avantChargement) avantChargement(w);
   // jsdom ne dessine pas : un contexte 2D inerte suffit pour que le code de
   // tracé s'exécute réellement au lieu de renoncer à la première ligne.
   w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, {
@@ -74,7 +75,7 @@ function creerApp(adressePage) {
   // Notifications : on les capture au lieu de les afficher.
   w.notifications = [];
   w.isSecureContext = true;
-  w.Notification = function (titre, opts) { w.notifications.push({ titre, corps: (opts || {}).body }); };
+  w.Notification = function (titre, opts) { w.notifications.push({ titre, corps: (opts || {}).body, data: (opts || {}).data }); };
   w.Notification.permission = 'granted';
   w.Notification.requestPermission = async () => 'granted';
   // `const App = …` au sommet d'un script crée une liaison lexicale globale
@@ -189,6 +190,46 @@ function creerApp(adressePage) {
   await App.action('entretien', { minutes: 0 });
   await attendre(1200);
   verifier('annulation prise en compte', !$('#detail').innerHTML.includes('entretien :'));
+
+  titre('8 bis. Adresse de la page : retour du téléphone, rechargement');
+  {
+    // L'adresse suit l'écran, parfois un instant après lui : remonter passe
+    // par history.back(), qui est asynchrone.
+    const adresse = (h, ms = 3000) => jusqua(() => w.location.hash === h, ms, 30);
+    App.montrer('liste');
+    await adresse('#/');
+    App.ouvrir(ID);
+    verifier('ouvrir un socle met son identifiant dans l\'adresse', await adresse('#/' + ID), w.location.hash);
+    App.panneau('securite');
+    verifier('une rubrique ouverte s\'y ajoute', await adresse(`#/${ID}/securite`), w.location.hash);
+    w.history.back();
+    const fermee = await jusqua(() => w.location.hash === '#/' + ID && $('#detail [data-r="feuille"]').hidden, 3000, 50);
+    verifier('le retour du téléphone ferme la feuille', fermee, w.location.hash);
+    App.zone(0);
+    verifier('l\'écran d\'une zone a son adresse', await adresse(`#/${ID}/zone/1`), w.location.hash);
+    const longueur = w.history.length;
+    App.panneau('etat');                 // le bouton retour de l'application
+    const remonte = await adresse('#/' + ID);
+    verifier('le retour de l\'appli remonte sans empiler d\'écran', remonte && w.history.length === longueur,
+             `${w.history.length} entrées pour ${longueur}`);
+    // Rechargement sur une rubrique : même écran ; le retour passe par
+    // l'accueil du socle, puis par la liste.
+    // Broker injoignable pour cette copie : l'adresse suffit, et le socle
+    // simulé ne voit pas d'autre application que celle des essais suivants.
+    const cfg = JSON.stringify(Object.assign(JSON.parse(w.localStorage.getItem('terrarium.config.v1')),
+      { broker: Object.assign(JSON.parse(w.localStorage.getItem('terrarium.config.v1')).broker, { url: 'ws://localhost:9/mqtt' }) }));
+    const r = creerApp(`http://localhost:8080/#/${ID}/courbes`, x => x.localStorage.setItem('terrarium.config.v1', cfg));
+    const rouvert = await jusqua(() => r.$('#vue-socle').style.display !== 'none' && !r.$('#detail [data-r="feuille"]').hidden
+      && /Courbes/.test(r.texte('#titre-feuille')), 4000, 50);
+    verifier('un rechargement rouvre le socle sur la même rubrique', rouvert, r.w.location.hash + ' ' + r.texte('#titre-feuille'));
+    r.w.history.back();
+    verifier('…le retour mène à l\'accueil du socle',
+             await jusqua(() => r.w.location.hash === '#/' + ID && r.$('#detail [data-r="feuille"]').hidden, 3000, 50), r.w.location.hash);
+    r.w.history.back();
+    verifier('…puis à la liste', await jusqua(() => r.$('#vue-liste').style.display !== 'none', 3000, 50), r.w.location.hash);
+    r.w.close();
+    App.ouvrir(ID);
+  }
 
   titre('9. Socle injoignable');
   // Un identifiant inconnu du broker : personne ne répondra jamais.
@@ -428,6 +469,8 @@ function creerApp(adressePage) {
     const notifiee = await jusqua(() => w.notifications.some(n => /trop chaud/.test(n.titre)), 5000);
     verifier('« trop chaud » fait apparaître une notification', notifiee, (w.notifications[0] || {}).titre || 'aucune');
     verifier('elle dit quoi faire', w.notifications.some(n => /ombre/.test(n.corps || '')));
+    verifier('elle désigne son socle (un appui l\'ouvre)', w.notifications.some(n => n.data && n.data.socle === ID),
+             JSON.stringify((w.notifications[0] || {}).data || null));
     zone2({ trop_chaud: '0' });
     verifier('le retour à la normale est notifié', await jusqua(() => w.notifications.some(n => /rétabli/.test(n.titre)), 5000));
     espion.end(true);
