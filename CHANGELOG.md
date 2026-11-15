@@ -300,6 +300,15 @@ jour.
 
 ### Corrigé
 
+- Application : l'agent de service ne mettait rien en cache après son
+  installation. Il copiait chaque réponse trop tard, quand la page l'avait
+  déjà lue, et l'erreur passait inaperçue : la coque n'était jamais
+  rafraîchie en arrière-plan et aucune autre page n'était gardée hors ligne.
+  La copie est prise aussitôt ; la démonstration, la page de flashage ou
+  l'atelier restent maintenant ouverts sans réseau. Ne passent jamais par le
+  cache : `version.json`, l'API et la console du serveur Terrariums quand il
+  sert aussi l'application, le firmware de la page de flashage, et toute
+  requête authentifiée.
 - Site : la démonstration ouverte à l'adresse `/demo` (sans `.html`)
   s'affichait brute, sans mise en forme ni script. Netlify sert chaque page
   aussi sans son extension, mais choisit les en-têtes d'après l'adresse

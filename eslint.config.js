@@ -20,7 +20,7 @@ const navigateur = {
   Error: 'readonly', Symbol: 'readonly', encodeURIComponent: 'readonly', decodeURIComponent: 'readonly',
   escape: 'readonly', unescape: 'readonly', mqtt: 'readonly', alert: 'readonly',
   crypto: 'readonly', btoa: 'readonly', atob: 'readonly', URLSearchParams: 'readonly', trustedTypes: 'readonly',
-  AbortController: 'readonly'
+  AbortController: 'readonly', Response: 'readonly'
 };
 
 module.exports = [

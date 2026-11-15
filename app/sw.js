@@ -1,8 +1,9 @@
 /* Agent de service : la coque de l'application est mise en cache à
-   l'installation, puis servie depuis le cache et rafraîchie en arrière-plan
-   (stale-while-revalidate). Le nom du cache est réécrit à chaque publication
-   par outils/preparer-publication.js (terrariums-<commit>) : une nouvelle
-   version installe son propre cache et efface les anciens à l'activation. */
+   l'installation ; chaque fichier lu ensuite est servi depuis le cache et
+   rafraîchi en arrière-plan (stale-while-revalidate). Le nom du cache est
+   réécrit à chaque publication par outils/preparer-publication.js
+   (terrariums-<commit>) : une nouvelle version installe son propre cache et
+   efface les anciens à l'activation. */
 /// <reference lib="webworker" />
 /** @type {ServiceWorkerGlobalScope & typeof globalThis} */
 const sw = /** @type {any} */ (self);
@@ -30,18 +31,35 @@ self.addEventListener('message', e => {
   if (e.origin === location.origin && e.data === 'SKIP_WAITING') sw.skipWaiting();
 });
 
+// Toujours le réseau, jamais le cache : la version publiée (version.json),
+// et quand le serveur Terrariums sert aussi l'application, son API (données
+// propres au compte) et sa console ; enfin le firmware de la page de
+// flashage, qui doit être celui de la dernière release.
+const HORS_CACHE = /\/(api|console|firmware)\/|\/version\.json$/;
+
 self.addEventListener('fetch', e => {
   const u = new URL(e.request.url);
   if (e.request.method !== 'GET' || u.origin !== location.origin) return;
-  // version.json dit quelle version est publiée : toujours le réseau, jamais le cache.
-  if (u.pathname.endsWith('/version.json')) return;
-  e.respondWith(caches.match(e.request).then(enCache => {
-    const reseau = fetch(e.request).then(r => {
-      if (r.ok) caches.open(CACHE).then(c => c.put(e.request, r.clone())).catch(() => {});
-      return r;
-    }).catch(() => enCache || (e.request.mode === 'navigate' ? caches.match('./index.html') : undefined));
-    return enCache || reseau;
-  }));
+  if (HORS_CACHE.test(u.pathname) || e.request.headers.has('authorization')) return;
+  // Le réseau est toujours interrogé : sa réponse rafraîchit le cache, et sert
+  // quand le cache n'a rien. La copie est prise aussitôt : rendu à la page, le
+  // corps ne se clone plus (cloné après caches.open(), il échouait en silence
+  // et rien n'entrait dans le cache après l'installation).
+  const reseau = fetch(e.request).then(r => {
+    const copie = r.ok ? r.clone() : null;
+    return { r, maj: copie ? caches.open(CACHE).then(c => c.put(e.request, copie)) : null };
+  });
+  e.waitUntil(reseau.then(x => x.maj).catch(() => {}));
+  e.respondWith((async () => {
+    const enCache = await caches.match(e.request);
+    if (enCache) return enCache;
+    try {
+      return (await reseau).r;
+    } catch (err) {
+      const repli = e.request.mode === 'navigate' ? await caches.match('./index.html') : undefined;
+      return repli || Response.error();
+    }
+  })());
 });
 
 // Notifications poussées par le serveur Terrariums (serveur/) : affichées

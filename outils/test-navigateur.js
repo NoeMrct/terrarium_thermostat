@@ -293,6 +293,19 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   });
   v('agent de service enregistré', sw.actif, sw.cache.join(','));
   v('coque mise en cache (mqtt.js, aide, icônes)', sw.entrees.includes('/mqtt.js') && sw.entrees.includes('/aide.html') && sw.entrees.includes('/icones/icone-192.png'), sw.entrees.length + ' entrées');
+  // Un fichier hors de la coque entre dans le cache à sa première lecture (la
+  // copie est prise avant de rendre la réponse : clonée après, elle échouait
+  // en silence) ; version.json n'y entre jamais.
+  const horsCoque = await page.evaluate(async () => {
+    for (let i = 0; i < 50 && !navigator.serviceWorker.controller; i++) await new Promise(r => setTimeout(r, 100));
+    if (!navigator.serviceWorker.controller) return { controle: false };
+    await fetch('atelier.html');
+    await fetch('version.json', { cache: 'no-store' });
+    for (let i = 0; i < 30 && !(await caches.match('atelier.html')); i++) await new Promise(r => setTimeout(r, 100));
+    return { controle: true, atelier: !!(await caches.match('atelier.html')), version: !!(await caches.match('version.json')) };
+  });
+  v('un fichier hors de la coque est mis en cache à sa première lecture', horsCoque.controle && horsCoque.atelier, JSON.stringify(horsCoque));
+  v('version.json reste hors du cache', horsCoque.controle && !horsCoque.version, JSON.stringify(horsCoque));
   // Avant les essais qui suivent : le rechargement de « Tout effacer » coupe la
   // liaison WebSocket, ce que Firefox journalise comme une erreur.
   v('aucune erreur ni avertissement console (CSP comprise)', erreurs.length === 0, erreurs.join(' | '));
