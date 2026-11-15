@@ -971,6 +971,31 @@ function creerApp(adressePage, avantChargement) {
     App.panneau('etat');
   }
 
+  titre('23 quater. Alertes : alerte de test et alertes du socle par ntfy (F18, U31)');
+  {
+    App.ouvrir(ID);
+    App.panneau('alertes');
+    const etat = () => texte('#detail [data-r="al-etat"]'), ntfy = () => texte('#detail [data-r="al-ntfy"]');
+    verifier('Alertes : l\'adresse du socle est lue', await jusqua(() => !!$('#al-ntfy') && !/Chargement/.test(ntfy()) && (ntfy() !== '' || !$('#al-ntfy').checked), 8000), ntfy().slice(0, 60));
+    if ($('#al-ntfy').checked) {
+      $('#al-ntfy').checked = false;
+      $('#al-ntfy').dispatchEvent(new w.Event('change', { bubbles: true }));
+      await jusqua(() => /n'envoie plus/.test(texte('#message')), 6000);
+    }
+    verifier('sans adresse : pas d\'alerte de test proposée', await jusqua(() => !$('[data-action="alEssai"]'), 4000));
+    $('#al-ntfy').checked = true;
+    $('#al-ntfy').dispatchEvent(new w.Event('change', { bubbles: true }));
+    verifier('activer : un sujet ntfy privé tiré au sort, donné au socle', await jusqua(() => /terra-[a-z2-7]{20}/.test(ntfy()) && /activées/.test(texte('#message')), 8000), ntfy().replace(/\s+/g, ' ').slice(0, 80));
+    const lien = $('#detail [data-r="al-ntfy"] a[href^="https://ntfy.sh/terra-"]');
+    verifier('…avec le lien d\'abonnement', !!lien && lien.getAttribute('rel') === 'noopener noreferrer');
+    $('[data-action="alEssai"]').click();
+    verifier('« Envoyer une alerte de test » : le socle l\'envoie', await jusqua(() => /Alerte de test envoyée à \d\d:\d\d/.test(etat()), 6000), etat().replace(/\s+/g, ' ').slice(0, 80));
+    $('#al-ntfy').checked = false;
+    $('#al-ntfy').dispatchEvent(new w.Event('change', { bubbles: true }));
+    verifier('couper : le socle n\'envoie plus rien de lui-même', await jusqua(() => /n'envoie plus/.test(texte('#message')) && !$('[data-action="alEssai"]'), 6000), texte('#message'));
+    App.panneau('etat');
+  }
+
   titre('24. Lien de l\'étiquette : l\'installation part de l\'adresse, sans rien recopier');
   {
     const b = creerApp('http://localhost:8080/#a/terra3f8a1c/K7QM2X-RP9WTD-H4BNZ8-LC3FVA');

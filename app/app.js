@@ -128,6 +128,17 @@ const App = (() => {
       ciblePlage: 'Consigne de la plage « {p} »', ciblePlages: 'Consigne des plages horaires', modifierPlages: 'Modifier les plages',
       ciblePlagesMessage: 'Les plages horaires fixent les consignes : modifie-les dans Programmation, Plages et saisons.',
       actuellement: 'Actuellement {t} · {e}', courbe: 'Courbe', avances: 'Réglages avancés',
+      alNtfy: 'Alerte envoyée par le socle', alNtfyAide: 'Sujet ntfy privé : elle arrive même application fermée, même sans serveur',
+      alAutresAdresses: 'Autre adresse, heartbeat', alAucune: 'Aucune alerte en cours', alUneEnCours: 'Une alerte en cours', alNEnCours: '{n} alertes en cours',
+      alEssai: 'Envoyer une alerte de test', alEssaiEnvoye: 'Alerte de test envoyée : elle arrive en quelques secondes sur les téléphones abonnés.',
+      alEssaiParti: 'Alerte de test envoyée à {h}', alNtfyFirmware: 'Le socle doit avoir le firmware 3.5 pour être réglé d\'ici.',
+      alNtfy1: 'Installe l\'application gratuite ntfy sur ce téléphone (ou garde la page ouverte).',
+      alNtfy2: 'Abonne-toi au sujet {s} : « Ouvrir dans ntfy » le fait pour toi.',
+      alNtfyOuvrir: 'Ouvrir dans ntfy', alNtfyCopier: 'Copier le sujet', alNtfyCopie: 'Sujet copié.',
+      alNtfyPrive: 'Qui connaît ce sujet peut lire ces alertes : ne le partage qu\'avec qui doit être prévenu.',
+      alNtfyAilleurs: 'Le socle envoie ses alertes à {h} (adresse réglée ailleurs).', alNtfyActiver: 'Remplacer',
+      alNtfyRemplacer: 'Le socle envoie déjà ses alertes à {h}. Les envoyer plutôt à un sujet ntfy privé ?',
+      alNtfyActif: 'Alertes du socle activées : abonne ce téléphone au sujet.', alNtfyCoupe: 'Le socle n\'envoie plus d\'alertes de lui-même.',
       alertesSocleTitre: 'Alertes envoyées par le socle', alertesSocle: 'Le socle prévient aussi tout seul, application fermée (ntfy, webhook, heartbeat) : son adresse se règle dans Service.',
       ecranCout: 'Écran, coût et rapport', prixKwh: 'Prix du kWh (€)', ecranNuit: 'Écran la nuit', ecranAttenue: 'Atténué', ecranNormal: 'Normal', ecranEteint: 'Éteint',
       zonePrioritaire: 'Zone prioritaire', aucune: 'Aucune', aideZonePrio: 'Quand l\'alimentation ne suffit pas pour tout, la zone prioritaire chauffe deux fois plus souvent.',
@@ -2947,15 +2958,92 @@ const App = (() => {
       case 'vacances': return structureVacances(s);
       case 'securite': return structureZones(zones, 'securite') + carteAlim(g);
       case 'courbes': return structureCourbes(zones);
-      case 'alertes': return `<section class="carte" data-r="notifs"></section>
-        <section class="carte"><h2>${t('alertesSocleTitre')}</h2><p class="aide">${t('alertesSocle')}</p>
-          <div class="boutons"><button type="button" class="btn btn-secondaire" data-action="panneau" data-nom="service">${icone('i-outil')}${t('ongletService')}</button></div></section>`;
+      case 'alertes': return structureAlertes(s, e);
       case 'service': return structureService(s, e);
       case 'maj': return '<section class="carte" data-r="maj"></section>' + structureMajAuto(s, e);
       case 'journal': return structureJournal();
       case 'conso': return structureConso();
       default: return structureGeneral(s);
     }
+  }
+
+  // --- Alertes : en cours, alerte de test (F18), alertes du socle par ntfy (U31)
+  // Le socle prévient lui-même, application fermée, par un sujet ntfy privé que
+  // l'application tire au sort et lui donne : le socle ne rend que l'hôte de
+  // son adresse, le sujet n'est gardé que sur ce téléphone.
+  /** @type {Record<string, any>} */
+  const reseaux = {};
+  const essaisAlerte = {};          // id -> instant de la dernière alerte de test
+  const sujetNtfy = () => 'terra-' + Array.from(crypto.getRandomValues(new Uint8Array(20)), x => 'abcdefghijklmnopqrstuvwxyz234567'[x & 31]).join('');
+  function chargerReseau(id) {
+    const e = etats[id] || {};
+    if (!(e.proto >= 4) || !e.enLigne) return;
+    commander(id, 'reseau').then(r => { reseaux[id] = r; invalider(); }, () => {});
+  }
+  function structureAlertes(s, e) {
+    return `<section class="etat-alertes" data-r="al-etat" aria-live="polite"></section>
+      <section class="carte" data-r="notifs"></section>
+      <section aria-labelledby="al-socle-titre">
+        <h3 class="titre-section" id="al-socle-titre">${t('alertesSocleTitre')}</h3>
+        <div class="groupe-reglages"><label class="ligne-reglage interrupteur" for="al-ntfy"><span class="lib">${t('alNtfy')}<small>${t('alNtfyAide')}</small></span>
+          <input type="checkbox" id="al-ntfy" role="switch"${e.proto >= 4 ? '' : ' disabled'}></label></div>
+        <div class="al-ntfy-detail" data-r="al-ntfy"></div>
+        <div class="boutons"><button type="button" class="btn btn-secondaire" data-action="panneau" data-nom="service">${icone('i-outil')}${t('alAutresAdresses')}</button></div>
+      </section>`;
+  }
+  function patcherAlertes(s, e, r) {
+    const zs = (e.zones || []).filter(Boolean);
+    const enCours = zs.filter(z => z.defaut || z.tropChaud || z.derive);
+    const res = reseaux[s.id], conf = socle(s.id) || {};
+    const essai = essaisAlerte[s.id];
+    peindre(r('al-etat'), `<span class="pastille-ok${enCours.length ? ' ko' : ''}" aria-hidden="true">${icone(enCours.length ? 'i-alerte' : 'i-ok')}</span>
+      <h3 class="titre-leger">${enCours.length ? t(enCours.length === 1 ? 'alUneEnCours' : 'alNEnCours', { n: enCours.length }) : t('alAucune')}</h3>
+      ${enCours.map(z => `<p>${esc(z.nom || '')} · ${z.defaut ? t('defautLib', { d: esc(z.defaut) }) : z.tropChaud ? t('tropChaud') : t('derive')}</p>`).join('')}
+      ${e.alertesEnAttente ? `<p class="aide">${t('alertesAttente', { n: e.alertesEnAttente })}</p>` : ''}
+      ${res && res.alertes ? (essai ? `<span class="bandeau-fait"><span>${t('alEssaiParti', { h: new Date(essai).toTimeString().slice(0, 5) })}</span></span>`
+        : `<button type="button" class="btn btn-secondaire" data-action="alEssai">${t('alEssai')}</button>`) : ''}`);
+    const box = /** @type {any} */ ($('#al-ntfy'));
+    if (box && res) box.checked = !!res.alertes;
+    let d = '';
+    if (!(e.proto >= 4)) d = `<p class="aide">${t('alNtfyFirmware')}</p>`;
+    else if (!res) d = `<p class="aide" aria-busy="true">${t('chargementReglages')}</p>`;
+    else if (res.alertes && conf.ntfy && res.alertes === 'ntfy.sh') {
+      const lien = 'https://ntfy.sh/' + conf.ntfy;
+      d = `<ol class="etapes-ntfy"><li>${t('alNtfy1')}</li><li>${t('alNtfy2', { s: `<code>${esc(conf.ntfy)}</code>` })}</li></ol>
+        <div class="boutons deux"><a class="btn" href="${attr(lien)}" target="_blank" rel="noopener noreferrer">${t('alNtfyOuvrir')}</a>
+          <button type="button" class="btn btn-secondaire" data-action="alCopierSujet">${t('alNtfyCopier')}</button></div>
+        <p class="aide">${t('alNtfyPrive')}</p>`;
+    } else if (res.alertes) d = `<p class="aide">${t('alNtfyAilleurs', { h: esc(res.alertes) })}</p>`;
+    peindre(r('al-ntfy'), d);
+  }
+  async function alertesSocle(id, oui) {
+    const s = socle(id);
+    if (!s) return;
+    try {
+      if (oui) {
+        const res = reseaux[id];
+        if (res && res.alertes && res.alertes !== 'ntfy.sh' &&
+            !await confirmer({ titre: t('alNtfy'), texte: t('alNtfyRemplacer', { h: res.alertes }), ok: t('alNtfyActiver') })) { invalider(); return; }
+        if (!s.ntfy) { s.ntfy = sujetNtfy(); sauver(); }
+        reseaux[id] = await commander(id, 'reseau', { urlAlertes: 'https://ntfy.sh/' + s.ntfy, formatAlertes: 1 });
+        message(t('alNtfyActif'));
+      } else {
+        reseaux[id] = await commander(id, 'reseau', { urlAlertes: '' });
+        delete essaisAlerte[id];
+        message(t('alNtfyCoupe'));
+      }
+    } catch (err) { message(err.message, true); }
+    invalider();
+  }
+  async function alerteEssai(id) {
+    try {
+      await commander(id, 'reseau', { essai: true });
+      // Avec le serveur Terrariums, ses notifications s'essaient du même geste.
+      if (serveur.actif() && config.serveur.pushActif) serveur.appel('POST', '/api/push/essai', {}).catch(() => {});
+      essaisAlerte[id] = Date.now();
+      message(t('alEssaiEnvoye'));
+    } catch (err) { message(err.message, true); }
+    invalider();
   }
 
   // --- Plages horaires (F5), vacances (F6), préchauffage (F7), saisons (F9) ---
@@ -3428,7 +3516,7 @@ const App = (() => {
         });
         break;
       case 'courbes': patcherCourbes(s.id); break;
-      case 'alertes': peindre(r('notifs'), vivantNotifications()); break;
+      case 'alertes': peindre(r('notifs'), vivantNotifications()); patcherAlertes(s, e, r); break;
       case 'service': if (serviceMod) serviceMod.patcher(); break;
       case 'maj': peindre(r('maj'), vivantMaj(e) + (e.sante ? etapeMaj(e.sante) : '')); peindre(r('majauto'), vivantMajAuto(e)); break;
       case 'journal':
@@ -4350,6 +4438,12 @@ const App = (() => {
         case 'orgVacances':       vacancesGroupees(); break;
         case 'panneau':           if (el.getAttribute('aria-disabled') === 'true') message(t('reglableAuRetour')); else api.panneau(d.nom); break;
         case 'plEditer':          editerPlage(+d.k); break;
+        case 'alEssai':           if (socleOuvert) alerteEssai(socleOuvert); break;
+        case 'alCopierSujet': {
+          const s = socle(socleOuvert || '');
+          if (s && s.ntfy && navigator.clipboard) navigator.clipboard.writeText(s.ntfy).then(() => message(t('alNtfyCopie')), err => message(err.message, true));
+          break;
+        }
         case 'plJeu':             api2.plJeu(d.jeu); break;
         case 'plWeekend':         api2.plWeekend(d.w === '1'); break;
         case 'plHiver':           api2.plHiver(); break;
@@ -4447,6 +4541,7 @@ const App = (() => {
       if (el.name === 'vac-mode') { invalider(); return; }
       if (!el.id) return;
       if (el.id === 'pl-actif') { api2.plActif(el.checked); return; }
+      if (el.id === 'al-ntfy') { if (socleOuvert) alertesSocle(socleOuvert, el.checked); return; }
       if (el.id === 'pl-saisons-actif') { api2.globauxProg({ saisonsActives: el.checked }, t(el.checked ? 'plSaisonsSuivies' : 'plSaisonsCoupees')); return; }
       if (el.id === 'pl-pre-actif') { api2.globauxProg({ prechauffage: el.checked }, t(el.checked ? 'plPreActif' : 'plPreCoupe')); return; }
       if (el.id === 'vac-debut' || el.id === 'vac-fin') { vac.erreur = ''; invalider(); return; }
@@ -5508,6 +5603,7 @@ const App = (() => {
       if (ligne) ligne.focus(); else if (titre) titre.focus();
       if (['programme', 'plages'].includes(nom)) chargerProgramme(id, nom === 'plages' && avant !== nom);
       if (nom === 'courbes' && !courbes[id]) api.courbes(24);
+      if (nom === 'alertes') chargerReseau(id);
       if (nom === 'journal') chargerJournal(id);
       if (nom === 'conso') chargerConso(id);
       if ((['general', 'programme', 'securite'].includes(nom) && !generaux[id]) || (['plages', 'vacances'].includes(nom) && avant !== nom))

@@ -422,6 +422,9 @@ int main() {
                 strcmp(s.res.urlAlertes, "https://moi:cle@ntfy.sh:443/sujet-secret") == 0 &&
                 s.res.formatAlertes == 1 && s.res.heartbeatMinutes == 10,
             "reseau : alertes réglées, seul l'hôte de l'URL revient");
+    c("\"req\":\"f18e\",\"action\":\"reseau\",\"essai\":true");
+    VERIFIE(contient(s.derniere(), "\"essai\":true") && s.actions.back() == "alerteEssai",
+            "reseau : une alerte de test part par l'adresse enregistrée (F18)");
     c("\"req\":\"f18b\",\"action\":\"reseau\",\"urlHeartbeat\":\"http://[2001:db8::1]:8080/ping/abc\"");
     VERIFIE(contient(s.derniere(), "\"heartbeat\":\"[2001:db8::1]\"") && !contient(s.derniere(), "abc"),
             "reseau : hôte IPv6 rendu sans le chemin");
@@ -429,6 +432,16 @@ int main() {
     VERIFIE(contient(s.derniere(), "valeur invalide") &&
                 strcmp(s.res.urlAlertes, "https://moi:cle@ntfy.sh:443/sujet-secret") == 0,
             "reseau : URL non http(s) refusée sans rien changer");
+    {
+      char garde[sizeof s.res.urlAlertes];
+      snprintf(garde, sizeof garde, "%s", s.res.urlAlertes);
+      s.res.urlAlertes[0] = '\0';
+      const size_t avant = s.actions.size();
+      c("\"req\":\"f18f\",\"action\":\"reseau\",\"essai\":true");
+      VERIFIE(contient(s.derniere(), "aucune adresse") && s.actions.size() == avant,
+              "reseau : sans adresse d'alerte, l'essai est refusé");
+      snprintf(s.res.urlAlertes, sizeof s.res.urlAlertes, "%s", garde);
+    }
     c("\"req\":\"f20\",\"action\":\"reseau\",\"ssid2\":\"Secours\",\"wifiPass2\":\"motdepasse2\"");
     VERIFIE(contient(s.derniere(), "page locale") && s.res.ssid2[0] == '\0' && s.res.motDePasse2[0] == '\0',
             "reseau : aucun identifiant Wi-Fi ne passe par le broker");

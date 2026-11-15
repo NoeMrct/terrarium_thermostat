@@ -569,9 +569,10 @@ const FAUX_MQTT = `
         if (d.formatAlertes !== undefined) { if (d.formatAlertes === 0 || d.formatAlertes === 1) r.formatAlertes = d.formatAlertes; else ok = false; }
         if (!ok) return rep(false, { erreur: 'reseau : valeur invalide (URL http(s)://, 1-1440 min, format 0 ou 1)' });
         f.reseau = r;
+        if (d.essai === true && !r.urlAlertes) return rep(false, { erreur: "aucune adresse d'alerte : rien a essayer" });
         const hote = u => { if (!u) return ''; try { return new URL(u).hostname || 'definie'; } catch (e) { return 'definie'; } };
         return rep(true, { ssid: 'Maison', ssid2: '', alertes: hote(r.urlAlertes), heartbeat: hote(r.urlHeartbeat),
-          heartbeatMinutes: r.heartbeatMinutes, formatAlertes: r.formatAlertes });
+          heartbeatMinutes: r.heartbeatMinutes, formatAlertes: r.formatAlertes, ...(d.essai === true ? { essai: true } : {}) });
       }
       default: return rep(false, { erreur: 'action inconnue' });
     }

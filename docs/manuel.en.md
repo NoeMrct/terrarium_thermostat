@@ -259,11 +259,17 @@ erased on their own.
 
 - **Browser notifications**: a fault or a drift shows a notification as long as the app is open
   (even in the background). **Alerts** section.
-- **On the phone, app closed**: the base itself calls a web address at every alert. With
-  [ntfy](https://ntfy.sh), it is free and needs no account: create a topic, put its address in
-  "Alert URL" in the Network tab, choose the "text" format, install ntfy on the phone. Details
-  in `docs/alertes-telephone.md`. With the Terrariums server: "Enable server notifications" in
-  the Alerts section, and the server pushes the alerts.
+- **On the phone, app closed**: the base itself calls a web address for each alert. Simplest: in
+  the **Alerts** section, turn on "Alert sent by the base"; the app draws a private
+  [ntfy](https://ntfy.sh) topic, gives it to the base, and shows how to subscribe your phone (free
+  ntfy app, no account). The topic is only kept on this phone: whoever knows it can read the alerts.
+  Another address (webhook, your own ntfy) is set in Service, or in "Alert URL" of the local page's
+  Network tab; details in `docs/alertes-telephone.md`. With the Terrariums server: "Turn on server
+  notifications" in the Alerts section, and the server pushes the alerts, titled with the name you
+  give the base; an offline base is only announced after five minutes, and so is its return.
+- **Test alert**: "Send a test alert", in the Alerts section, has the base send it through its alert
+  address (and, with the server, a test notification): a way to check the whole chain before you
+  need it.
 - **Daily report** (local interface, General settings): at the chosen time, a summary of the day
   — temperatures, heating hours, kWh, cost, faults — sent to the alert URL (low priority on ntfy)
   and on the `rapport` MQTT topic.

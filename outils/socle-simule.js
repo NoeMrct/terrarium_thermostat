@@ -777,9 +777,13 @@ client.on('message', (sujet, charge) => {
       if (!ok) return repondre(d.req, false, { erreur: 'reseau : valeur invalide (URL http(s)://, 1-1440 min, format 0 ou 1)' });
       if (ecriture) { socle.reseau = n; journal('Surveillance (alertes, heartbeat) modifiee via le canal de commande'); }
       const r = socle.reseau;
+      // Alerte de test (F18) : le socle simulé la note au journal, sans réseau.
+      const essai = d.essai === true;
+      if (essai && !r.urlAlertes) return repondre(d.req, false, { erreur: 'aucune adresse d\'alerte : rien a essayer' });
+      if (essai) { socle.essaisAlerte = (socle.essaisAlerte || 0) + 1; journal('Alerte de test demandee depuis l\'application'); }
       return repondre(d.req, true, {
         ssid: r.ssid, ssid2: r.ssid2, alertes: hoteUrl(r.urlAlertes), heartbeat: hoteUrl(r.urlHeartbeat),
-        heartbeatMinutes: r.heartbeatMinutes, formatAlertes: r.formatAlertes
+        heartbeatMinutes: r.heartbeatMinutes, formatAlertes: r.formatAlertes, ...(essai ? { essai: true } : {})
       });
     }
 

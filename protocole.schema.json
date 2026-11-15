@@ -558,6 +558,10 @@
           ],
           "description": "0 = JSON, 1 = texte (ntfy)."
         },
+        "essai": {
+          "type": "boolean",
+          "description": "reseau : true envoie une alerte de test par l'adresse enregistrée (F18)."
+        },
         "actif": {
           "type": "boolean",
           "description": "Pour « programme » : plages actives (sinon jour et nuit de chaque zone)."
@@ -795,27 +799,35 @@
           }
         },
         "essai": {
-          "type": "object",
-          "required": [
-            "zone",
-            "restantS",
-            "resultat"
-          ],
-          "properties": {
-            "zone": {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 2,
-              "description": "Zone en essai, comptée depuis 1 ; 0 : aucun essai."
+          "description": "essai : l'essai de chauffe en cours (objet) ; reseau : true quand une alerte de test est partie (F18).",
+          "oneOf": [
+            {
+              "type": "object",
+              "required": [
+                "zone",
+                "restantS",
+                "resultat"
+              ],
+              "properties": {
+                "zone": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 2,
+                  "description": "Zone en essai, comptée depuis 1 ; 0 : aucun essai."
+                },
+                "restantS": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "resultat": {
+                  "type": "string"
+                }
+              }
             },
-            "restantS": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "resultat": {
-              "type": "string"
+            {
+              "const": true
             }
-          }
+          ]
         },
         "jours": {
           "type": "object",

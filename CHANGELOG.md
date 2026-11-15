@@ -84,6 +84,14 @@ jour.
 - **Délai de grâce hors ligne** (U34) : un socle qui quitte le broker n'est
   notifié qu'au bout de 5 minutes (`DELAI_HORS_LIGNE_MIN`) ; revenu avant,
   rien ne part ; notifié, son retour en ligne l'est aussi.
+- **Alertes du socle en un geste** (U31) et **alerte de test** (F18) : dans
+  la rubrique Alertes, « Alerte envoyée par le socle » tire au sort un sujet
+  ntfy privé, le donne au socle (format texte) et montre comment y abonner
+  le téléphone ; le sujet n'est gardé que sur ce téléphone. « Envoyer une
+  alerte de test » la fait partir du socle par son adresse d'alerte
+  (`reseau` `essai`, nouvelle alerte de type `ESSAI`), et une notification
+  d'essai du serveur s'il y en a un. La rubrique dit aussi les alertes en
+  cours.
 - **Alimentation verrouillée** (U20) : la rubrique Sécurité montre le bloc
   (« Bloc 12 V · 3 A ») et dit si deux tapis peuvent chauffer ensemble ou à
   tour de rôle ; elle ne se modifie plus que dans Service, après

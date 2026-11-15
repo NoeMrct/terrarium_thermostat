@@ -48,6 +48,7 @@ bool otaActive();
 // Empile une alerte : elle est persistée puis envoyée dès que le réseau revient.
 // L'anti-répétition évite qu'une sonde instable n'inonde le webhook.
 void alerter(TypeNotif type, uint8_t zone, const String &texte);
+void alerteEssai();  // alerte de test demandée par l'application (F18)
 
 void publierMqtt(bool forcer = false);
 

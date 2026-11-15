@@ -417,6 +417,8 @@ client.on('connect', async () => {
       verifier('reseau : alertes réglées, seul l\'hôte revient',
                res.ok === true && res.alertes === 'ntfy.sh' && res.heartbeatMinutes === 15 && !/sujet-secret/.test(JSON.stringify(res)),
                `alertes = ${res.alertes}`);
+      const essaiAlerte = await commander('reseau', { essai: true });
+      verifier('reseau : une alerte de test part (F18)', essaiAlerte.ok === true && essaiAlerte.essai === true, essaiAlerte.erreur || '');
       const wifi = await commander('reseau', { ssid2: 'Secours', wifiPass2: 'x' });
       verifier('reseau : aucun identifiant Wi-Fi par le broker', wifi.ok === false && /page locale/.test(wifi.erreur || ''), wifi.erreur || '');
       const format = await commander('reseau', { formatAlertes: 3 });

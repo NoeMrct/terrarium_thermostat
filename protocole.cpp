@@ -370,6 +370,15 @@ void traiterReseau(Socle &socle, JsonDocument &doc, const char *req) {
     socle.sauverReseau();
     socle.journal("Surveillance (alertes, heartbeat) modifiee via le canal de commande");
   }
+  // Alerte de test (F18) : par l'adresse enregistrée, comme une vraie.
+  const bool essai = doc["essai"].is<bool>() && doc["essai"].as<bool>();
+  if (essai) {
+    if (!n.urlAlertes[0]) {
+      erreur(socle, req, "aucune adresse d'alerte : rien a essayer");
+      return;
+    }
+    socle.alerteEssai();
+  }
   char s1[70], s2[70], ha[70], hh[70], ea[80], eh[80];
   formatEchapperJson(n.ssid, s1, sizeof s1);
   formatEchapperJson(n.ssid2, s2, sizeof s2);
@@ -379,8 +388,9 @@ void traiterReseau(Socle &socle, JsonDocument &doc, const char *req) {
   formatEchapperJson(hh, eh, sizeof eh);
   snprintf(g_corps, sizeof g_corps,
            "\"ssid\":\"%s\",\"ssid2\":\"%s\",\"alertes\":\"%s\",\"heartbeat\":\"%s\","
-           "\"heartbeatMinutes\":%u,\"formatAlertes\":%u",
-           s1, s2, ea, eh, (unsigned)n.heartbeatMinutes, (unsigned)n.formatAlertes);
+           "\"heartbeatMinutes\":%u,\"formatAlertes\":%u%s",
+           s1, s2, ea, eh, (unsigned)n.heartbeatMinutes, (unsigned)n.formatAlertes,
+           essai ? ",\"essai\":true" : "");
   repondre(socle, req, true, g_corps);
 }
 

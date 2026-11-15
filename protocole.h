@@ -110,6 +110,7 @@ public:
   virtual bool restaurer(const char *json, size_t n, char *message, size_t taille) = 0;
   virtual ReglagesReseau &reseau() = 0;
   virtual void sauverReseau() = 0;
+  virtual void alerteEssai() = 0;  // une alerte de test, par le chemin des vraies (F18)
 
   // Accès support : la session, gardée par le socle (NVS) ; sauverService()
   // la persiste et met l'écran à jour (« Support connecté »).

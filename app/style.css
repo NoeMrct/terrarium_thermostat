@@ -1089,3 +1089,14 @@ div.ligne-reglage, label.ligne-reglage { cursor: default; }
 .verrou-atelier { display: inline-flex; align-items: center; gap: 6px; flex: none; font-size: 13px; color: var(--texte-2); }
 .verrou-atelier .ico { width: 16px; height: 16px; }
 .carte-alim .aide { margin-top: 10px; }
+
+/* Alertes : en cours, essai, alertes du socle par ntfy (U31, F18). */
+.etat-alertes { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding-top: 8px; }
+.etat-alertes p { color: var(--texte-2); }
+.etat-alertes .bandeau-fait { align-self: stretch; }
+.pastille-ok.ko { background: var(--danger-doux); color: var(--danger); }
+.al-ntfy-detail:empty { display: none; }
+.al-ntfy-detail { margin-top: 12px; }
+.al-ntfy-detail > * + * { margin-top: 10px; }
+.etapes-ntfy { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; color: var(--texte-2); }
+.etapes-ntfy code { font-size: 14px; overflow-wrap: anywhere; color: var(--texte); }

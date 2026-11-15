@@ -268,10 +268,18 @@ Le socle garde ses derniers événements ; les plus anciens s'effacent d'eux-mê
 - **Notifications du navigateur** : un défaut ou une dérive affiche une notification tant que
   l'application est ouverte (même en arrière-plan). Rubrique **Alertes**.
 - **Sur le téléphone, application fermée** : le socle appelle lui-même une adresse web à chaque
-  alerte. Avec [ntfy](https://ntfy.sh), c'est gratuit et sans compte : crée un sujet, mets son adresse dans
-  « URL d'alerte » de l'onglet Réseau, choisis le format « texte », installe ntfy sur le téléphone.
-  Détails dans `docs/alertes-telephone.md`. Avec le serveur Terrariums : « Activer les notifications
-  du serveur » dans la rubrique Alertes, et c'est le serveur qui pousse les alertes.
+  alerte. Le plus simple : dans la rubrique **Alertes**, active « Alerte envoyée par le socle » ;
+  l'application tire au sort un sujet [ntfy](https://ntfy.sh) privé, le donne au socle, et te
+  montre comment y abonner ton téléphone (application ntfy gratuite, sans compte). Le sujet n'est
+  gardé que sur ce téléphone : qui le connaît peut lire les alertes. Une autre adresse (webhook,
+  ntfy à toi) se règle dans Service, ou dans « URL d'alerte » de l'onglet Réseau de la page locale ;
+  détails dans `docs/alertes-telephone.md`. Avec le serveur Terrariums : « Activer les
+  notifications du serveur » dans la rubrique Alertes, et c'est le serveur qui pousse les alertes,
+  titrées du nom que tu donnes au socle ; un socle hors ligne n'est annoncé qu'après cinq minutes,
+  et son retour aussi.
+- **Alerte de test** : « Envoyer une alerte de test », dans la rubrique Alertes, la fait partir du
+  socle par son adresse d'alerte (et, avec le serveur, une notification d'essai) : de quoi vérifier
+  toute la chaîne avant d'en avoir besoin.
 - **Rapport quotidien** (interface locale, Réglages généraux) : à l'heure choisie, un résumé de la
   journée — températures, heures de chauffe, kWh, coût, défauts — envoyé à l'URL d'alerte (en
   priorité basse sur ntfy) et sur le sujet MQTT `rapport`.

@@ -183,6 +183,7 @@ struct SocleFactice : public Protocole::Socle {
   }
   ReglagesReseau &reseau() override { return res; }
   void sauverReseau() override { actions.push_back("sauverReseau"); }
+  void alerteEssai() override { actions.push_back("alerteEssai"); }
   Protocole::SessionService &service() override { return session; }
   void sauverService() override {
     servicesSauves++;

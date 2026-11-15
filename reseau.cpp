@@ -2371,6 +2371,7 @@ public:
   }
   ReglagesReseau &reseau() override { return Stockage::reseau(); }
   void sauverReseau() override { Stockage::sauverReseau(); }
+  void alerteEssai() override { Reseau::alerteEssai(); }
   Protocole::SessionService &service() override { return Stockage::service(); }
   void sauverService() override {
     Stockage::sauverService();
@@ -3144,6 +3145,19 @@ void alerter(TypeNotif type, uint8_t zone, const String &texte) {
   if (zone < NB_ZONES) j += ",\"nomZone\":\"" + echapperJson(ctrl.cfg[zone].nom) + "\"";
   j += ",\"texte\":\"" + echapperJson(texte.c_str()) + "\"}";
   Stockage::alerteEmpiler(j);
+}
+
+// Alerte de test (F18) : même file, même adresse, même format que les vraies ;
+// sans anti-répétition (c'est une demande explicite), et notée au journal.
+void alerteEssai() {
+  String j = "{\"appareil\":\"" + g_id + "\"";
+  j += ",\"version\":\"" FW_VERSION "\"";
+  j += ",\"horodatage\":\"" + (heureFiable() ? horodatage() : String("")) + "\"";
+  j += ",\"heureFiable\":" + String(heureFiable() ? "true" : "false");
+  j += ",\"type\":\"ESSAI\",\"zone\":null";
+  j += ",\"texte\":\"Alerte de test : ce socle sait te prevenir.\"}";
+  Stockage::alerteEmpiler(j);
+  journal("Alerte de test demandee depuis l'application");
 }
 
 String empreinte(const String &texte) { return hacher(texte); }
