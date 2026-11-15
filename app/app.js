@@ -78,6 +78,7 @@ const App = (() => {
       socleSilencieux: 'Ce socle est annoncé en ligne mais n\'a rien publié depuis {m} min. Vérifie son réseau.',
       ongletEtat: 'État', ongletReglages: 'Réglages', ongletCourbes: 'Courbes', ongletAppareil: 'Appareil', ongletService: 'Service',
       toutVaBien: 'tout va bien', defautDans: 'défaut {d} · {z}', jourJusqua: 'jour jusqu\'à {h}', nuitJusqua: 'nuit jusqu\'à {h}',
+      plageJusqua: '{p} jusqu\'à {h}', enVacances: 'en vacances',
       cibleDeg: 'Cible {v}°', chauffePct: 'Chauffe · {p} %', attendPct: 'Attend son tour · {p} %', auRepos: 'Au repos', autotuneEnCours: 'Autoréglage en cours',
       chauffeCible: 'Chauffe · cible {v}°', attendCible: 'Attend · cible {v}°', reposCible: 'Au repos · cible {v}°',
       rubTemperatures: 'Températures', rubProgrammation: 'Programmation', rubAlertes: 'Alertes', rubSecurite: 'Sécurité', rubMaj: 'Mises à jour',
@@ -87,7 +88,9 @@ const App = (() => {
       jnlAujourdhui: 'Aujourd\'hui', jnlHier: 'Hier', jnlSansHeure: 'Avant la mise à l\'heure', jnlVide: 'Rien à afficher pour ce filtre.',
       jnlChargement: 'Lecture du journal du socle…', jnlIndispo: 'Le socle ne répond pas : son journal n\'est pas lisible pour l\'instant.',
       jnlActualiser: 'Actualiser', jnlFin: 'Le socle garde ses derniers événements ; les plus anciens s\'effacent d\'eux-mêmes.',
-      jnlJour: 'Passage en jour', jnlNuit: 'Passage en nuit', jnlVers: 'Vers {c}', jnlDefaut: 'Défaut : {z}', jnlDefautDetail: '{d} · chauffe coupée',
+      jnlJour: 'Passage en jour', jnlNuit: 'Passage en nuit', jnlPlage: 'Plage « {p} »', jnlVers: 'Vers {c}',
+      jnlPlagesModifiees: 'Plages horaires modifiées', jnlPlagesCoupees: 'Plages horaires coupées', jnlVacances: 'Début des vacances',
+      jnlVacancesBas: 'consignes {d}° plus bas', jnlVacancesAlertes: 'alertes dès 2° d\'écart', jnlVacancesFin: 'Fin des vacances', jnlDefaut: 'Défaut : {z}', jnlDefautDetail: '{d} · chauffe coupée',
       jnlRetabli: 'Défaut levé : {z}', jnlRetabliDetail: 'Régulation reprise', jnlDerive: '{z} sous sa consigne', jnlDeriveDetail: '{t}° au lieu de {c}°',
       jnlNormale: '{z} revenu à la normale', jnlTropChaud: 'Trop chaud : {z}', jnlFigee: 'Sonde figée : {z}', jnlChute: 'Chute brutale : {z}',
       jnlChuteDetail: 'Terrarium ouvert ?', jnlSansEffet: 'Chauffe sans effet : {z}', jnlAutoreglage: 'Autoréglage : {z}',
@@ -121,6 +124,9 @@ const App = (() => {
       baisser: 'Baisser la consigne de 0,5 degré', monter: 'Monter la consigne de 0,5 degré', periode: 'Période',
       cibleJour: 'Cible de jour · pas de 0,5°', cibleNuit: 'Cible de nuit · pas de 0,5°', jourDeg: 'Jour · {v}°', nuitDeg: 'Nuit · {v}°',
       ensuiteNuit: 'Ensuite : nuit à {h}, rampe de {r} min vers {v}°', ensuiteJour: 'Ensuite : jour à {h}, rampe de {r} min vers {v}°',
+      ensuitePlage: 'Ensuite, à {h} : rampe de {r} min vers {v}°',
+      ciblePlage: 'Consigne de la plage « {p} »', ciblePlages: 'Consigne des plages horaires', modifierPlages: 'Modifier les plages',
+      ciblePlagesMessage: 'Les plages horaires fixent les consignes : modifie-les dans Programmation, Plages et saisons.',
       actuellement: 'Actuellement {t} · {e}', courbe: 'Courbe', avances: 'Réglages avancés',
       alertesSocleTitre: 'Alertes envoyées par le socle', alertesSocle: 'Le socle prévient aussi tout seul, application fermée (ntfy, webhook, heartbeat) : son adresse se règle dans Service.',
       ecranCout: 'Écran, coût et rapport', prixKwh: 'Prix du kWh (€)', ecranNuit: 'Écran la nuit', ecranAttenue: 'Atténué', ecranNormal: 'Normal', ecranEteint: 'Éteint',
@@ -348,7 +354,46 @@ const App = (() => {
       cnConso: 'Consommation, jour par jour', cnConsoAide: 'Énergie des tapis, en kWh ; la journée en cours est en clair.', cnKwh: 'kWh',
       cnJournal: 'Alertes et événements', cnJournalVide: 'Aucune alerte ce mois-ci dans le journal du socle.',
       cnJournalDepuis: 'Le journal du socle remonte au {d} : ce qui précède n\'y est plus.', cnTableau: 'Jour par jour',
-      cnDate: 'Date', cnMin: 'min', cnMoy: 'moy.', cnMax: 'max', cnHeures: 'Chauffe', cnDefautsCourt: 'Défauts', cnPied: 'Terrariums · {n} · {m}', cnPage: 'page {p} / {t}'
+      cnDate: 'Date', cnMin: 'min', cnMoy: 'moy.', cnMax: 'max', cnHeures: 'Chauffe', cnDefautsCourt: 'Défauts', cnPied: 'Terrariums · {n} · {m}', cnPage: 'page {p} / {t}',
+      // programmation : maintenant, plages horaires, saisons, préchauffage, vacances
+      progMaintenant: 'Maintenant', progJour: 'Jour', progNuit: 'Nuit', progEt: ' et ', progCibles: 'Cibles {c} jusqu\'à {h}',
+      progFriseBout: '{p} jusqu\'à {h}', progRampe: 'Rampe de {m} min à chaque changement.',
+      progPlagesSaisons: 'Plages et saisons', progVacances: 'Mode vacances', progNPlages: '{n} plages', progJourNuit: 'Jour et nuit',
+      progNon: 'Non', progVacancesDu: 'Du {a} au {b}', progVacancesEnCours: 'En cours, jusqu\'au {b}',
+      progPlagesDecident: 'Plages horaires actives : ce sont elles qui fixent les heures et les consignes. Les réglages jour et nuit ci-dessous reprendront si tu les coupes.',
+      plTitre: 'Plages et saisons', vacTitre: 'Mode vacances', retourProgrammation: 'Retour à la programmation', plApercu: 'Aperçu de la journée',
+      plActives: 'Plages horaires', plActivesAide: 'Jusqu\'à 4 moments par jour, au lieu du seul jour et nuit', plDuJour: 'Plages de la journée · {n} sur 4',
+      plJeuAria: 'Jours modifiés', plSemaine: 'Semaine', plWeekend: 'Week-end', plDebut: 'Début', plNom: 'Nom',
+      plPlageN: 'Plage {n}', plNouvelle: 'Nouvelle plage', plModifier: 'Plage « {p} »', plConsigneZone: '{z} (°C)', plRetirerCourt: 'Retirer',
+      plPourSemaine: 'Du lundi au vendredi.', plPourWeekend: 'Le samedi et le dimanche.',
+      plAjouter: 'Ajouter une plage', plJours: 'Jours', plTous: 'Tous les jours', plSemaineWeekend: 'Semaine, week-end',
+      plAideZones: '{a} · {b}. Chaque plage dure jusqu\'au début de la suivante ; la plus fraîche compte comme la nuit.',
+      plAideCoupees: 'Plages coupées : le jour et la nuit des zones s\'appliquent. Prépare tes plages, puis active-les.',
+      plWeekendActif: 'Week-end à part : ses plages se règlent séparément.', plTousLesJours: 'Les mêmes plages tous les jours.',
+      plEnregistre: 'Plages enregistrées.', plActivees: 'Plages horaires activées.',
+      plCoupees: 'Plages horaires coupées : retour au jour et nuit.', plConsigneIllisible: 'Une consigne est illisible : écris un nombre, par exemple 28,5.',
+      plIllisible: 'Le programme du socle n\'a pas pu être lu : {m}', plSaisons: 'Saisons', plSuivre: 'Suivre les saisons',
+      plSuivreAide: 'Passage progressif, sur {n} jours', plEte: 'Été', plEteAide: 'Les consignes telles que réglées', plHiver: 'Hiver · du {a} au {b}',
+      plHiverAide: '{d}° de moins, journées raccourcies de {r}', plUneHeure: '1 h', plHeures: '{n} h', plMinutes: '{n} min',
+      plExemple: 'Le {j} : {m}.', plExPic: '{p} à {c}° au lieu de {c0}°', plExJour: 'journée de {a} à {b}',
+      plRienEnHiver: 'Le {j} : rien ne change, l\'hiver est réglé à zéro.', plRegler: 'Régler l\'hiver', plHiverDebut: 'Début de l\'hiver',
+      plHiverFin: 'Fin de l\'hiver', plJour: 'Jour', plMois: 'Mois', plHiverDecalage: 'Baisse (°C)', plHiverRaccourci: 'Journées plus courtes (min)',
+      plTransition: 'Transition (jours)', plHiverEnregistre: 'Hiver enregistré.', plSaisonsSuivies: 'Saisons suivies.',
+      plSaisonsCoupees: 'Saisons coupées : les consignes restent celles de l\'été.', plPrechauffage: 'Préchauffage',
+      plPreLib: 'Être à température à l\'heure', plPreAide: 'Le socle apprend le temps que chaque zone met à monter, et commence plus tôt',
+      plPreActif: 'Préchauffage activé.', plPreCoupe: 'Préchauffage coupé.', plMontee: 'Montée apprise : {a} {va}°/h · {b} {vb}°/h.',
+      vacIntro: 'Pendant ton absence, le socle garde ses consignes et te prévient au moindre écart, plus tôt que d\'habitude.',
+      vacDepart: 'Départ', vacRetour: 'Retour', vacConsignes: 'Consignes pendant l\'absence', vacHabituelles: 'Consignes habituelles',
+      vacHabituellesAide: 'Rien ne change pour l\'animal', vacPlusBas: 'Un peu plus bas, 2° de moins', vacPlusBasAide: 'Pour un animal qui jeûne pendant ce temps',
+      vacAlertes: 'Alertes plus tôt', vacAlertesAide: 'Dès 2° d\'écart avec la consigne',
+      vacProgrammer: 'Programmer du {a} au {b}', vacProgrammerSeul: 'Programmer les vacances', vacDatesIllisibles: 'Choisis les dates de départ et de retour.',
+      vacRetourAvant: 'Le retour doit suivre le départ.', vacRefusees: 'Les vacances n\'ont pas été enregistrées : réessaie.',
+      vacProgrammees: 'Vacances programmées', vacEnCours: 'Vacances en cours', vacResume: 'Du {a} au {b}. {c}. L\'accueil du socle affiche un bandeau « Vacances » pendant ce temps.',
+      vacResumeHabituelles: 'Consignes habituelles', vacResumeBas: 'Consignes {d}° plus bas',
+      vacRevenir: 'Revenir à la programmation', vacAnnuler: 'Annuler les vacances', vacFaites: 'Vacances programmées.', vacAnnulees: 'Vacances annulées.',
+      orgVacances: 'Vacances…', orgVacancesTitre1: 'Vacances pour 1 socle', orgVacancesTitre: 'Vacances pour {n} socles',
+      orgVacancesAide: 'Les mêmes dates et les mêmes choix pour chaque socle coché. Un socle trop ancien pour le mode vacances est signalé.',
+      vacFirmware: 'Ce socle ne connaît pas encore le mode vacances : installe sa dernière version (rubrique Mise à jour).', vacBadge: 'Vacances'
     }
   };
 
@@ -822,6 +867,13 @@ const App = (() => {
     if (z.derive !== undefined) n.derive = vrai(z.derive);
     const tropChaud = z.tropChaud !== undefined ? z.tropChaud : z.trop_chaud;
     if (tropChaud !== undefined) n.tropChaud = vrai(tropChaud);
+    // Depuis la 3.5 (drapeau « derive » présent), plage, période et vacances ne
+    // sont envoyées que lorsqu'elles existent : absentes, elles ne valent plus.
+    if (z.derive !== undefined) {
+      n.vacances = vrai(z.vacances);
+      if (z.plage === undefined) delete n.plage;
+      if (z.periode === undefined) { delete n.periode; delete n.suivante; delete n.suivanteA; }
+    }
     return n;
   }
 
@@ -1356,7 +1408,10 @@ const App = (() => {
   // l'application passe par l'historique quand l'entrée précédente est le
   // parent (remonter()), sinon réécrit l'entrée courante : jamais un écran
   // déjà quitté ne revient au retour suivant.
-  const PANNEAUX = RUBRIQUES.map(r => r[0]);
+  // Feuilles ouvertes depuis une autre (et non depuis l'accueil) : leur parent.
+  const SOUS_PANNEAUX = { plages: 'programme', vacances: 'programme' };
+  const TITRES_SOUS_PANNEAUX = { plages: 'plTitre', vacances: 'vacTitre' };
+  const PANNEAUX = RUBRIQUES.map(r => r[0]).concat(Object.keys(SOUS_PANNEAUX));
   // WebKit (Safari, et tout navigateur sur iPhone) : une page rechargée après
   // un retour dans des entrées empilées par pushState peut planter (bug WebKit
   // 300402, Navigation::initializeForNewWindow ; vu en intégration continue).
@@ -1372,8 +1427,13 @@ const App = (() => {
     return PANNEAUX.includes(panneauActif) ? `${base}/${panneauActif}` : base;
   }
   const adresseActuelle = () => (location.hash && location.hash !== '#' ? location.hash : '#/');
-  const profondeur = a => { const p = a.replace(/^#\/?/, '').split('/').filter(Boolean); return p[1] === 'zone' ? 2 : p.length; };
-  const parentDe = a => (profondeur(a) === 2 ? '#/' + a.replace(/^#\//, '').split('/')[0] : profondeur(a) === 1 ? '#/' : null);
+  const segments = a => a.replace(/^#\/?/, '').split('/').filter(Boolean);
+  const profondeur = a => { const p = segments(a); return p[1] === 'zone' ? 2 : p.length === 2 && SOUS_PANNEAUX[p[1]] ? 3 : p.length; };
+  const parentDe = a => {
+    const p = segments(a);
+    if (p.length === 2 && SOUS_PANNEAUX[p[1]]) return `#/${p[0]}/${SOUS_PANNEAUX[p[1]]}`;
+    return profondeur(a) === 2 ? '#/' + p[0] : profondeur(a) === 1 ? '#/' : null;
+  };
   function noterAdresse() {
     if (routeEnCours) return;
     const a = adresseCourante(), h = adresseActuelle();
@@ -1396,7 +1456,8 @@ const App = (() => {
     if (EMPILER && parent && a === adresseActuelle() && etat && etat.terrarium && etat.avant === parent) {
       try { history.back(); return; } catch (e) { /* repli ci-dessous */ }
     }
-    if (vueCourante === 'socle' && panneauActif !== 'etat') api.panneau('etat');
+    if (vueCourante === 'socle' && SOUS_PANNEAUX[panneauActif]) api.panneau(SOUS_PANNEAUX[panneauActif]);
+    else if (vueCourante === 'socle' && panneauActif !== 'etat') api.panneau('etat');
     else if (vueCourante === 'reglages' && pageReglages !== 'menu') api.reglagesApp('menu');
     else montrer('liste');
   }
@@ -1438,10 +1499,11 @@ const App = (() => {
     try {
       const ici = adresseCourante() || '#/';
       history.replaceState({ terrarium: true, avant: null }, '', '#/');
-      if (ici === '#/') return;
-      const base = '#/' + ici.replace(/^#\//, '').split('/')[0];
-      history.pushState({ terrarium: true, avant: '#/' }, '', base);
-      if (ici !== base) history.pushState({ terrarium: true, avant: base }, '', ici);
+      // Chaque parent, du socle jusqu'à l'écran ouvert (accueil, feuille, sous-feuille).
+      const chaine = [];
+      for (let a = ici; a && a !== '#/'; a = parentDe(a)) chaine.unshift(a);
+      let avant = '#/';
+      for (const a of chaine) { history.pushState({ terrarium: true, avant }, '', a); avant = a; }
     } catch (e) { /* file:// d'un vieux navigateur */ }
   }
 
@@ -1491,6 +1553,8 @@ const App = (() => {
   // Période en cours d'une zone, d'après l'horloge du socle (à défaut, celle du
   // téléphone) : jour ou nuit, et l'heure du prochain basculement.
   function periodeZone(z, e) {
+    if (z && (z.periode === 'jour' || z.periode === 'nuit') && z.suivanteA !== undefined)
+      return { jour: z.periode === 'jour', fin: +z.suivanteA, plage: z.plage || null };
     if (!z || z.debutJour === undefined || z.debutNuit === undefined) return null;
     const h = /(\d{2}):(\d{2})/.exec(String(e.heure || '').slice(11));
     const d = new Date();
@@ -1510,7 +1574,9 @@ const App = (() => {
     else if (e.entretienS > 0) { c = 'warn'; txt = t('entretienMin', { m: Math.ceil(e.entretienS / 60) }); }
     else {
       const p = periodeZone(zs[0], e);
-      if (p) txt += ' · ' + t(p.jour ? 'jourJusqua' : 'nuitJusqua', { h: enHHMM(p.fin) });
+      if (zs[0] && zs[0].vacances) txt += ' · ' + t('enVacances');
+      else if (p && p.plage) txt += ' · ' + t('plageJusqua', { p: esc(p.plage), h: enHHMM(p.fin) });
+      else if (p) txt += ' · ' + t(p.jour ? 'jourJusqua' : 'nuitJusqua', { h: enHHMM(p.fin) });
     }
     return `<p class="ligne-etat ${c}"><span>${txt}</span></p>`;
   }
@@ -1817,7 +1883,8 @@ const App = (() => {
           <input type="checkbox" id="org-compacte" role="switch"></label><div data-r="apercu"></div>`)}
       ${sectionRg('org-grp', t('orgActions'), `<div data-r="cases"></div>
         <div class="boutons deux"><button type="button" class="btn btn-secondaire" data-action="orgGroupe" data-cmd="entretien">${t('orgEntretien')}</button>
-          <button type="button" class="btn btn-secondaire" data-action="orgGroupe" data-cmd="reset">${t('orgLever')}</button></div>
+          <button type="button" class="btn btn-secondaire" data-action="orgGroupe" data-cmd="reset">${t('orgLever')}</button>
+          <button type="button" class="btn btn-secondaire" data-action="orgVacances">${t('orgVacances')}</button></div>
         <p class="aide" role="status" aria-live="polite" data-r="resultat"></p>`)}`;
   }
   function vivantOrdre() {
@@ -1887,17 +1954,61 @@ const App = (() => {
       : ou === 'fin' ? config.socles.indexOf(membres[membres.length - 1]) + 1 : config.socles.indexOf(membres[0]);
     config.socles.splice(pos, 0, s);
   }
-  async function actionGroupee(cmd) {
-    const ids = config.socles.filter(s => orgSelection.has(s.id) && etats[s.id] && etats[s.id].enLigne).map(s => s.id);
+  const idsCoches = () => config.socles.filter(s => orgSelection.has(s.id) && etats[s.id] && etats[s.id].enLigne).map(s => s.id);
+  // accepte(r) : la réponse dit-elle que le réglage a pris ? (un firmware
+  // trop ancien ignore les champs qu'il ne connaît pas, sans erreur).
+  async function actionGroupee(cmd, parametres, accepte) {
+    const ids = idsCoches();
     if (!ids.length) { orgResultat = t('orgCocher'); invalider(); return; }
     orgResultat = t('orgEnvoi', { n: ids.length }); invalider();
-    const params = cmd === 'entretien' ? { minutes: 30 } : undefined;
-    const r = await Promise.all(ids.map(id => commander(id, cmd, params).then(() => true, () => false)));
+    const params = parametres || (cmd === 'entretien' ? { minutes: 30 } : undefined);
+    const r = await Promise.all(ids.map(id => commander(id, cmd, params).then(rep_ => {
+      if (cmd === 'globaux' && rep_) generaux[id] = rep_;
+      return !accepte || accepte(rep_);
+    }, () => false)));
     const ko = ids.filter((_, i) => !r[i]).map(id => (socle(id) && socle(id).nom) || id);
     orgResultat = !ko.length ? (ids.length === 1 ? t('orgConfirme1') : t('orgConfirmeN', { n: ids.length }))
       : t('orgPartiel', { k: ids.length - ko.length, n: ids.length, noms: ko.join(', ') });
     ids.forEach(id => commander(id, 'etat').catch(() => {}));
     invalider();
+  }
+
+  // Vacances de plusieurs socles d'un coup : les mêmes dates, les mêmes choix.
+  async function vacancesGroupees() {
+    const ids = idsCoches();
+    if (!ids.length) { orgResultat = t('orgCocher'); invalider(); return; }
+    const params = await demanderVacances(ids.length);
+    if (params) actionGroupee('globaux', params, rep_ => !!rep_ && rep_.vacancesDebut !== undefined);
+  }
+  function demanderVacances(n) {
+    return new Promise(resoudre => {
+      let dlg = /** @type {any} */ ($('#dlg-vacances'));
+      if (!dlg) { dlg = doc.createElement('dialog'); dlg.id = 'dlg-vacances'; dlg.className = 'feuille'; dlg.setAttribute('aria-labelledby', 'dv-titre'); doc.body.appendChild(dlg); }
+      const auj = new Date(), retour = new Date(auj.getFullYear(), auj.getMonth(), auj.getDate() + 7);
+      html(dlg, `<form novalidate><h2 id="dv-titre">${t(n === 1 ? 'orgVacancesTitre1' : 'orgVacancesTitre', { n })}</h2>
+        <p class="aide">${t('orgVacancesAide')}</p>
+        <div class="deux-dates mt"><label>${t('vacDepart')}<input type="date" id="dv-debut" value="${isoJour(auj)}" min="${isoJour(auj)}"></label>
+          <label>${t('vacRetour')}<input type="date" id="dv-fin" value="${isoJour(retour)}" min="${isoJour(auj)}"></label></div>
+        <fieldset class="choix-radio mt"><legend class="sr-only">${t('vacConsignes')}</legend>
+          <label class="option-radio"><input type="radio" name="dv-mode" value="0" checked><span><strong>${t('vacHabituelles')}</strong><small>${t('vacHabituellesAide')}</small></span></label>
+          <label class="option-radio"><input type="radio" name="dv-mode" value="-2"><span><strong>${t('vacPlusBas')}</strong><small>${t('vacPlusBasAide')}</small></span></label></fieldset>
+        <label class="ligne-reglage interrupteur mt" for="dv-alertes"><span class="lib">${t('vacAlertes')}<small>${t('vacAlertesAide')}</small></span><input type="checkbox" id="dv-alertes" role="switch" checked></label>
+        <p class="erreur-code" id="dv-erreur" role="alert"></p>
+        <div class="boutons fin"><button type="button" class="btn btn-secondaire" data-dv="annuler">${t('annuler')}</button><button type="submit" class="btn">${t('vacProgrammerSeul')}</button></div></form>`);
+      let fini = false;
+      const fin = v => { if (fini) return; fini = true; fermerDialogue(dlg); resoudre(v); };
+      dlg.querySelector('[data-dv="annuler"]').addEventListener('click', () => fin(null));
+      dlg.addEventListener('close', () => fin(null), { once: true });
+      dlg.querySelector('form').addEventListener('submit', ev => {
+        ev.preventDefault(); ev.stopPropagation();
+        const mode = dlg.querySelector('input[name="dv-mode"]:checked');
+        const r = paramsVacances(dlg.querySelector('#dv-debut').value, dlg.querySelector('#dv-fin').value, mode ? +mode.value : 0, dlg.querySelector('#dv-alertes').checked);
+        if (r.erreur) { texte($('#dv-erreur'), r.erreur); return; }
+        fin(r.params);
+      });
+      ouvrirDialogue(dlg);
+      setTimeout(() => { try { dlg.querySelector('#dv-debut').focus(); } catch (e) { /* hors écran */ } }, 30);
+    });
   }
 
   // --- Copier des réglages d'un socle à l'autre, ou depuis un fichier (U18,
@@ -2676,7 +2787,7 @@ const App = (() => {
   // ------------------------------------------------------------------ détail
   function enteteSocle(s, e) {
     return `<h2 tabindex="-1">${esc(s.nom || s.id)}</h2>${ligneEtat(e)}
-      <div class="separe">${e.alertesEnAttente ? `<span class="badge warn">${t('alertesAttente', { n: e.alertesEnAttente })}</span>` : ''}${badgeProto(e)}</div>`;
+      <div class="separe">${(e.zones || []).some(z => z && z.vacances) ? `<span class="badge ok">${t('vacBadge')}</span>` : ''}${e.alertesEnAttente ? `<span class="badge warn">${t('alertesAttente', { n: e.alertesEnAttente })}</span>` : ''}${badgeProto(e)}</div>`;
   }
 
   // Sous-titre de chaque rubrique : l'essentiel, lisible sans l'ouvrir.
@@ -2684,8 +2795,10 @@ const App = (() => {
     const zs = (e.zones || []).filter(Boolean), g = generaux[s.id];
     const deux = cle => zs.map(z => deg(z[cle]) + '°').join(' / ');
     switch (k) {
-      case 'reglages': return zs.length ? t('sousTemperatures', { j: deux('jour'), n: deux('nuit') }) : '';
-      case 'programme': return g && g.soleilActif ? t('sousSoleil')
+      case 'reglages': return zs.length && !(programmes[s.id] && programmes[s.id].actif) ? t('sousTemperatures', { j: deux('jour'), n: deux('nuit') }) : '';
+      case 'programme': return g && vacancesProgrammees(g) && g.vacancesEnCours ? t('progVacancesEnCours', { b: jourCourt(g.vacancesFin - 1) })
+        : programmes[s.id] && programmes[s.id].actif ? t('progNPlages', { n: (programmes[s.id].semaine || []).length })
+        : g && g.soleilActif ? t('sousSoleil')
         : zs[0] && zs[0].debutJour !== undefined ? t('sousProgrammation', { j: enHHMM(zs[0].debutJour), n: enHHMM(zs[0].debutNuit) }) : '';
       case 'courbes': return t('sousCourbes');
       case 'alertes': return e.alertesEnAttente ? t('alertesAttente', { n: e.alertesEnAttente })
@@ -2778,7 +2891,10 @@ const App = (() => {
 
     const rub = RUBRIQUES.find(r => r[0] === panneauActif);
     texte(detail.querySelector('[data-r="titre"]'), panneauActif === 'zone'
-      ? ((e.zones[zoneOuverte] && e.zones[zoneOuverte].nom) || t('zoneN', { n: zoneOuverte + 1 })) : t(rub ? rub[1] : 'ongletAppareil'));
+      ? ((e.zones[zoneOuverte] && e.zones[zoneOuverte].nom) || t('zoneN', { n: zoneOuverte + 1 }))
+      : t(TITRES_SOUS_PANNEAUX[panneauActif] || (rub ? rub[1] : 'ongletAppareil')));
+    const retourFeuille = detail.querySelector('.feuille-tete [data-action="remonter"]');
+    if (retourFeuille) retourFeuille.setAttribute('aria-label', t(SOUS_PANNEAUX[panneauActif] ? 'retourProgrammation' : 'retourAccueil'));
     // Le contenu n'est reconstruit (et ses champs réinitialisés) que si sa
     // structure change : autre feuille, zones qui arrivent, réglages chargés.
     const conteneur = detail.querySelector('[data-r="panneau"]');
@@ -2786,6 +2902,8 @@ const App = (() => {
     let cle = `${panneauActif}|${zonesConnues}|${generaux[s.id] ? 1 : 0}`;
     if (panneauActif === 'general') cle += `|${stats[s.id] ? 1 : 0}`;
     if (panneauActif === 'zone') cle += `|${zoneOuverte}`;
+    if (panneauActif === 'plages') cle += `|${programmes[s.id] ? (programmes[s.id].erreur ? 'e' : 1) : 0}|${generaux[s.id] ? 1 : 0}|${langue}`;
+    if (panneauActif === 'vacances') cle += `|${generaux[s.id] && generaux[s.id].vacancesDebut !== undefined ? 1 : 0}`;
     if (panneauActif === 'service') cle += `|${serviceMod ? 1 : 0}|${e.enLigne ? 1 : 0}|${e.proto || 0}`;
     if (panneauActif === 'maj') {
       const d = majAutos[s.id];
@@ -2803,7 +2921,9 @@ const App = (() => {
     switch (panneauActif) {
       case 'zone': return structureZone();
       case 'reglages': return structureZones(zones, 'temperatures');
-      case 'programme': return structureZones(zones, 'programme') + carteSoleil(g);
+      case 'programme': return structureProgrammation() + structureZones(zones, 'programme') + carteSoleil(g);
+      case 'plages': return structurePlages(s);
+      case 'vacances': return structureVacances(s);
       case 'securite': return structureZones(zones, 'securite') + carteAlim(g);
       case 'courbes': return structureCourbes(zones);
       case 'alertes': return `<section class="carte" data-r="notifs"></section>
@@ -2815,6 +2935,431 @@ const App = (() => {
       case 'conso': return structureConso();
       default: return structureGeneral(s);
     }
+  }
+
+  // --- Plages horaires (F5), vacances (F6), préchauffage (F7), saisons (F9) ---
+  // Le programme vient du socle (action « programme ») ; ce que la journée
+  // devient (frise, exemple d'hiver) se calcule ici comme le firmware le fait.
+  /** @type {Record<string, any>} */
+  const programmes = {};
+  function chargerProgramme(id, force) {
+    if (!force && programmes[id] && !programmes[id].erreur) return Promise.resolve(programmes[id]);
+    return commander(id, 'programme').then(r => { programmes[id] = r; invalider(); return r; },
+      e => { programmes[id] = { erreur: e && e.message }; invalider(); return null; });
+  }
+  const ecartMin = (de, vers) => (((vers - de) % 1440) + 1440) % 1440;
+  // La plus fraîche des plages : la nuit (-1 si une seule, ou toutes égales).
+  function nuitDe(l) {
+    if (l.length < 2) return -1;
+    const v = l.map(q => q.consignes.reduce((a, b) => a + b, 0)), mini = Math.min(...v);
+    return Math.max(...v) > mini ? v.indexOf(mini) : -1;
+  }
+  // Début d'une plage en hiver : la nuit plus tôt, la plage qui la suit plus tard.
+  function debutHiver(l, k, raccourci) {
+    const n = l.length, d = l[k].debut, nuit = nuitDe(l);
+    if (!raccourci || nuit < 0 || n < 2) return d;
+    const demi = Math.floor(raccourci / 2);
+    const marge = e => Math.min(demi, Math.floor((e > 15 ? e - 15 : 0) / (n === 2 ? 2 : 1)));
+    if (k === nuit) return (d + 1440 - marge(ecartMin(l[(k + n - 1) % n].debut, d))) % 1440;
+    if (k === (nuit + 1) % n) return (d + marge(ecartMin(d, l[(k + 1) % n].debut))) % 1440;
+    return d;
+  }
+  // Les périodes d'une journée, triées : plages du jeu, ou jour et nuit des zones.
+  function periodesJour(s, e, jeu, raccourci) {
+    const p = programmes[s.id], zs = e.zones || [];
+    if (p && p.actif && Array.isArray(p[jeu])) {
+      const l = p[jeu], nuit = nuitDe(l);
+      return l.map((q, k) => ({ debut: debutHiver(l, k, raccourci), nom: q.nom, nuit: k === nuit, consignes: q.consignes }))
+        .sort((a, b) => a.debut - b.debut);
+    }
+    const z0 = zs[0];
+    if (!z0 || z0.debutJour === undefined) return [];
+    let dJ = z0.debutJour, dN = z0.debutNuit;
+    if (raccourci) {
+      const jour = ecartMin(dJ, dN), r = Math.min(raccourci, jour > 60 ? jour - 60 : 0);
+      dJ = (dJ + Math.floor(r / 2)) % 1440; dN = (dN + 1440 - (r - Math.floor(r / 2))) % 1440;
+    }
+    const jour = { debut: dJ, nom: t('progJour'), nuit: false, consignes: zs.map(z => z && +z.jour) };
+    const nuit = { debut: dN, nom: t('progNuit'), nuit: true, consignes: zs.map(z => z && +z.nuit) };
+    return dJ < dN ? [jour, nuit] : [nuit, jour];
+  }
+  // Frise des 24 heures : barres en SVG (la CSP refuse les styles en ligne),
+  // repère de l'instant et heures placés après coup (data-pos → style.left,
+  // par le CSSOM). « grande » : celle de la Programmation, bornée de 00:00 à 24:00.
+  function frise(periodes, maintenant, grande) {
+    if (!periodes.length) return '';
+    const sommes = periodes.map(q => q.consignes.reduce((a, b) => a + (+b || 0), 0)), maxi = Math.max(...sommes);
+    const chaud = periodes.length > 2 && sommes.filter(v => v === maxi).length === 1;
+    const classe = (q, i) => (q.nuit ? 'nuit' : chaud && sommes[i] === maxi ? 'chaud' : 'jour');
+    const n = periodes.length, pos = m => (m / 14.4).toFixed(2);
+    let rects = periodes.map((q, i) => {
+      const fin = i + 1 < n ? periodes[i + 1].debut : 1440;
+      return `<rect class="${classe(q, i)}" x="${q.debut}" width="${Math.max(0, fin - q.debut)}" y="0" height="44"/>`;
+    }).join('');
+    if (periodes[0].debut > 0) rects = `<rect class="${classe(periodes[n - 1], n - 1)}" x="0" width="${periodes[0].debut}" y="0" height="44"/>` + rects;
+    // Les heures des changements, sans chevauchement : 11 % d'écart au moins.
+    // Les bornes 00:00 et 24:00 cèdent la place à un changement trop proche.
+    const heures = [];
+    let dernier = -100;
+    periodes.map(q => q.debut).filter(m => m > 0).sort((x, y) => x - y).forEach(m => {
+      const v = m / 14.4;
+      if (v - dernier >= 11) { heures.push(m); dernier = v; }
+    });
+    const debutLibre = grande && (!heures.length || heures[0] / 14.4 >= 16);
+    const finLibre = grande && (!heures.length || heures[heures.length - 1] / 14.4 <= 84);
+    const resume = periodes.map((q, i) => t('progFriseBout', { p: q.nom || '', h: enHHMM(periodes[(i + 1) % n].debut) })).join(', ');
+    const ici = maintenant !== null && maintenant !== undefined;
+    return `<div class="frise${grande ? ' grande' : ''}" role="img" aria-label="${attr(resume)}">
+      <div class="frise-barre"><svg viewBox="0 0 1440 44" preserveAspectRatio="none" aria-hidden="true">${rects}</svg>${ici
+        ? `<span class="frise-maintenant" data-pos="${pos(maintenant)}"></span><span class="frise-instant" data-pos="${pos(maintenant)}" aria-hidden="true">${enHHMM(maintenant)}</span>` : ''}</div>
+      <div class="frise-heures" aria-hidden="true">${debutLibre ? '<span class="borne">00:00</span>' : ''}${heures.map(m => `<span data-pos="${pos(m)}">${enHHMM(m)}</span>`).join('')}${finLibre ? '<span class="borne fin">24:00</span>' : ''}</div></div>`;
+  }
+  function placerHeures(racine) {
+    if (!racine) return;
+    racine.querySelectorAll('.frise [data-pos]').forEach((/** @type {any} */ el) => { el.style.left = el.dataset.pos + '%'; });
+  }
+  // L'heure du socle (à défaut, celle du téléphone) et son jour de semaine.
+  function heureSocle(e) {
+    const h = /(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/.exec(String(e.heure || ''));
+    const d = h ? new Date(+h[1], +h[2] - 1, +h[3], +h[4], +h[5]) : new Date();
+    return { minutes: d.getHours() * 60 + d.getMinutes(), jour: d.getDay(), date: d };
+  }
+  const degCourt = v => (Math.round(+v * 10) % 10 === 0 ? String(Math.round(+v)) : deg(v));
+  const jeuDuJour = (p, jour) => (p && p.weekend && (jour === 0 || jour === 6) ? 'weekEnd' : 'semaine');
+  const jourCourt = epoch => new Date(epoch * 1000).toLocaleDateString(langue === 'en' ? 'en-GB' : 'fr-FR', { day: 'numeric', month: 'short' });
+  const jourLong = epoch => new Date(epoch * 1000).toLocaleDateString(langue === 'en' ? 'en-GB' : 'fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const vacancesProgrammees = g => !!(g && g.vacancesFin && g.vacancesFin > Date.now() / 1000);
+  // Les plages décident-elles des consignes ? Le programme lu, ou à défaut la
+  // plage que le socle annonce dans son état.
+  const plagesActives = id => (programmes[id] && !programmes[id].erreur ? !!programmes[id].actif
+    : ((etats[id] || {}).zones || []).some(z => z && z.plage));
+
+  // En tête de la Programmation : où en est la journée, et ses deux sous-feuilles.
+  function structureProgrammation() {
+    return `<section class="prog-maintenant" data-r="prog-maintenant"></section>
+      <div class="groupe-reglages">
+        <button type="button" class="ligne-reglage" data-action="panneau" data-nom="plages"><span class="lib">${t('progPlagesSaisons')}</span><span class="valeur" data-r="prog-plages"></span>${icone('i-suite')}</button>
+        <button type="button" class="ligne-reglage" data-action="panneau" data-nom="vacances"><span class="lib">${t('progVacances')}</span><span class="valeur" data-r="prog-vacances"></span>${icone('i-suite')}</button>
+      </div>
+      <p class="aide" data-r="prog-note" hidden>${t('progPlagesDecident')}</p>`;
+  }
+  function patcherProgrammation(s, e, r) {
+    const g = generaux[s.id], p = programmes[s.id], zs = e.zones || [], z0 = zs[0];
+    const h = heureSocle(e);
+    const periodes = periodesJour(s, e, jeuDuJour(p, h.jour), g ? +g.raccourciActuel || 0 : 0);
+    let tete = '';
+    if (z0 && e.enLigne) {
+      const nuit = z0.periode ? z0.periode === 'nuit' : (periodeZone(z0, e) || { jour: true }).jour === false;
+      const nom = z0.plage || t(nuit ? 'progNuit' : 'progJour');
+      const cibles = zs.filter(Boolean).map(z => deg(z.consigne) + '°').join(t('progEt'));
+      const fin = z0.suivanteA !== undefined ? z0.suivanteA : (periodeZone(z0, e) || {}).fin;
+      tete = `<span class="prog-sur">${t('progMaintenant')}</span>
+        <div class="prog-titre">${icone(nuit ? 'i-lune' : 'i-soleil')}<span>${esc(nom)}</span></div>
+        <span class="prog-cibles">${fin !== undefined ? t('progCibles', { c: cibles, h: enHHMM(fin) }) : cibles}</span>`;
+    }
+    peindre(r('prog-maintenant'), tete + frise(periodes, z0 && e.enLigne ? h.minutes : null, true)
+      + (z0 && +z0.rampe ? `<p class="aide">${t('progRampe', { m: +z0.rampe })}</p>` : ''));
+    placerHeures(r('prog-maintenant'));
+    texte(r('prog-plages'), p && !p.erreur ? (p.actif ? t('progNPlages', { n: (p.semaine || []).length }) : t('progJourNuit')) : '');
+    texte(r('prog-vacances'), !g ? '' : vacancesProgrammees(g)
+      ? (g.vacancesEnCours ? t('progVacancesEnCours', { b: jourCourt(g.vacancesFin - 1) }) : t('progVacancesDu', { a: jourCourt(g.vacancesDebut), b: jourCourt(g.vacancesFin - 1) }))
+      : t('progNon'));
+    const note = r('prog-note');
+    if (note) note.hidden = !(p && p.actif);
+  }
+
+  // --- La feuille Plages et saisons ---------------------------------------
+  // La liste se lit comme la journée ; chaque plage s'ouvre dans une boîte de
+  // dialogue, et ce qui y est validé part aussitôt au socle (programme entier).
+  const vuePlages = { jeu: 'semaine' };
+  const squeletteFeuille = () => `<section class="carte"><div class="squelette-bloc" aria-busy="true"><span class="sr-only">${t('chargementReglages')}</span><span class="os os-1"></span><span class="os os-3"></span></div></section>`;
+  const MOIS_HIVER = () => Array.from({ length: 12 }, (_, i) => new Date(2001, i, 1).toLocaleDateString(langue === 'en' ? 'en-GB' : 'fr-FR', { month: 'long' }));
+  const jourMoisTexte = mmjj => {
+    const m = Math.floor(mmjj / 100), j = mmjj % 100;
+    return langue === 'en' ? `${j} ${MOIS_HIVER()[m - 1]}` : `${j === 1 ? '1er' : j} ${MOIS_HIVER()[m - 1]}`;
+  };
+  // La plus fraîche d'une liste de plages, dans l'ordre de la journée.
+  const plagesTriees = l => { const n = nuitDe(l); return l.map((q, k) => ({ ...q, nuit: k === n })).sort((x, y) => x.debut - y.debut); };
+  function structurePlages(s) {
+    const p = programmes[s.id];
+    if (!p) return squeletteFeuille();
+    if (p.erreur) return `<section class="carte aide">${t('plIllisible', { m: esc(p.erreur) })}</section>`;
+    const g = generaux[s.id] || {};
+    const seg = (action, attribut, valeur, lib) => `<button type="button" data-action="${action}" data-${attribut}="${valeur}" aria-pressed="false">${lib}</button>`;
+    const dateChoix = (id, mmjj) => `<select id="${id}-j" aria-label="${attr(t('plJour'))}">${Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}"${i + 1 === mmjj % 100 ? ' selected' : ''}>${i + 1}</option>`).join('')}</select>
+        <select id="${id}-m" aria-label="${attr(t('plMois'))}">${MOIS_HIVER().map((m, i) => `<option value="${i + 1}"${i + 1 === Math.floor(mmjj / 100) ? ' selected' : ''}>${m}</option>`).join('')}</select>`;
+    return `<section aria-label="${attr(t('plApercu'))}" class="apercu-plages" data-r="pl-apercu"></section>
+      <div class="groupe-reglages"><label class="ligne-reglage interrupteur" for="pl-actif"><span class="lib">${t('plActives')}<small>${t('plActivesAide')}</small></span>
+        <input type="checkbox" id="pl-actif" role="switch"></label></div>
+      <section aria-labelledby="pl-titre">
+        <h3 class="titre-section" id="pl-titre" data-r="pl-titre"></h3>
+        <div class="segment jeux-plages" role="group" aria-label="${attr(t('plJeuAria'))}" data-r="pl-jeux">${seg('plJeu', 'jeu', 'semaine', t('plSemaine'))}${seg('plJeu', 'jeu', 'weekEnd', t('plWeekend'))}</div>
+        <div class="groupe-reglages liste-plages" data-r="pl-liste"></div>
+        <p class="aide pl-aide" data-r="pl-aide"></p>
+        <div class="ligne-jours"><span>${t('plJours')}</span><div class="segment" role="group" aria-label="${attr(t('plJours'))}" data-r="pl-weekend">${seg('plWeekend', 'w', '0', t('plTous'))}${seg('plWeekend', 'w', '1', t('plSemaineWeekend'))}</div></div>
+      </section>
+      <section aria-labelledby="pl-saisons">
+        <h3 class="titre-section" id="pl-saisons">${t('plSaisons')}</h3>
+        <div class="groupe-reglages">
+          <label class="ligne-reglage interrupteur" for="pl-saisons-actif"><span class="lib">${t('plSuivre')}<small data-r="pl-transition"></small></span>
+            <input type="checkbox" id="pl-saisons-actif" role="switch"></label>
+          <div data-r="pl-saisons-detail">
+            <div class="ligne-reglage saison-ete">${icone('i-soleil')}<span class="lib">${t('plEte')}<small>${t('plEteAide')}</small></span></div>
+            <div class="ligne-reglage saison-hiver">${icone('i-flocon')}<span class="lib"><span data-r="pl-hiver"></span><small data-r="pl-hiver-aide"></small></span></div>
+          </div>
+        </div>
+        <p class="aide pl-exemple" data-r="pl-exemple"></p>
+        <details class="reglages-hiver"><summary>${t('plRegler')}</summary>
+          <div class="rangee mt"><div><span class="etiquette">${t('plHiverDebut')}</span><div class="choix-date">${dateChoix('pl-hd', g.hiverDebut || 1201)}</div></div>
+            <div><span class="etiquette">${t('plHiverFin')}</span><div class="choix-date">${dateChoix('pl-hf', g.hiverFin || 228)}</div></div></div>
+          <div class="rangee"><div><label for="pl-hdec">${t('plHiverDecalage')}</label><input id="pl-hdec" inputmode="decimal" value="${attr(deg(g.hiverDecalage !== undefined ? g.hiverDecalage : 2))}"></div>
+            <div><label for="pl-hrac">${t('plHiverRaccourci')}</label><input id="pl-hrac" inputmode="numeric" value="${attr(g.hiverRaccourciMin !== undefined ? g.hiverRaccourciMin : 60)}"></div>
+            <div><label for="pl-htr">${t('plTransition')}</label><input id="pl-htr" inputmode="numeric" value="${attr(g.saisonTransitionJ !== undefined ? g.saisonTransitionJ : 14)}"></div></div>
+          <div class="boutons"><button type="button" class="btn btn-secondaire" data-action="plHiver">${t('enregistrer')}</button></div>
+        </details>
+      </section>
+      <section aria-labelledby="pl-pre">
+        <h3 class="titre-section" id="pl-pre">${t('plPrechauffage')}</h3>
+        <div class="groupe-reglages"><label class="ligne-reglage interrupteur" for="pl-pre-actif"><span class="lib">${t('plPreLib')}<small>${t('plPreAide')}</small></span>
+          <input type="checkbox" id="pl-pre-actif" role="switch"></label></div>
+        <p class="aide" data-r="pl-montee"></p>
+      </section>`;
+  }
+  function patcherPlages(s, e, r) {
+    const p = programmes[s.id], g = generaux[s.id], zs = e.zones || [];
+    if (!p || p.erreur) return;
+    if (!p.weekend) vuePlages.jeu = 'semaine';
+    const l = p[vuePlages.jeu] || [];
+    const periodes = p.actif ? plagesTriees(l) : periodesJour(s, e, 'semaine', 0);
+    peindre(r('pl-apercu'), frise(periodes, null));
+    placerHeures(r('pl-apercu'));
+    const actif = /** @type {any} */ ($('#pl-actif'));
+    if (actif) actif.checked = !!p.actif;
+    texte(r('pl-titre'), t('plDuJour', { n: l.length }));
+    const jeux = r('pl-jeux');
+    if (jeux) {
+      jeux.hidden = !p.weekend;
+      jeux.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.getAttribute('data-jeu') === vuePlages.jeu)));
+    }
+    const we = r('pl-weekend');
+    if (we) we.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String((b.getAttribute('data-w') === '1') === !!p.weekend)));
+    const tri = l.map((q, k) => ({ q, k })).sort((x, y) => x.q.debut - y.q.debut);
+    peindre(r('pl-liste'), tri.map(({ q, k }) => `<button type="button" class="ligne-reglage ligne-plage" data-action="plEditer" data-k="${k}">
+        <span class="pl-heure">${enHHMM(q.debut)}</span><span class="lib">${esc(q.nom || t('plPlageN', { n: k + 1 }))}</span>
+        <span class="valeur">${q.consignes.map(c => deg(c) + '°').join(' · ')}</span>${icone('i-suite')}</button>`).join('')
+      + (l.length < 4 ? `<button type="button" class="btn btn-pointille" data-action="plEditer" data-k="-1">${icone('i-plus')}${t('plAjouter')}</button>` : ''));
+    texte(r('pl-aide'), t(p.actif ? 'plAideZones' : 'plAideCoupees', { a: (zs[0] && zs[0].nom) || t('zoneN', { n: 1 }), b: (zs[1] && zs[1].nom) || t('zoneN', { n: 2 }) }));
+    if (!g) return;
+    const sa = /** @type {any} */ ($('#pl-saisons-actif')), pre = /** @type {any} */ ($('#pl-pre-actif'));
+    if (sa) sa.checked = !!g.saisonsActives;
+    if (pre) pre.checked = !!g.prechauffage;
+    texte(r('pl-transition'), t('plSuivreAide', { n: g.saisonTransitionJ }));
+    texte(r('pl-hiver'), t('plHiver', { a: jourMoisTexte(g.hiverDebut || 1201), b: jourMoisTexte(g.hiverFin || 228) }));
+    const rac = +g.hiverRaccourciMin || 0;
+    texte(r('pl-hiver-aide'), t('plHiverAide', { d: degCourt(g.hiverDecalage), r: rac % 60 === 0 && rac ? t(rac === 60 ? 'plUneHeure' : 'plHeures', { n: rac / 60 }) : t('plMinutes', { n: rac }) }));
+    const detail = r('pl-saisons-detail');
+    if (detail) detail.classList.toggle('inactif', !g.saisonsActives);
+    texte(r('pl-exemple'), g.saisonsActives ? exempleHiver(s, e, g, p) : '');
+    const v = Array.isArray(g.vitesseMontee) ? g.vitesseMontee : null;
+    texte(r('pl-montee'), v && g.prechauffage ? t('plMontee', { a: (zs[0] && zs[0].nom) || t('zoneN', { n: 1 }), va: deg(v[0]), b: (zs[1] && zs[1].nom) || t('zoneN', { n: 2 }), vb: deg(v[1]) }) : '');
+  }
+  // « Le 15 janvier : pic à 32,0° au lieu de 34,0°, journée de 08:30 à 19:30. »
+  // Le milieu de l'hiver, en plein effet.
+  function exempleHiver(s, e, g, p) {
+    const a = new Date(2001, Math.floor(g.hiverDebut / 100) - 1, g.hiverDebut % 100), b = new Date(2001, Math.floor(g.hiverFin / 100) - 1, g.hiverFin % 100);
+    if (b < a) b.setFullYear(2002);
+    const milieu = new Date(a.getTime() + Math.round((b.getTime() - a.getTime()) / 2 / 86400000) * 86400000);
+    const quand = jourMoisTexte((milieu.getMonth() + 1) * 100 + milieu.getDate());
+    const d = +g.hiverDecalage || 0, rac = +g.hiverRaccourciMin || 0;
+    if (!d && !rac) return t('plRienEnHiver', { j: quand });
+    const l = p.actif ? (p.semaine || []) : null;
+    const periodes = l ? (() => { const n = nuitDe(l); return l.map((q, k) => ({ debut: debutHiver(l, k, rac), nuit: k === n, consignes: q.consignes, nom: q.nom })).sort((x, y) => x.debut - y.debut); })()
+      : periodesJour(s, e, 'semaine', rac);
+    const morceaux = [];
+    if (d) {
+      const pic = periodes.slice().sort((x, y) => (+y.consignes[0] || 0) - (+x.consignes[0] || 0))[0];
+      if (pic) morceaux.push(t('plExPic', { p: l ? `« ${pic.nom || t('plPlageN', { n: 1 })} »` : t('progJour').toLowerCase(), c: deg(+pic.consignes[0] - d), c0: deg(+pic.consignes[0]) }));
+    }
+    const iNuit = periodes.findIndex(q => q.nuit);
+    if (rac && iNuit >= 0) morceaux.push(t('plExJour', { a: enHHMM(periodes[(iNuit + 1) % periodes.length].debut), b: enHHMM(periodes[iNuit].debut) }));
+    return t('plExemple', { j: quand, m: morceaux.join(', ') });
+  }
+  // Le programme tel que le socle l'attend : chaque jeu trié, consignes au dixième.
+  const programmePropre = p => {
+    const propre = l => l.slice().sort((a, b) => a.debut - b.debut).map(q => ({ debut: q.debut, nom: q.nom || '', consignes: q.consignes.map(c => Math.round(c * 10) / 10) }));
+    return { actif: !!p.actif, weekend: !!p.weekend, semaine: propre(p.semaine), weekEnd: propre(p.weekEnd) };
+  };
+  async function envoyerProgramme(id, p) {
+    const r = await commander(id, 'programme', p);
+    programmes[id] = r;
+    commander(id, 'etat').catch(() => {});
+    invalider();
+    return r;
+  }
+  // La boîte d'une plage : k = -1 pour en ajouter une.
+  function editerPlage(k) {
+    const id = socleOuvert, p = programmes[id];
+    if (!id || !p || p.erreur) return;
+    const jeu = vuePlages.jeu, l = p[jeu] || [], zs = ((etats[id] || {}).zones || []);
+    let q = l[k];
+    if (!q) {
+      // Au milieu du plus grand creux de la journée, arrondi au quart d'heure.
+      const tri = l.slice().sort((x, y) => x.debut - y.debut);
+      let ou = 0, creux = -1;
+      tri.forEach((x, i) => { const e_ = ecartMin(x.debut, tri[(i + 1) % tri.length].debut) || 1440; if (e_ > creux) { creux = e_; ou = i; } });
+      q = { debut: tri.length ? (tri[ou].debut + Math.round(creux / 2 / 15) * 15) % 1440 : 480, nom: '', consignes: tri.length ? tri[ou].consignes.slice() : [28, 24] };
+      k = -1;
+    }
+    let dlg = /** @type {any} */ ($('#dlg-plage'));
+    if (!dlg) { dlg = doc.createElement('dialog'); dlg.id = 'dlg-plage'; dlg.className = 'feuille'; dlg.setAttribute('aria-labelledby', 'dp-titre'); doc.body.appendChild(dlg); }
+    const nomZ = i => (zs[i] && zs[i].nom) || t('zoneN', { n: i + 1 });
+    html(dlg, `<form novalidate><h2 id="dp-titre">${k < 0 ? t('plNouvelle') : t('plModifier', { p: esc(q.nom || t('plPlageN', { n: k + 1 })) })}</h2>
+      ${p.weekend ? `<p class="aide">${t(jeu === 'weekEnd' ? 'plPourWeekend' : 'plPourSemaine')}</p>` : ''}
+      <div class="rangee mt"><div><label for="dp-debut">${t('plDebut')}</label><input id="dp-debut" inputmode="numeric" autocomplete="off" value="${attr(enHHMM(q.debut))}"></div>
+        <div><label for="dp-nom">${t('plNom')}</label><input id="dp-nom" maxlength="16" autocomplete="off" value="${attr(q.nom || '')}"></div></div>
+      <div class="rangee">${[0, 1].map(i => `<div><label for="dp-c${i}">${t('plConsigneZone', { z: esc(nomZ(i)) })}</label><input id="dp-c${i}" inputmode="decimal" autocomplete="off" value="${attr(deg(q.consignes[i]))}"></div>`).join('')}</div>
+      <p class="erreur-code" id="dp-erreur" role="alert"></p>
+      <div class="boutons fin">${k >= 0 && l.length > 1 ? `<button type="button" class="btn btn-fantome btn-danger" data-dp="retirer">${t('plRetirerCourt')}</button>` : ''}
+        <button type="button" class="btn btn-secondaire" data-dp="annuler">${t('annuler')}</button><button type="submit" class="btn">${t('enregistrer')}</button></div></form>`);
+    const erreur = m => texte($('#dp-erreur'), m);
+    let fini = false;
+    const fin = () => { if (fini) return; fini = true; fermerDialogue(dlg); const b = $(`#detail [data-action="plEditer"][data-k="${k}"]`) || $('#detail [data-action="plEditer"]'); if (b) b.focus(); };
+    // Le jeu modifié part entier : une plage retirée ou ajoutée change la liste.
+    const envoyer = async liste => {
+      const n = JSON.parse(JSON.stringify(p));
+      n[jeu] = liste;
+      try { await envoyerProgramme(id, programmePropre(n)); message(t('plEnregistre')); fin(); }
+      catch (err) { erreur(err.message); }
+    };
+    dlg.querySelector('[data-dp="annuler"]').addEventListener('click', fin);
+    const retirer = dlg.querySelector('[data-dp="retirer"]');
+    if (retirer) retirer.addEventListener('click', () => envoyer(l.filter((_, i) => i !== k)));
+    dlg.addEventListener('close', () => { fini = true; }, { once: true });
+    dlg.querySelector('form').addEventListener('submit', ev => {
+      ev.preventDefault(); ev.stopPropagation();
+      const debut = depuisHHMM(dlg.querySelector('#dp-debut').value);
+      if (debut === null) { erreur(t('horaireInvalide', { v: dlg.querySelector('#dp-debut').value })); return; }
+      const c = [0, 1].map(i => nombre(dlg.querySelector('#dp-c' + i).value));
+      if (c.some(v => isNaN(v))) { erreur(t('plConsigneIllisible')); return; }
+      const nouvelle = { debut, nom: dlg.querySelector('#dp-nom').value.trim(), consignes: c };
+      envoyer(k < 0 ? l.concat([nouvelle]) : l.map((x, i) => (i === k ? nouvelle : x)));
+    });
+    ouvrirDialogue(dlg);
+    setTimeout(() => { try { dlg.querySelector('#dp-debut').focus(); } catch (e_) { /* hors écran */ } }, 30);
+  }
+  const api2 = {
+    plJeu(j) { if (vuePlages.jeu !== j) { vuePlages.jeu = j; invalider(); } },
+    async plWeekend(oui) {
+      const id = socleOuvert, p = programmes[id];
+      if (!id || !p || p.erreur || !!p.weekend === oui) return;
+      // Un week-end jamais réglé (le Jour et Nuit d'origine) part des plages de la semaine.
+      const dOrigine = l => Array.isArray(l) && l.length === 2 && l.map(q => q.nom).sort().join() === 'Jour,Nuit';
+      const params = { weekend: oui };
+      if (oui && dOrigine(p.weekEnd) && !dOrigine(p.semaine)) params.weekEnd = programmePropre(p).semaine;
+      try {
+        await envoyerProgramme(id, params);
+        vuePlages.jeu = oui ? 'weekEnd' : 'semaine';
+        message(t(oui ? 'plWeekendActif' : 'plTousLesJours'));
+      } catch (err) { message(err.message, true); }
+      invalider();
+    },
+    async plActif(oui) {
+      const id = socleOuvert;
+      if (!id) return;
+      try { await envoyerProgramme(id, { actif: oui }); message(t(oui ? 'plActivees' : 'plCoupees')); }
+      catch (err) { message(err.message, true); invalider(); }
+    },
+    async globauxProg(params, ok) {
+      const id = socleOuvert;
+      if (!id) return false;
+      try { generaux[id] = await commander(id, 'globaux', params); if (ok) message(ok); commander(id, 'etat').catch(() => {}); invalider(); return true; }
+      catch (err) { message(err.message, true); invalider(); return false; }
+    },
+    plHiver() {
+      const v = idc => /** @type {any} */ ($('#' + idc));
+      const mmjj = p => (+v(p + '-m').value) * 100 + (+v(p + '-j').value);
+      const dec = nombre(v('pl-hdec').value);
+      api2.globauxProg({ hiverDebut: mmjj('pl-hd'), hiverFin: mmjj('pl-hf'), hiverDecalage: isNaN(dec) ? -1 : dec,
+        hiverRaccourciMin: parseInt(v('pl-hrac').value, 10), saisonTransitionJ: parseInt(v('pl-htr').value, 10) }, t('plHiverEnregistre'));
+    }
+  };
+
+  // --- La feuille Mode vacances --------------------------------------------
+  const isoJour = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const jourDepuisIso = v => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v || '')); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; };
+  function structureVacances(s) {
+    const g = generaux[s.id];
+    if (!g) return `<section class="carte"><div class="squelette-bloc" aria-busy="true"><span class="sr-only">${t('chargementReglages')}</span><span class="os os-1"></span><span class="os os-3"></span></div></section>`;
+    if (g.vacancesDebut === undefined) return `<section class="carte aide">${t('vacFirmware')}</section>`;
+    const auj = new Date(), retour = new Date(auj.getFullYear(), auj.getMonth(), auj.getDate() + 7);
+    return `<div class="vacances" data-r="vac-form">
+        <p class="intro">${t('vacIntro')}</p>
+        <div class="deux-dates"><label>${t('vacDepart')}<input type="date" id="vac-debut" value="${isoJour(auj)}" min="${isoJour(auj)}"></label>
+          <label>${t('vacRetour')}<input type="date" id="vac-fin" value="${isoJour(retour)}" min="${isoJour(auj)}"></label></div>
+        <fieldset class="choix-radio"><legend class="sr-only">${t('vacConsignes')}</legend>
+          <label class="option-radio"><input type="radio" name="vac-mode" value="0"${+g.vacancesDecalage < 0 ? '' : ' checked'}><span><strong>${t('vacHabituelles')}</strong><small>${t('vacHabituellesAide')}</small></span></label>
+          <label class="option-radio"><input type="radio" name="vac-mode" value="-2"${+g.vacancesDecalage < 0 ? ' checked' : ''}><span><strong>${t('vacPlusBas')}</strong><small>${t('vacPlusBasAide')}</small></span></label>
+        </fieldset>
+        <div class="groupe-reglages"><label class="ligne-reglage interrupteur" for="vac-alertes"><span class="lib">${t('vacAlertes')}<small>${t('vacAlertesAide')}</small></span>
+          <input type="checkbox" id="vac-alertes" role="switch"${g.vacancesAlertes === false ? '' : ' checked'}></label></div>
+        <p class="aide alerte-texte" role="alert" data-r="vac-erreur"></p>
+        <button type="button" class="btn btn-plein" data-action="vacProgrammer" data-r="vac-bouton"></button>
+      </div>
+      <div class="vacances-faites" data-r="vac-fait" hidden>
+        <span class="pastille-ok" aria-hidden="true">${icone('i-ok')}</span>
+        <h3 class="titre-leger" data-r="vac-titre"></h3>
+        <p data-r="vac-resume"></p>
+        <button type="button" class="btn btn-plein" data-action="remonter">${t('vacRevenir')}</button>
+        <button type="button" class="btn btn-fantome lien-danger" data-action="vacAnnuler">${t('vacAnnuler')}</button>
+      </div>`;
+  }
+  const vac = { erreur: '' };
+  // Du départ à minuit jusqu'au lendemain du retour, minuit : le jour du retour est couvert.
+  function paramsVacances(debutIso, finIso, decalage, alertes) {
+    const a = jourDepuisIso(debutIso), b = jourDepuisIso(finIso);
+    if (!a || !b) return { erreur: t('vacDatesIllisibles') };
+    if (b < a) return { erreur: t('vacRetourAvant') };
+    const fin = new Date(b.getFullYear(), b.getMonth(), b.getDate() + 1);
+    return { params: { vacancesDebut: Math.floor(a.getTime() / 1000), vacancesFin: Math.floor(fin.getTime() / 1000), vacancesDecalage: decalage, vacancesAlertes: !!alertes } };
+  }
+  function datesVacances() {
+    const a = jourDepuisIso((/** @type {any} */ ($('#vac-debut')) || {}).value), b = jourDepuisIso((/** @type {any} */ ($('#vac-fin')) || {}).value);
+    return { a, b };
+  }
+  function patcherVacances(s, e, r) {
+    const g = generaux[s.id];
+    if (!g || g.vacancesDebut === undefined) return;
+    const prog = vacancesProgrammees(g);
+    const f = r('vac-form'), fait = r('vac-fait');
+    if (f) f.hidden = prog;
+    if (fait) fait.hidden = !prog;
+    if (prog) {
+      texte(r('vac-titre'), t(g.vacancesEnCours ? 'vacEnCours' : 'vacProgrammees'));
+      texte(r('vac-resume'), t('vacResume', { a: jourLong(g.vacancesDebut), b: jourLong(g.vacancesFin - 1),
+        c: t(+g.vacancesDecalage < 0 ? 'vacResumeBas' : 'vacResumeHabituelles', { d: degCourt(-g.vacancesDecalage) }) }));
+      return;
+    }
+    const { a, b } = datesVacances();
+    const court = d => d.toLocaleDateString(langue === 'en' ? 'en-GB' : 'fr-FR', { day: '2-digit', month: '2-digit' });
+    texte(r('vac-bouton'), a && b ? t('vacProgrammer', { a: court(a), b: court(b) }) : t('vacProgrammerSeul'));
+    texte(r('vac-erreur'), vac.erreur);
+  }
+  async function programmerVacances(annuler) {
+    const id = socleOuvert;
+    if (!id) return;
+    let params;
+    if (annuler) params = { vacancesDebut: 0, vacancesFin: 0 };
+    else {
+      const mode = /** @type {any} */ (doc.querySelector('input[name="vac-mode"]:checked'));
+      const alertes = /** @type {any} */ ($('#vac-alertes'));
+      const r = paramsVacances((/** @type {any} */ ($('#vac-debut')) || {}).value, (/** @type {any} */ ($('#vac-fin')) || {}).value,
+        mode ? +mode.value : 0, !alertes || !!alertes.checked);
+      if (r.erreur) { vac.erreur = r.erreur; invalider(); return; }
+      params = r.params;
+    }
+    vac.erreur = '';
+    const ok = await api2.globauxProg(params, t(annuler ? 'vacAnnulees' : 'vacFaites'));
+    if (!ok && !annuler) { vac.erreur = t('vacRefusees'); invalider(); }
   }
 
   // --- Service : module importé à la demande (service.js), la première fois
@@ -2850,7 +3395,10 @@ const App = (() => {
     const r = n => c.querySelector(`[data-r="${n}"]`);
     switch (panneauActif) {
       case 'zone': patcherZone(e); break;
+      case 'plages': patcherPlages(s, e, r); break;
+      case 'vacances': patcherVacances(s, e, r); break;
       case 'reglages': case 'programme': case 'securite':
+        if (panneauActif === 'programme') patcherProgrammation(s, e, r);
         zones.forEach((z, i) => {
           if (!z) return;
           texte(r('zr' + i), z.defaut ? t('defautLib', { d: z.defaut }) : t('etatZoneCourt', { t: deg(z.temp), c: deg(z.consigne) }));
@@ -2892,6 +3440,10 @@ const App = (() => {
       const v = re => re.exec(x) || [];
       switch (tag[1]) {
         case 'PERIODE': {
+          // Plages horaires : « Plage Matin, consigne 30.0 C » ; le nom tient lieu de période.
+          const pl = /^Plage (.+), consigne ([\d.]+) C$/.exec(x);
+          if (pl) return Object.assign(e('socle', 'neutre', t('jnlPlage', { p: pl[1] }), t('jnlVers', { c: decimal(pl[2]) + '°' })),
+            { periode: 'plage:' + pl[1], consignes: [decimal(pl[2]) + '°'] });
           const p = /Passage en (jour|nuit), consigne ([\d.]+) C/.exec(x);
           if (!p) return e('socle', 'neutre', x);
           return Object.assign(e('socle', 'neutre', t(p[1] === 'jour' ? 'jnlJour' : 'jnlNuit'), t('jnlVers', { c: decimal(p[2]) + '°' })),
@@ -2936,6 +3488,11 @@ const App = (() => {
       [/^Surveillance \(alertes, heartbeat\) modifiee/, () => e('reglages', 'reglage', t('jnlSurveillance'))],
       [/^Jour et nuit cales sur le soleil : jour a (\S+), nuit a (\S+)/, r => e('reglages', 'reglage', t('jnlSoleil'), `${r[1]} – ${r[2]}`)],
       [/^Jour et nuit : retour aux horaires fixes/, () => e('reglages', 'reglage', t('jnlHorairesFixes'))],
+      [/^Plages horaires modifiees via/, () => e('reglages', 'reglage', t('jnlPlagesModifiees'), t('jnlDepuisAppli'))],
+      [/^Plages horaires coupees via/, () => e('reglages', 'reglage', t('jnlPlagesCoupees'), t('jnlDepuisAppli'))],
+      [/^Vacances : consignes ([+-][\d.]+) C(, alertes)?/, r => e('reglages', 'reglage', t('jnlVacances'),
+        (+r[1] ? t('jnlVacancesBas', { d: decimal(String(Math.abs(+r[1]))) }) : t('vacHabituelles')) + (r[2] ? ' · ' + t('jnlVacancesAlertes') : ''))],
+      [/^Vacances terminees/, () => e('reglages', 'reglage', t('jnlVacancesFin'))],
       [/^Defauts leves via (le canal|l'interface)/, r => e('reglages', 'bon', t('jnlDefautsLeves'), t(r[1] === 'le canal' ? 'jnlDepuisAppli' : 'jnlDepuisPage'))],
       [/^Historique efface/, () => e('reglages', 'reglage', t('jnlHistorique'))],
       [/^Acces support ouvert/, () => e('socle', 'neutre', t('jnlSupportOuvert'))],
@@ -3168,10 +3725,24 @@ const App = (() => {
     const valeur = champ && champ.value !== '' ? nombre(champ.value) : z[per];
     peindre(r('zetat'), `<span>${t('actuellement', { t: z.defaut ? '—' : deg(z.temp) + '°', e: z.defaut ? t('defautLib', { d: esc(z.defaut) }) : etatZone(z).toLowerCase() })}</span>`);
     peindre(r('zvue'), vueDessus(e, i));
-    peindre(r('zcible'), `${deg(valeur)}<span>°</span>`);
-    texte(r('zlib'), t(per === 'jour' ? 'cibleJour' : 'cibleNuit'));
-    peindre(r('zseg'), ['jour', 'nuit'].map(k => `<button type="button" data-action="periode" data-p="${k}" aria-pressed="${per === k}">${icone(k === 'jour' ? 'i-soleil' : 'i-lune')}${t(k === 'jour' ? 'jourDeg' : 'nuitDeg', { v: deg(z[k]) })}</button>`).join(''));
-    texte(r('zensuite'), p ? t(p.jour ? 'ensuiteNuit' : 'ensuiteJour', { h: enHHMM(p.fin), r: z.rampe || 0, v: deg(p.jour ? z.nuit : z.jour) }) : '');
+    // Plages horaires actives : ce sont elles qui fixent la consigne ; la zone
+    // montre celle du moment et renvoie vers les plages.
+    const parPlages = plagesActives(socleOuvert);
+    c.querySelectorAll('[data-action="cible"]').forEach(b => b.setAttribute('aria-disabled', String(parPlages)));
+    const seg = r('zseg');
+    if (seg) seg.classList.toggle('un', parPlages);
+    if (parPlages) {
+      peindre(r('zcible'), `${deg(z.consigne)}<span>°</span>`);
+      texte(r('zlib'), z.plage ? t('ciblePlage', { p: z.plage }) : t('ciblePlages'));
+      peindre(seg, `<button type="button" data-action="panneau" data-nom="plages" aria-pressed="false">${t('modifierPlages')}</button>`);
+    } else {
+      peindre(r('zcible'), `${deg(valeur)}<span>°</span>`);
+      texte(r('zlib'), t(per === 'jour' ? 'cibleJour' : 'cibleNuit'));
+      peindre(seg, ['jour', 'nuit'].map(k => `<button type="button" data-action="periode" data-p="${k}" aria-pressed="${per === k}">${icone(k === 'jour' ? 'i-soleil' : 'i-lune')}${t(k === 'jour' ? 'jourDeg' : 'nuitDeg', { v: deg(z[k]) })}</button>`).join(''));
+    }
+    const vSuivante = deg(z.suivante !== undefined ? z.suivante : (p && p.jour ? z.nuit : z.jour));
+    texte(r('zensuite'), !p ? '' : p.plage ? t('ensuitePlage', { p: p.plage, h: enHHMM(p.fin), r: z.rampe || 0, v: vSuivante })
+      : t(p.jour ? 'ensuiteNuit' : 'ensuiteJour', { h: enHHMM(p.fin), r: z.rampe || 0, v: vSuivante }));
     peindre(r('zcmd'), rond(`data-action="cmd" data-cmd="${z.autotune ? 'stop-autotune' : 'autotune'}" data-params='{"z":${i}}'`, 'i-cible', t(z.autotune ? 'arreterAutotune' : 'autotuneBtn'))
       + rond('data-action="panneau" data-nom="courbes"', 'i-courbes', t('courbe'))
       + rond('data-action="panneau" data-nom="reglages"', 'i-reglages', t('avances')));
@@ -3746,7 +4317,14 @@ const App = (() => {
         case 'orgNouveauGroupe':  api.nouveauGroupe(); break;
         case 'orgSupprimerGroupe': api.supprimerGroupe(d.groupe); break;
         case 'orgGroupe':         actionGroupee(d.cmd); break;
+        case 'orgVacances':       vacancesGroupees(); break;
         case 'panneau':           if (el.getAttribute('aria-disabled') === 'true') message(t('reglableAuRetour')); else api.panneau(d.nom); break;
+        case 'plEditer':          editerPlage(+d.k); break;
+        case 'plJeu':             api2.plJeu(d.jeu); break;
+        case 'plWeekend':         api2.plWeekend(d.w === '1'); break;
+        case 'plHiver':           api2.plHiver(); break;
+        case 'vacProgrammer':     programmerVacances(false); break;
+        case 'vacAnnuler':        programmerVacances(true); break;
         case 'reessayerSocle':    api.reessayerSocle(); break;
         case 'filtreJournal':     filtreJournal = d.filtre || 'tout'; invalider(); break;
         case 'actualiserJournal': if (socleOuvert) chargerJournal(socleOuvert); break;
@@ -3836,7 +4414,12 @@ const App = (() => {
         if (el.id === 'tr-de') tr.de = el.value; else { tr.vers = el.value; tr.applique = null; }
         tr.message = ''; invalider(); return;
       }
+      if (el.name === 'vac-mode') { invalider(); return; }
       if (!el.id) return;
+      if (el.id === 'pl-actif') { api2.plActif(el.checked); return; }
+      if (el.id === 'pl-saisons-actif') { api2.globauxProg({ saisonsActives: el.checked }, t(el.checked ? 'plSaisonsSuivies' : 'plSaisonsCoupees')); return; }
+      if (el.id === 'pl-pre-actif') { api2.globauxProg({ prechauffage: el.checked }, t(el.checked ? 'plPreActif' : 'plPreCoupe')); return; }
+      if (el.id === 'vac-debut' || el.id === 'vac-fin') { vac.erreur = ''; invalider(); return; }
       if (el.id === 'org-compacte') { api.vueCompacte(el.checked); return; }
       if (el.id === 'ex-mail') { basculerCarnetMail(el.checked); return; }
       if (el.id === 'fichier-config' && el.files && el.files[0]) { api.importerConfig(el.files[0]); el.value = ''; }
@@ -4890,11 +5473,14 @@ const App = (() => {
       }
       doc.documentElement.scrollTop = 0;
       const titre = $('#titre-feuille');
-      if (titre) titre.focus();
+      // Retour d'une sous-feuille : le focus revient sur la ligne qui l'ouvrait.
+      const ligne = SOUS_PANNEAUX[avant] === nom ? $(`#detail [data-action="panneau"][data-nom="${avant}"]`) : null;
+      if (ligne) ligne.focus(); else if (titre) titre.focus();
+      if (['programme', 'plages'].includes(nom)) chargerProgramme(id, nom === 'plages' && avant !== nom);
       if (nom === 'courbes' && !courbes[id]) api.courbes(24);
       if (nom === 'journal') chargerJournal(id);
       if (nom === 'conso') chargerConso(id);
-      if (['general', 'programme', 'securite'].includes(nom) && !generaux[id])
+      if ((['general', 'programme', 'securite'].includes(nom) && !generaux[id]) || (['plages', 'vacances'].includes(nom) && avant !== nom))
         commander(id, 'globaux').then(r => { generaux[id] = r; dessiner(); }).catch(() => {});
       if (nom === 'general' && !stats[id]) commander(id, 'stats').then(r => { stats[id] = r; dessiner(); }).catch(() => {});
       if (nom === 'maj' && !majAutos[id] && etats[id] && etats[id].sante && etats[id].sante.majAuto)
@@ -4943,6 +5529,7 @@ const App = (() => {
     cible(pas) {
       const id = socleOuvert, e = etats[id] || {}, i = zoneOuverte, z = (e.zones || [])[i];
       if (!z) return;
+      if (plagesActives(id)) { message(t('ciblePlagesMessage')); return; }
       const per = periodeAffichee(z, e);
       const champ = /** @type {any} */ ($('#' + (per === 'jour' ? 'j' : 'n') + i));
       if (!champ) return;

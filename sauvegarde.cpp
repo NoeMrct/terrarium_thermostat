@@ -1,5 +1,6 @@
 #include "sauvegarde.h"
 #include "liaisons.h"
+#include "protocole.h"
 #include "reseau.h"
 #include "sondes.h"
 #include "stockage.h"
@@ -67,6 +68,23 @@ String json(bool pourLeBroker) {
   o["latitude"] = g.latitude;
   o["longitude"] = g.longitude;
   o["zonePrioritaire"] = g.zonePrioritaire;
+  // Préchauffage et saisons du calendrier ; des vacances, seulement la façon
+  // de les vivre : leurs dates ne valent que pour ce socle, cette fois-là.
+  o["prechauffage"] = g.prechauffage;
+  o["saisonsActives"] = g.saisonsActives;
+  o["hiverDebut"] = g.hiverDebut;
+  o["hiverFin"] = g.hiverFin;
+  o["hiverDecalage"] = g.hiverDecalage;
+  o["hiverRaccourciMin"] = g.hiverRaccourciMin;
+  o["saisonTransitionJ"] = g.saisonTransitionJ;
+  o["vacancesDecalage"] = g.vacancesDecalage;
+  o["vacancesAlertes"] = g.vacancesAlertes;
+  // Plages horaires (F5), au format du canal de commande.
+  static char programme[1100];
+  programme[0] = '{';
+  Protocole::corpsProgramme(ctrl.prog, programme + 1, sizeof programme - 2);
+  strcat(programme, "}");
+  d["programme"] = serialized(programme);
   JsonArray sondes = d["sondes"].to<JsonArray>();
   const ReglagesReseau &r = Stockage::reseau();
   for (uint8_t z = 0; z < NB_ZONES; z++) {
@@ -159,9 +177,31 @@ bool restaurer(const char *texte, size_t longueur, char *message, size_t taille)
     g.latitude = o["latitude"] | g.latitude;
     g.longitude = o["longitude"] | g.longitude;
     g.zonePrioritaire = o["zonePrioritaire"] | g.zonePrioritaire;
+    g.prechauffage = o["prechauffage"] | g.prechauffage;
+    g.saisonsActives = o["saisonsActives"] | g.saisonsActives;
+    g.hiverDebut = o["hiverDebut"] | g.hiverDebut;
+    g.hiverFin = o["hiverFin"] | g.hiverFin;
+    g.hiverDecalage = o["hiverDecalage"] | g.hiverDecalage;
+    g.hiverRaccourciMin = o["hiverRaccourciMin"] | g.hiverRaccourciMin;
+    g.saisonTransitionJ = o["saisonTransitionJ"] | g.saisonTransitionJ;
+    g.vacancesDecalage = o["vacancesDecalage"] | g.vacancesDecalage;
+    g.vacancesAlertes = o["vacancesAlertes"] | g.vacancesAlertes;
     char erreur[100];
     if (!Stockage::globauxValides(g, erreur, sizeof erreur)) {
       snprintf(message, taille, "Reglages generaux refuses : %s. Rien n'a ete applique", erreur);
+      return false;
+    }
+  }
+
+  Programme prog = ctrl.prog;
+  JsonVariantConst pv = d["programme"];
+  if (!pv.isNull()) {
+    String texte;
+    serializeJson(pv, texte);
+    char erreur[100];
+    if (!Protocole::lireProgramme(texte.c_str(), texte.length(), prog, erreur, sizeof erreur) ||
+        !programmeValide(prog, zones, erreur, sizeof erreur)) {
+      snprintf(message, taille, "Plages refusees : %s. Rien n'a ete applique", erreur);
       return false;
     }
   }
@@ -189,6 +229,8 @@ bool restaurer(const char *texte, size_t longueur, char *message, size_t taille)
   }
   Stockage::globaux() = g;
   Stockage::sauverGlobaux();
+  ctrl.prog = prog;
+  Stockage::sauverProgramme(prog);
   ReglagesReseau &r = Stockage::reseau();
   memcpy(r.sondeRom, roms, sizeof roms);
   JsonObjectConst n = d["reseau"];
@@ -208,7 +250,8 @@ bool restaurer(const char *texte, size_t longueur, char *message, size_t taille)
   ctrl.oublierMesures();
   const char *source = d["appareil"] | "?";
   snprintf(message, taille,
-           "Configuration de %s restauree (zones, reglages, sondes, alertes). Ressaisir le Wi-Fi et MQTT si "
+           "Configuration de %s restauree (zones, plages, reglages, sondes, alertes). Ressaisir le Wi-Fi et "
+           "MQTT si "
            "besoin, "
            "puis redemarrer pour le fuseau.",
            source);

@@ -62,6 +62,9 @@ public:
   virtual void sauverZone(uint8_t z) = 0;  // persiste zone(z), journalise, republie
   virtual ReglagesGlobaux &globaux() = 0;
   virtual void sauverGlobaux() = 0;  // persiste globaux(), applique
+  // Plages horaires (F5), action « programme ».
+  virtual Programme &programme() = 0;
+  virtual void sauverProgramme() = 0;  // persiste programme(), l'applique à la régulation, republie
   virtual bool heureFiable() = 0;
   virtual uint32_t epoch() = 0;
   virtual uint8_t limiteZones() = 0;
@@ -127,6 +130,14 @@ void oublierReponses();
 
 // Une action qui se lit sans jeton (etat, stats, version, historique).
 bool actionLectureSeule(const char *action);
+
+// Plages horaires en JSON, sans accolades :
+// "actif":…,"weekend":…,"semaine":[{"debut":480,"nom":"Matin","consignes":[30.0,27.0]},…],"weekEnd":[…]
+void corpsProgramme(const Programme &p, char *out, size_t taille);
+// Relit ce même JSON (avec accolades) par-dessus `p` : seuls les champs
+// présents changent, chaque jeu donné est remplacé en entier. N'applique
+// rien et ne valide pas les consignes (voir programmeValide).
+bool lireProgramme(const char *json, size_t n, Programme &p, char *erreur, size_t taille);
 
 }  // namespace Protocole
 

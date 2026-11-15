@@ -49,6 +49,24 @@ struct ReglagesGlobaux {
   bool majAutoCoupee;
   uint16_t majPlageDebut;
   uint16_t majPlageFin;
+  // Vacances (F6) : de vacancesDebut (inclus) à vacancesFin (exclu), en
+  // secondes depuis 1970 ; 0 et 0 = aucunes. Elles s'arrêtent seules.
+  uint32_t vacancesDebut;
+  uint32_t vacancesFin;
+  float vacancesDecalage;  // °C ajoutés aux consignes pendant l'absence (négatif ou nul)
+  bool vacancesAlertes;    // alertes de dérive dès DERIVE_VACANCES d'écart
+  bool prechauffage;       // F7 : à la consigne à l'heure pile
+  // Saisons du calendrier (F9), chaque année : en plein hiver, consignes
+  // abaissées de hiverDecalage et journée raccourcie de hiverRaccourciMin ;
+  // passage progressif sur saisonTransitionJ jours avant et après. Dates en
+  // MMJJ (1201 = 1er décembre, fin incluse). 0 (mémoire d'avant ces champs)
+  // vaut les réglages par défaut, posés au chargement.
+  bool saisonsActives;
+  uint16_t hiverDebut;
+  uint16_t hiverFin;
+  float hiverDecalage;
+  uint16_t hiverRaccourciMin;
+  uint8_t saisonTransitionJ;
 };
 
 enum EcranNuit : uint8_t { ECRAN_NUIT_ATTENUE = 0, ECRAN_NUIT_NORMAL = 1, ECRAN_NUIT_ETEINT = 2 };
@@ -136,6 +154,14 @@ uint8_t zonesSimultanees(const ReglagesGlobaux &g);
 float decalageSaisonnier(const ReglagesGlobaux &g, uint32_t maintenantEpoch);
 // Plage des mises à jour automatiques, celle par défaut si elle n'est pas réglée.
 void plageMaj(const ReglagesGlobaux &g, uint16_t &debut, uint16_t &fin);
+// Vacances en cours à cet instant (heure fiable requise : epoch > 0).
+bool vacancesEnCours(const ReglagesGlobaux &g, uint32_t maintenantEpoch);
+// Part de l'hiver un jour donné (mois 1-12, jour 1-31) : 0 hors de l'hiver et
+// de ses transitions, 1 en plein hiver, entre les deux pendant le passage.
+// 0 quand les saisons ne sont pas suivies.
+float facteurHiver(const ReglagesGlobaux &g, uint8_t mois, uint8_t jour);
+// Une date MMJJ plausible (29 février compris).
+bool dateMmjjValide(uint16_t mmjj);
 
 // Mot de passe du point d'accès de secours, propre à chaque socle : avec un
 // mot de passe commun, imprimé dans la documentation, n'importe qui à portée

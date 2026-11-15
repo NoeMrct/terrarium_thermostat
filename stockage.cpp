@@ -357,6 +357,28 @@ void chargerZones(ReglagesZone cfg[NB_ZONES], String &rapport) {
     if (aReecrire[z]) sauverZone(z, cfg[z]);
 }
 
+// Absent (socle d'avant les plages) : le programme par défaut, inactif, tiré
+// du jour et de la nuit de chaque zone. Abîmé : le même, et réécrit.
+void chargerProgramme(Programme &p, const ReglagesZone cfg[NB_ZONES]) {
+  prefs.begin("thermo", true);
+  const size_t lu = lireStructure("programme", &p, sizeof p);
+  prefs.end();
+  if (lu == 0) {
+    programmeParDefaut(p, cfg);
+    return;
+  }
+  if (assainirProgramme(p, cfg)) {
+    journal("Plages horaires abimees : retour au jour et a la nuit de chaque zone");
+    sauverProgramme(p);
+  }
+}
+
+void sauverProgramme(const Programme &p) {
+  prefs.begin("thermo", false);
+  prefs.putBytes("programme", &p, sizeof p);
+  prefs.end();
+}
+
 void sauverZone(uint8_t z, const ReglagesZone &r) {
   if (z >= NB_ZONES) return;
   char cle[8];

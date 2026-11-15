@@ -14,6 +14,8 @@
 struct SocleFactice : public Protocole::Socle {
   ReglagesZone zones[NB_ZONES];
   ReglagesGlobaux glob;
+  Programme prog;
+  int programmesSauves = 0;
   std::vector<std::string> reponses;
   std::vector<std::string> actions;
   std::string jetonSecret = "SIMULATIONTESTJETON00001";
@@ -28,6 +30,7 @@ struct SocleFactice : public Protocole::Socle {
   SocleFactice() {
     for (uint8_t z = 0; z < NB_ZONES; z++) reglagesParDefaut(zones[z], z);
     Stockage::reglagesGlobauxParDefaut(glob);
+    programmeParDefaut(prog, zones);
   }
   void vider() {
     reponses.clear();
@@ -71,6 +74,11 @@ struct SocleFactice : public Protocole::Socle {
   void sauverGlobaux() override {
     globauxSauves++;
     actions.push_back("sauverGlobaux");
+  }
+  Programme &programme() override { return prog; }
+  void sauverProgramme() override {
+    programmesSauves++;
+    actions.push_back("sauverProgramme");
   }
   bool heureFiable() override { return heure; }
   uint32_t epoch() override { return maintenant; }

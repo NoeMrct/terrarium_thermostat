@@ -174,6 +174,38 @@ Safety, the rest in Device); in the local interface, it is
 - **Screen at night** (dimmed, normal or off) and **board LED**.
 - **Daily report**: a summary of the day, sent with the alerts at the chosen time.
 
+### Time slots, seasons, preheating and holiday
+
+**Schedule** opens on the current day: the period or slot now, its targets and the time of the next
+change, and a 24-hour strip where a line marks the present moment. Two rows lead further.
+
+**Time slots and seasons**:
+
+- **Time slots**: up to four moments a day (morning, heat peak, afternoon, night…) instead of just
+  day and night. Each slot has a start time, a name and one setpoint per zone; it lasts until the
+  next one starts, and the coolest counts as the night (dimmed screen). Two starts are at least
+  15 minutes apart. Tapping a slot opens it to edit or remove it; "Add a slot" suggests one in the
+  middle of the day's longest gap. Slots are prepared while off, then turned on with a switch: while
+  they are on, the zones' day and night setpoints and the sun are no longer used, and a zone's
+  screen shows the setpoint of the current slot.
+- **Days**: the same slots every day, or one set for weekdays and another for Saturday and Sunday
+  (the weekend starts from the weekday slots).
+- **Follow the seasons**: in winter (1 December to 28 February by default), setpoints drop (2 °C by
+  default) and the day gets shorter (one hour by default, half in the morning, half in the
+  evening), with a gradual two-week change before and after. A sentence tells what mid-winter's day
+  becomes; "Set up winter" changes the dates, the drop, the shortening and the transition. This
+  calendar adds to the seasonal cycling of the Device section.
+- **Preheating**: the base learns how many degrees each zone gains per hour and starts early enough
+  for a warmer setpoint to be reached on time (three hours ahead at most). Drops keep their ramp.
+
+**Holiday mode**: the leaving and return dates (the return day is included), the usual setpoints or
+2 °C lower, and earlier alerts (a drift reported from 2 °C off). The base switches on its own when
+you leave and goes back to the usual setpoints on its own when you return; the base's home shows a
+"Holiday" banner meanwhile. In **Organise**, "Holiday…" schedules the same dates for every ticked
+base.
+
+The base's log notes slot changes, edits to the slots, and the start and end of the holiday.
+
 ## 8. Reading the status
 
 - **online**: the base is publishing. **silent**: it is announced online but has published

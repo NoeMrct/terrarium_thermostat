@@ -166,36 +166,272 @@ bool assainirReglages(ReglagesZone &r, uint8_t zone, char *rapport, size_t taill
 
 // ============================ CYCLE / CONSIGNE ===============================
 
-float Controleur::consignePour(uint8_t z) const {
-  const ReglagesZone &c = cfg[z];
-  // Le décalage saisonnier s'ajoute à la consigne du moment, jour comme nuit.
-  // Il est borné par les mêmes limites que les consignes elles-mêmes : un
-  // cyclage mal réglé ne doit pas pouvoir descendre la zone n'importe où.
-  const float saison = m_saison;
-  if (!m_heureConnue) return borne(c.consigneJour + saison, CONSIGNE_MIN, CONSIGNE_MAX);
+// --- Plages horaires (F5) ----------------------------------------------------
 
-  const uint16_t dJour = debutJour(z), dNuit = debutNuit(z);
-  const uint16_t depuisJour = ecartCirculaire(dJour, m_minutes);
-  const uint16_t depuisNuit = ecartCirculaire(dNuit, m_minutes);
-
-  float base;
-  if (c.rampeMinutes > 0 && depuisJour < c.rampeMinutes) {
-    const float k = (float)depuisJour / c.rampeMinutes;
-    base = c.consigneNuit + k * (c.consigneJour - c.consigneNuit);
-  } else if (c.rampeMinutes > 0 && depuisNuit < c.rampeMinutes) {
-    const float k = (float)depuisNuit / c.rampeMinutes;
-    base = c.consigneJour + k * (c.consigneNuit - c.consigneJour);
-  } else {
-    const bool estJour = depuisJour < ecartCirculaire(dJour, dNuit);
-    base = estJour ? c.consigneJour : c.consigneNuit;
+void programmeParDefaut(Programme &p, const ReglagesZone cfg[NB_ZONES]) {
+  // memset : la structure part telle quelle en mémoire non volatile, octets
+  // de bourrage compris.
+  memset(&p, 0, sizeof p);
+  for (uint8_t j = 0; j < NB_JEUX; j++) {
+    const bool jourDabord = cfg[0].debutJour < cfg[0].debutNuit;
+    Plage &a = p.plages[j][0], &b = p.plages[j][1];
+    Plage &jour = jourDabord ? a : b, &nuit = jourDabord ? b : a;
+    jour.debut = cfg[0].debutJour;
+    nuit.debut = cfg[0].debutNuit;
+    snprintf(jour.nom, sizeof jour.nom, "%s", "Jour");
+    snprintf(nuit.nom, sizeof nuit.nom, "%s", "Nuit");
+    for (uint8_t z = 0; z < NB_ZONES; z++) {
+      jour.consigne[z] = cfg[z].consigneJour;
+      nuit.consigne[z] = cfg[z].consigneNuit;
+    }
+    p.nb[j] = 2;
   }
-  return borne(base + saison, CONSIGNE_MIN, CONSIGNE_MAX);
+}
+
+bool programmeValide(const Programme &p, const ReglagesZone cfg[NB_ZONES], char *erreur, size_t taille) {
+#define ECHEC(...)                                     \
+  do {                                                 \
+    if (erreur) snprintf(erreur, taille, __VA_ARGS__); \
+    return false;                                      \
+  } while (0)
+  for (uint8_t j = 0; j < NB_JEUX; j++) {
+    const uint8_t n = p.nb[j];
+    if (n < 1 || n > NB_PLAGES) ECHEC("Plages : de 1 a %u par jour", (unsigned)NB_PLAGES);
+    for (uint8_t k = 0; k < n; k++) {
+      const Plage &q = p.plages[j][k];
+      if (q.debut > 1439) ECHEC("Plage %u : heure invalide", (unsigned)k + 1);
+      if (k > 0 && q.debut < p.plages[j][k - 1].debut + ECART_PLAGES_MIN)
+        ECHEC("Plages : debuts croissants, %u min d'ecart au moins", (unsigned)ECART_PLAGES_MIN);
+      if (k == n - 1 && n > 1 && p.plages[j][0].debut + 1440 < q.debut + ECART_PLAGES_MIN)
+        ECHEC("Plages : la derniere doit finir %u min avant la premiere du lendemain",
+              (unsigned)ECART_PLAGES_MIN);
+      if (memchr(q.nom, '\0', sizeof q.nom) == nullptr) ECHEC("Plage %u : nom trop long", (unsigned)k + 1);
+      for (uint8_t z = 0; z < NB_ZONES; z++) {
+        const float c = q.consigne[z];
+        if (!(c >= CONSIGNE_MIN && c <= CONSIGNE_MAX))
+          ECHEC("Plage %u, zone %u : consigne hors 10-45 C", (unsigned)k + 1, (unsigned)z + 1);
+        if (!(c < cfg[z].tempMax))
+          ECHEC("Plage %u, zone %u : consigne au-dessus de la coupure", (unsigned)k + 1, (unsigned)z + 1);
+      }
+    }
+  }
+#undef ECHEC
+  return true;
+}
+
+bool assainirProgramme(Programme &p, const ReglagesZone cfg[NB_ZONES]) {
+  for (uint8_t j = 0; j < NB_JEUX; j++)
+    for (uint8_t k = 0; k < NB_PLAGES; k++) p.plages[j][k].nom[sizeof p.plages[j][k].nom - 1] = '\0';
+  if (programmeValide(p, cfg, nullptr, 0)) return false;
+  programmeParDefaut(p, cfg);  // inactif : retour au jour et à la nuit de chaque zone
+  return true;
+}
+
+uint8_t Controleur::jeuDu(uint8_t jourSemaine) const {
+  return (prog.weekend && (jourSemaine == 0 || jourSemaine == 6)) ? 1 : 0;
+}
+
+// La plage la plus fraîche du jeu (somme des consignes des zones) : la nuit.
+// Aucune quand il n'y a qu'une plage, ou que toutes se valent.
+int8_t Controleur::plageNuit(uint8_t jeu) const {
+  const uint8_t n = prog.nb[jeu];
+  if (n < 2 || n > NB_PLAGES) return -1;
+  int8_t mini = -1;
+  float vMini = 0.0f, vMaxi = 0.0f;
+  for (uint8_t k = 0; k < n; k++) {
+    float v = 0.0f;
+    for (uint8_t z = 0; z < NB_ZONES; z++) v += prog.plages[jeu][k].consigne[z];
+    if (mini < 0 || v < vMini) {
+      mini = (int8_t)k;
+      vMini = v;
+    }
+    if (k == 0 || v > vMaxi) vMaxi = v;
+  }
+  return vMaxi > vMini ? mini : -1;
+}
+
+// Début effectif d'une plage : en hiver, la nuit commence plus tôt et la plage
+// qui la suit plus tard, de la moitié du raccourcissement chacune, sans jamais
+// s'approcher d'une plage voisine à moins de ECART_PLAGES_MIN.
+uint16_t Controleur::debutPlage(uint8_t jeu, uint8_t k) const {
+  const uint8_t n = prog.nb[jeu];
+  const uint16_t d = prog.plages[jeu][k].debut;
+  const int8_t nuit = plageNuit(jeu);
+  if (m_raccourci == 0 || nuit < 0 || n < 2) return d;
+  const uint8_t matin = (uint8_t)((nuit + 1) % n);
+  const uint16_t demi = m_raccourci / 2;
+  auto marge = [&](uint16_t ecart) -> uint16_t {
+    uint16_t m = ecart > ECART_PLAGES_MIN ? (uint16_t)(ecart - ECART_PLAGES_MIN) : 0;
+    if (n == 2) m /= 2;  // le matin et la nuit mangent le même intervalle
+    return m < demi ? m : demi;
+  };
+  if (k == (uint8_t)nuit) {
+    const uint16_t recul = marge(ecartCirculaire(prog.plages[jeu][(k + n - 1) % n].debut, d));
+    return (uint16_t)((d + 1440 - recul) % 1440);
+  }
+  if (k == matin) {
+    const uint16_t avance = marge(ecartCirculaire(d, prog.plages[jeu][(k + 1) % n].debut));
+    return (uint16_t)((d + avance) % 1440);
+  }
+  return d;
+}
+
+// Les plages d'un jeu pour une zone, triées par début effectif : le
+// raccourcissement d'hiver peut faire passer une nuit avant minuit.
+uint8_t Controleur::plagesTriees(uint8_t jeu, uint8_t z, int16_t debuts[NB_PLAGES], float cons[NB_PLAGES],
+                                 bool nuits[NB_PLAGES], const char *noms[NB_PLAGES]) const {
+  uint8_t n = prog.nb[jeu];
+  if (n < 1) n = 1;
+  if (n > NB_PLAGES) n = NB_PLAGES;
+  const int8_t nuit = plageNuit(jeu);
+  for (uint8_t k = 0; k < n; k++) {
+    int16_t d = (int16_t)debutPlage(jeu, k);
+    float c = prog.plages[jeu][k].consigne[z];
+    bool nu = (int8_t)k == nuit;
+    const char *nom = prog.plages[jeu][k].nom;
+    uint8_t i = k;
+    while (i > 0 && debuts[i - 1] > d) {  // insertion : quatre éléments au plus
+      debuts[i] = debuts[i - 1];
+      cons[i] = cons[i - 1];
+      nuits[i] = nuits[i - 1];
+      noms[i] = noms[i - 1];
+      i--;
+    }
+    debuts[i] = d;
+    cons[i] = c;
+    nuits[i] = nu;
+    noms[i] = nom;
+  }
+  return n;
+}
+
+bool Controleur::moment(uint8_t z, Moment &mo) const {
+  if (!m_heureConnue || z >= NB_ZONES) return false;
+  const uint16_t m = m_minutes % 1440;
+  if (!prog.actif) {
+    const ReglagesZone &c = cfg[z];
+    uint16_t dJ = debutJour(z), dN = debutNuit(z);
+    if (m_raccourci) {  // une heure de jour au moins
+      const uint16_t jour = ecartCirculaire(dJ, dN);
+      const uint16_t possible = jour > 60 ? (uint16_t)(jour - 60) : 0;
+      const uint16_t r = m_raccourci < possible ? m_raccourci : possible;
+      dJ = (uint16_t)((dJ + r / 2) % 1440);
+      dN = (uint16_t)((dN + 1440 - (r - r / 2)) % 1440);
+    }
+    const uint16_t depuisJour = ecartCirculaire(dJ, m);
+    const bool jour = depuisJour < ecartCirculaire(dJ, dN);
+    mo.actuelle = jour ? c.consigneJour : c.consigneNuit;
+    mo.avant = mo.suivante = jour ? c.consigneNuit : c.consigneJour;
+    mo.depuis = jour ? depuisJour : ecartCirculaire(dN, m);
+    mo.dans = ecartCirculaire(m, jour ? dN : dJ);
+    mo.nuit = !jour;
+    mo.nom = nullptr;
+    return true;
+  }
+  // La veille entière (débuts décalés d'un jour), aujourd'hui, et la première
+  // plage du lendemain : la période en cours et ses deux voisines y sont toujours.
+  int16_t debuts[2 * NB_PLAGES + 1];
+  float cons[2 * NB_PLAGES + 1];
+  bool nuits[2 * NB_PLAGES + 1];
+  const char *noms[2 * NB_PLAGES + 1];
+  uint8_t n = 0;
+  int16_t d[NB_PLAGES];
+  float c[NB_PLAGES];
+  bool nu[NB_PLAGES];
+  const char *no[NB_PLAGES];
+  const uint8_t jours[3] = { (uint8_t)((m_jourSemaine + 6) % 7), (uint8_t)(m_jourSemaine % 7),
+                             (uint8_t)((m_jourSemaine + 1) % 7) };
+  for (uint8_t i = 0; i < 3; i++) {
+    const uint8_t k = plagesTriees(jeuDu(jours[i]), z, d, c, nu, no);
+    const uint8_t retenues = i == 2 ? 1 : k;
+    for (uint8_t q = 0; q < retenues; q++) {
+      debuts[n] = (int16_t)(d[q] + (i - 1) * 1440);
+      cons[n] = c[q];
+      nuits[n] = nu[q];
+      noms[n] = no[q];
+      n++;
+    }
+  }
+  uint8_t i = 0;
+  while (i + 1 < n && debuts[i + 1] <= (int16_t)m) i++;
+  const uint8_t avant = i > 0 ? (uint8_t)(i - 1) : i;
+  mo.avant = cons[avant];
+  mo.actuelle = cons[i];
+  mo.suivante = cons[i + 1 < n ? i + 1 : i];
+  mo.depuis = (uint16_t)((int16_t)m - debuts[i]);
+  mo.dans = (uint16_t)(i + 1 < n ? debuts[i + 1] - (int16_t)m : 0);
+  mo.nuit = nuits[i];
+  mo.nom = noms[i];
+  return true;
+}
+
+uint16_t Controleur::avancePrechauffe(uint8_t z, float hausse) const {
+  if (z >= NB_ZONES || !(hausse > 0.0f)) return 0;
+  const float v = borne(zone[z].vitesseMontee, MONTEE_MIN, MONTEE_MAX);
+  const float minutes = 1.2f * hausse / v * 60.0f;
+  return minutes >= AVANCE_MAX_MIN ? AVANCE_MAX_MIN : (uint16_t)lroundf(minutes);
+}
+
+float Controleur::consignePour(uint8_t z) const { return consigneCalculee(z, m_prechauffage); }
+
+float Controleur::consigneCalculee(uint8_t z, bool prechauffe) const {
+  const ReglagesZone &c = cfg[z];
+  // Le décalage saisonnier (et celui des vacances) s'ajoute à la consigne du
+  // moment, jour comme nuit. Il est borné par les mêmes limites que les
+  // consignes elles-mêmes : un cyclage mal réglé ne doit pas pouvoir
+  // descendre la zone n'importe où.
+  const float decalage = decalageTotal();
+  Moment mo;
+  if (!moment(z, mo)) return borne(c.consigneJour + decalage, CONSIGNE_MIN, CONSIGNE_MAX);
+  float base = mo.actuelle;
+  // Préchauffage : une hausse est déjà atteinte à l'heure dite, la rampe ne
+  // sert donc qu'aux baisses.
+  const bool hausse = mo.actuelle > mo.avant;
+  if (c.rampeMinutes > 0 && mo.depuis < c.rampeMinutes && !(m_prechauffage && hausse))
+    base = mo.avant + (mo.actuelle - mo.avant) * ((float)mo.depuis / c.rampeMinutes);
+  if (prechauffe && mo.suivante > mo.actuelle && mo.dans <= avancePrechauffe(z, mo.suivante - mo.actuelle))
+    base = mo.suivante;
+  return borne(base + decalage, CONSIGNE_MIN, CONSIGNE_MAX);
 }
 
 int8_t Controleur::periodeJour(uint8_t z) const {
-  if (!m_heureConnue || z >= NB_ZONES) return -1;
-  const uint16_t dJour = debutJour(z), dNuit = debutNuit(z);
-  return ecartCirculaire(dJour, m_minutes) < ecartCirculaire(dJour, dNuit) ? 1 : 0;
+  Moment mo;
+  if (z >= NB_ZONES || !moment(z, mo)) return -1;
+  return mo.nuit ? 0 : 1;
+}
+
+void Controleur::vacances(bool actif, float decalage, bool alertesTot) {
+  m_vacances = actif;
+  m_vacDecalage = (actif && decalage == decalage) ? borne(decalage, -10.0f, 0.0f) : 0.0f;
+  m_vacAlertes = actif && alertesTot;
+}
+
+float Controleur::seuilDerive(uint8_t z) const {
+  const float s = cfg[z].deriveSeuil;
+  return (m_vacAlertes && s > DERIVE_VACANCES) ? DERIVE_VACANCES : s;
+}
+
+// Vitesse de montée : mesurée sur des fenêtres de 10 min de chauffe à fond
+// (demande pleine, tapis partagé compris), moyenne glissante. Une chauffe
+// interrompue (consigne atteinte, défaut, entretien) referme la fenêtre.
+void Controleur::suivreMontee(uint8_t z, uint32_t nowMs) {
+  ZoneEtat &s = zone[z];
+  if (s.demande < MONTEE_DEMANDE_MIN || m_suspendu || m_maintenanceFin != 0 || m_forcee >= 0 ||
+      !isfinite(s.temperature)) {
+    s.monteeDebut = 0;
+    return;
+  }
+  if (s.monteeDebut == 0) {
+    s.monteeDebut = nowMs ? nowMs : 1;
+    s.monteeRef = s.temperature;
+    return;
+  }
+  const uint32_t ecoule = nowMs - s.monteeDebut;
+  if (ecoule < MONTEE_FENETRE_MS) return;
+  const float v = (s.temperature - s.monteeRef) * 3600000.0f / (float)ecoule;
+  if (v > 0.2f) s.vitesseMontee = borne(0.7f * s.vitesseMontee + 0.3f * v, MONTEE_MIN, MONTEE_MAX);
+  s.monteeDebut = nowMs ? nowMs : 1;
+  s.monteeRef = s.temperature;
 }
 
 // ============================ NOTIFICATIONS ==================================
@@ -285,9 +521,10 @@ void Controleur::demarrer(uint32_t nowMs) {
   for (uint8_t z = 0; z < NB_ZONES; z++) zone[z].integrale = zone[z].biais;
 }
 
-void Controleur::horloge(bool connue, uint16_t minutes) {
+void Controleur::horloge(bool connue, uint16_t minutes, uint8_t jourSemaine) {
   m_heureConnue = connue;
   m_minutes = minutes;
+  m_jourSemaine = jourSemaine % 7;
   for (uint8_t z = 0; z < NB_ZONES; z++) zone[z].heureConnue = connue;
 }
 
@@ -573,6 +810,7 @@ void Controleur::mesure(uint8_t z, float brute, uint32_t nowMs, float dtSec) {
     brut = p + s.integrale;
   }
   s.demande = borne(brut, 0.0f, 1.0f);
+  suivreMontee(z, nowMs);
 
   // Point de fonctionnement appris : moyenne glissante de la demande à
   // l'équilibre. Sert à repartir au bon niveau après un défaut ou un
@@ -649,15 +887,21 @@ void Controleur::mesure(uint8_t z, float brute, uint32_t nowMs, float dtSec) {
   }
 
   // --- 7. Dérive douce : on prévient avant le défaut franc ----------------
-  if (erreur > c.deriveSeuil) {
+  // En vacances, le seuil peut être abaissé : personne n'est là pour voir.
+  // Une consigne prise en avance par le préchauffage n'est pas encore due :
+  // l'écart se mesure à celle de l'heure.
+  const float seuil = seuilDerive(z);
+  const float ecart = m_prechauffage ? consigneCalculee(z, false) - s.temperature : erreur;
+  if (ecart > seuil) {
     s.msDerive += (uint32_t)(dtSec * 1000.0f);
     if (!s.deriveActive && s.msDerive >= (uint32_t)c.deriveMinutes * 60000UL) {
       s.deriveActive = true;
       notifier(NOTIF_DERIVE, z, "%s : %.1f C sous la consigne depuis %u min (%.2f au lieu de %.2f).", c.nom,
-               (double)erreur, (unsigned)c.deriveMinutes, (double)s.temperature, (double)s.consigneEff);
+               (double)ecart, (unsigned)c.deriveMinutes, (double)s.temperature,
+               (double)(s.temperature + ecart));
     }
   } else {
-    if (s.deriveActive && erreur < c.deriveSeuil * 0.5f) {
+    if (s.deriveActive && ecart < seuil * 0.5f) {
       s.deriveActive = false;
       notifier(NOTIF_DERIVE_FIN, z, "%s : temperature revenue a %.2f C (consigne %.2f).", c.nom,
                (double)s.temperature, (double)s.consigneEff);
@@ -668,7 +912,7 @@ void Controleur::mesure(uint8_t z, float brute, uint32_t nowMs, float dtSec) {
   // --- 8. Trop chaud sans chauffer : canicule, soleil, lampe ---------------
   //        La chauffe ne peut pas refroidir. On prévient bien avant la
   //        coupure de surchauffe, qui n'arrive que lorsqu'il est déjà tard.
-  if (-erreur > c.deriveSeuil && s.demande < 0.01f) {
+  if (-erreur > seuil && s.demande < 0.01f) {
     s.msTropChaud += (uint32_t)(dtSec * 1000.0f);
     if (!s.tropChaudActif && s.msTropChaud >= (uint32_t)c.deriveMinutes * 60000UL) {
       s.tropChaudActif = true;
@@ -677,7 +921,7 @@ void Controleur::mesure(uint8_t z, float brute, uint32_t nowMs, float dtSec) {
                c.nom, (double)-erreur, (unsigned)c.deriveMinutes, (double)s.temperature);
     }
   } else {
-    if (s.tropChaudActif && -erreur < c.deriveSeuil * 0.5f) {
+    if (s.tropChaudActif && -erreur < seuil * 0.5f) {
       s.tropChaudActif = false;
       notifier(NOTIF_DERIVE_FIN, z, "%s : temperature redescendue a %.2f C (consigne %.2f).", c.nom,
                (double)s.temperature, (double)s.consigneEff);

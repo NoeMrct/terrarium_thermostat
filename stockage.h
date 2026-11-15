@@ -19,6 +19,10 @@ bool testNvs();                // écriture + relecture (test usine)
 void chargerZones(ReglagesZone cfg[NB_ZONES], String &rapportCorrections);
 void sauverZone(uint8_t z, const ReglagesZone &r);
 
+// --- plages horaires (F5) : chargées après les zones (leurs coupures les bornent) ---
+void chargerProgramme(Programme &p, const ReglagesZone cfg[NB_ZONES]);
+void sauverProgramme(const Programme &p);
+
 // --- défauts verrouillés : ils doivent survivre à un redémarrage ---
 void chargerDefauts(uint8_t d[NB_ZONES]);
 void sauverDefauts(const uint8_t d[NB_ZONES]);

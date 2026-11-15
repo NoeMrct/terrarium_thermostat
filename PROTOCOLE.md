@@ -77,7 +77,7 @@ Avec un préfixe `terrarium` et un identifiant d'appareil `terraA1B2C3` :
 | Sujet | Sens | Contenu |
 |---|---|---|
 | `terrarium/terraA1B2C3/statut` | socle → app | `en ligne` / `hors ligne` (persistant) |
-| `terrarium/terraA1B2C3/zone1/etat` | socle → app | JSON d'état (persistant), **dès que quelque chose change** — au plus toutes les 2 s — et de toute façon toutes les 60 s ; depuis la 3.5, avec `autotune`, `derive` et `trop_chaud` (`"0"`/`"1"`) |
+| `terrarium/terraA1B2C3/zone1/etat` | socle → app | JSON d'état (persistant), **dès que quelque chose change** — au plus toutes les 2 s — et de toute façon toutes les 60 s ; depuis la 3.5, avec `autotune`, `derive` et `trop_chaud` (`"0"`/`"1"`), et, l'heure connue, `suivante` (consigne de la période suivante, saison et vacances comprises), `suivanteA` (son heure, en minutes depuis minuit), `periode` (`jour` ou `nuit`), `plage` (nom de la plage en cours, plages actives) ; `vacances` (`"1"`) pendant les vacances |
 | `terrarium/terraA1B2C3/zone2/etat` | socle → app | idem |
 | `terrarium/terraA1B2C3/sante` | socle → app | JSON de santé (persistant), toutes les 60 s : `proto`, `version`, `uptime`, `rssi`, `heap`, `heapMin`, `blocMax`, `reset`, `otaEnAttente`, `signatureOta`, `hote` (`terraA1B2C3.local`), `ip`, `maj` (dernière mise à jour tirée : `etape`, `version`, `detail` — absent si aucune), `plantage` (si un coredump existe), `courantA`/`energieWh` (avec INA219), `mqtt` (état de la connexion au broker, en clair) et `webProtege` (l'interface locale demande un mot de passe), depuis la 3.5, `service` pendant un accès support et `majAuto` (mises à jour automatiques : `actif`, `attente`, `disponible`, `securite` — voir « Mises à jour automatiques ») |
 | `terrarium/terraA1B2C3/rapport` | socle → app | rapport quotidien en texte (persistant), à l'heure choisie, si le rapport est activé — depuis la 3.5 |
@@ -198,7 +198,8 @@ est retirée d'elle-même. Le propriétaire la ferme aussi depuis la page locale
 | `stats` | non | — | Min / max / moyenne sur 24 h, temps hors plage, énergie, compteurs de défauts |
 | `historique` | non | `heures` (1-400, défaut 24), `max` (1-200, défaut 120), `decalage` (0-400 heures sautées au plus récent, défaut 0 ; depuis la 3.5) | Points de courbe, échantillonnés, de la fenêtre `[maintenant - decalage - heures, maintenant - decalage[` ; la réponse rappelle `decalage`. Quatorze jours de points à la minute se lisent ainsi par pages (par exemple `heures` 15, `max` 180, soit un point toutes les 5 min) |
 | `zone` | **oui** | `z`, et `nom`, `jour`, `nuit`, `bande`, `ki`, `max`, `offset`, `rampe`, `debutJour`, `debutNuit`, `deriveSeuil`, `deriveMin`, `inefficaceMin`, `inefficaceDelta`, `chuteSeuil`, `chuteSecondes` | Modifie une zone |
-| `globaux` | **oui** | aucun (lecture), ou `amperes`, `watts`, `volts`, `entretienMin`, `ecranVeilleMin`, `saisonActive`, `saisonDelta`, `saisonDescenteJ`, `saisonPlateauJ`, `saisonRemonteeJ` ; depuis le protocole 4 : `prixKwh` (0-5 €), `rapportActif`, `rapportMinutes` (heure d'envoi, 0-1439), `ledEteinte`, `ecranNuit` (0 atténué, 1 normal, 2 éteint), `soleilActif`, `soleilDecalageMin` (-180-180), `latitude` (-65-65), `longitude`, `zonePrioritaire` (0 aucune, 1 ou 2), `majAuto` (mises à jour automatiques, `true` par défaut), `majPlageDebut` et `majPlageFin` (plage d'installation en minutes depuis minuit, 180 et 300 par défaut ; fin avant début : elle passe minuit ; début = fin refusé) | Lit ou modifie les réglages de l'appareil |
+| `globaux` | **oui** | aucun (lecture), ou `amperes`, `watts`, `volts`, `entretienMin`, `ecranVeilleMin`, `saisonActive`, `saisonDelta`, `saisonDescenteJ`, `saisonPlateauJ`, `saisonRemonteeJ` ; depuis le protocole 4 : `prixKwh` (0-5 €), `rapportActif`, `rapportMinutes` (heure d'envoi, 0-1439), `ledEteinte`, `ecranNuit` (0 atténué, 1 normal, 2 éteint), `soleilActif`, `soleilDecalageMin` (-180-180), `latitude` (-65-65), `longitude`, `zonePrioritaire` (0 aucune, 1 ou 2), `majAuto` (mises à jour automatiques, `true` par défaut), `majPlageDebut` et `majPlageFin` (plage d'installation en minutes depuis minuit, 180 et 300 par défaut ; fin avant début : elle passe minuit ; début = fin refusé) ; depuis la 3.5 : `vacancesDebut` et `vacancesFin` (secondes depuis 1970, départ inclus, retour exclu ; 0 et 0 : aucunes), `vacancesDecalage` (-10-0 °C), `vacancesAlertes` (dérive annoncée dès 2 °C d'écart), `prechauffage`, `saisonsActives`, `hiverDebut` et `hiverFin` (MMJJ, 1201 et 228 par défaut), `hiverDecalage` (0-10 °C, 2 par défaut), `hiverRaccourciMin` (0-240, 60 par défaut), `saisonTransitionJ` (0-60, 14 par défaut). La réponse ajoute `vacancesEnCours`, `vitesseMontee` (°C/h apprises par zone) et `raccourciActuel` (minutes) | Lit ou modifie les réglages de l'appareil |
+| `programme` | **oui** | aucun (lecture), ou `actif`, `weekend`, `semaine` et `weekEnd` (listes de 1 à 4 plages `{"debut":480,"nom":"Matin","consignes":[30,27]}`, chacune remplacée en entier ; débuts croissants, 15 min d'écart au moins ; consignes sous la coupure de chaque zone) — depuis la 3.5 | Plages horaires : la réponse rend le programme entier, au même format |
 | `reset` | **oui** | — | Lève les défauts verrouillés |
 | `entretien` | **oui** | `minutes` (0-240, 0 annule) | Coupe le chauffage temporairement, reprise automatique |
 | `autotune` | **oui** | `z` | Lance la calibration automatique |
@@ -272,6 +273,35 @@ signature vérifiée, anti-retour, chauffage coupé pendant l'écriture,
 validation après 90 s ou retour arrière (et la version est alors refusée pour
 l'installation automatique). Une installation réussie est annoncée après sa
 validation.
+
+### Plages, vacances, préchauffage et saisons (firmware 3.5)
+
+- **Plages** (`programme`) : jusqu'à quatre par jour, chacune avec une
+  consigne par zone, à la place du jour et de la nuit de chaque zone ; le
+  week-end (samedi et dimanche) peut avoir les siennes (`weekend`). Une plage
+  court de son début jusqu'au début de la suivante, la dernière jusqu'à la
+  première du lendemain (celle du week-end, un vendredi soir). La rampe de la
+  zone s'applique à chaque changement. La plus fraîche est « la nuit » : écran
+  atténué, journal (`[PERIODE z1] Passage en nuit`), hiver. Sans heure
+  fiable, la consigne de jour de la zone. Le programme par défaut reprend le
+  jour et la nuit des zones : activer les plages ne change rien tant qu'on ne
+  les modifie pas. Une coupure (`zone` `max`) abaissée sous une plage active
+  est refusée.
+- **Vacances** : du départ au retour, les consignes baissent de
+  `vacancesDecalage` et, avec `vacancesAlertes`, la dérive (sous ou
+  au-dessus de la consigne) est annoncée dès 2 °C d'écart. Elles finissent
+  seules ; `vacancesDebut` et `vacancesFin` à 0 les annulent.
+- **Préchauffage** : chaque zone apprend sa vitesse de montée pendant la
+  chauffe à fond (fenêtres de 10 min) ; une consigne plus haute est prise
+  assez tôt pour être atteinte à l'heure dite (marge de 20 %, 3 h au plus),
+  sans rampe. La dérive se mesure à la consigne de l'heure, pas à celle prise
+  en avance. Les baisses gardent leur rampe.
+- **Saisons du calendrier** : chaque année, de `hiverDebut` à `hiverFin`
+  (inclus), les consignes baissent de `hiverDecalage` et la journée raccourcit
+  de `hiverRaccourciMin` — moitié le matin, moitié le soir, une heure de jour
+  gardée, jamais à moins de 15 min d'une plage voisine ; passage progressif sur
+  `saisonTransitionJ` jours avant et après. S'ajoute au cyclage saisonnier
+  (`saisonActive`) et aux vacances, dans les bornes des consignes.
 
 ### Format de l'historique
 

@@ -76,7 +76,12 @@ static_assert(offsetof(ReglagesReseau, sondeRom) == offsetof(ReglagesReseau32, s
 static_assert(offsetof(ReglagesGlobaux, rapportActif) == 36, "3.5 ajoute ses reglages apres l'image 3.4");
 static_assert(offsetof(ReglagesGlobaux, majAutoCoupee) == 61,
               "les mises a jour automatiques s'ajoutent apres la zone prioritaire");
-static_assert(sizeof(ReglagesGlobaux) == 68, "taille de ReglagesGlobaux en 3.5 (avec F15)");
+static_assert(offsetof(ReglagesGlobaux, vacancesDebut) == 68,
+              "vacances, prechauffage et saisons s'ajoutent apres les mises a jour automatiques");
+static_assert(offsetof(ReglagesGlobaux, saisonTransitionJ) == 94,
+              "la transition des saisons ferme la structure");
+static_assert(sizeof(ReglagesGlobaux) == 96, "taille de ReglagesGlobaux en 3.5 (avec F6, F7, F9)");
+static_assert(sizeof(Plage) == 32 && sizeof(Programme) == 260, "taille du programme de plages (F5)");
 static_assert(sizeof(MajAuto::Etat) == 60, "taille de l'etat des mises a jour automatiques");
 static_assert(sizeof(EtatMaj) == 97, "taille de EtatMaj");
 static_assert(sizeof(StatsZone) == 16, "taille de StatsZone");
@@ -167,6 +172,20 @@ int main() {
                 !Stockage::assainirGlobaux(g3),
             "globaux 3.5 d'avant les mises à jour automatiques : actives, plage par défaut");
   }
+  // Une mémoire 3.5 d'avant les vacances et les saisons (68 octets).
+  {
+    ReglagesGlobaux g4;
+    const size_t l4 = Stockage::relireTolerant((const uint8_t *)&g, 68, &g4, sizeof g4);
+    VERIFIE(
+        l4 == 68 && !Stockage::assainirGlobaux(g4) && g4.vacancesDebut == 0 && g4.vacancesFin == 0 &&
+            !g4.prechauffage && !g4.saisonsActives,
+        "globaux d'avant les vacances : aucunes vacances, ni préchauffage, ni saisons — sans « correction »");
+    VERIFIE(g4.hiverDebut == 1201 && g4.hiverFin == 228 && g4.hiverDecalage == 2.0f &&
+                g4.hiverRaccourciMin == 60 && g4.saisonTransitionJ == 14 && g4.vacancesAlertes,
+            "…l'hiver par défaut est posé : 1er décembre au 28 février, 2 C, une heure, 14 jours");
+    char e4[100];
+    VERIFIE(Stockage::globauxValides(g4, e4, sizeof e4), "…et le tout est valide");
+  }
   g2.courantAlimA = 1e9f;
   VERIFIE(Stockage::assainirGlobaux(g2) && g2.courantAlimA == 3.0f,
           "une valeur aberrante est ramenée à la valeur par défaut");
@@ -253,6 +272,54 @@ int main() {
   VERIFIE(!Stockage::globauxValides(r, err, sizeof err), "fin à 24:00 refusée");
   VERIFIE(Stockage::assainirGlobaux(r) && r.majPlageDebut == 180 && r.majPlageFin == 300,
           "…plage abîmée ramenée à 03:00-05:00");
+
+  // Vacances (F6).
+  Stockage::reglagesGlobauxParDefaut(r);
+  VERIFIE(!Stockage::vacancesEnCours(r, 1800000000u), "pas de vacances par défaut");
+  r.vacancesDebut = 1800000000u;
+  r.vacancesFin = r.vacancesDebut + 15 * J;
+  r.vacancesDecalage = -2.0f;
+  VERIFIE(Stockage::globauxValides(r, err, sizeof err), "quinze jours de vacances, 2 C de moins : acceptés");
+  VERIFIE(!Stockage::vacancesEnCours(r, r.vacancesDebut - 1) &&
+              Stockage::vacancesEnCours(r, r.vacancesDebut) &&
+              Stockage::vacancesEnCours(r, r.vacancesFin - 1) && !Stockage::vacancesEnCours(r, r.vacancesFin),
+          "vacances : du départ inclus au retour exclu");
+  VERIFIE(!Stockage::vacancesEnCours(r, 0), "…jamais sans heure fiable");
+  r.vacancesFin = r.vacancesDebut;
+  VERIFIE(!Stockage::globauxValides(r, err, sizeof err) && strstr(err, "retour"),
+          "retour avant le départ : refusé");
+  VERIFIE(Stockage::assainirGlobaux(r) && r.vacancesDebut == 0 && r.vacancesFin == 0,
+          "…dates abîmées : plus de vacances");
+  r.vacancesDecalage = 3.0f;
+  VERIFIE(!Stockage::globauxValides(r, err, sizeof err),
+          "vacances plus chaudes : refusé (abaissement seulement)");
+  // Saisons du calendrier (F9).
+  Stockage::reglagesGlobauxParDefaut(r);
+  VERIFIE(Stockage::facteurHiver(r, 1, 15) == 0.0f, "saisons non suivies : jamais d'hiver");
+  r.saisonsActives = true;
+  VERIFIE(Stockage::facteurHiver(r, 1, 15) == 1.0f && Stockage::facteurHiver(r, 12, 1) == 1.0f &&
+              Stockage::facteurHiver(r, 2, 28) == 1.0f && Stockage::facteurHiver(r, 2, 29) == 1.0f,
+          "plein hiver du 1er décembre au 28 février (29 compris), à cheval sur deux années");
+  VERIFIE(Stockage::facteurHiver(r, 7, 14) == 0.0f && Stockage::facteurHiver(r, 4, 1) == 0.0f,
+          "l'été : rien");
+  const float f1 = Stockage::facteurHiver(r, 11, 24), f2 = Stockage::facteurHiver(r, 3, 7);
+  VERIFIE(f1 > 0.4f && f1 < 0.6f && f2 > 0.4f && f2 < 0.6f,
+          "passage progressif sur deux semaines, de part et d'autre");
+  VERIFIE(Stockage::facteurHiver(r, 11, 30) > f1 && Stockage::facteurHiver(r, 3, 15) == 0.0f,
+          "…qui croît vers l'hiver et s'éteint après");
+  r.saisonTransitionJ = 0;
+  VERIFIE(Stockage::facteurHiver(r, 11, 30) == 0.0f && Stockage::facteurHiver(r, 12, 1) == 1.0f,
+          "sans transition : bascule nette");
+  r.hiverDebut = 1301;
+  VERIFIE(!Stockage::globauxValides(r, err, sizeof err) && strstr(err, "MMJJ"), "13e mois refusé");
+  VERIFIE(Stockage::assainirGlobaux(r) && r.hiverDebut == 1201 && !r.saisonsActives,
+          "…et ramené au défaut, saisons coupées");
+  r.hiverDebut = 230;
+  VERIFIE(!Stockage::dateMmjjValide(230) && Stockage::dateMmjjValide(229) && !Stockage::dateMmjjValide(0),
+          "dates MMJJ : 30 février et 0 refusés, 29 février accepté");
+  Stockage::reglagesGlobauxParDefaut(r);
+  r.hiverRaccourciMin = 300;
+  VERIFIE(!Stockage::globauxValides(r, err, sizeof err), "raccourcir la journée de 5 h : refusé");
 
   // Mot de passe du point d'accès, propre à chaque socle.
   {

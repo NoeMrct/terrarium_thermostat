@@ -443,6 +443,89 @@ int main() {
     cmd(s, "{\"req\":\"f23\",\"action\":\"journal\"}");
     VERIFIE(contient(s.derniere(), "jeton invalide"),
             "les actions du protocole 4 exigent le code (ou la signature)");
+
+    // Plages horaires (F5).
+    c("\"req\":\"p1\",\"action\":\"programme\"");
+    VERIFIE(contient(s.derniere(),
+                     "\"actif\":false,\"weekend\":false,\"semaine\":[{\"debut\":480,\"nom\":\"Jour\","
+                     "\"consignes\":[32.0,28.0]},{\"debut\":1200,\"nom\":\"Nuit\"") &&
+                s.programmesSauves == 0,
+            "programme : lecture, jour et nuit des zones par défaut");
+    c("\"req\":\"p2\",\"action\":\"programme\",\"actif\":true,\"semaine\":["
+      "{\"debut\":480,\"nom\":\"Matin\",\"consignes\":[30,27]},{\"debut\":660,\"nom\":\"Pic de chaleur\","
+      "\"consignes\":[34,28]},{\"debut\":960,\"nom\":\"Apr\u00e8s-midi\",\"consignes\":[32,28]},"
+      "{\"debut\":1200,\"nom\":\"Nuit\",\"consignes\":[26,24]}]");
+    VERIFIE(contient(s.derniere(), "\"ok\":true") && s.prog.actif && s.prog.nb[0] == 4 &&
+                s.prog.plages[0][1].consigne[0] == 34.0f &&
+                strcmp(s.prog.plages[0][2].nom, "Après-midi") == 0 && s.programmesSauves == 1 &&
+                s.prog.nb[1] == 2,
+            "programme : quatre plages en semaine, le week-end inchangé");
+    c("\"req\":\"p3\",\"action\":\"programme\",\"semaine\":[{\"debut\":480,\"consignes\":[30,27]},"
+      "{\"debut\":485,\"consignes\":[34,28]}]");
+    VERIFIE(contient(s.derniere(), "15 min") && s.prog.nb[0] == 4 && s.programmesSauves == 1,
+            "programme : débuts trop proches refusés, rien de changé");
+    c("\"req\":\"p4\",\"action\":\"programme\",\"weekEnd\":[{\"debut\":540,\"consignes\":[41,27]}]");
+    VERIFIE(contient(s.derniere(), "coupure") && s.programmesSauves == 1,
+            "programme : consigne au-dessus de la coupure refusée");
+    c("\"req\":\"p5\",\"action\":\"programme\",\"weekEnd\":[{\"debut\":540,\"consignes\":[31]}]");
+    VERIFIE(contient(s.derniere(), "une consigne par zone"), "programme : une consigne par zone exigée");
+    c("\"req\":\"p6\",\"action\":\"programme\",\"semaine\":[1,2,3,4,5]");
+    VERIFIE(contient(s.derniere(), "de 1 a 4"), "programme : cinq plages refusées");
+    c("\"req\":\"p7\",\"action\":\"programme\",\"weekend\":true,\"weekEnd\":[{\"debut\":540,"
+      "\"nom\":\"Un nom bien trop long pour "
+      "tenir\",\"consignes\":[31,27]},{\"debut\":1260,\"consignes\":[25,23]}]");
+    VERIFIE(contient(s.derniere(), "\"ok\":true") && s.prog.weekend && s.prog.nb[1] == 2 &&
+                strlen(s.prog.plages[1][0].nom) == sizeof s.prog.plages[1][0].nom - 1 &&
+                contient(s.derniere(), "\"weekEnd\":[{\"debut\":540"),
+            "programme : week-end distinct, nom trop long coupé");
+    c("\"req\":\"p7b\",\"action\":\"programme\",\"semaine\":[{\"debut\":480,\"nom\":"
+      "\"\u00e9\u00e9\u00e9\u00e9\u00e9"
+      "\u00e9\u00e9\u00e9\u00e9\u00e9\",\"consignes\":[30,27]}]");
+    VERIFIE(contient(s.derniere(), "\"ok\":true") && strlen(s.prog.plages[0][0].nom) == 16,
+            "programme : un nom coupé ne coupe jamais un caractère en deux");
+    c("\"req\":\"p8a\",\"action\":\"programme\",\"semaine\":[{\"debut\":480,\"consignes\":[36,27]}]");
+    c("\"req\":\"p8\",\"action\":\"zone\",\"z\":0,\"max\":35");
+    VERIFIE(contient(s.derniere(), "au-dessus de la coupure") && s.zones[0].tempMax == 40.0f,
+            "zone : coupure abaissée sous une plage refusée");
+    {
+      Programme lu;
+      programmeParDefaut(lu, s.zones);
+      char e[100] = "", corps[1200];
+      Protocole::corpsProgramme(s.prog, corps, sizeof corps);
+      const std::string json = "{" + std::string(corps) + "}";
+      VERIFIE(Protocole::lireProgramme(json.c_str(), json.size(), lu, e, sizeof e) && lu.actif &&
+                  lu.weekend && lu.nb[0] == 1 && lu.nb[1] == 2 && lu.plages[1][1].debut == 1260 &&
+                  programmeValide(lu, s.zones, e, sizeof e),
+              "programme : relu tel qu'écrit (sauvegarde)");
+      VERIFIE(!Protocole::lireProgramme("[", 1, lu, e, sizeof e) && contient(e, "illisible"),
+              "programme : JSON illisible refusé");
+      char petit[40];
+      Protocole::corpsProgramme(s.prog, petit, sizeof petit);
+      VERIFIE(strlen(petit) == sizeof petit - 1, "programme : sortie tronquée sans débordement");
+    }
+    c("\"req\":\"p9\",\"action\":\"programme\",\"actif\":false");
+    VERIFIE(!s.prog.actif && contient(s.actions.back(), "coupees"), "programme : plages coupées");
+
+    // Vacances, préchauffage, saisons (F6, F7, F9).
+    c("\"req\":\"g1\",\"action\":\"globaux\",\"vacancesDebut\":1766102400,\"vacancesFin\":1767484800,"
+      "\"vacancesDecalage\":-2,\"vacancesAlertes\":true,\"prechauffage\":true,\"saisonsActives\":true,"
+      "\"hiverDebut\":1215,\"hiverFin\":215,\"hiverDecalage\":3,\"hiverRaccourciMin\":90,"
+      "\"saisonTransitionJ\":21");
+    VERIFIE(contient(s.derniere(), "\"ok\":true") && s.glob.vacancesDebut == 1766102400u &&
+                s.glob.vacancesFin == 1767484800u && s.glob.vacancesDecalage == -2.0f &&
+                s.glob.prechauffage && s.glob.saisonsActives && s.glob.hiverDebut == 1215 &&
+                s.glob.hiverFin == 215 && s.glob.hiverDecalage == 3.0f && s.glob.hiverRaccourciMin == 90 &&
+                s.glob.saisonTransitionJ == 21,
+            "globaux : vacances, préchauffage et saisons à distance");
+    c("\"req\":\"g2\",\"action\":\"globaux\",\"vacancesFin\":1766000000");
+    VERIFIE(contient(s.derniere(), "retour") && s.glob.vacancesFin == 1767484800u,
+            "globaux : retour avant le départ refusé");
+    c("\"req\":\"g3\",\"action\":\"globaux\",\"vacancesDebut\":0,\"vacancesFin\":0");
+    VERIFIE(contient(s.derniere(), "\"ok\":true") && s.glob.vacancesDebut == 0 && s.glob.vacancesFin == 0,
+            "globaux : vacances annulées");
+    c("\"req\":\"g4\",\"action\":\"globaux\",\"hiverDebut\":1340");
+    VERIFIE(contient(s.derniere(), "MMJJ") && s.glob.hiverDebut == 1215,
+            "globaux : date d'hiver invalide refusée");
   }
 
   // --- Accès support (V11) : une clé de session, donnée par le propriétaire.

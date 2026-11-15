@@ -92,6 +92,69 @@ bool copierTexte(char *dest, size_t taille, const char *src) {
 
 bool urlPlausible(const char *u) { return !u[0] || !strncmp(u, "https://", 8) || !strncmp(u, "http://", 7); }
 
+// Copie bornée qui ne coupe jamais un caractère UTF-8 en deux (noms de plage).
+void copierUtf8(char *dest, size_t taille, const char *src) {
+  size_t n = strlen(src);
+  if (n >= taille) {
+    n = taille - 1;
+    while (n > 0 && ((unsigned char)src[n] & 0xC0) == 0x80) n--;
+  }
+  memcpy(dest, src, n);
+  dest[n] = '\0';
+}
+
+const char *const JEUX[NB_JEUX] = { "semaine", "weekEnd" };
+
+// Les champs d'un programme présents dans `o`, par-dessus `p`. `ecriture`
+// passe à vrai dès qu'un champ est lu.
+bool remplirProgramme(JsonObjectConst o, Programme &p, bool &ecriture, char *erreur, size_t taille) {
+  if (o["actif"].is<bool>()) {
+    p.actif = o["actif"];
+    ecriture = true;
+  }
+  if (o["weekend"].is<bool>()) {
+    p.weekend = o["weekend"];
+    ecriture = true;
+  }
+  for (uint8_t j = 0; j < NB_JEUX; j++) {
+    JsonVariantConst v = o[JEUX[j]];
+    if (v.isNull()) continue;
+    JsonArrayConst l = v.as<JsonArrayConst>();
+    if (!v.is<JsonArrayConst>() || l.size() < 1 || l.size() > NB_PLAGES) {
+      snprintf(erreur, taille, "Plages : de 1 a %u par jour", (unsigned)NB_PLAGES);
+      return false;
+    }
+    uint8_t k = 0;
+    for (JsonObjectConst q : l) {
+      Plage &d = p.plages[j][k];
+      memset(&d, 0, sizeof d);
+      if (!q["debut"].is<int>()) {
+        snprintf(erreur, taille, "Plage %u : debut attendu, en minutes", (unsigned)k + 1);
+        return false;
+      }
+      const long debut = q["debut"].as<long>();
+      d.debut = (uint16_t)(debut < 0 || debut > 1439 ? 1440 : debut);  // 1440 : refusé à la validation
+      JsonArrayConst c = q["consignes"].as<JsonArrayConst>();
+      if (c.size() != NB_ZONES) {
+        snprintf(erreur, taille, "Plage %u : une consigne par zone", (unsigned)k + 1);
+        return false;
+      }
+      uint8_t z = 0;
+      for (JsonVariantConst x : c) d.consigne[z++] = x.is<float>() ? x.as<float>() : NAN;
+      copierUtf8(d.nom, sizeof d.nom, q["nom"] | "");
+      k++;
+    }
+    if (k != l.size()) {  // un élément qui n'était pas un objet
+      snprintf(erreur, taille, "Plages : liste illisible");
+      return false;
+    }
+    for (uint8_t r = k; r < NB_PLAGES; r++) memset(&p.plages[j][r], 0, sizeof p.plages[j][r]);
+    p.nb[j] = k;
+    ecriture = true;
+  }
+  return true;
+}
+
 // Hôte d'une URL d'alerte, seul relu à distance : le chemin d'une URL ntfy ou
 // healthchecks est le secret, et des identifiants peuvent précéder « @ ».
 void hoteUrl(const char *url, char *out, size_t taille) {
@@ -148,7 +211,24 @@ void traiterGlobaux(Socle &socle, JsonDocument &doc, const char *req) {
   CHAMP("rapportActif", rapportActif, bool)
   CHAMP("ledEteinte", ledEteinte, bool)
   CHAMP("soleilActif", soleilActif, bool)
+  // Vacances (F6), préchauffage (F7), saisons au calendrier (F9).
+  CHAMP("vacancesDecalage", vacancesDecalage, float)
+  CHAMP("vacancesAlertes", vacancesAlertes, bool)
+  CHAMP("prechauffage", prechauffage, bool)
+  CHAMP("saisonsActives", saisonsActives, bool)
+  CHAMP("hiverDecalage", hiverDecalage, float)
 #undef CHAMP
+  // Dates des vacances, en secondes depuis 1970 ; 0 et 0 : aucunes.
+  if (doc["vacancesDebut"].is<long>()) {
+    const long v = doc["vacancesDebut"].as<long>();
+    n.vacancesDebut = (uint32_t)(v < 0 ? 0 : v);
+    ecriture = true;
+  }
+  if (doc["vacancesFin"].is<long>()) {
+    const long v = doc["vacancesFin"].as<long>();
+    n.vacancesFin = (uint32_t)(v < 0 ? 0 : v);
+    ecriture = true;
+  }
 #define CHAMP16(cle, membre)                                    \
   if (doc[cle].is<int>()) {                                     \
     const long v = doc[cle].as<long>();                         \
@@ -163,6 +243,9 @@ void traiterGlobaux(Socle &socle, JsonDocument &doc, const char *req) {
   CHAMP16("rapportMinutes", rapportMinutes)
   CHAMP16("majPlageDebut", majPlageDebut)
   CHAMP16("majPlageFin", majPlageFin)
+  CHAMP16("hiverDebut", hiverDebut)
+  CHAMP16("hiverFin", hiverFin)
+  CHAMP16("hiverRaccourciMin", hiverRaccourciMin)
 #undef CHAMP16
 #define CHAMP8(cle, membre)                                  \
   if (doc[cle].is<int>()) {                                  \
@@ -172,6 +255,7 @@ void traiterGlobaux(Socle &socle, JsonDocument &doc, const char *req) {
   }
   CHAMP8("ecranNuit", ecranNuit)
   CHAMP8("zonePrioritaire", zonePrioritaire)
+  CHAMP8("saisonTransitionJ", saisonTransitionJ)
 #undef CHAMP8
   // Mises à jour automatiques : activées par défaut, stockées « coupées ».
   if (doc["majAuto"].is<bool>()) {
@@ -206,6 +290,33 @@ void traiterGlobaux(Socle &socle, JsonDocument &doc, const char *req) {
     socle.journal("Reglages globaux modifies via le canal de commande");
   }
   socle.corpsGlobaux(g_corps, sizeof g_corps);
+  repondre(socle, req, true, g_corps);
+}
+
+// Plages horaires (F5). Sans champ, une lecture ; sinon « actif », « weekend »
+// et les jeux « semaine » et « weekEnd », chacun remplacé en entier, validés
+// contre la coupure de chaque zone avant d'être appliqués.
+void traiterProgramme(Socle &socle, JsonDocument &doc, const char *req) {
+  Programme n = socle.programme();
+  bool ecriture = false;
+  char err[100];
+  if (!remplirProgramme(doc.as<JsonObjectConst>(), n, ecriture, err, sizeof err)) {
+    erreur(socle, req, err);
+    return;
+  }
+  if (ecriture) {
+    ReglagesZone cfg[NB_ZONES];
+    for (uint8_t z = 0; z < NB_ZONES; z++) cfg[z] = socle.zone(z);
+    if (!programmeValide(n, cfg, err, sizeof err)) {
+      erreur(socle, req, err);
+      return;
+    }
+    socle.programme() = n;
+    socle.sauverProgramme();
+    socle.journal(n.actif ? "Plages horaires modifiees via le canal de commande"
+                          : "Plages horaires coupees via le canal de commande (jour et nuit de chaque zone)");
+  }
+  corpsProgramme(socle.programme(), g_corps, sizeof g_corps);
   repondre(socle, req, true, g_corps);
 }
 
@@ -451,6 +562,52 @@ bool actionLectureSeule(const char *action) {
          strcmp(action, "historique") == 0;
 }
 
+namespace {
+// Avance l de ce que vient d'écrire snprintf, sans jamais dépasser la taille
+// (sortie tronquée : la suite n'écrit plus rien).
+void avancer(size_t &l, size_t taille, int ecrit) {
+  if (ecrit > 0) l = (l + (size_t)ecrit < taille) ? l + (size_t)ecrit : taille;
+}
+}  // namespace
+
+void corpsProgramme(const Programme &p, char *out, size_t taille) {
+  if (!out || taille == 0) return;
+  size_t l = 0;
+#define ajouter(...)                                                                \
+  do {                                                                              \
+    if (l < taille) avancer(l, taille, snprintf(out + l, taille - l, __VA_ARGS__)); \
+  } while (0)
+  ajouter("\"actif\":%s,\"weekend\":%s", p.actif ? "true" : "false", p.weekend ? "true" : "false");
+  for (uint8_t j = 0; j < NB_JEUX; j++) {
+    ajouter(",\"%s\":[", JEUX[j]);
+    const uint8_t n = p.nb[j] > NB_PLAGES ? NB_PLAGES : p.nb[j];
+    for (uint8_t k = 0; k < n; k++) {
+      const Plage &q = p.plages[j][k];
+      char nom[sizeof q.nom + 1], esc[3 * sizeof q.nom];
+      memcpy(nom, q.nom, sizeof q.nom);
+      nom[sizeof q.nom] = '\0';
+      formatEchapperJson(nom, esc, sizeof esc);
+      ajouter("%s{\"debut\":%u,\"nom\":\"%s\",\"consignes\":[", k ? "," : "", (unsigned)q.debut, esc);
+      for (uint8_t z = 0; z < NB_ZONES; z++)
+        ajouter("%s%.1f", z ? "," : "", (double)(q.consigne[z] == q.consigne[z] ? q.consigne[z] : 0.0f));
+      ajouter("]}");
+    }
+    ajouter("]");
+  }
+#undef ajouter
+  if (l >= taille) out[taille - 1] = '\0';
+}
+
+bool lireProgramme(const char *json, size_t n, Programme &p, char *erreur, size_t taille) {
+  JsonDocument d;
+  if (!json || deserializeJson(d, json, n) || !d.is<JsonObject>()) {
+    snprintf(erreur, taille, "Plages : JSON illisible");
+    return false;
+  }
+  bool ecriture = false;
+  return remplirProgramme(d.as<JsonObjectConst>(), p, ecriture, erreur, taille);
+}
+
 void oublierReponses() {
   memset(g_recentes, 0, sizeof g_recentes);
   g_recenteSuivante = 0;
@@ -585,6 +742,17 @@ void traiterCommande(Socle &socle, const char *charge, size_t taille) {
       erreur(socle, req, err);
       return;
     }
+    // Une coupure abaissée sous la consigne d'une plage : refusée, la plage
+    // ne serait plus jamais tenue.
+    if (socle.programme().actif) {
+      ReglagesZone cfg[NB_ZONES];
+      for (uint8_t k = 0; k < NB_ZONES; k++) cfg[k] = socle.zone(k);
+      cfg[z] = n;
+      if (!programmeValide(socle.programme(), cfg, err, sizeof err)) {
+        erreur(socle, req, err);
+        return;
+      }
+    }
     socle.zone((uint8_t)z) = n;
     socle.sauverZone((uint8_t)z);
     repondre(socle, req, true, "");
@@ -630,6 +798,11 @@ void traiterCommande(Socle &socle, const char *charge, size_t taille) {
 
   if (strcmp(action, "globaux") == 0) {
     traiterGlobaux(socle, doc, req);
+    return;
+  }
+
+  if (strcmp(action, "programme") == 0) {
+    traiterProgramme(socle, doc, req);
     return;
   }
 

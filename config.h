@@ -150,6 +150,8 @@ bool heureApproximative();           // restaurée depuis la flash, non resynchr
 uint16_t minutesDuJour();
 uint32_t secondesChauffeTotales(uint8_t zone);  // cumul, y compris avant reboot
 void appliquerReglagesGlobaux();                // puissance disponible et saison
+void appliquerCalendrier();                     // vacances, hiver, préchauffage : chaque minute
+uint8_t jourDeSemaine();                        // 0 = dimanche (1 sans heure fiable)
 const char *raisonRedemarrage();                // « mise sous tension », « PANIQUE »…
 bool redemarrageAnormal();                      // panique, watchdog, chute d'alimentation
 const char *resumePlantage();                   // résumé du dernier coredump, ou ""

@@ -290,20 +290,26 @@ void restaurerHeure() {
 // Passage en jour ou en nuit, noté au journal (une ligne par zone et par
 // basculement, jamais au démarrage) : des repères dans le journal de
 // l'application. Rien sans heure fiable.
+// Avec des plages (F5), le passage d'une plage à l'autre aussi.
 void suivrePeriodes() {
   static int8_t vu[NB_ZONES];
+  static float consigneVue[NB_ZONES];
   static bool pret = false;
   if (!pret) {
     for (uint8_t z = 0; z < NB_ZONES; z++) vu[z] = -1;
     pret = true;
   }
   for (uint8_t z = 0; z < NB_ZONES; z++) {
-    const int8_t p = ctrl.periodeJour(z);
-    if (p < 0) continue;
+    Controleur::Moment mo;
+    if (!ctrl.moment(z, mo)) continue;
+    const int8_t p = mo.nuit ? 0 : 1;
     if (vu[z] >= 0 && p != vu[z])
       journal("[PERIODE z%u] Passage en %s, consigne %.1f C", (unsigned)z + 1, p ? "jour" : "nuit",
-              (double)(p ? ctrl.cfg[z].consigneJour : ctrl.cfg[z].consigneNuit));
+              (double)mo.actuelle);
+    else if (vu[z] >= 0 && mo.nom && mo.actuelle != consigneVue[z])
+      journal("[PERIODE z%u] Plage %s, consigne %.1f C", (unsigned)z + 1, mo.nom, (double)mo.actuelle);
     vu[z] = p;
+    consigneVue[z] = mo.actuelle;
   }
 }
 
@@ -373,14 +379,41 @@ void journaliserEtat() {
 
 uint32_t secondesChauffeTotales(uint8_t z) { return g_secondesBase[z] + ctrl.zone[z].secondesChauffe; }
 
-// Reporte les réglages globaux sur le contrôleur : puissance disponible et
-// décalage saisonnier du jour.
+// Reporte les réglages globaux sur le contrôleur : puissance disponible,
+// zone prioritaire, soleil, et tout ce qui dépend de la date.
 void appliquerReglagesGlobaux() {
   const ReglagesGlobaux &g = Stockage::globaux();
   ctrl.limiterZones(Stockage::zonesSimultanees(g));
-  ctrl.decalageSaison(g_heureFiable ? Stockage::decalageSaisonnier(g, (uint32_t)time(nullptr)) : 0.0f);
   ctrl.zonePrioritaire((int8_t)g.zonePrioritaire - 1);
+  appliquerCalendrier();
   Taches::appliquerSoleil();
+}
+
+// Ce qui dépend de la date : cyclage saisonnier, hiver du calendrier (F9 :
+// consignes abaissées, journée raccourcie), vacances (F6), préchauffage (F7).
+// Recalculé chaque minute : des vacances commencent et finissent à l'heure dite.
+void appliquerCalendrier() {
+  const ReglagesGlobaux &g = Stockage::globaux();
+  const uint32_t e = g_heureFiable ? (uint32_t)time(nullptr) : 0;
+  float hiver = 0.0f;
+  if (g_heureFiable) {
+    const time_t t = (time_t)e;
+    struct tm tm;
+    localtime_r(&t, &tm);
+    hiver = Stockage::facteurHiver(g, (uint8_t)(tm.tm_mon + 1), (uint8_t)tm.tm_mday);
+  }
+  ctrl.decalageSaison(g_heureFiable ? Stockage::decalageSaisonnier(g, e) - g.hiverDecalage * hiver : 0.0f);
+  ctrl.raccourcirJour((uint16_t)lroundf((float)g.hiverRaccourciMin * hiver));
+  const bool vacances = Stockage::vacancesEnCours(g, e);
+  if (vacances != ctrl.enVacances()) {
+    if (vacances)
+      journal("Vacances : consignes %+.1f C%s", (double)g.vacancesDecalage,
+              g.vacancesAlertes ? ", alertes des 2 C d'ecart" : "");
+    else
+      journal("Vacances terminees : consignes et alertes habituelles");
+  }
+  ctrl.vacances(vacances, g.vacancesDecalage, g.vacancesAlertes);
+  ctrl.prechauffage(g.prechauffage);
 }
 
 // ============================ SERVICES PARTAGÉS ==============================
@@ -404,6 +437,14 @@ uint16_t minutesDuJour() {
   struct tm tm;
   localtime_r(&t, &tm);
   return (uint16_t)(tm.tm_hour * 60 + tm.tm_min);
+}
+
+uint8_t jourDeSemaine() {
+  if (!g_heureFiable) return 1;
+  time_t t = time(nullptr);
+  struct tm tm;
+  localtime_r(&t, &tm);
+  return (uint8_t)tm.tm_wday;  // 0 = dimanche
 }
 
 void journal(const char *fmt, ...) {
@@ -443,13 +484,14 @@ void setup() {
   String rapport;
   Stockage::chargerZones(ctrl.cfg, rapport);
   if (rapport.length()) journal("Reglages assainis au chargement : %s", rapport.c_str());
+  Stockage::chargerProgramme(ctrl.prog, ctrl.cfg);
   for (uint8_t z = 0; z < NB_ZONES; z++) {
     g_biaisPersistes[z] = Stockage::lireBiais(z);
     ctrl.zone[z].biais = g_biaisPersistes[z];
   }
 
   ctrl.demarrer(millis());
-  ctrl.horloge(g_heureFiable, minutesDuJour());
+  ctrl.horloge(g_heureFiable, minutesDuJour(), jourDeSemaine());
 
   Stockage::chargerStats(g_stats);
   for (uint8_t z = 0; z < NB_ZONES; z++) g_secondesBase[z] = g_stats[z].secondesChauffe;
@@ -532,7 +574,12 @@ void loop() {
     conversionDemandee = false;
     const float dt = (maintenant - tMesure) / 1000.0f;
     tMesure = maintenant;
-    ctrl.horloge(g_heureFiable, minutesDuJour());
+    ctrl.horloge(g_heureFiable, minutesDuJour(), jourDeSemaine());
+    static uint16_t minuteVue = 0xFFFF;
+    if (minutesDuJour() != minuteVue) {  // vacances et hiver : à la minute près
+      minuteVue = minutesDuJour();
+      appliquerCalendrier();
+    }
     suivrePeriodes();
     for (uint8_t z = 0; z < NB_ZONES; z++) ctrl.mesure(z, Sondes::lire(z), maintenant, dt);
     Sondes::suivre(maintenant);  // identification en cours, sonde rebranchée

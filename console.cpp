@@ -353,6 +353,25 @@ void traiter(String cmd) {
     Console::testUsine(n >= 3 && j[2] == "oui");
     return;
   }
+  if (v == "plages") {  // F5 : réglées depuis l'application, lues ici
+    const Programme &p = ctrl.prog;
+    Serial.printf("Plages %s%s\n", p.actif ? "actives" : "inactives (jour et nuit de chaque zone)",
+                  p.actif && p.weekend ? ", week-end a part" : "");
+    for (uint8_t jeu = 0; jeu < (p.weekend ? NB_JEUX : 1); jeu++)
+      for (uint8_t k = 0; k < p.nb[jeu] && k < NB_PLAGES; k++) {
+        const Plage &q = p.plages[jeu][k];
+        Serial.printf("  %s %s  %-17s", jeu ? "week-end" : (p.weekend ? "semaine " : ""),
+                      hhmm(q.debut).c_str(), q.nom);
+        for (uint8_t z = 0; z < NB_ZONES; z++) Serial.printf("  %.1f", (double)q.consigne[z]);
+        Serial.println();
+      }
+    Serial.printf(
+        "Prechauffage %s (montee %.1f / %.1f C/h)  |  vacances %s  |  hiver : -%.1f C, jour -%u min\n",
+        ctrl.prechauffage() ? "actif" : "inactif", (double)ctrl.zone[0].vitesseMontee,
+        (double)ctrl.zone[1].vitesseMontee, ctrl.enVacances() ? "en cours" : "non",
+        (double)-ctrl.decalageSaison(), (unsigned)ctrl.raccourciJour());
+    return;
+  }
   if (v == "stats") {
     const ReglagesGlobaux &g = Stockage::globaux();
     Serial.printf("Alimentation %.1f A -> %u zone(s) simultanee(s)  |  saison %+.2f C\n", g.courantAlimA,
@@ -860,6 +879,7 @@ void aide() {
         "  entretien-defaut <min>     duree proposee par defaut\n"
         "  alim <amperes> [watts] [volts]  puissance disponible -> zones simultanees\n"
         "  saison <degC> <jDescente> [jPlateau] [jRemontee] | saison off\n"
+        "  plages                     plages horaires, prechauffage, vacances, hiver\n"
         "  ecran <minutes>            veille de l'afficheur (0 = jamais)\n"
         "  ecran nuit <attenue|normal|eteint>  l'afficheur la nuit\n"
         "  led <on|off>               LED d'etat de la carte\n"

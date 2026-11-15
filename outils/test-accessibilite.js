@@ -30,6 +30,9 @@ const ECRANS = [
   ['zone', () => App.zone(1)],
   ['reglages', () => App.panneau('reglages')],
   ['programme', () => App.panneau('programme')],
+  ['plages et saisons', () => App.panneau('plages')],
+  ['une plage', () => { const b = document.querySelector('[data-action="plEditer"][data-k="0"]'); if (b) b.click(); }],
+  ['mode vacances', () => { const d = document.querySelector('#dlg-plage'); if (d && d.open) d.close(); App.panneau('vacances'); }],
   ['securite', () => App.panneau('securite')],
   ['courbes', () => App.panneau('courbes')],
   ['consommation', () => App.panneau('conso')],
@@ -139,7 +142,7 @@ let violationsGraves = 0, total = 0;
     await page.addScriptTag({ content: AXE });
     for (const [ecran, action] of ECRANS) {
       await page.evaluate(action);
-      await page.waitForTimeout(['courbes', 'appareil', 'service', 'programme', 'securite', 'consommation', 'journal'].includes(ecran) ? 1500 : 500);
+      await page.waitForTimeout(['courbes', 'appareil', 'service', 'programme', 'plages et saisons', 'mode vacances', 'securite', 'consommation', 'journal'].includes(ecran) ? 1500 : 500);
       await analyser(page, nom + ' / ' + ecran);
     }
     await ctx.close();

@@ -28,6 +28,8 @@ const PREFIXE = arg('prefixe', 'terrarium');
 // Dernière version publiée par le manifeste simulé (mises à jour automatiques).
 const PUBLIEE = arg('publiee', '3.6.0');
 const base    = `${PREFIXE}/${ID}`;
+// Plages, vacances, préchauffage, hiver : le calcul du firmware (F5 à F9).
+const P = require('./programme-simule')();
 
 // ----------------------------------------------------------------- l'appareil
 const socle = {
@@ -41,7 +43,9 @@ const socle = {
     rapportActif: false, rapportMinutes: 1200, prixKwh: 0, ledEteinte: false, ecranNuit: 0,
     soleilActif: false, soleilDecalageMin: 0, latitude: 0, longitude: 0, zonePrioritaire: 0,
     // Mises à jour automatiques (F15) : activées par défaut, la nuit de 03:00 à 05:00.
-    majAutoCoupee: false, majPlageDebut: 180, majPlageFin: 300
+    majAutoCoupee: false, majPlageDebut: 180, majPlageFin: 300,
+    // Vacances, préchauffage et hiver du calendrier (F6, F7, F9).
+    ...P.DEFAUTS_GLOBAUX
   },
   // Protocole 4 (F1) : ce que la page locale réglait seule.
   sondes: [
@@ -72,6 +76,17 @@ const socle = {
       temp: 22, defaut: null, demande: 0, chauffe: false, autotune: false }
   ]
 };
+
+// Plages horaires (F5) : celles par défaut reprennent le jour et la nuit des zones.
+socle.programme = P.parDefaut(socle.zones);
+
+// L'heure, le jour, l'hiver et les vacances du moment, pour le calcul des consignes.
+function momentSocle() {
+  const d = new Date(), g = socle.globaux, epoch = Math.floor(Date.now() / 1000);
+  const hiver = P.facteurHiver(g, d.getMonth() + 1, d.getDate()), vacances = P.vacancesEnCours(g, epoch);
+  return { minutes: d.getHours() * 60 + d.getMinutes(), jourSemaine: d.getDay(), raccourci: Math.round(g.hiverRaccourciMin * hiver),
+    decalage: -g.hiverDecalage * hiver + (vacances ? g.vacancesDecalage : 0), prechauffage: g.prechauffage, vitesse: 4, vacances };
+}
 
 const zonesSimultanees = () => {
   const parTapis = socle.globaux.puissanceTapisW / socle.globaux.tensionV;
@@ -104,6 +119,7 @@ function validerGlobaux(g) {
   if (!(g.majPlageDebut >= 0 && g.majPlageDebut <= 1439 && g.majPlageFin >= 0 && g.majPlageFin <= 1439))
     e('Plage de mise a jour : heures de 00:00 a 23:59');
   if (g.majPlageDebut === g.majPlageFin && g.majPlageDebut !== 0) e('Plage de mise a jour vide : debut et fin identiques');
+  P.validerGlobaux(g);
 }
 
 // Versions X.Y.Z, comme MajAuto::comparerVersions.
@@ -168,10 +184,7 @@ function valider(z) {
 }
 
 function consigne(z) {
-  const m = new Date().getHours() * 60 + new Date().getMinutes();
-  const depuisJour = (m - z.debutJour + 1440) % 1440;
-  const jour = depuisJour < ((z.debutNuit - z.debutJour + 1440) % 1440);
-  return jour ? z.consigneJour : z.consigneNuit;
+  return P.consigne(socle.programme, socle.zones, socle.zones.indexOf(z), momentSocle());
 }
 
 // Modèle thermique volontairement sommaire : il ne sert qu'à faire bouger les
@@ -254,6 +267,7 @@ const sante = () => ({
 
 function publier() {
   client.publish(`${base}/sante`, JSON.stringify(sante()), { retain: true });
+  const mo = momentSocle();
   socle.zones.forEach((z, i) => {
     client.publish(`${base}/zone${i + 1}/etat`, JSON.stringify({
       temp: +z.temp.toFixed(2),
@@ -267,7 +281,8 @@ function publier() {
       derive: '0',
       trop_chaud: '0',
       jour: z.consigneJour,
-      nuit: z.consigneNuit
+      nuit: z.consigneNuit,
+      ...P.champsEtat(socle.programme, socle.zones, i, mo, mo.vacances)
     }), { retain: true });
   });
 }
@@ -356,21 +371,24 @@ client.on('message', (sujet, charge) => {
     case 'version':
       return repondre(d.req, true, { version: VERSION_SIM, compile: new Date().toISOString(), proto: PROTO_SIM });
 
-    case 'etat':
+    case 'etat': {
+      const mo = momentSocle();
       return repondre(d.req, true, {
-        zones: socle.zones.map(z => ({
+        zones: socle.zones.map((z, i) => ({
           nom: z.nom, temp: +z.temp.toFixed(2), consigne: +consigne(z).toFixed(2),
           demande: Math.round(z.demande * 100), charge: Math.round(z.demande * 100),
           chauffe: z.chauffe, autotune: z.autotune, derive: false, defaut: z.defaut,
           jour: z.consigneJour, nuit: z.consigneNuit, bande: z.bande, max: z.tempMax,
-          offset: z.offset, rampe: z.rampe, debutJour: z.debutJour, debutNuit: z.debutNuit
+          offset: z.offset, rampe: z.rampe, debutJour: z.debutJour, debutNuit: z.debutNuit,
+          ...P.champsEtat(socle.programme, socle.zones, i, mo, mo.vacances)
         })),
         uptime: Math.floor((Date.now() - socle.demarre) / 1000),
         entretienS: Math.max(0, Math.floor((socle.entretienFin - Date.now()) / 1000)),
         heure: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        zonesSimultanees: zonesSimultanees(), saison: 0, alertesEnAttente: 0,
+        zonesSimultanees: zonesSimultanees(), saison: +mo.decalage.toFixed(2), vacances: mo.vacances, alertesEnAttente: 0,
         proto: PROTO_SIM, sante: sante()
       });
+    }
 
     case 'zone': {
       const i = d.z;
@@ -383,7 +401,11 @@ client.on('message', (sujet, charge) => {
                        inefficaceMin: 'inefficaceMinutes', inefficaceDelta: 'inefficaceDelta',
                        chuteSeuil: 'chuteSeuil', chuteSecondes: 'chuteSecondes' };
       for (const [k, v] of Object.entries(champs)) if (d[k] !== undefined) copie[v] = d[k];
-      try { valider(copie); } catch (e) { return repondre(d.req, false, { erreur: e.message }); }
+      try {
+        valider(copie);
+        // Une coupure abaissée sous une plage active : refusée, comme le firmware.
+        if (socle.programme.actif) P.valider(socle.programme, socle.zones.map((z, k) => (k === i ? copie : z)));
+      } catch (e) { return repondre(d.req, false, { erreur: e.message }); }
       Object.assign(socle.zones[i], copie);
       publier();
       return repondre(d.req, true, {});
@@ -427,7 +449,11 @@ client.on('message', (sujet, charge) => {
                        rapportActif: 'rapportActif', rapportMinutes: 'rapportMinutes', prixKwh: 'prixKwh',
                        ledEteinte: 'ledEteinte', ecranNuit: 'ecranNuit', soleilActif: 'soleilActif',
                        soleilDecalageMin: 'soleilDecalageMin', latitude: 'latitude', longitude: 'longitude',
-                       zonePrioritaire: 'zonePrioritaire', majPlageDebut: 'majPlageDebut', majPlageFin: 'majPlageFin' };
+                       zonePrioritaire: 'zonePrioritaire', majPlageDebut: 'majPlageDebut', majPlageFin: 'majPlageFin',
+                       vacancesDebut: 'vacancesDebut', vacancesFin: 'vacancesFin', vacancesDecalage: 'vacancesDecalage',
+                       vacancesAlertes: 'vacancesAlertes', prechauffage: 'prechauffage', saisonsActives: 'saisonsActives',
+                       hiverDebut: 'hiverDebut', hiverFin: 'hiverFin', hiverDecalage: 'hiverDecalage',
+                       hiverRaccourciMin: 'hiverRaccourciMin', saisonTransitionJ: 'saisonTransitionJ' };
       let ecriture = false;
       for (const [k, v] of Object.entries(champs))
         if (d[k] !== undefined) { g[v] = d[k]; ecriture = true; }
@@ -440,8 +466,9 @@ client.on('message', (sujet, charge) => {
       if (ecriture) {
         try { validerGlobaux(g); } catch (e) { return repondre(d.req, false, { erreur: e.message }); }
         Object.assign(socle.globaux, g);
+        publier();  // vacances : le bandeau de l'application suit
       }
-      const c = socle.globaux;
+      const c = socle.globaux, mo = momentSocle();
       return repondre(d.req, true, {
         amperes: c.courantAlimA, watts: c.puissanceTapisW, volts: c.tensionV,
         zonesSimultanees: zonesSimultanees(), entretienMin: c.maintenanceMin,
@@ -453,8 +480,29 @@ client.on('message', (sujet, charge) => {
         ledEteinte: c.ledEteinte, ecranNuit: c.ecranNuit, soleilActif: c.soleilActif,
         soleilDecalageMin: c.soleilDecalageMin, latitude: c.latitude, longitude: c.longitude,
         zonePrioritaire: c.zonePrioritaire,
-        majAuto: !c.majAutoCoupee, majPlageDebut: c.majPlageDebut, majPlageFin: c.majPlageFin
+        majAuto: !c.majAutoCoupee, majPlageDebut: c.majPlageDebut, majPlageFin: c.majPlageFin,
+        vacancesDebut: c.vacancesDebut, vacancesFin: c.vacancesFin, vacancesDecalage: c.vacancesDecalage,
+        vacancesAlertes: c.vacancesAlertes, vacancesEnCours: mo.vacances, prechauffage: c.prechauffage, vitesseMontee: [4, 4],
+        saisonsActives: c.saisonsActives, hiverDebut: c.hiverDebut, hiverFin: c.hiverFin, hiverDecalage: c.hiverDecalage,
+        hiverRaccourciMin: c.hiverRaccourciMin, saisonTransitionJ: c.saisonTransitionJ, raccourciActuel: mo.raccourci
       });
+    }
+
+    // Plages horaires (F5) : lecture, ou jeux remplacés en entier, validés
+    // contre la coupure de chaque zone.
+    case 'programme': {
+      let r;
+      try {
+        r = P.remplir(socle.programme, d);
+        if (r.ecriture) P.valider(r.programme, socle.zones);
+      } catch (e) { return repondre(d.req, false, { erreur: e.message }); }
+      if (r.ecriture) {
+        socle.programme = r.programme;
+        journal(r.programme.actif ? 'Plages horaires modifiees via le canal de commande'
+          : 'Plages horaires coupees via le canal de commande (jour et nuit de chaque zone)');
+        publier();
+      }
+      return repondre(d.req, true, JSON.parse(JSON.stringify(socle.programme)));
     }
 
     // Mises à jour automatiques (F15) : état, « vérifier maintenant », report.
@@ -680,7 +728,8 @@ client.on('message', (sujet, charge) => {
             tempMax: z.tempMax, offset: z.offset, debutJour: z.debutJour, debutNuit: z.debutNuit, rampeMinutes: z.rampe,
             inefficaceMinutes: z.inefficaceMinutes, inefficaceDelta: z.inefficaceDelta, deriveSeuil: z.deriveSeuil,
             deriveMinutes: z.deriveMinutes, chuteSeuil: z.chuteSeuil, chuteSecondes: z.chuteSecondes })),
-          globaux: { ...socle.globaux }, sondes: [...socle.liaisons],
+          globaux: (({ vacancesDebut, vacancesFin, ...g }) => g)(socle.globaux), sondes: [...socle.liaisons],
+          programme: JSON.parse(JSON.stringify(socle.programme)),
           reseau: { formatAlertes: socle.reseau.formatAlertes, heartbeatMinutes: socle.reseau.heartbeatMinutes }
         }
       });
@@ -688,11 +737,17 @@ client.on('message', (sujet, charge) => {
       const v = d.sauvegarde;
       if (!v || typeof v !== 'object' || Array.isArray(v)) return repondre(d.req, false, { erreur: 'sauvegarde attendue' });
       if (v.format !== 'terrarium-sauvegarde') return repondre(d.req, false, { erreur: "Ce n'est pas une sauvegarde de socle" });
+      let programme = socle.programme;
+      if (v.programme) {
+        try { programme = P.remplir(socle.programme, v.programme).programme; P.valider(programme, socle.zones); }
+        catch (e) { return repondre(d.req, false, { erreur: `Plages refusees : ${e.message}. Rien n'a ete applique` }); }
+      }
       if (v.globaux) {
         const g = { ...socle.globaux, ...v.globaux };
         try { validerGlobaux(g); } catch (e) { return repondre(d.req, false, { erreur: `Reglages generaux refuses : ${e.message}. Rien n'a ete applique` }); }
         Object.assign(socle.globaux, g);
       }
+      socle.programme = programme;
       (v.zones || []).forEach((z, i) => { if (socle.zones[i] && z && typeof z.nom === 'string') socle.zones[i].nom = z.nom; });
       if (Array.isArray(v.sondes)) socle.liaisons = socle.zones.map((_, i) => v.sondes[i] || '');
       journal(`Configuration de ${v.appareil || '?'} restauree`);

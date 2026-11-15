@@ -215,6 +215,41 @@ client.on('connect', async () => {
     const g4 = await commander('globaux', { amperes: 3, saisonActive: false });
     verifier('on peut revenir en arrière', g4.ok === true && g4.zonesSimultanees === 1);
 
+    titre('11 bis. Plages, vacances, préchauffage, saisons (F5 à F9)');
+    const prog0 = await commander('programme');
+    verifier('programme : lecture, jour et nuit des zones, inactif', prog0.ok === true && prog0.actif === false && prog0.semaine.length === 2 &&
+             prog0.semaine[0].consignes.length === 2, prog0.erreur || '');
+    const plages = [{ debut: 480, nom: 'Matin', consignes: [30, 27] }, { debut: 660, nom: 'Pic de chaleur', consignes: [34, 28] },
+      { debut: 960, nom: 'Après-midi', consignes: [32, 28] }, { debut: 1200, nom: 'Nuit', consignes: [26, 24] }];
+    const prog1 = await commander('programme', { actif: true, semaine: plages });
+    verifier('programme : quatre plages actives, rendues au même format', prog1.ok === true && prog1.actif === true && prog1.semaine.length === 4 &&
+             prog1.semaine[2].nom === 'Après-midi', prog1.erreur || '');
+    const prog2 = await commander('programme', { semaine: [{ debut: 480, consignes: [30, 27] }, { debut: 490, consignes: [31, 27] }] });
+    verifier('programme : débuts trop proches refusés', prog2.ok === false && /15 min/.test(prog2.erreur || ''), prog2.erreur || '');
+    const prog3 = await commander('programme', { weekEnd: [{ debut: 540, consignes: [44, 27] }] });
+    verifier('programme : consigne au-dessus de la coupure refusée', prog3.ok === false && /coupure/.test(prog3.erreur || ''), prog3.erreur || '');
+    const coupure = await commander('zone', { z: 0, max: 33.5 });
+    verifier('zone : coupure abaissée sous une plage active refusée', coupure.ok === false && /coupure/.test(coupure.erreur || ''), coupure.erreur || '');
+    await attendre(300);
+    const etatPlages = await commander('etat', {}, false);
+    verifier('état : consigne suivante et son heure, plage en cours', etatPlages.ok === true && typeof etatPlages.zones[0].suivante === 'number' &&
+             Number.isInteger(etatPlages.zones[0].suivanteA) && typeof etatPlages.zones[0].plage === 'string', JSON.stringify(etatPlages.zones[0]).slice(0, 80));
+    const instant = Math.floor(Date.now() / 1000);
+    const glob1 = await commander('globaux', { vacancesDebut: instant - 3600, vacancesFin: instant + 86400 * 7, vacancesDecalage: -2,
+      vacancesAlertes: true, prechauffage: true, saisonsActives: true, hiverDebut: 1215, hiverFin: 215, hiverDecalage: 3,
+      hiverRaccourciMin: 90, saisonTransitionJ: 21 });
+    verifier('globaux : vacances en cours, préchauffage, saisons', glob1.ok === true && glob1.vacancesEnCours === true && glob1.prechauffage === true &&
+             glob1.saisonsActives === true && glob1.hiverDebut === 1215 && Array.isArray(glob1.vitesseMontee), glob1.erreur || '');
+    const etatVacances = await commander('etat', {}, false);
+    verifier('état : les vacances se voient', etatVacances.vacances === true && etatVacances.zones[0].vacances === '1');
+    const glob2 = await commander('globaux', { vacancesFin: instant - 7200 });
+    verifier('globaux : retour avant le départ refusé', glob2.ok === false && /retour/.test(glob2.erreur || ''), glob2.erreur || '');
+    const glob3 = await commander('globaux', { hiverDebut: 1340 });
+    verifier('globaux : date d\'hiver invalide refusée', glob3.ok === false && /MMJJ/.test(glob3.erreur || ''), glob3.erreur || '');
+    const glob4 = await commander('globaux', { vacancesDebut: 0, vacancesFin: 0, prechauffage: false, saisonsActives: false });
+    const prog4 = await commander('programme', { actif: false });
+    verifier('on revient au jour et à la nuit, sans vacances', glob4.ok === true && glob4.vacancesEnCours === false && prog4.ok === true && prog4.actif === false);
+
     titre('12. Réglages fins d\'une zone');
     const fin = await commander('zone', { z: 0, ki: 0.0008, deriveSeuil: 4, deriveMin: 20,
                                           inefficaceMin: 25, inefficaceDelta: 0.4,

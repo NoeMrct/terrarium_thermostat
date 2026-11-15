@@ -51,27 +51,20 @@ uint32_t g_tendanceDepuis = 0;
 const uint32_t TENDANCE_MS = 300000;
 const float TENDANCE_SEUIL = 0.3f;
 
-// Minutes restantes avant le prochain basculement jour/nuit, ou -1 si l'heure
-// n'est pas connue.
+// Minutes restantes avant le prochain changement de consigne (jour, nuit ou
+// plage), ou -1 si l'heure n'est pas connue.
 int prochaineTransition() {
   if (!heureFiable()) return -1;
-  const uint16_t m = minutesDuJour();
   int meilleur = -1;
   for (uint8_t z = 0; z < NB_ZONES; z++) {
-    const uint16_t a = (uint16_t)((ctrl.debutJour(z) + 1440 - m) % 1440);
-    const uint16_t b = (uint16_t)((ctrl.debutNuit(z) + 1440 - m) % 1440);
-    const int p = (a < b) ? a : b;
-    if (meilleur < 0 || p < meilleur) meilleur = p;
+    Controleur::Moment mo;
+    if (ctrl.moment(z, mo) && (meilleur < 0 || mo.dans < meilleur)) meilleur = mo.dans;
   }
   return meilleur;
 }
 
-// La nuit de la zone 1 décide de l'atténuation de l'écran.
-bool cestLaNuit() {
-  if (!heureFiable()) return false;
-  const uint16_t m = minutesDuJour(), j = ctrl.debutJour(0), n = ctrl.debutNuit(0);
-  return (j < n) ? (m < j || m >= n) : (m >= n && m < j);
-}
+// La nuit de la zone 1 (ou la plage la plus fraîche) décide de l'atténuation de l'écran.
+bool cestLaNuit() { return heureFiable() && ctrl.periodeJour(0) == 0; }
 
 bool echu(uint32_t fin) { return fin == 0 || (int32_t)(millis() - fin) >= 0; }
 

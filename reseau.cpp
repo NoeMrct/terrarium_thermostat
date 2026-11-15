@@ -2096,6 +2096,26 @@ void routeMajAutoPost() {
 // l'implémentation de ce que le canal demande au reste du firmware.
 void copier(char *out, size_t taille, const String &s) { snprintf(out, taille, "%s", s.c_str()); }
 
+// Ce qui vient ensuite dans le programme d'une zone (F5, F7) : la consigne
+// suivante et l'heure où elle commence (minutes depuis minuit), la période
+// (jour ou nuit) et la plage en cours ; et les vacances (F6). Champs JSON précédés d'une virgule, vides
+// sans heure fiable. Des valeurs stables entre deux changements : elles
+// entrent dans l'empreinte de publication sans la faire varier chaque minute.
+String champsMoment(uint8_t z) {
+  String d;
+  Controleur::Moment mo;
+  if (ctrl.moment(z, mo)) {
+    const float s = mo.suivante + ctrl.decalageTotal();  // telle qu'elle sera tenue
+    d += ",\"suivante\":" +
+         String(s < CONSIGNE_MIN ? CONSIGNE_MIN : (s > CONSIGNE_MAX ? CONSIGNE_MAX : s), 1);
+    d += ",\"suivanteA\":" + String((uint16_t)((minutesDuJour() + mo.dans) % 1440));
+    d += String(",\"periode\":\"") + (mo.nuit ? "nuit" : "jour") + "\"";
+    if (mo.nom) d += ",\"plage\":\"" + echapperJson(mo.nom) + "\"";
+  }
+  if (ctrl.enVacances()) d += ",\"vacances\":\"1\"";
+  return d;
+}
+
 class SocleReel : public Protocole::Socle {
 public:
   const char *jeton() override { return Stockage::reseau().jeton; }
@@ -2132,6 +2152,7 @@ public:
       d += ",\"rampe\":" + String(ctrl.cfg[z].rampeMinutes);
       d += ",\"debutJour\":" + String(ctrl.cfg[z].debutJour);
       d += ",\"debutNuit\":" + String(ctrl.cfg[z].debutNuit);
+      d += champsMoment(z);
       d += ",\"defaut\":" +
            (ctrl.zone[z].defaut == DEF_AUCUN ? String("null")
                                              : "\"" + String(nomDefaut(ctrl.zone[z].defaut)) + "\"") +
@@ -2142,6 +2163,7 @@ public:
     d += ",\"heure\":\"" + (::heureFiable() ? horodatage() : String("")) + "\"";
     d += ",\"zonesSimultanees\":" + String(ctrl.limiteZones());
     d += ",\"saison\":" + String(ctrl.decalageSaison(), 2);
+    d += ",\"vacances\":" + String(ctrl.enVacances() ? "true" : "false");
     d += ",\"alertesEnAttente\":" + String(Stockage::alertesEnAttente());
     d += ",\"proto\":" + String(PROTO_VERSION);
     d += ",\"sante\":{" + corpsSante() + "}";
@@ -2205,6 +2227,20 @@ public:
     d += ",\"majAuto\":" + String(g.majAutoCoupee ? "false" : "true");
     d += ",\"majPlageDebut\":" + String(majDebut) + ",\"majPlageFin\":" + String(majFin);
     d += ",\"zonePrioritaire\":" + String(g.zonePrioritaire);
+    // Vacances (F6), préchauffage (F7), saisons du calendrier (F9).
+    d += ",\"vacancesDebut\":" + String(g.vacancesDebut) + ",\"vacancesFin\":" + String(g.vacancesFin);
+    d += ",\"vacancesDecalage\":" + String(g.vacancesDecalage, 1);
+    d += ",\"vacancesAlertes\":" + String(g.vacancesAlertes ? "true" : "false");
+    d += ",\"vacancesEnCours\":" + String(ctrl.enVacances() ? "true" : "false");
+    d += ",\"prechauffage\":" + String(g.prechauffage ? "true" : "false");
+    d += ",\"vitesseMontee\":[";
+    for (uint8_t z = 0; z < NB_ZONES; z++) d += String(z ? "," : "") + String(ctrl.zone[z].vitesseMontee, 1);
+    d += "],\"saisonsActives\":" + String(g.saisonsActives ? "true" : "false");
+    d += ",\"hiverDebut\":" + String(g.hiverDebut) + ",\"hiverFin\":" + String(g.hiverFin);
+    d += ",\"hiverDecalage\":" + String(g.hiverDecalage, 1);
+    d += ",\"hiverRaccourciMin\":" + String(g.hiverRaccourciMin);
+    d += ",\"saisonTransitionJ\":" + String(g.saisonTransitionJ);
+    d += ",\"raccourciActuel\":" + String(ctrl.raccourciJour());
     copier(out, taille, d);
   }
 
@@ -2218,6 +2254,12 @@ public:
   void sauverGlobaux() override {
     Stockage::sauverGlobaux();
     appliquerReglagesGlobaux();
+    Reseau::publierMqtt(true);  // vacances : le bandeau de l'application suit
+  }
+  Programme &programme() override { return ctrl.prog; }
+  void sauverProgramme() override {
+    Stockage::sauverProgramme(ctrl.prog);
+    Reseau::publierMqtt(true);
   }
   bool heureFiable() override { return ::heureFiable(); }
   uint32_t epoch() override { return (uint32_t)time(nullptr); }
@@ -3143,6 +3185,8 @@ void publierMqtt(bool forcer) {
              ((uint32_t)(s.deriveActive ? 1 : 0) << 8) | ((uint32_t)(s.tropChaudActif ? 1 : 0) << 9));
     melanger((uint32_t)lroundf(ctrl.cfg[z].consigneJour * 10) ^
              ((uint32_t)lroundf(ctrl.cfg[z].consigneNuit * 10) << 16));
+    const String moment = champsMoment(z);  // consigne suivante et son heure, plage, vacances
+    for (size_t i = 0; i < moment.length(); i++) melanger((uint8_t)moment[i]);
     const bool change = e != empreintes[z];
     const uint32_t depuis = maintenant - dernieres[z];
     if (!forcer && !(change && depuis >= PERIODE_MQTT_MIN_MS) && depuis < PERIODE_MQTT_MAX_MS &&
@@ -3164,7 +3208,8 @@ void publierMqtt(bool forcer) {
     j += ",\"derive\":\"" + String(s.deriveActive ? "1" : "0") + "\"";
     j += ",\"trop_chaud\":\"" + String(s.tropChaudActif ? "1" : "0") + "\"";
     j += ",\"jour\":" + String(ctrl.cfg[z].consigneJour, 1);
-    j += ",\"nuit\":" + String(ctrl.cfg[z].consigneNuit, 1) + "}";
+    j += ",\"nuit\":" + String(ctrl.cfg[z].consigneNuit, 1);
+    j += moment + "}";
     mqtt.publish((base + "/zone" + String(z + 1) + "/etat").c_str(), j.c_str(), true);
   }
 }

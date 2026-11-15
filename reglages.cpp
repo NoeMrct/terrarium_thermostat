@@ -31,6 +31,50 @@ void reglagesGlobauxParDefaut(ReglagesGlobaux &g) {
   g.majAutoCoupee = false;  // activées par défaut (CRA, annexe I)
   g.majPlageDebut = MajAuto::PLAGE_DEBUT_DEFAUT;
   g.majPlageFin = MajAuto::PLAGE_FIN_DEFAUT;
+  g.vacancesDecalage = 0.0f;
+  g.vacancesAlertes = true;
+  g.prechauffage = false;
+  g.saisonsActives = false;
+  g.hiverDebut = 1201;  // 1er décembre
+  g.hiverFin = 228;     // 28 février
+  g.hiverDecalage = 2.0f;
+  g.hiverRaccourciMin = 60;
+  g.saisonTransitionJ = 14;
+}
+
+static const uint8_t JOURS_MOIS[12] = { 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+
+bool dateMmjjValide(uint16_t mmjj) {
+  const uint16_t m = mmjj / 100, j = mmjj % 100;
+  return m >= 1 && m <= 12 && j >= 1 && j <= JOURS_MOIS[m - 1];
+}
+
+// Rang dans une année de 365 jours (le 29 février vaut le 28).
+static int rangAnnee(uint8_t mois, uint8_t jour) {
+  static const int16_t cumul[12] = { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 };
+  if (mois < 1 || mois > 12) return 0;
+  const int max = mois == 2 ? 28 : JOURS_MOIS[mois - 1];
+  return cumul[mois - 1] + (jour < 1 ? 1 : (jour > max ? max : jour)) - 1;
+}
+
+bool vacancesEnCours(const ReglagesGlobaux &g, uint32_t maintenantEpoch) {
+  return maintenantEpoch != 0 && g.vacancesFin > g.vacancesDebut && maintenantEpoch >= g.vacancesDebut &&
+         maintenantEpoch < g.vacancesFin;
+}
+
+float facteurHiver(const ReglagesGlobaux &g, uint8_t mois, uint8_t jour) {
+  if (!g.saisonsActives || !dateMmjjValide(g.hiverDebut) || !dateMmjjValide(g.hiverFin)) return 0.0f;
+  const int a = rangAnnee((uint8_t)(g.hiverDebut / 100), (uint8_t)(g.hiverDebut % 100));
+  const int b = rangAnnee((uint8_t)(g.hiverFin / 100), (uint8_t)(g.hiverFin % 100));
+  const int x = rangAnnee(mois, jour);
+  if ((x - a + 365) % 365 <= (b - a + 365) % 365) return 1.0f;  // plein hiver, sur l'anneau de l'année
+  const int t = g.saisonTransitionJ;
+  if (t == 0) return 0.0f;
+  const int avant = (a - x + 365) % 365, apres = (x - b + 365) % 365;
+  float f = 0.0f;
+  if (avant <= t) f = 1.0f - (float)avant / (float)(t + 1);
+  if (apres <= t && 1.0f - (float)apres / (float)(t + 1) > f) f = 1.0f - (float)apres / (float)(t + 1);
+  return f;
 }
 
 bool globauxValides(const ReglagesGlobaux &g, char *erreur, size_t taille) {
@@ -67,6 +111,18 @@ bool globauxValides(const ReglagesGlobaux &g, char *erreur, size_t taille) {
   if (g.majPlageDebut > 1439 || g.majPlageFin > 1439) ECHEC("Plage de mise a jour : heures de 00:00 a 23:59");
   if (g.majPlageDebut == g.majPlageFin && g.majPlageDebut != 0)
     ECHEC("Plage de mise a jour vide : debut et fin identiques");
+  if (g.vacancesDebut || g.vacancesFin) {
+    if (g.vacancesFin <= g.vacancesDebut) ECHEC("Vacances : le retour doit suivre le depart");
+    if (g.vacancesFin - g.vacancesDebut > 366UL * 86400UL) ECHEC("Vacances : un an au plus");
+  }
+  if (!(isfinite(g.vacancesDecalage) && g.vacancesDecalage >= -10.0f && g.vacancesDecalage <= 0.0f))
+    ECHEC("Vacances : consignes abaissees de 0 a 10 C");
+  if (!dateMmjjValide(g.hiverDebut) || !dateMmjjValide(g.hiverFin)) ECHEC("Hiver : dates invalides (MMJJ)");
+  if (g.hiverDebut == g.hiverFin) ECHEC("Hiver : debut et fin identiques");
+  if (!(isfinite(g.hiverDecalage) && g.hiverDecalage >= 0.0f && g.hiverDecalage <= 10.0f))
+    ECHEC("Hiver : consignes abaissees de 0 a 10 C");
+  if (g.hiverRaccourciMin > 240) ECHEC("Hiver : journee raccourcie de 4 h au plus");
+  if (g.saisonTransitionJ > 60) ECHEC("Saisons : passage de 0 a 60 jours");
 #undef ECHEC
   return true;
 }
@@ -103,7 +159,32 @@ bool assainirGlobaux(ReglagesGlobaux &g) {
     g.majPlageFin = d.majPlageFin;
     corrige = true;
   }
+  REPARE(vacancesDecalage,
+         isfinite(g.vacancesDecalage) && g.vacancesDecalage >= -10.0f && g.vacancesDecalage <= 0.0f)
+  REPARE(hiverDecalage, isfinite(g.hiverDecalage) && g.hiverDecalage >= 0.0f && g.hiverDecalage <= 10.0f)
+  REPARE(hiverRaccourciMin, g.hiverRaccourciMin <= 240)
+  REPARE(saisonTransitionJ, g.saisonTransitionJ <= 60)
 #undef REPARE
+  // Mémoire d'avant les saisons du calendrier (3.4, début de la 3.5) : leurs
+  // réglages par défaut, sans parler de correction — rien n'était abîmé.
+  if (g.hiverDebut == 0 && g.hiverFin == 0) {
+    g.hiverDebut = d.hiverDebut;
+    g.hiverFin = d.hiverFin;
+    g.hiverDecalage = d.hiverDecalage;
+    g.hiverRaccourciMin = d.hiverRaccourciMin;
+    g.saisonTransitionJ = d.saisonTransitionJ;
+    g.vacancesAlertes = d.vacancesAlertes;
+  } else if (!dateMmjjValide(g.hiverDebut) || !dateMmjjValide(g.hiverFin) || g.hiverDebut == g.hiverFin) {
+    g.hiverDebut = d.hiverDebut;
+    g.hiverFin = d.hiverFin;
+    g.saisonsActives = false;
+    corrige = true;
+  }
+  if ((g.vacancesDebut || g.vacancesFin) &&
+      (g.vacancesFin <= g.vacancesDebut || g.vacancesFin - g.vacancesDebut > 366UL * 86400UL)) {
+    g.vacancesDebut = g.vacancesFin = 0;  // dates abîmées : pas de vacances
+    corrige = true;
+  }
   if (g.soleilActif && g.latitude == 0.0f && g.longitude == 0.0f) {
     g.soleilActif = false;  // position perdue : retour aux horaires fixes
     corrige = true;

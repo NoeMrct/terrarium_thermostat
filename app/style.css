@@ -50,6 +50,10 @@
      courbes ; jamais le petit texte. */
   --zone-1: #e0661c;
   --zone-2: #2f6fdb;
+  /* Frise de la journée (plages horaires) : jour, pic de chaleur, nuit. */
+  --frise-jour: #f4efe5;
+  --frise-chaud: #f6d3bc;
+  --frise-nuit: #1f2024;
 
   --rayon: 20px;
   --rayon-petit: 12px;
@@ -110,6 +114,9 @@
     --focus: #6c9cf0;
     --zone-1: #f08a4b;
     --zone-2: #6c9cf0;
+    --frise-jour: #4a463d;
+    --frise-chaud: #6e4a34;
+    --frise-nuit: #2b2d33;
   }
 }
 
@@ -753,6 +760,10 @@ html #bandeau-demo {
 @media (forced-colors: active) {
   .carte, .btn, .rond, input, select, .rubrique { border: 1px solid CanvasText; }
   .segment button[aria-pressed="true"] { outline: 2px solid Highlight; }
+  .frise rect { fill: Canvas; stroke: CanvasText; stroke-width: 2px; }
+  .frise rect.nuit { fill: GrayText; }
+  .frise-maintenant { background: Highlight; }
+  .option-radio:has(input:checked) { outline: 2px solid Highlight; }
 }
 
 /* ----------------------------------------------------------------- pages annexes */
@@ -1000,3 +1011,72 @@ div.ligne-reglage, label.ligne-reglage { cursor: default; }
 .carte-export .segment button { min-height: 40px; font-size: 14px; }
 [data-r="mail"] > .ligne-reglage { border-bottom: 1px solid var(--ligne); }
 [data-r="mail"] > .aide { margin-top: 10px; }
+
+/* Programmation : maintenant, plages horaires, saisons, préchauffage, vacances (F5-F7, F9). */
+.prog-maintenant { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; }
+.prog-sur { font-size: 14px; font-weight: 500; color: var(--texte-2); }
+.prog-titre { display: flex; align-items: center; gap: 12px; font-size: 44px; font-weight: 200; letter-spacing: -.03em; line-height: 1.05; }
+.prog-titre .ico { width: 30px; height: 30px; flex: none; stroke-width: 1.4; }
+.prog-cibles { font-size: 15px; color: var(--texte-2); }
+.frise { margin-top: 12px; }
+.frise.grande { margin-top: 40px; }
+.frise-barre { position: relative; }
+.frise svg { display: block; width: 100%; height: 44px; border-radius: var(--rayon-petit); }
+.frise.grande svg { height: 56px; border-radius: 14px; }
+.frise rect.jour { fill: var(--frise-jour); }
+.frise rect.chaud { fill: var(--frise-chaud); }
+.frise rect.nuit { fill: var(--frise-nuit); }
+.frise-maintenant { position: absolute; top: -8px; bottom: -8px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--texte); box-shadow: 0 0 0 1.5px var(--fond); }
+.frise-instant { position: absolute; top: -30px; transform: translateX(-50%); font-size: 12px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.frise-heures { position: relative; height: 18px; margin-top: 6px; font-size: 12px; color: var(--texte-2); font-variant-numeric: tabular-nums; }
+.frise.grande .frise-heures { margin-top: 12px; }
+.frise-heures span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+.frise-heures .borne { left: 0; transform: none; }
+.frise-heures .borne.fin { left: auto; right: 0; }
+.prog-maintenant .aide { margin-top: 2px; }
+[data-r="prog-note"] { margin-inline: 0; }
+.apercu-plages .frise { margin-top: 0; }
+.reglages-hiver > * + * { margin-top: 12px; }
+.jeux-plages { margin-bottom: 10px; }
+.ligne-plage .pl-heure { width: 48px; flex: none; font-size: 15px; font-variant-numeric: tabular-nums; }
+.ligne-plage .lib { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.ligne-plage .valeur { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.liste-plages > .btn-pointille { margin-top: 10px; }
+.pl-aide, .pl-exemple { margin-top: 8px; }
+.ligne-jours { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; font-size: 16px; }
+.ligne-jours .segment button { min-height: 36px; padding: 0 12px; font-size: 14px; white-space: nowrap; }
+.saison-ete > .ico { color: var(--zone-1); }
+.saison-hiver > .ico { color: var(--zone-2); }
+/* Saisons coupées : le texte s'éteint sans tomber sous le contraste minimal. */
+.inactif .lib, .inactif .lib small { color: var(--texte-3); }
+.inactif .ico { opacity: .45; }
+.reglages-hiver { margin-top: 10px; }
+.reglages-hiver summary { min-height: 44px; display: flex; align-items: center; font-weight: 500; cursor: pointer; }
+.reglages-hiver summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 8px; }
+.etiquette { display: block; font-size: 13px; font-weight: 500; color: var(--texte-2); margin: 10px 0 4px; }
+.choix-date { display: flex; gap: 8px; }
+.choix-date select:first-child { width: 76px; flex: none; }
+.vacances .intro { font-size: 16px; line-height: 1.5; color: var(--texte-2); }
+.vacances > * + * { margin-top: 18px; }
+.deux-dates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.deux-dates label { margin: 0; }
+.deux-dates input { margin-top: 4px; }
+.choix-radio { margin-inline: 0; margin-bottom: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px; min-inline-size: 0; }
+.option-radio { display: flex; align-items: flex-start; gap: 12px; margin: 0; padding: 14px 16px; border: 1px solid var(--ligne); border-radius: 16px; color: var(--texte); font-size: 16px; cursor: pointer; }
+.option-radio:has(input:checked) { border-color: var(--texte); box-shadow: inset 0 0 0 1px var(--texte); }
+.option-radio input { width: 20px; height: 20px; min-height: 0; margin: 2px 0 0; flex: none; }
+.option-radio span { display: flex; flex-direction: column; gap: 2px; }
+.option-radio strong { font-weight: 600; }
+.option-radio small { font-size: 13px; color: var(--texte-2); }
+.vacances-faites { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; padding-top: 18px; }
+.titre-leger { font-size: 28px; font-weight: 300; letter-spacing: -.02em; line-height: 1.2; color: var(--texte); }
+.vacances-faites p { font-size: 16px; line-height: 1.5; color: var(--texte-2); }
+.vacances-faites .btn { width: 100%; }
+.vacances-faites .btn-plein { margin-top: 12px; }
+.lien-danger { color: var(--danger); }
+.pastille-ok { width: 52px; height: 52px; border-radius: 50%; background: var(--accent-doux); color: var(--ok-texte); display: flex; align-items: center; justify-content: center; }
+.pastille-ok .ico { width: 26px; height: 26px; }
+.alerte-texte { color: var(--danger); }
+.alerte-texte:empty { display: none; }
+.segment.un { grid-template-columns: minmax(0, 1fr); }
+.rond[aria-disabled="true"] { opacity: .35; }

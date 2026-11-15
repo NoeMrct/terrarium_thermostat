@@ -152,12 +152,32 @@ void fuzzControle(const uint8_t *d, size_t n) {
   }
   c.limiterZones(r.octet() % 3);
   c.decalageSaison(r.flottant());
+  // Plages (F5), vacances (F6), préchauffage (F7), hiver (F9) : tirés aussi.
+  // Un programme refusé par la validation ne s'applique jamais : on retombe
+  // alors sur celui par défaut, comme le socle.
+  programmeParDefaut(c.prog, c.cfg);
+  if (r.octet() & 1) {
+    for (uint8_t j = 0; j < NB_JEUX; j++) {
+      c.prog.nb[j] = (uint8_t)(r.octet() % (NB_PLAGES + 1));
+      for (uint8_t k = 0; k < NB_PLAGES; k++) {
+        c.prog.plages[j][k].debut = (uint16_t)(r.u32() % 1500);
+        for (uint8_t z = 0; z < NB_ZONES; z++) c.prog.plages[j][k].consigne[z] = r.flottant();
+      }
+    }
+    c.prog.weekend = r.octet() & 1;
+    char e[100];
+    if (!programmeValide(c.prog, c.cfg, e, sizeof e)) programmeParDefaut(c.prog, c.cfg);
+    c.prog.actif = true;
+  }
+  c.vacances(r.octet() & 1, r.flottant(), r.octet() & 1);
+  c.raccourcirJour((uint16_t)(r.u32() % 400));
+  c.prechauffage(r.octet() & 1);
   uint32_t t = 1000;
   c.demarrer(t);
   const uint16_t pas = (uint16_t)(r.octet() % 20 + 1);
   for (int k = 0; k < 400 && r.i < n + 8; k++) {
     t += pas * 500u;
-    c.horloge(r.octet() & 1, (uint16_t)(r.u32() % 1500));
+    c.horloge(r.octet() & 1, (uint16_t)(r.u32() % 1500), r.octet());
     for (uint8_t z = 0; z < NB_ZONES; z++) c.mesure(z, r.flottant(), t, pas * 0.5f);
     if ((r.octet() & 15) == 0) c.maintenance(t, (uint16_t)(r.octet() % 300));
     if ((r.octet() & 31) == 0) {
@@ -182,6 +202,10 @@ void fuzzControle(const uint8_t *d, size_t n) {
       }
       if (!(c.zone[z].demande >= 0.0f && c.zone[z].demande <= 1.0f))
         ECHEC("if (!(c.zone[z].demande >= 0.0f && c.zone[z].demande <= 1.0f)) abort()");
+      const float cons = c.consignePour(z);
+      if (!(cons >= CONSIGNE_MIN && cons <= CONSIGNE_MAX)) ECHEC("consigne hors des bornes de securite");
+      Controleur::Moment mo;
+      if (c.moment(z, mo) && (mo.depuis > 2880 || mo.dans > 2880)) ECHEC("moment hors de la journee");
     }
     Notification notif;
     while (c.prendreNotification(notif)) {
@@ -204,14 +228,38 @@ void fuzzProtocole(const uint8_t *d, size_t n) {
   if (socle.reponses.size() != 1) ECHEC("une commande, une réponse");
   if (socle.reponses[0].size() >= Protocole::TAILLE_REPONSE) ECHEC("réponse trop longue");
 
-  static const char *const ACTIONS[] = { "etat",      "version",    "zone",          "globaux", "alim",
-                                         "entretien", "autotune",   "stop-autotune", "maj",     "historique",
-                                         "reset",     "redemarrer", "stats" };
-  static const char *const CHAMPS[] = {
-    "z",       "jour",      "nuit",   "bande",        "ki",           "max",         "offset",
-    "rampe",   "debutJour", "nom",    "amperes",      "watts",        "minutes",     "heures",
-    "version", "url",       "forcer", "saisonActive", "entretienMin", "deriveSeuil", "chuteSecondes"
-  };
+  static const char *const ACTIONS[] = { "etat",      "version",    "zone",          "globaux",  "alim",
+                                         "entretien", "autotune",   "stop-autotune", "maj",      "historique",
+                                         "reset",     "redemarrer", "stats",         "programme" };
+  static const char *const CHAMPS[] = { "z",
+                                        "jour",
+                                        "nuit",
+                                        "bande",
+                                        "ki",
+                                        "max",
+                                        "offset",
+                                        "rampe",
+                                        "debutJour",
+                                        "nom",
+                                        "amperes",
+                                        "watts",
+                                        "minutes",
+                                        "heures",
+                                        "version",
+                                        "url",
+                                        "forcer",
+                                        "saisonActive",
+                                        "entretienMin",
+                                        "deriveSeuil",
+                                        "chuteSecondes",
+                                        "semaine",
+                                        "weekEnd",
+                                        "actif",
+                                        "weekend",
+                                        "vacancesDebut",
+                                        "vacancesFin",
+                                        "hiverDebut",
+                                        "hiverRaccourciMin" };
   Lecteur l(d, n);
   const char *action = ACTIONS[l.octet() % (sizeof ACTIONS / sizeof ACTIONS[0])];
   const char *champ = CHAMPS[l.octet() % (sizeof CHAMPS / sizeof CHAMPS[0])];
@@ -240,6 +288,7 @@ void fuzzProtocole(const uint8_t *d, size_t n) {
   }
   if (!Stockage::globauxValides(socle.glob, nullptr, 0))
     ECHEC("réglages globaux invalides après une commande");
+  if (!programmeValide(socle.prog, socle.zones, nullptr, 0)) ECHEC("programme invalide après une commande");
 }
 
 // Liaisons : une adresse texte quelconque (console, page, fichier restauré),

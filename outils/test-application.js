@@ -885,6 +885,76 @@ function creerApp(adressePage, avantChargement) {
     App.panneau('etat');
   }
 
+  titre('23 ter. Plages horaires, saisons, préchauffage, vacances (F5, F6, F7, F9)');
+  {
+    App.ouvrir(ID);
+    App.panneau('programme');
+    const det = () => texte('#detail');
+    verifier('la Programmation dit où en est la journée', await jusqua(() => /Maintenant/.test(det()) && !!$('#detail .frise svg rect'), 6000), det().slice(0, 60));
+    verifier('…et mène aux plages et aux vacances', !!$('[data-action="panneau"][data-nom="plages"]') && !!$('[data-action="panneau"][data-nom="vacances"]'));
+    $('[data-action="panneau"][data-nom="plages"]').click();
+    verifier('Plages et saisons : le programme du socle est lu', await jusqua(() => w.document.querySelectorAll('#detail .ligne-plage').length === 2 && !!$('#pl-actif'), 6000), w.document.querySelectorAll('#detail .ligne-plage').length);
+    verifier('…le retour mène à la Programmation', $('#detail .feuille-tete [data-action="remonter"]').getAttribute('aria-label') === 'Retour à la programmation');
+    $('[data-action="plEditer"][data-k="-1"]').click();
+    verifier('« Ajouter une plage » ouvre sa boîte', await jusqua(() => !!$('#dlg-plage[open]') && !!$('#dp-debut'), 2000));
+    $('#dp-debut').value = '12:00'; $('#dp-nom').value = 'Pic'; $('#dp-c0').value = '35'; $('#dp-c1').value = '27';
+    $('#dlg-plage form').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+    verifier('la plage ajoutée est enregistrée sur le socle', await jusqua(() => w.document.querySelectorAll('#detail .ligne-plage').length === 3 && /Pic/.test(texte('[data-r="pl-liste"]')), 6000), texte('[data-r="pl-liste"]').replace(/\s+/g, ' ').slice(0, 80));
+    $('[data-action="plEditer"][data-k="-1"]').click();
+    await jusqua(() => !!$('#dlg-plage[open]'), 2000);
+    $('#dp-debut').value = '12:05'; $('#dp-nom').value = 'Collée';
+    $('#dlg-plage form').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+    verifier('…une plage à 5 min d\'une autre est refusée, la boîte le dit', await jusqua(() => /15 min/.test(texte('#dp-erreur')), 6000) && !!$('#dlg-plage[open]'), texte('#dp-erreur'));
+    $('#dlg-plage [data-dp="annuler"]').click();
+    $('#pl-actif').checked = true;
+    $('#pl-actif').dispatchEvent(new w.Event('change', { bubbles: true }));
+    verifier('les plages s\'activent', await jusqua(() => /activées/.test(texte('#message')), 6000), texte('#message'));
+    App.zone(0);
+    verifier('…le socle annonce la plage en cours, la zone la montre', await jusqua(() => /Consigne de la plage « (Jour|Pic|Nuit) »/.test(texte('#detail [data-r="zlib"]')), 8000),
+             texte('#detail [data-r="zlib"]'));
+    App.panneau('plages');
+    await jusqua(() => !!$('#pl-saisons-actif'), 4000);
+    $('#pl-saisons-actif').checked = true;
+    $('#pl-saisons-actif').dispatchEvent(new w.Event('change', { bubbles: true }));
+    verifier('suivre les saisons : un exemple d\'hiver', await jusqua(() => /^Le 15 janvier : /.test(texte('[data-r="pl-exemple"]')), 6000), texte('[data-r="pl-exemple"]'));
+    $('#pl-pre-actif').checked = true;
+    $('#pl-pre-actif').dispatchEvent(new w.Event('change', { bubbles: true }));
+    verifier('préchauffage : la montée apprise est montrée', await jusqua(() => /°\/h/.test(texte('[data-r="pl-montee"]')), 6000), texte('[data-r="pl-montee"]'));
+    $('#detail .feuille-tete [data-action="remonter"]').click();
+    verifier('la Programmation compte les plages', await jusqua(() => /3 plages/.test(texte('[data-r="prog-plages"]')), 6000), texte('[data-r="prog-plages"]'));
+    App.panneau('vacances');
+    verifier('Mode vacances : dates et choix', await jusqua(() => !!$('#vac-debut') && !!$('[data-action="vacProgrammer"]'), 6000));
+    $('input[name="vac-mode"][value="-2"]').checked = true;
+    $('[data-action="vacProgrammer"]').click();
+    verifier('les vacances sont programmées, la feuille le confirme', await jusqua(() => $('[data-r="vac-fait"]') && !$('[data-r="vac-fait"]').hidden && /Vacances en cours/.test(texte('[data-r="vac-titre"]')), 6000), texte('[data-r="vac-titre"]'));
+    verifier('…avec ce qui va se passer', /2° plus bas/.test(texte('[data-r="vac-resume"]')), texte('[data-r="vac-resume"]').slice(0, 80));
+    App.panneau('etat');
+    verifier('l\'accueil du socle porte le bandeau « Vacances »', await jusqua(() => /Vacances/.test(texte('#detail .separe')), 8000), texte('#detail .separe'));
+    App.panneau('vacances');
+    await jusqua(() => !!$('[data-action="vacAnnuler"]'), 4000);
+    $('[data-action="vacAnnuler"]').click();
+    verifier('« Annuler les vacances » rend le formulaire', await jusqua(() => $('[data-r="vac-form"]') && !$('[data-r="vac-form"]').hidden && /annulées/.test(texte('#message')), 6000), texte('#message'));
+    // Le socle simulé retrouve son jour et nuit pour la suite.
+    App.panneau('plages');
+    await jusqua(() => !!$('#pl-actif') && $('#pl-actif').checked, 6000);
+    $('#pl-actif').checked = false;
+    $('#pl-actif').dispatchEvent(new w.Event('change', { bubbles: true }));
+    await jusqua(() => /coupées/.test(texte('#message')), 6000);
+    $('#pl-saisons-actif').checked = false;
+    $('#pl-saisons-actif').dispatchEvent(new w.Event('change', { bubbles: true }));
+    await jusqua(() => /Saisons coupées/.test(texte('#message')), 6000);
+    $('#pl-pre-actif').checked = false;
+    $('#pl-pre-actif').dispatchEvent(new w.Event('change', { bubbles: true }));
+    await jusqua(() => /Préchauffage coupé/.test(texte('#message')), 6000);
+    const pic = [...w.document.querySelectorAll('#detail .ligne-plage')].find(b => /Pic/.test(b.textContent));
+    if (pic) pic.click();
+    await jusqua(() => !!$('#dlg-plage[open] [data-dp="retirer"]'), 2000);
+    if ($('#dlg-plage [data-dp="retirer"]')) $('#dlg-plage [data-dp="retirer"]').click();
+    verifier('« Retirer » ôte la plage du socle', await jusqua(() => w.document.querySelectorAll('#detail .ligne-plage').length === 2, 6000),
+             w.document.querySelectorAll('#detail .ligne-plage').length);
+    App.panneau('etat');
+  }
+
   titre('24. Lien de l\'étiquette : l\'installation part de l\'adresse, sans rien recopier');
   {
     const b = creerApp('http://localhost:8080/#a/terra3f8a1c/K7QM2X-RP9WTD-H4BNZ8-LC3FVA');

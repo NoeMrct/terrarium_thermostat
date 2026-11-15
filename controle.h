@@ -111,6 +111,50 @@ bool assainirReglages(ReglagesZone &r, uint8_t zone, char *rapport, size_t taill
 bool reglagesValides(const ReglagesZone &r, char *erreur, size_t taille);
 
 // ---------------------------------------------------------------------------
+// Plages horaires (F5) : jusqu'à quatre par jour, chacune avec une consigne
+// par zone, à la place du jour et de la nuit de chaque zone. Le week-end
+// (samedi et dimanche) peut avoir les siennes. Une plage court de son début
+// jusqu'au début de la suivante ; la dernière de la journée se prolonge
+// jusqu'à la première du lendemain. La plus fraîche est « la nuit » : écran
+// atténué, raccourcissement d'hiver, passage noté au journal.
+static const uint8_t NB_PLAGES = 4;
+static const uint8_t NB_JEUX = 2;             // semaine (ou tous les jours), week-end
+static const uint16_t ECART_PLAGES_MIN = 15;  // minutes entre deux débuts de plage, au moins
+
+struct Plage {
+  uint16_t debut;  // minutes depuis minuit
+  float consigne[NB_ZONES];
+  char nom[18];  // UTF-8, comme le nom d'une zone
+};
+
+struct Programme {
+  bool actif;
+  bool weekend;                      // samedi et dimanche suivent le second jeu
+  uint8_t nb[NB_JEUX];               // plages utilisées dans chaque jeu (1 à NB_PLAGES)
+  Plage plages[NB_JEUX][NB_PLAGES];  // triées par début croissant
+};
+
+// Deux plages tirées du jour et de la nuit de chaque zone : activer les
+// plages sans rien toucher d'autre ne change donc aucune consigne.
+void programmeParDefaut(Programme &p, const ReglagesZone cfg[NB_ZONES]);
+// Validation stricte d'un programme reçu (consignes sous la coupure de chaque zone).
+bool programmeValide(const Programme &p, const ReglagesZone cfg[NB_ZONES], char *erreur, size_t taille);
+// Mémoire abîmée : le programme repart de celui par défaut, inactif. true si corrigé.
+bool assainirProgramme(Programme &p, const ReglagesZone cfg[NB_ZONES]);
+
+// Préchauffage (F7) : la vitesse de montée de chaque zone s'apprend pendant
+// la chauffe à fond ; une consigne plus haute est alors prise assez tôt pour
+// être atteinte à l'heure dite.
+static const float MONTEE_DEFAUT = 4.0f;  // °C par heure, avant toute mesure
+static const float MONTEE_MIN = 0.5f, MONTEE_MAX = 30.0f;
+static const float MONTEE_DEMANDE_MIN = 0.9f;        // « à fond »
+static const uint32_t MONTEE_FENETRE_MS = 600000UL;  // 10 min de chauffe à fond par mesure
+static const uint16_t AVANCE_MAX_MIN = 180;          // jamais plus de 3 h d'avance
+
+// Vacances (F6) : écart à la consigne qui suffit à prévenir.
+static const float DERIVE_VACANCES = 2.0f;
+
+// ---------------------------------------------------------------------------
 enum TypeNotif : uint8_t {
   NOTIF_DEFAUT = 0,
   NOTIF_RETABLI,
@@ -182,6 +226,11 @@ struct ZoneEtat {
   uint32_t msTropChaud = 0;
   bool tropChaudActif = false;
 
+  // montée en température, apprise pendant la chauffe à fond (préchauffage)
+  float vitesseMontee = MONTEE_DEFAUT;  // °C par heure
+  uint32_t monteeDebut = 0;             // 0 : pas de fenêtre ouverte
+  float monteeRef = NAN;
+
   // détection de chute brutale (porte ouverte, tapis débranché)
   float tempChute = NAN;
   uint32_t msChute = 0;
@@ -210,8 +259,13 @@ public:
 
   void demarrer(uint32_t nowMs);
 
-  // Horloge murale : sert au cycle jour/nuit. heureConnue=false -> consigne de jour.
-  void horloge(bool connue, uint16_t minutes);
+  // Plages horaires : inactives par défaut (jour et nuit de chaque zone).
+  Programme prog = {};
+
+  // Horloge murale : sert au cycle jour/nuit et aux plages (le jour de la
+  // semaine, 0 = dimanche, choisit celles du week-end). heureConnue=false ->
+  // consigne de jour.
+  void horloge(bool connue, uint16_t minutes, uint8_t jourSemaine = 1);
 
   // Une mesure brute de sonde (°C), dtSec = temps depuis la mesure précédente.
   void mesure(uint8_t z, float brute, uint32_t nowMs, float dtSec);
@@ -265,6 +319,37 @@ public:
   // fiable. Le basculement est pris au début de la rampe, comme consignePour.
   int8_t periodeJour(uint8_t z) const;
 
+  // Où en est le programme d'une zone : consigne de la période en cours (sans
+  // saison, vacances ni rampe), celle d'avant, la suivante et dans combien de
+  // minutes elle commence. false sans heure fiable.
+  struct Moment {
+    float avant, actuelle, suivante;
+    uint16_t depuis, dans;  // minutes écoulées dans la période, minutes avant la suivante
+    bool nuit;
+    const char *nom;  // nom de la plage en cours ; nullptr avec le jour et la nuit des zones
+  };
+  bool moment(uint8_t z, Moment &mo) const;
+
+  // Vacances (F6) : décalage des consignes (négatif ou nul) et alertes de
+  // dérive dès DERIVE_VACANCES d'écart. Calculé à l'extérieur, où l'on connaît la date.
+  void vacances(bool actif, float decalage, bool alertesTot);
+  bool enVacances() const { return m_vacances; }
+  // Ce qui s'ajoute à la consigne du programme : saison et vacances.
+  float decalageTotal() const { return m_saison + (m_vacances ? m_vacDecalage : 0.0f); }
+  // Seuil de dérive en vigueur pour la zone (celui des réglages, ou plus bas en vacances).
+  float seuilDerive(uint8_t z) const;
+
+  // Hiver (F9) : journée raccourcie de `minutes` au total, moitié le matin,
+  // moitié le soir ; jamais au point de toucher la plage voisine.
+  void raccourcirJour(uint16_t minutes) { m_raccourci = minutes > 240 ? 240 : minutes; }
+  uint16_t raccourciJour() const { return m_raccourci; }
+
+  // Préchauffage (F7) : minutes d'avance pour gagner `hausse` degrés à la
+  // vitesse apprise de la zone (marge de 20 %), bornées à AVANCE_MAX_MIN.
+  void prechauffage(bool actif) { m_prechauffage = actif; }
+  bool prechauffage() const { return m_prechauffage; }
+  uint16_t avancePrechauffe(uint8_t z, float hausse) const;
+
   // Jour et nuit calés sur le soleil : lever et coucher du jour (minutes
   // locales), qui remplacent les horaires fixes de toutes les zones. Les
   // réglages enregistrés ne sont pas touchés : désactiver rend les horaires fixes.
@@ -292,6 +377,13 @@ private:
   void majAutotune(uint8_t z, uint32_t nowMs);
   void ouvrirCroisement(uint8_t z);
   void verifierCroisement(uint8_t z, uint32_t nowMs);
+  void suivreMontee(uint8_t z, uint32_t nowMs);
+  float consigneCalculee(uint8_t z, bool prechauffe) const;
+  uint8_t jeuDu(uint8_t jourSemaine) const;
+  int8_t plageNuit(uint8_t jeu) const;
+  uint16_t debutPlage(uint8_t jeu, uint8_t k) const;
+  uint8_t plagesTriees(uint8_t jeu, uint8_t z, int16_t debuts[NB_PLAGES], float cons[NB_PLAGES],
+                       bool nuits[NB_PLAGES], const char *noms[NB_PLAGES]) const;
 
   int8_t m_tapisDeZone[NB_ZONES] = { -1, -1 };
   uint8_t m_maxZones = MAX_ZONES_DEFAUT;
@@ -308,6 +400,11 @@ private:
   bool m_suspendu = false;
   bool m_heureConnue = false;
   uint16_t m_minutes = 0;
+  uint8_t m_jourSemaine = 1;
+  bool m_vacances = false, m_vacAlertes = false;
+  float m_vacDecalage = 0.0f;
+  uint16_t m_raccourci = 0;
+  bool m_prechauffage = false;
 
   Notification m_file[10] = {};
   uint8_t m_nbNotifs = 0;

@@ -16,6 +16,8 @@ const path = require('path');
 
 const APP = path.join(__dirname, '..', 'app');
 const lire = f => fs.readFileSync(path.join(APP, f), 'utf8');
+// Plages, vacances, préchauffage, hiver : le calcul du firmware, recopié dans la page.
+const programmeSocle = require('./programme-simule');
 
 // -------------------------------------------------------- le socle de démonstration
 const FAUX_MQTT = `
@@ -81,11 +83,18 @@ const FAUX_MQTT = `
 
   const zonesSimultanees = s => Math.max(1, Math.min(2, Math.floor((s.alim * 0.8) / (20 / 12))));
 
-  function consigne(z) {
-    const m = new Date().getHours() * 60 + new Date().getMinutes();
-    const depuisJour = (m - z.debutJour + 1440) % 1440;
-    const jour = depuisJour < ((z.debutNuit - z.debutJour + 1440) % 1440);
-    return jour ? z.consigneJour : z.consigneNuit;
+  // Plages (F5), vacances (F6), préchauffage (F7), hiver (F9) : outils/programme-simule.js.
+  const P = (${programmeSocle.toString()})();
+  function programmeDe(s) { if (!s.programme) s.programme = P.parDefaut(s.zones); return s.programme; }
+  function momentDe(s) {
+    const d = new Date(), g = f1(s).g, epoch = Math.floor(Date.now() / 1000);
+    const hiver = P.facteurHiver(g, d.getMonth() + 1, d.getDate()), vacances = P.vacancesEnCours(g, epoch);
+    return { minutes: d.getHours() * 60 + d.getMinutes(), jourSemaine: d.getDay(), raccourci: Math.round(g.hiverRaccourciMin * hiver),
+      decalage: -g.hiverDecalage * hiver + (vacances ? g.vacancesDecalage : 0), prechauffage: g.prechauffage, vitesse: 4, vacances };
+  }
+  function consigne(z, s) {
+    s = s || Object.keys(socles).map(k => socles[k]).find(x => x.zones.indexOf(z) >= 0);
+    return P.consigne(programmeDe(s), s.zones, s.zones.indexOf(z), momentDe(s));
   }
 
   // Les mêmes bornes que reglagesValides() dans le firmware.
@@ -162,8 +171,8 @@ const FAUX_MQTT = `
         essai: { zone: 0, fin: 0, resultat: '' },
         reseau: { urlAlertes: 'https://ntfy.sh/exemple-demo', urlHeartbeat: '', heartbeatMinutes: 5, formatAlertes: 1 },
         journal: journalDemo(),
-        g: { prixKwh: 0.2516, rapportActif: true, rapportMinutes: 1200, ledEteinte: false, ecranNuit: 0, soleilActif: false,
-          soleilDecalageMin: 0, latitude: 0, longitude: 0, zonePrioritaire: 0 } };
+        g: Object.assign({ prixKwh: 0.2516, rapportActif: true, rapportMinutes: 1200, ledEteinte: false, ecranNuit: 0, soleilActif: false,
+          soleilDecalageMin: 0, latitude: 0, longitude: 0, zonePrioritaire: 0 }, P.DEFAUTS_GLOBAUX) };
     }
     return s.f1;
   }
@@ -221,7 +230,7 @@ const FAUX_MQTT = `
   const debut = Date.now();
 
   function publierEtat(id) {
-    const s = socles[id];
+    const s = socles[id], mo = momentDe(s);
     publier(\`terrarium/\${id}/sante\`, JSON.stringify(sante(id)), true);
     s.zones.forEach((z, i) => {
       publier(\`terrarium/\${id}/zone\${i + 1}/etat\`, JSON.stringify({
@@ -230,7 +239,7 @@ const FAUX_MQTT = `
         chauffe: z.chauffe ? '1' : '0', defaut: z.defaut ? '1' : '0',
         defaut_libelle: z.defaut || 'OK',
         autotune: z.autotune ? '1' : '0', derive: '0', trop_chaud: '0',
-        jour: z.consigneJour, nuit: z.consigneNuit
+        jour: z.consigneJour, nuit: z.consigneNuit, ...P.champsEtat(programmeDe(s), s.zones, i, mo, mo.vacances)
       }), true);
     });
   }
@@ -253,20 +262,24 @@ const FAUX_MQTT = `
 
     switch (d.action) {
       case 'version': return rep(true, { version: '3.5.0-demo', compile: 'demonstration', proto: 4 });
-      case 'etat': return rep(true, {
-        zones: s.zones.map(z => ({
+      case 'etat': {
+        const mo = momentDe(s);
+        return rep(true, {
+        zones: s.zones.map((z, i) => ({
           nom: z.nom, temp: +z.temp.toFixed(2), consigne: +consigne(z).toFixed(2),
           demande: Math.round(z.demande * 100), charge: Math.round(z.demande * 100),
           chauffe: z.chauffe, autotune: z.autotune, derive: false, defaut: z.defaut,
           jour: z.consigneJour, nuit: z.consigneNuit, bande: z.bande, max: z.tempMax,
-          offset: z.offset, rampe: z.rampe, debutJour: z.debutJour, debutNuit: z.debutNuit
+          offset: z.offset, rampe: z.rampe, debutJour: z.debutJour, debutNuit: z.debutNuit,
+          ...P.champsEtat(programmeDe(s), s.zones, i, mo, mo.vacances)
         })),
         uptime: 128400,
         entretienS: Math.max(0, Math.floor((s.entretienFin - Date.now()) / 1000)),
-        zonesSimultanees: zonesSimultanees(s), saison: 0, alertesEnAttente: 0,
+        zonesSimultanees: zonesSimultanees(s), saison: +mo.decalage.toFixed(2), vacances: mo.vacances, alertesEnAttente: 0,
         heure: new Date().toISOString().slice(0, 19).replace('T', ' '),
         proto: 4, sante: sante(id)
       });
+      }
       case 'stats': return rep(true, {
         version: '3.5.0-demo', compile: 'demonstration',
         zonesSimultanees: zonesSimultanees(s), saison: 0, maintenanceRestanteS: 0,
@@ -308,7 +321,10 @@ const FAUX_MQTT = `
         const g = f1(s).g;
         const g2 = Object.assign({}, g);
         ['prixKwh', 'rapportActif', 'rapportMinutes', 'ledEteinte', 'ecranNuit', 'soleilActif', 'soleilDecalageMin',
-         'latitude', 'longitude', 'zonePrioritaire'].forEach(k => { if (d[k] !== undefined) g2[k] = d[k]; });
+         'latitude', 'longitude', 'zonePrioritaire', 'vacancesDebut', 'vacancesFin', 'vacancesDecalage', 'vacancesAlertes',
+         'prechauffage', 'saisonsActives', 'hiverDebut', 'hiverFin', 'hiverDecalage', 'hiverRaccourciMin', 'saisonTransitionJ']
+          .forEach(k => { if (d[k] !== undefined) g2[k] = d[k]; });
+        try { P.validerGlobaux(g2); } catch (e) { return rep(false, { erreur: e.message }); }
         if (g2.soleilActif && !g2.latitude && !g2.longitude) return rep(false, { erreur: 'Position inconnue : renseigner latitude et longitude' });
         if (!(g2.prixKwh >= 0 && g2.prixKwh <= 5)) return rep(false, { erreur: 'Prix du kWh hors 0-5 EUR' });
         if (!(g2.ecranNuit >= 0 && g2.ecranNuit <= 2)) return rep(false, { erreur: "Mode nuit de l'ecran inconnu" });
@@ -319,7 +335,10 @@ const FAUX_MQTT = `
         if (debutMaj === finMaj) return rep(false, { erreur: 'Plage de mise a jour vide : debut et fin identiques' });
         Object.assign(ma, { plageDebut: debutMaj, plageFin: finMaj }, typeof d.majAuto === 'boolean' ? { actif: d.majAuto } : {});
         Object.assign(g, g2);
+        publierEtat(id);  // vacances : le bandeau suit
+        const mo = momentDe(s);
         return rep(true, Object.assign({}, g, {
+          vacancesEnCours: mo.vacances, vitesseMontee: [4, 4], raccourciActuel: mo.raccourci,
           amperes: s.alim, watts: 20, volts: 12, zonesSimultanees: zonesSimultanees(s),
           entretienMin: 10, ecranVeilleMin: 10,
           saisonActive: s.saison.active, saisonDelta: s.saison.delta,
@@ -378,10 +397,27 @@ const FAUX_MQTT = `
           rampe: 'rampe', debutJour: 'debutJour', debutNuit: 'debutNuit', deriveSeuil: 'deriveSeuil', deriveMin: 'deriveMinutes',
           inefficaceMin: 'inefficaceMinutes', inefficaceDelta: 'inefficaceDelta', chuteSeuil: 'chuteSeuil', chuteSecondes: 'chuteSecondes' };
         Object.keys(champs).forEach(k => { if (d[k] !== undefined) copie[champs[k]] = d[k]; });
-        try { valider(copie); } catch (e) { return rep(false, { erreur: e.message }); }
+        try {
+          valider(copie);
+          if (programmeDe(s).actif) P.valider(programmeDe(s), s.zones.map((x, k) => (k === d.z ? copie : x)));
+        } catch (e) { return rep(false, { erreur: e.message }); }
         Object.assign(z, copie);
         publierEtat(id);
         return rep(true, {});
+      }
+      // Plages horaires (F5), comme le firmware : jeux remplacés en entier, validés.
+      case 'programme': {
+        let r;
+        try {
+          r = P.remplir(programmeDe(s), d);
+          if (r.ecriture) P.valider(r.programme, s.zones);
+        } catch (e) { return rep(false, { erreur: e.message }); }
+        if (r.ecriture) {
+          s.programme = r.programme;
+          noter(s, r.programme.actif ? 'Plages horaires modifiees via le canal de commande' : 'Plages horaires coupees via le canal de commande');
+          publierEtat(id);
+        }
+        return rep(true, JSON.parse(JSON.stringify(programmeDe(s))));
       }
       case 'reset':
         s.zones.forEach(z => { z.defaut = null; });
@@ -502,13 +538,18 @@ const FAUX_MQTT = `
             offset: z.offset, debutJour: z.debutJour, debutNuit: z.debutNuit, rampeMinutes: z.rampe,
             deriveSeuil: z.deriveSeuil || 3, deriveMinutes: z.deriveMinutes || 15, inefficaceMinutes: z.inefficaceMinutes || 20,
             inefficaceDelta: z.inefficaceDelta || 0.3, chuteSeuil: z.chuteSeuil || 2, chuteSecondes: z.chuteSecondes || 300 })),
-          globaux: Object.assign({ courantAlimA: s.alim }, f.g), sondes: f.liaisons.slice(),
+          globaux: Object.assign({ courantAlimA: s.alim }, f.g, { vacancesDebut: undefined, vacancesFin: undefined }), sondes: f.liaisons.slice(),
+          programme: JSON.parse(JSON.stringify(programmeDe(s))),
           reseau: { formatAlertes: f.reseau.formatAlertes, heartbeatMinutes: f.reseau.heartbeatMinutes } } });
       }
       case 'restaurer': {
         const v = d.sauvegarde;
         if (!v || typeof v !== 'object') return rep(false, { erreur: 'sauvegarde attendue' });
         if (v.format !== 'terrarium-sauvegarde') return rep(false, { erreur: "Ce n'est pas une sauvegarde de socle" });
+        if (v.programme) {
+          try { const r = P.remplir(programmeDe(s), v.programme); P.valider(r.programme, s.zones); s.programme = r.programme; }
+          catch (e) { return rep(false, { erreur: 'Plages refusees : ' + e.message + ". Rien n'a ete applique" }); }
+        }
         (v.zones || []).forEach((z, i) => { if (s.zones[i] && z && typeof z.nom === 'string') s.zones[i].nom = z.nom; });
         if (Array.isArray(v.sondes)) f1(s).liaisons = s.zones.map((_, i) => v.sondes[i] || '');
         noter(s, 'Configuration de ' + (v.appareil || '?') + ' restauree');
@@ -637,7 +678,7 @@ html = html
   .replace('<link rel="icon" href="icone.svg">', '')
   .replace(/<link rel="apple-touch-icon"[^>]*>\s*/, '')
   .replace(/<meta http-equiv="Content-Security-Policy"[^>]*>\s*/, '')
-  .replace('<script src="mqtt.js" defer></script>', `<script>${FAUX_MQTT}</script>`)
+  .replace('<script src="mqtt.js" defer></script>', () => `<script>${FAUX_MQTT}</script>`)
   .replace('<script src="app.js" defer></script>', () => `<script>\n${ANGLAIS}\n</script>\n<script>\n${SERVICE}\n</script>\n<script>\n${lire('app.js')}\n</script>`)
   .replace('<header id="entete">', `${BANDEAU}\n<header id="entete">`)
   .replace('<title>Terrariums</title>', '<title>Terrariums — démonstration</title>');

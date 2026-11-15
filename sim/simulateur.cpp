@@ -757,6 +757,205 @@ static void scenarioSoleil(bool) {
   verifier("desactive : retour aux horaires de chaque zone", s.ctrl.debutNuit(1) == 20 * 60);
 }
 
+// Quatre plages d'un jeu, consignes des deux zones.
+static void plages(Programme &p, uint8_t jeu, const uint16_t debuts[4], const float z1[4], const float z2[4],
+                   uint8_t n = 4) {
+  static const char *noms[4] = { "Matin", "Pic", "Apres-midi", "Nuit" };
+  p.nb[jeu] = n;
+  for (uint8_t k = 0; k < n; k++) {
+    p.plages[jeu][k].debut = debuts[k];
+    p.plages[jeu][k].consigne[0] = z1[k];
+    p.plages[jeu][k].consigne[1] = z2[k];
+    snprintf(p.plages[jeu][k].nom, sizeof p.plages[jeu][k].nom, "%s", noms[k]);
+  }
+}
+
+// Consigne de la zone 1 à une heure et un jour donnés (0 = dimanche).
+static float consigneA(Sim &s, uint16_t minutes, uint8_t jour = 3) {
+  s.ctrl.horloge(true, minutes, jour);
+  return s.ctrl.consignePour(0);
+}
+
+// 29. Plages horaires (F5) : quatre par jour, le week-end à part.
+static void scenarioPlages(bool) {
+  titre("29. Plages horaires : quatre par jour, week-end a part");
+  Sim s;
+  s.init(30.0f, 22.0f);
+  Programme &p = s.ctrl.prog;
+  programmeParDefaut(p, s.ctrl.cfg);
+  char err[100] = "";
+  verifier("programme par defaut : jour et nuit de chaque zone, valide",
+           p.nb[0] == 2 && p.plages[0][0].debut == 8 * 60 && p.plages[0][1].consigne[1] == 24.0f &&
+               programmeValide(p, s.ctrl.cfg, err, sizeof err),
+           err);
+  p.actif = true;
+  verifier("activer les plages par defaut ne change aucune consigne",
+           consigneA(s, 12 * 60) == 32.0f && consigneA(s, 23 * 60) == 26.0f);
+  const uint16_t d[4] = { 8 * 60, 11 * 60, 16 * 60, 20 * 60 };
+  const float z1[4] = { 30.0f, 34.0f, 32.0f, 26.0f }, z2[4] = { 27.0f, 28.0f, 28.0f, 24.0f };
+  plages(p, 0, d, z1, z2);
+  const uint16_t dw[2] = { 9 * 60, 21 * 60 };
+  const float w1[2] = { 31.0f, 25.0f }, w2[2] = { 27.0f, 23.0f };
+  plages(p, 1, dw, w1, w2, 2);
+  s.ctrl.cfg[0].rampeMinutes = 0;
+  verifier("4 plages : 30 le matin, 34 au pic, 32 l'apres-midi, 26 la nuit",
+           consigneA(s, 9 * 60) == 30.0f && consigneA(s, 13 * 60) == 34.0f &&
+               consigneA(s, 17 * 60) == 32.0f && consigneA(s, 22 * 60) == 26.0f);
+  verifier("la nuit se prolonge jusqu'a la premiere plage du lendemain", consigneA(s, 5 * 60) == 26.0f);
+  s.ctrl.horloge(true, 13 * 60, 3);
+  verifier("la zone 2 suit sa propre consigne de plage", s.ctrl.consignePour(1) == 28.0f);
+  verifier("la plus fraiche est la nuit : periode nuit a 22:00, jour a 13:00",
+           (s.ctrl.horloge(true, 22 * 60, 3), s.ctrl.periodeJour(0) == 0) &&
+               (s.ctrl.horloge(true, 13 * 60, 3), s.ctrl.periodeJour(0) == 1));
+  verifier("sans week-end distinct, samedi = semaine", consigneA(s, 13 * 60, 6) == 34.0f);
+  p.weekend = true;
+  verifier("week-end : ses deux plages samedi et dimanche",
+           consigneA(s, 13 * 60, 6) == 31.0f && consigneA(s, 22 * 60, 0) == 25.0f);
+  verifier("vendredi 23:00 : nuit de semaine ; samedi 05:00 : la nuit de vendredi continue",
+           consigneA(s, 23 * 60, 5) == 26.0f && consigneA(s, 5 * 60, 6) == 26.0f);
+  verifier("lundi 05:00 : la nuit du dimanche continue", consigneA(s, 5 * 60, 1) == 25.0f);
+  s.ctrl.cfg[0].rampeMinutes = 60;
+  const float mi = consigneA(s, 11 * 60 + 30);
+  char det[48];
+  snprintf(det, sizeof det, "11:30 -> %.2f", mi);
+  verifier("rampe d'une plage a l'autre (30 -> 34 en 60 min)", fabsf(mi - 32.0f) < 0.01f, det);
+  Controleur::Moment mo;
+  s.ctrl.horloge(true, 13 * 60, 3);
+  verifier("moment : 34 en cours depuis 120 min, 32 dans 180 min",
+           s.ctrl.moment(0, mo) && mo.actuelle == 34.0f && mo.avant == 30.0f && mo.suivante == 32.0f &&
+               mo.depuis == 120 && mo.dans == 180 && !mo.nuit);
+  s.ctrl.horloge(false, 0);
+  verifier("sans heure fiable, repli sur la consigne de jour de la zone", s.ctrl.consignePour(0) == 32.0f);
+  Programme q = p;
+  q.plages[0][1].debut = 8 * 60 + 5;
+  verifier("refuse : deux debuts a moins de 15 min", !programmeValide(q, s.ctrl.cfg, err, sizeof err), err);
+  q = p;
+  q.plages[0][1].consigne[0] = 41.0f;
+  verifier("refuse : consigne au-dessus de la coupure", !programmeValide(q, s.ctrl.cfg, err, sizeof err),
+           err);
+  q = p;
+  q.nb[1] = 0;
+  verifier("refuse : jeu sans plage", !programmeValide(q, s.ctrl.cfg, err, sizeof err), err);
+  q = p;
+  q.plages[0][0].consigne[0] = NAN;
+  verifier("memoire abimee : retour au programme par defaut, inactif",
+           assainirProgramme(q, s.ctrl.cfg) && !q.actif && q.nb[0] == 2);
+}
+
+// 30. Vacances (F6) : consignes plus basses, alertes plus tôt.
+static void scenarioVacances(bool csv) {
+  titre("30. Vacances : 2 C de moins, alertes des 2 C d'ecart");
+  Sim s;
+  s.traceCsv = csv;
+  s.init(32.0f, 24.0f);
+  s.ctrl.cfg[1].consigneJour = 24.0f;
+  s.avancer(600);
+  s.ctrl.vacances(true, -2.0f, true);
+  s.avancer(4);
+  verifier("consigne abaissee de 2 C", fabsf(s.ctrl.zone[0].consigneEff - 30.0f) < 0.01f);
+  verifier("seuil de derive ramene a 2 C (3 C d'ordinaire)", s.ctrl.seuilDerive(0) == 2.0f);
+  s.ctrl.vacances(true, -40.0f, false);
+  verifier("decalage borne, alertes ordinaires sans l'option",
+           s.ctrl.consignePour(0) >= 22.0f && s.ctrl.seuilDerive(0) == 3.0f);
+  s.ctrl.vacances(true, 0.0f, true);
+  // Tapis qui faiblit : 2,5 C sous la consigne, ce que le seuil ordinaire tait.
+  s.terra[0].rendement = 0.0f;
+  int derives = s.nbDerives;
+  s.avancer(1800);
+  verifier("derive annoncee a 2,5 C d'ecart pendant les vacances", s.nbDerives > derives);
+  s.ctrl.vacances(false, 0.0f, false);
+  verifier("fin des vacances : consigne et seuil d'origine",
+           !s.ctrl.enVacances() && s.ctrl.seuilDerive(0) == 3.0f && s.ctrl.consignePour(0) == 32.0f);
+}
+
+// 31. Hiver (F9) : la journée raccourcie, moitié le matin, moitié le soir.
+static void scenarioRaccourci(bool) {
+  titre("31. Hiver : journee raccourcie d'une heure");
+  Sim s;
+  s.init(30.0f, 22.0f);
+  s.ctrl.cfg[0].rampeMinutes = 0;
+  s.ctrl.raccourcirJour(60);
+  verifier("jour et nuit : jour de 08:30 a 19:30",
+           consigneA(s, 8 * 60 + 20) == 26.0f && consigneA(s, 8 * 60 + 30) == 32.0f &&
+               consigneA(s, 19 * 60 + 29) == 32.0f && consigneA(s, 19 * 60 + 30) == 26.0f);
+  s.ctrl.cfg[0].debutJour = 10 * 60;
+  s.ctrl.cfg[0].debutNuit = 11 * 60;
+  s.ctrl.raccourcirJour(240);
+  verifier("une heure de jour gardee quoi qu'il arrive", consigneA(s, 10 * 60 + 30) == 32.0f);
+  s.ctrl.cfg[0].debutJour = 8 * 60;
+  s.ctrl.cfg[0].debutNuit = 20 * 60;
+  Programme &p = s.ctrl.prog;
+  programmeParDefaut(p, s.ctrl.cfg);
+  const uint16_t d[4] = { 8 * 60, 11 * 60, 16 * 60, 20 * 60 };
+  const float z1[4] = { 30.0f, 34.0f, 32.0f, 26.0f }, z2[4] = { 27.0f, 28.0f, 28.0f, 24.0f };
+  plages(p, 0, d, z1, z2);
+  p.actif = true;
+  s.ctrl.raccourcirJour(60);
+  verifier("plages : le matin commence a 08:30, la nuit a 19:30, le pic ne bouge pas",
+           consigneA(s, 8 * 60 + 29) == 26.0f && consigneA(s, 8 * 60 + 30) == 30.0f &&
+               consigneA(s, 11 * 60) == 34.0f && consigneA(s, 19 * 60 + 30) == 26.0f);
+  const uint16_t d2[2] = { 8 * 60, 8 * 60 + 40 };
+  plages(p, 0, d2, z1, z2, 2);
+  p.plages[0][1].consigne[0] = 26.0f;
+  p.plages[0][1].consigne[1] = 24.0f;
+  s.ctrl.raccourcirJour(240);
+  Controleur::Moment mo;
+  s.ctrl.horloge(true, 8 * 60 + 20, 3);
+  verifier("deux plages proches : jamais a moins de 15 min l'une de l'autre",
+           s.ctrl.moment(0, mo) && mo.actuelle == 30.0f && mo.depuis + mo.dans >= ECART_PLAGES_MIN);
+  s.ctrl.raccourcirJour(0);
+}
+
+// 32. Préchauffage (F7) : la vitesse de montée s'apprend, la hausse commence
+//     assez tôt pour que la consigne soit atteinte à l'heure dite.
+static void scenarioPrechauffage(bool csv) {
+  titre("32. Prechauffage : a la consigne a l'heure pile");
+  Sim s;
+  s.traceCsv = csv;
+  s.init(22.0f, 20.0f);
+  s.terra[0].capaciteCoeur = 6000.0f;  // un vrai bac : quelques degrés par heure
+  s.ctrl.cfg[1].consigneJour = 20.0f;
+  s.ctrl.cfg[1].consigneNuit = 20.0f;
+  s.ctrl.cfg[0].rampeMinutes = 0;
+  s.ctrl.horloge(true, 12 * 60, 3);
+  s.avancer(3600);  // montée de 22 vers 32 : la vitesse se mesure
+  char d[96];
+  snprintf(d, sizeof d, "%.1f C/h", s.ctrl.zone[0].vitesseMontee);
+  verifier("vitesse de montee apprise pendant la chauffe a fond",
+           s.ctrl.zone[0].vitesseMontee != MONTEE_DEFAUT, d);
+  const uint16_t avance = s.ctrl.avancePrechauffe(0, 6.0f);
+  snprintf(d, sizeof d, "%u min pour 6 C", (unsigned)avance);
+  verifier("avance proportionnelle a la hausse, bornee a 3 h",
+           avance > 0 && avance <= AVANCE_MAX_MIN && s.ctrl.avancePrechauffe(0, 0.0f) == 0, d);
+  // La nuit, puis le matin : sans préchauffage, 32 C à 08:00 seulement.
+  s.ctrl.horloge(true, 7 * 60 + 50, 3);
+  verifier("sans prechauffage : 26 C jusqu'a 08:00", s.ctrl.consignePour(0) == 26.0f);
+  s.ctrl.prechauffage(true);
+  const uint16_t a = s.ctrl.avancePrechauffe(0, 6.0f);
+  uint16_t m = (uint16_t)(8 * 60 - a - 5);
+  s.ctrl.horloge(true, m, 3);
+  s.terra[0].regle(26.0f);
+  s.avancer(600);  // la zone se pose sur la nuit
+  verifier("avant la fenetre : encore la nuit", s.ctrl.consignePour(0) == 26.0f);
+  m += 10;
+  const int derives = s.nbDerives;
+  while (m < 8 * 60) {  // une minute de simulation par minute d'horloge
+    s.ctrl.horloge(true, ++m, 3);
+    s.avancer(60);
+  }
+  snprintf(d, sizeof d, "%.2f C a 08:00 (avance %u min)", s.ctrl.zone[0].temperature, (unsigned)a);
+  verifier("a 08:00, la zone est deja a sa consigne de jour, a 0,8 C pres",
+           fabsf(s.ctrl.zone[0].temperature - 32.0f) < 0.8f, d);
+  verifier("aucune derive annoncee pendant la montee anticipee", s.nbDerives == derives);
+  s.ctrl.horloge(true, 20 * 60 + 10, 3);
+  s.ctrl.cfg[0].rampeMinutes = 45;
+  verifier("les baisses gardent leur rampe",
+           s.ctrl.consignePour(0) > 26.0f && s.ctrl.consignePour(0) < 32.0f);
+  s.ctrl.horloge(true, 8 * 60 + 10, 3);
+  verifier("une hausse prechauffee ne repasse pas par la rampe", s.ctrl.consignePour(0) == 32.0f);
+  s.ctrl.prechauffage(false);
+}
+
 int main(int argc, char **argv) {
   bool csv = false;
   int seul = 0;
@@ -780,7 +979,9 @@ int main(int argc, char **argv) {
                                 scenarioSondesInversees,  scenarioCouplageLegitime,
                                 scenarioTapisFaible,      scenarioPicIsole,
                                 scenarioTropChaud,        scenarioPriorite,
-                                scenarioEssaiChauffe,     scenarioSoleil };
+                                scenarioEssaiChauffe,     scenarioSoleil,
+                                scenarioPlages,           scenarioVacances,
+                                scenarioRaccourci,        scenarioPrechauffage };
   const int n = sizeof(scenarios) / sizeof(scenarios[0]);
 
   if (csv) {

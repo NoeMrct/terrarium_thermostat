@@ -177,6 +177,43 @@ l'interface locale, c'est **Réglages → Réglages généraux** :
 - **Écran la nuit** (atténué, normal ou éteint) et **LED de la carte**.
 - **Rapport quotidien** : un résumé de la journée, envoyé avec les alertes à l'heure choisie.
 
+### Plages horaires, saisons, préchauffage et vacances
+
+**Programmation** s'ouvre sur la journée en cours : la période ou la plage du moment, ses cibles
+et l'heure du prochain changement, et une frise des 24 heures où un trait marque l'instant présent.
+Deux lignes mènent plus loin.
+
+**Plages et saisons** :
+
+- **Plages horaires** : jusqu'à quatre moments par jour (un matin, un pic de chaleur, un
+  après-midi, la nuit…) au lieu du seul jour et nuit. Chaque plage a une heure de début, un nom et
+  une consigne par zone ; elle dure jusqu'au début de la suivante, et la plus fraîche compte comme
+  la nuit (écran atténué). Deux débuts sont séparés de 15 minutes au moins. Un appui sur une plage
+  l'ouvre pour la modifier ou la retirer ; « Ajouter une plage » en propose une au milieu du plus
+  grand creux de la journée. Les plages se préparent coupées, puis s'activent d'un interrupteur :
+  tant qu'elles sont actives, les consignes jour et nuit des zones et le soleil ne servent plus, et
+  l'écran d'une zone montre la consigne de la plage en cours.
+- **Jours** : les mêmes plages tous les jours, ou un jeu pour la semaine et un autre pour le samedi
+  et le dimanche (le week-end part des plages de la semaine).
+- **Suivre les saisons** : l'hiver (du 1er décembre au 28 février par défaut), les consignes
+  baissent (2 °C par défaut) et la journée raccourcit (une heure par défaut, moitié le matin, moitié
+  le soir), avec un passage progressif de deux semaines avant et après. Une phrase dit ce que
+  devient la journée au milieu de l'hiver ; « Régler l'hiver » change les dates, la baisse, le
+  raccourcissement et la durée du passage. Ce calendrier s'ajoute au cyclage saisonnier de la
+  rubrique Appareil.
+- **Préchauffage** : le socle apprend combien de degrés chaque zone gagne par heure et commence
+  assez tôt pour qu'une consigne plus chaude soit atteinte à l'heure dite (trois heures d'avance au
+  plus). Les baisses gardent leur rampe.
+
+**Mode vacances** : la date de départ et celle du retour (le jour du retour est compris), les
+consignes habituelles ou 2 °C de moins, et des alertes plus tôt (une dérive annoncée dès 2 °C
+d'écart). Le socle bascule seul au départ et revient seul aux consignes habituelles au retour ;
+l'accueil du socle porte le bandeau « Vacances » pendant ce temps. Dans **Organiser**,
+« Vacances… » programme les mêmes dates pour tous les socles cochés.
+
+Le journal du socle note les changements de plage, les modifications des plages, le début et la fin
+des vacances.
+
 ## 8. Lire l'état
 
 - **en ligne** : le socle publie. **silencieux** : il est annoncé en ligne mais n'a rien publié

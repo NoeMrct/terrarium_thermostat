@@ -175,6 +175,33 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   }
   await page.setViewportSize({ width: 390, height: 844 });
 
+  console.log('\n== Programmation : frise, plages et vacances (F5, F6)');
+  await page.click('#vue-socle [data-action="remonter"]');
+  await page.click('.rubrique[data-nom=programme]');
+  await page.waitForFunction(() => !!document.querySelector('#detail .frise-heures span[style*="left"]'), null, { timeout: 8000 }).catch(() => {});
+  v('frise de la journée : heures placées malgré la CSP', !!(await page.$('#detail .frise-heures span[style*="left"]')));
+  await page.click('[data-action="panneau"][data-nom="plages"]');
+  await page.waitForFunction(() => document.querySelectorAll('#detail .ligne-plage').length >= 1, null, { timeout: 8000 }).catch(() => {});
+  v('Plages et saisons : les plages du socle', (await page.$$('#detail .ligne-plage')).length >= 1, (await page.$$('#detail .ligne-plage')).length);
+  await page.click('#detail [data-action="plEditer"][data-k="0"]');
+  v('une plage s\'ouvre dans une boîte modale', await page.evaluate(() => { const d = document.querySelector('#dlg-plage'); return !!(d && d.open && d.matches(':modal')); }));
+  await page.click('#dlg-plage [data-dp="annuler"]');
+  const tientDansLEcran = async () => {
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.waitForTimeout(150);
+    await animationsFinies();
+    const ok_ = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+    await page.setViewportSize({ width: 390, height: 844 });
+    return ok_;
+  };
+  v('Plages et saisons tient dans 320 px', await tientDansLEcran());
+  await page.click('#vue-socle [data-action="remonter"]');
+  await page.click('[data-action="panneau"][data-nom="vacances"]');
+  await page.waitForFunction(() => !!document.querySelector('#vac-debut'), null, { timeout: 8000 }).catch(() => {});
+  v('Mode vacances : dates de départ et de retour', !!(await page.$('#vac-debut')) && !!(await page.$('#vac-fin')));
+  v('Mode vacances tient dans 320 px', await tientDansLEcran());
+  await page.click('#vue-socle [data-action="remonter"]');
+
   console.log('\n== Service (module importé à la demande)');
   await page.click('#vue-socle [data-action="remonter"]');
   await page.click('.rubrique[data-nom=service]');

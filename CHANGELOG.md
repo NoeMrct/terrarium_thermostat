@@ -49,6 +49,33 @@ jour.
   est retenté trois fois dans le mois ; un serveur arrêté le 1er envoie à son
   redémarrage. Routes `GET|POST /api/moi/carnet`, préférence dans l'export du
   compte et au journal d'audit.
+- **Plages horaires** (F5) : jusqu'à quatre plages par jour (début, nom, une
+  consigne par zone) à la place du jour et de la nuit, les mêmes tous les
+  jours ou un jeu pour le week-end ; la plus fraîche compte comme la nuit
+  (écran atténué, journal, hiver). Nouvelle action `programme` (lecture ou
+  écriture du programme entier, validé : débuts à 15 min d'écart, consignes
+  sous la coupure), gardé en mémoire non volatile ; l'état de chaque zone dit
+  la consigne suivante, son heure, la période et la plage en cours
+  (`suivante`, `suivanteA`, `periode`, `plage`). Dans l'application,
+  **Programmation** s'ouvre sur la journée en cours et sa frise des 24 h, et
+  la feuille **Plages et saisons** (`#/<socle>/plages`) liste les plages,
+  chacune modifiable dans sa boîte ; l'écran d'une zone montre la consigne de
+  la plage en cours et renvoie vers les plages.
+- **Mode vacances** (F6) : dates de départ et de retour, consignes habituelles
+  ou abaissées, dérive annoncée dès 2 °C d'écart ; le socle bascule seul et
+  revient seul (`globaux` : `vacancesDebut`, `vacancesFin`,
+  `vacancesDecalage`, `vacancesAlertes`). Feuille **Mode vacances**
+  (`#/<socle>/vacances`), bandeau sur l'accueil du socle, et « Vacances… »
+  dans Organiser pour plusieurs socles à la fois.
+- **Préchauffage** (F7) : chaque zone apprend sa vitesse de montée ; une
+  consigne plus haute est prise assez tôt pour être atteinte à l'heure dite
+  (3 h d'avance au plus), la dérive restant mesurée à la consigne de l'heure.
+- **Saisons du calendrier** (F9) : de `hiverDebut` à `hiverFin`, consignes
+  abaissées et journée raccourcie (moitié le matin, moitié le soir), avec un
+  passage progressif ; un exemple dans l'application dit ce que devient la
+  journée au milieu de l'hiver. S'ajoute au cyclage saisonnier existant.
+- Journal : changements de plage, plages modifiées, début et fin des
+  vacances, lus en phrases par l'application.
 - Firmware : `jours` se lit par pages (`depuis`, la réponse donne `total`) et
   `historique` par fenêtres plus anciennes (`decalage`, en heures) : un mois
   de résumés ou quatorze jours de mesures fines passent le broker message par
