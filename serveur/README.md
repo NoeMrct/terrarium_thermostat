@@ -10,6 +10,7 @@ ne sait pas faire :
 | Historique | seulement quand l'application est ouverte (IndexedDB) | continu, un point par minute, 400 jours, relu par l'application pour combler ses courbes |
 | Notifications | navigateur ouvert, ou ntfy/healthchecks depuis le socle | push sur le téléphone, application fermée : défaut, rétabli, socle disparu, mise à jour disponible (une fois par version, avec ce qui va se passer : la nuit ou à la main) ou en échec |
 | Diagnostic | copier-coller | « Envoyer au serveur » |
+| Carnet du mois | PDF créé à la demande dans l'application | aussi par e-mail, le 1er de chaque mois, pour les comptes qui le demandent |
 | Exploitation | — | console web sur `/console/` : flotte, comptes, comptes d'appareil, rapports, journal d'audit chaîné |
 | Assistance | — | demandes des clients depuis l'application, accès au socle ouvert par le propriétaire (24 h, sans son code), diagnostics à distance, frise, alertes proactives |
 
@@ -64,6 +65,7 @@ Variables d'environnement, ou `serveur/.env` :
 | `COURRIEL_JOURNAL` | 0 | `1` : sans SMTP, l'e-mail (et son code) est écrit dans le journal — développement seulement |
 | `RP_ID` | domaine de la première origine de `ORIGINES` | domaine des clés d'accès : celui où tourne l'application (`app.exemple.fr`, ou `exemple.fr` pour tous ses sous-domaines). Le changer rend inutilisables les clés déjà créées |
 | `RP_NOM` | Terrariums | nom affiché par le téléphone à la création d'une clé |
+| `TZ` | celui du système (UTC en conteneur) | fuseau des jours et des mois du carnet envoyé par e-mail : `Europe/Paris` |
 
 ## API
 
@@ -82,6 +84,8 @@ Session (`Authorization: Bearer <jeton>`) : `GET /api/moi`, `GET /api/moi/export
 d'un socle qui n'a plus aucun propriétaire aussi), `POST /api/cles/options-creation`
 puis `POST /api/cles` (inscrire une clé d'accès), `GET /api/cles`,
 `DELETE /api/cles/:id`,
+`GET /api/moi/carnet`, `POST /api/moi/carnet {actif, noms}` (carnet du mois par
+e-mail, voir plus bas),
 `POST /api/socles/revendiquer {id, jeton}`, `DELETE /api/socles/:id`,
 `GET /api/socles/:id/historique?depuis&jusqua&pas` (même format que le socle :
 `[epoch, t1, consigne1, t2, consigne2]` en centièmes), `POST|DELETE
@@ -242,11 +246,30 @@ dix clés au plus par compte.
 Une publication interdite déconnecte le client ; un abonnement interdit est
 refusé dans le SUBACK (code 128) sans couper la connexion.
 
+## Carnet du mois par e-mail
+
+Avec `SMTP_URL`, `/api/infos` annonce `comptes.carnet` et l'application
+propose, dans Réglages → Exports, « Carnet par e-mail — Le 1er de chaque
+mois ». Le serveur vérifie toutes les heures ; le 1er à partir de 8 h (fuseau
+`TZ`), chaque compte abonné qui a une adresse e-mail et au moins un socle
+reçoit le résumé du mois écoulé : pour chaque socle, la moyenne et les
+extrêmes datés de chaque zone, le temps passé à ±1 °C de la consigne, les
+jours avec des mesures et les alertes vues par le serveur (défauts, excès de
+chaleur, dérives, passages hors ligne). Du texte seul, sans image ni lien de
+suivi ; le carnet complet (courbes, consommation, journal du socle) reste le
+PDF créé par l'application. Un serveur arrêté le 1er envoie le carnet à son
+redémarrage ; un envoi refusé est retenté à l'heure suivante, trois fois par
+mois au plus. À l'activation, le carnet du mois écoulé part tout de suite (une
+fois par mois au plus) : le titulaire voit ce qu'il recevra. Les noms des
+socles viennent de l'application (`noms`, limités aux socles du compte) ;
+ceux des zones, du dernier état publié par le socle. La préférence figure dans
+l'export du compte et disparaît avec lui.
+
 ## Données
 
 ```
 donnees/
-  comptes.json                      utilisateurs (scrypt), clés d'accès (publiques), appareils, sessions (empreintes), abonnements push
+  comptes.json                      utilisateurs (scrypt), clés d'accès (publiques), appareils, sessions (empreintes), abonnements push, carnet par e-mail
   vapid.json                        paire de clés des notifications (engendrée)
   historique/<id>/AAAA-MM-JJ.ndjson un point par ligne
   rapports/<date>-<login>.txt       diagnostics envoyés par l'application
@@ -266,7 +289,8 @@ e-mail, clés d'accès signées par un authentificateur logiciel, sessions,
 export, effacement), client SMTP contre un faux serveur, journal d'audit
 (chaîne, ruptures, purge), routes de la console et support (demandes, accès
 par clé de session contre un socle factice aux règles du firmware, transfert,
-échéance, rôles, frise) — sur des ports éphémères. Et depuis
+échéance, rôles, frise), carnet du mois par e-mail (mois couvert, résumé,
+texte, envoi du 1er, routes du titulaire) — sur des ports éphémères. Et depuis
 `outils/` : `node test-serveur.js` fait tourner la vraie application (jsdom,
 son propre client MQTT) contre le vrai serveur ; `node test-compte.js`,
 `node test-console.js` et `node test-support.js` (application, console et socle

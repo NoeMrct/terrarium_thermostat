@@ -333,6 +333,11 @@ const App = (() => {
       ex30: '30 jours', exAn: 'Un an', exExporterCsv: 'Exporter le CSV', exLecture: 'Lecture des mesures… {p} %', exCsvPret: '{n} lignes prêtes',
       exSocle: 'Socle', exLienCourbes: 'Carnet PDF et exports', exAucunSocle: 'Aucun socle enregistré.', exErreur: 'Export interrompu : {m}',
       exMuet: '« {n} » ne répond pas : ses mesures ne peuvent pas être lues.', exSansMesure: 'Aucune mesure sur cette période.',
+      exMail: 'Carnet par e-mail', exMailAide: 'Le 1er de chaque mois', exMailActif: 'Envoyé à {e}. Prochain carnet : le {d}.',
+      exMailActive: 'Carnet par e-mail activé : le premier arrivera le {d}.', exMailEnvoye: 'Carnet {m} envoyé à {e} ; les suivants arriveront le 1er de chaque mois.',
+      exMailPasEnvoye: 'Carnet par e-mail activé, mais le premier n\'est pas parti ; le suivant partira à la date prévue.', exMailCoupe: 'Carnet par e-mail arrêté.',
+      exMailSansEmail: 'Ce compte n\'a pas d\'adresse e-mail : le carnet ne peut pas lui être envoyé.',
+      exMailSansSocle: 'Aucun socle n\'est rattaché à ce compte : le carnet n\'aurait rien à dire.', exMailErreur: 'Carnet par e-mail : {m}',
       // contenu du carnet
       cnTitre: 'Carnet {m}', cnPeriode: '{n} · du 1er au {j} {m}{c}', cnEnCours: ' (en cours)', cnCree: 'Créé le {d}',
       cnTemperatures: 'Températures : min {a} · moyenne {b} · max {c}', cnConsignes: 'Consignes actuelles : jour {j} · nuit {n} · coupure {m}',
@@ -585,7 +590,7 @@ const App = (() => {
         const r = await fetch(o + '/api/infos');
         const i = r.ok ? await r.json() : null;
         if (!i || i.serveur !== 'terrariums') { config.serveur = null; return false; }
-        config.serveur = { push: !!i.push, jeton: config.serveur && config.serveur.jeton || null };
+        config.serveur = { push: !!i.push, carnet: !!(i.comptes && i.comptes.carnet), jeton: config.serveur && config.serveur.jeton || null };
         return serveur.ouvrirSession();
       } catch (e) { config.serveur = null; return false; }
     },
@@ -661,7 +666,7 @@ const App = (() => {
   // Serveur Terrariums aux comptes en libre-service : un code par e-mail, puis
   // une clé d'accès (passkey). Le jeton de session devient le mot de passe du
   // broker, l'adresse e-mail son identifiant ; rien d'autre à retenir.
-  let compteEnCours = null;   // { origine, ws, prefixe, push, cles, email, etape: 'email' | 'code' }
+  let compteEnCours = null;   // { origine, ws, prefixe, push, carnet, cles, email, etape: 'email' | 'code' }
   const versB64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   const deB64u = s_ => Uint8Array.from(atob(String(s_).replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(String(s_).length / 4) * 4, '=')), c => c.charCodeAt(0));
   const clesAccesPossibles = () => typeof window.PublicKeyCredential === 'function' && !!(navigator.credentials && navigator.credentials.get);
@@ -710,7 +715,7 @@ const App = (() => {
   function connecterCompte(r) {
     const c = compteEnCours;
     config.broker = { url: c.ws, user: r.login, pass: r.jeton, prefixe: c.prefixe, compte: 'email' };
-    config.serveur = { push: c.push, jeton: r.jeton, login: r.login, socles: r.socles || [] };
+    config.serveur = { push: c.push, carnet: c.carnet, jeton: r.jeton, login: r.login, socles: r.socles || [] };
     sauver();
     compteEnCours = null;
     $('#c-code').value = '';
@@ -2513,7 +2518,12 @@ const App = (() => {
         <div class="tete-export"><span class="pastille-export" aria-hidden="true">${icone('i-courbes')}</span><span><h3 id="ex-titre-csv">${t('exMesures')}</h3><small data-r="aide-csv"></small></span></div>
         <div class="segment" role="group" aria-label="${attr(t('exMesures'))}">${seg('exPeriode', 'periode', '30', t('ex30'))}${seg('exPeriode', 'periode', '365', t('exAn'))}</div>
         <div aria-live="polite" data-r="csv"></div>
-      </section>`;
+      </section>
+      <div class="groupe-reglages" data-r="mail" hidden>
+        <label class="ligne-reglage interrupteur" for="ex-mail"><span class="lib">${t('exMail')}<small>${t('exMailAide')}</small></span>
+          <input type="checkbox" id="ex-mail" role="switch"></label>
+        <p class="aide" role="status" aria-live="polite" data-r="mail-etat"></p>
+      </div>`;
   }
   function patcherExports() {
     const r = k => $(`#reglages [data-r="${k}"]`);
@@ -2534,6 +2544,61 @@ const App = (() => {
     peindre(r('csv'), !ex.id ? ''
       : ex.csv ? pret('csv', t('exCsvPret', { n: ex.csv.lignes.toLocaleString(langue === 'en' ? 'en-GB' : 'fr-FR') }))
       : ex.travail === 'csv' ? `<button type="button" class="btn btn-plein btn-secondaire" disabled>${t('exLecture', { p: Math.round(ex.progres * 100) })}</button>` : bouton('exCsv', t('exExporterCsv'), false));
+    patcherCarnetMail(r);
+  }
+
+  // --- Carnet par e-mail (F16) : le serveur Terrariums l'envoie le 1er de
+  // chaque mois, quand il sait envoyer des e-mails. L'état vient du serveur ;
+  // les noms des socles aussi y vont (il ne connaît que leurs identifiants).
+  /** @type {{charge: boolean, enCours: boolean, etat: any, erreur: string}} */
+  const exMail = { charge: false, enCours: false, etat: null, erreur: '' };
+  const carnetMailPossible = () => serveur.actif() && !!config.serveur.carnet;
+  const nomsSocles = () => Object.fromEntries(config.socles.filter(x => x.nom).map(x => [x.id, String(x.nom)]));
+  const jourMois = iso => {
+    if (!iso) return '';
+    const d = new Date(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10));
+    return d.getDate() === 1 && langue !== 'en' ? '1er ' + nomMois(d, false) : d.toLocaleDateString(langue === 'en' ? 'en-GB' : 'fr-FR', { day: 'numeric', month: 'long' });
+  };
+  async function chargerCarnetMail() {
+    if (exMail.charge || !carnetMailPossible()) return;
+    exMail.charge = true;
+    try {
+      exMail.etat = await serveur.appel('GET', '/api/moi/carnet');
+      exMail.erreur = '';
+      // Un socle renommé depuis : le prochain carnet portera le bon nom.
+      const noms = nomsSocles(), connus = exMail.etat.noms || {};
+      if (exMail.etat.actif && (exMail.etat.socles || []).some(id => (noms[id] || '') !== (connus[id] || ''))) {
+        serveur.appel('POST', '/api/moi/carnet', { noms }).then(r => { exMail.etat = r; }, () => { /* réessayé à la prochaine visite */ });
+      }
+    } catch (e) { exMail.erreur = t('exMailErreur', { m: e.message }); }
+    invalider();
+  }
+  function patcherCarnetMail(r) {
+    const bloc = r('mail');
+    if (!bloc) return;
+    bloc.hidden = !carnetMailPossible();
+    if (bloc.hidden) return;
+    chargerCarnetMail();
+    const e = exMail.etat, c = /** @type {any} */ ($('#ex-mail'));
+    const sansEmail = !!e && !e.email, sansSocle = !!e && !e.actif && !(e.socles || []).length;
+    if (c) {
+      c.checked = !!(e && e.actif);
+      c.disabled = !e || exMail.enCours || sansEmail || sansSocle;
+    }
+    texte(r('mail-etat'), exMail.erreur || (!e ? '' : sansEmail ? t('exMailSansEmail') : sansSocle ? t('exMailSansSocle')
+      : e.actif ? t('exMailActif', { e: e.email, d: jourMois(e.prochain) }) : ''));
+  }
+  async function basculerCarnetMail(actif) {
+    if (exMail.enCours || !carnetMailPossible()) return;
+    exMail.enCours = true; exMail.erreur = ''; invalider();
+    try {
+      const r = await serveur.appel('POST', '/api/moi/carnet', { actif, noms: nomsSocles() });
+      exMail.etat = r;
+      const mois = r.envoye ? deMois(new Date(+r.envoye.slice(0, 4), +r.envoye.slice(5, 7) - 1, 1), false) : '';
+      message(!actif ? t('exMailCoupe') : r.envoye ? t('exMailEnvoye', { m: mois, e: r.email }) : r.nonEnvoye ? t('exMailPasEnvoye') : t('exMailActive', { d: jourMois(r.prochain) }));
+    } catch (e) { exMail.erreur = t('exMailErreur', { m: e.message }); }
+    exMail.enCours = false;
+    invalider();
   }
   async function creerCarnetPdf() {
     const id = ex.id;
@@ -3773,6 +3838,7 @@ const App = (() => {
       }
       if (!el.id) return;
       if (el.id === 'org-compacte') { api.vueCompacte(el.checked); return; }
+      if (el.id === 'ex-mail') { basculerCarnetMail(el.checked); return; }
       if (el.id === 'fichier-config' && el.files && el.files[0]) { api.importerConfig(el.files[0]); el.value = ''; }
       if (el.id === 'verrou-min') api.changerVerrouMin(el.value);
       if (el.id === 'co-prix') api.prixKwh();
@@ -4392,7 +4458,7 @@ const App = (() => {
     // ---- compte sur un serveur Terrariums ------------------------------------
     ouvrirCompte(origine, i, email = '') {
       compteEnCours = { origine, ws: origine.replace(/^http/, 'ws') + ((i.mqtt && i.mqtt.ws) || '/mqtt'), prefixe: i.prefixe || 'terrarium',
-        push: !!i.push, cles: !!(i.comptes && i.comptes.clesAcces) && clesAccesPossibles(), email, etape: 'email' };
+        push: !!i.push, carnet: !!(i.comptes && i.comptes.carnet), cles: !!(i.comptes && i.comptes.clesAcces) && clesAccesPossibles(), email, etape: 'email' };
       $('#c-email').value = email;
       texte($('#compte-erreur'), '');
       etapeAccueil = 'compte';
@@ -4623,6 +4689,7 @@ const App = (() => {
     reglagesApp(page) {
       const p = PAGES_REGLAGES.includes(page) ? page : 'menu';
       const avant = vueCourante === 'reglages' ? pageReglages : null;
+      if (p === 'exports' && avant !== 'exports') { exMail.charge = false; exMail.erreur = ''; }
       pageReglages = p;
       montrer('reglages');
       // Retour au menu : le focus revient sur la ligne d'où l'on venait.

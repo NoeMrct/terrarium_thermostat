@@ -261,7 +261,10 @@ erased on their own.
   month or the previous one: summary per zone, day-by-day curves, consumption, log alerts and a
   table — to share or keep; and **all readings** as CSV for a spreadsheet: 30 days, one line every
   5 minutes; one year, every 5 minutes with the Terrariums server, otherwise one line per day (the
-  base keeps 14 days of fine readings and a year of summaries).
+  base keeps 14 days of fine readings and a year of summaries). With a Terrariums server that sends
+  email, **Logbook by email** delivers a summary of the past month on the 1st of each month
+  (temperatures of each zone, time close to the target, alerts seen by the server) for every base
+  of the account; when turned on, last month's one is sent right away.
 - **Copy settings** (App settings, or the Backup card of the Device section): from one base to
   another, or from a file, by family — targets (and cut-off), schedule and ramp, alerts and report.
   The preview shows the before and after of what changes; a faulty zone on the target is left

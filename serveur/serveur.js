@@ -10,6 +10,7 @@
      - historique continu des mesures, même application fermée ;
      - notifications push sur le téléphone (défaut, retour à la normale, socle
        disparu, mise à jour en échec) ;
+     - carnet du mois par e-mail, le 1er, pour les comptes qui le demandent ;
      - rattachement d'un socle à un compte par preuve du code d'appairage ;
      - comptes en libre-service : code par e-mail, puis clés d'accès (passkeys),
        export et effacement du compte par son titulaire ;
@@ -35,6 +36,7 @@
      COURRIEL_JOURNAL=1        sans SMTP, écrit les e-mails dans le journal (développement)
      RP_ID=exemple.fr          domaine des clés d'accès (défaut : celui de la première origine)
      RP_NOM=Terrariums         nom montré par le téléphone à l'inscription d'une clé
+     TZ=Europe/Paris           fuseau des jours et des mois (carnet mensuel par e-mail)
 
    Ligne de commande :
      node serveur.js                         démarre
@@ -62,6 +64,7 @@ const { Courriel } = require('./lib/courriel');
 const { Audit, refCompte } = require('./lib/audit');
 const { Support } = require('./lib/support');
 const { Evenements } = require('./lib/evenements');
+const { Carnets } = require('./lib/carnets');
 
 const VERSION = require('./package.json').version;
 
@@ -114,7 +117,13 @@ async function demarrerServeur(surcharge = {}) {
   const audit = new Audit(o.donnees, { retentionMois: o.auditMois || 12 });
   const support = new Support(o.donnees);
   const evenements = new Evenements(o.donnees, { retentionJours: o.retentionJours });
-  const api = new Api({ comptes, broker, historique, notifications, audit, support, evenements, options: o });
+  // Le carnet nomme les zones comme le socle (dernier état reçu).
+  const nomZoneCarnet = (id, z) => {
+    const e = ((broker.flotte[id] || {}).zones || {})[z];
+    return (e && typeof e.nom === 'string' && e.nom.replace(/\p{Cc}/gu, ' ').trim().slice(0, 40)) || `Zone ${z + 1}`;
+  };
+  const carnets = new Carnets({ comptes, historique, evenements, courriel: o.courriel, journal: o.journal, nomZone: nomZoneCarnet });
+  const api = new Api({ comptes, broker, historique, notifications, audit, support, evenements, carnets, options: o });
 
   const serveurHttp = http.createServer((req, res) => api.traiter(req, res));
   await broker.demarrer({ portTcp: o.portMqtt, serveurHttp, cheminWs: '/mqtt' });
@@ -193,6 +202,9 @@ async function demarrerServeur(surcharge = {}) {
     for (const id of support.purgerAcces()) audit.noter({ qui: 'serveur', action: 'support.acces.echu', cible: id });
   }, o.echeancesMs || 60000);
   echeances.unref();
+  // Carnet du mois : vérifié toutes les heures, envoyé le 1er à partir de 8 h.
+  const tourCarnets = setInterval(() => { carnets.tourner().catch(e => o.journal(`carnets : ${e.message}`)); }, o.carnetsMs || 3600000);
+  tourCarnets.unref();
 
   o.journal(`Serveur Terrariums ${VERSION} — HTTP ${port} (API /api, console /console/, MQTT /mqtt)${portMqtt ? `, MQTT TCP ${portMqtt}` : ''}, données ${o.donnees}${o.amont ? `, pont vers ${o.amont.url}` : ''}${o.app ? ', application servie' : ''}`);
   if (!o.adminJeton) o.journal('ADMIN_JETON absent : console ouverte aux seuls comptes administrateurs (node serveur.js utilisateur admin <login> oui)');
@@ -200,8 +212,8 @@ async function demarrerServeur(surcharge = {}) {
   if (!o.rpId) o.journal('RP_ID et ORIGINES absents : chaque clé d\'accès se lie au domaine de la page qui la crée');
 
   return {
-    port, portMqtt, comptes, broker, historique, notifications, api, audit, support, evenements,
-    async arreter() { clearInterval(purge); clearInterval(echeances); await broker.arreter(); await new Promise(r => serveurHttp.close(r)); }
+    port, portMqtt, comptes, broker, historique, notifications, api, audit, support, evenements, carnets,
+    async arreter() { clearInterval(purge); clearInterval(echeances); clearInterval(tourCarnets); await broker.arreter(); await new Promise(r => serveurHttp.close(r)); }
   };
 }
 

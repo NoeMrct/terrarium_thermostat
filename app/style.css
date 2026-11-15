@@ -998,3 +998,5 @@ div.ligne-reglage, label.ligne-reglage { cursor: default; }
 .tete-export small { font-size: 13px; color: var(--texte-2); }
 .pastille-export { width: 44px; height: 44px; flex: none; border-radius: 12px; background: var(--creux); display: flex; align-items: center; justify-content: center; }
 .carte-export .segment button { min-height: 40px; font-size: 14px; }
+[data-r="mail"] > .ligne-reglage { border-bottom: 1px solid var(--ligne); }
+[data-r="mail"] > .aide { margin-top: 10px; }

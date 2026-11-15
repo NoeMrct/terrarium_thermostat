@@ -34,7 +34,8 @@ const EMAIL = 'noe@exemple.fr';
   const s = await demarrerServeur({ port: 0, portMqtt: 0, donnees, adminJeton: 'admin-test', journal: () => {}, pushActif: false,
     app: path.resolve(__dirname, '..', 'app'), courriel: { envoyer: async m => { boite.push(m); } } });
   const base = `http://localhost:${s.port}`;
-  const dernierCode = () => { const m = boite.filter(x => x.a === EMAIL).pop(); return m ? /(\d{6})/.exec(m.sujet)[1] : ''; };
+  const codes = () => boite.filter(x => x.a === EMAIL && /code de connexion/.test(x.sujet));
+  const dernierCode = () => { const m = codes().pop(); return m ? /(\d{6})/.exec(m.sujet)[1] : ''; };
   const navigateur = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {});
   const ctx = await navigateur.newContext({ viewport: { width: 390, height: 844 }, locale: 'fr-FR', acceptDownloads: true });
   const page = await ctx.newPage();
@@ -87,6 +88,25 @@ const EMAIL = 'noe@exemple.fr';
     v('clé créée par l\'authentificateur, liée à ce domaine', creds.length === 1 && creds[0].rpId === 'localhost' && creds[0].isResidentCredential, `${creds.length} clé(s)`);
     v('…et enregistrée par le serveur', (s.comptes.utilisateur(EMAIL).cles || []).length === 1);
 
+    titre('Carnet par e-mail, depuis les exports');
+    s.comptes.attribuerSocle(EMAIL, 'terraCAR001');
+    await page.click('#vue-liste [data-action="reglagesApp"]');
+    await page.click('#reglages [data-action="reglagesApp"][data-page="exports"]');
+    await page.waitForSelector('#ex-mail:not([disabled])', { timeout: 5000 }).catch(() => {});
+    v('l\'interrupteur paraît : serveur avec e-mail, compte avec un socle', await visible('#ex-mail') && !(await page.isChecked('#ex-mail')));
+    await page.click('label[for="ex-mail"]');
+    await page.waitForFunction(() => /envoyé à/.test(document.querySelector('#message').textContent), null, { timeout: 8000 }).catch(() => {});
+    const carnet = boite.filter(x => x.a === EMAIL && /^Carnet /.test(x.sujet)).pop();
+    v('activé : le carnet du mois écoulé part tout de suite', !!carnet && s.comptes.utilisateur(EMAIL).carnet.actif === true, carnet ? carnet.sujet : 'aucun');
+    v('…le message et la ligne le disent', (await page.textContent('#message')).includes(`envoyé à ${EMAIL}`)
+      && /Prochain carnet : le 1er /.test(await page.textContent('#reglages [data-r="mail-etat"]')), await page.textContent('#reglages [data-r="mail-etat"]'));
+    await page.click('label[for="ex-mail"]');
+    await page.waitForFunction(() => /arrêté/.test(document.querySelector('#message').textContent), null, { timeout: 5000 }).catch(() => {});
+    v('désactivé : le serveur n\'enverra plus rien', s.comptes.utilisateur(EMAIL).carnet.actif === false && !(await page.isChecked('#ex-mail')));
+    await page.click('#vue-reglages [data-action="remonter"]');
+    await page.click('#vue-reglages [data-action="remonter"]');
+    await page.waitForSelector('#vue-liste', { state: 'visible', timeout: 5000 }).catch(() => {});
+
     titre('Mon compte : clés, export');
     await page.click('#vue-liste [data-action="reglagesApp"]');
     v('les réglages ouvrent sur la carte du compte', await visible('#btn-mon-compte') && (await page.textContent('#btn-mon-compte')).includes(EMAIL)
@@ -110,7 +130,7 @@ const EMAIL = 'noe@exemple.fr';
     await page.waitForSelector('#btn-cle-acces:not([hidden])', { timeout: 5000 }).catch(() => {});
     await page.click('#btn-cle-acces');
     v('connecté par la clé d\'accès, sans code', await connecte() && await visible('#vue-liste'), (await page.textContent('#compte-erreur').catch(() => '')).slice(0, 60));
-    v('aucun nouveau code envoyé', boite.filter(x => x.a === EMAIL).length === 1);
+    v('aucun nouveau code envoyé', codes().length === 1);
 
     titre('Session expirée');
     s.comptes.donnees.sessions.clear();

@@ -40,6 +40,15 @@ jour.
   un an (à 5 minutes avec le serveur Terrariums, sinon un résumé par jour).
   Partage par la feuille du téléphone quand le navigateur sait passer un
   fichier, sinon enregistrement.
+- **Carnet par e-mail** (F16, serveur Terrariums avec SMTP) : le 1er de chaque
+  mois à partir de 8 h (fuseau `TZ`), un résumé du mois écoulé pour tous les
+  socles du compte — moyenne et extrêmes datés de chaque zone, temps à ±1 °C
+  de la consigne, jours avec des mesures, alertes vues par le serveur. Du
+  texte seul, sans lien de suivi. L'interrupteur est dans Exports ; à
+  l'activation, le carnet du mois écoulé part tout de suite. Un envoi refusé
+  est retenté trois fois dans le mois ; un serveur arrêté le 1er envoie à son
+  redémarrage. Routes `GET|POST /api/moi/carnet`, préférence dans l'export du
+  compte et au journal d'audit.
 - Firmware : `jours` se lit par pages (`depuis`, la réponse donne `total`) et
   `historique` par fenêtres plus anciennes (`decalage`, en heures) : un mois
   de résumés ou quatorze jours de mesures fines passent le broker message par

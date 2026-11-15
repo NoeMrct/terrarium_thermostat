@@ -184,7 +184,7 @@ test('comptes en libre-service : e-mail, clés d\'accès, sessions, export, effa
 
   await t.test('infos : comptes par e-mail et clés d\'accès annoncés', async () => {
     const r = await requete(s.port, 'GET', '/api/infos');
-    assert.deepEqual(r.donnees.comptes, { email: true, clesAcces: true });
+    assert.deepEqual(r.donnees.comptes, { email: true, clesAcces: true, carnet: true });
   });
 
   let jeton = null;

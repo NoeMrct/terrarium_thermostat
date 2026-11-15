@@ -264,7 +264,11 @@ Le socle garde ses derniers événements ; les plus anciens s'effacent d'eux-mê
   le mois en cours ou le précédent : résumé par zone, courbes jour par jour, consommation, alertes
   du journal et tableau — à partager ou garder ; et **toutes les mesures** en CSV pour un tableur :
   30 jours, une ligne toutes les 5 minutes ; un an, à 5 minutes avec le serveur Terrariums, sinon une
-  ligne par jour (le socle garde 14 jours de mesures fines et un an de résumés).
+  ligne par jour (le socle garde 14 jours de mesures fines et un an de résumés). Avec un serveur
+  Terrariums qui envoie des e-mails, **Carnet par e-mail** fait arriver le 1er de chaque mois un
+  résumé du mois écoulé (températures de chaque zone, temps près de la consigne, alertes vues par
+  le serveur) pour tous les socles du compte ; à l'activation, celui du mois écoulé part tout de
+  suite.
 - **Copier des réglages** (Réglages de l'application, ou carte Sauvegarde de la rubrique Appareil) :
   d'un socle à l'autre, ou depuis un fichier, par familles — consignes (et coupure), horaires et
   rampe, alertes et rapport. L'aperçu montre l'avant et l'après de ce qui change ; une zone en défaut

@@ -12,6 +12,7 @@ services:
       ADMIN_JETON: "changez-moi"        # openssl rand -hex 24
       CONTACT_VAPID: "mailto:vous@exemple.fr"
       SERVIR_APP: "1"
+      TZ: "Europe/Paris"                 # jours et mois du carnet envoyé par e-mail
       # AMONT_URL: "mqtts://xxxx.s1.eu.hivemq.cloud:8883"   # socles restés sur HiveMQ
       # AMONT_UTILISATEUR: "appli"
       # AMONT_MOT_DE_PASSE: "secret"

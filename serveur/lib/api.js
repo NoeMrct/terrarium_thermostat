@@ -15,6 +15,7 @@ const webauthn = require('./webauthn');
 const { Admin } = require('./admin');
 const { refCompte } = require('./audit');
 const { RoutesSupport } = require('./support');
+const { moisCouvert, prochainEnvoi } = require('./carnets');
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
                 '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.map': 'application/json',
@@ -44,8 +45,9 @@ function fichierConsole(nom) {
 }
 
 class Api {
-  constructor({ comptes, broker, historique, notifications, audit, support, evenements, options }) {
+  constructor({ comptes, broker, historique, notifications, audit, support, evenements, carnets, options }) {
     this.comptes = comptes; this.broker = broker; this.historique = historique; this.notifications = notifications;
+    this.carnets = carnets || null;         // carnet du mois par e-mail (F16)
     this.audit = audit || { noter() {}, lire: () => [], verifier: () => ({ ok: true, n: 0 }) };
     this.support = support || null;          // demandes et accès support (V11)
     this.evenements = evenements || null;    // ce que les socles ont vécu (frise, alertes)
@@ -200,6 +202,13 @@ class Api {
     return e;
   }
 
+  // État du carnet par e-mail tel que l'application le montre.
+  etatCarnet(u, suite = {}) {
+    const c = u.carnet || {};
+    return { disponible: !!(this.courriel && this.carnets), email: u.email || null, actif: !!c.actif, socles: u.socles.slice(),
+      noms: { ...(c.noms || {}) }, dernier: c.dernier || null, prochain: prochainEnvoi(), ...suite };
+  }
+
   // Historique d'un socle (application du propriétaire, ou console).
   repondreHistorique(res, id, url) {
     const maintenant = Math.floor(Date.now() / 1000);
@@ -247,7 +256,7 @@ class Api {
     // Public
     if (methode === 'GET' && chemin === '/api/infos') {
       return this.json(res, 200, { serveur: 'terrariums', version: this.o.version, mqtt: { ws: '/mqtt', tcp: this.o.portMqttEcoute !== undefined ? this.o.portMqttEcoute : this.o.portMqtt }, push: !!this.notifications, prefixe: this.broker.prefixe,
-        comptes: { email: !!this.courriel, clesAcces: true } });
+        comptes: { email: !!this.courriel, clesAcces: true, carnet: !!(this.courriel && this.carnets) } });
     }
     if (chemin === '/api/session') {
       if (methode === 'POST') {
@@ -349,6 +358,32 @@ class Api {
     if (!u) return this.erreur(res, 401, 'session requise');
     if (methode === 'GET' && chemin === '/api/moi') {
       return this.json(res, 200, { login: u.login, email: u.email || null, socles: u.socles, admin: !!u.admin, motDePasse: !!u.empreinte, clesAcces: (u.cles || []).length });
+    }
+    // Carnet du mois par e-mail : la préférence du titulaire, et les noms de
+    // ses socles tels que l'application les montre.
+    if (chemin === '/api/moi/carnet' && methode === 'GET') return this.json(res, 200, this.etatCarnet(u));
+    if (chemin === '/api/moi/carnet' && methode === 'POST') {
+      if (!this.courriel || !this.carnets) return this.erreur(res, 503, 'e-mail non configuré sur ce serveur');
+      const d = await this.lireJson(req);
+      if (d.actif !== undefined && typeof d.actif !== 'boolean') return this.erreur(res, 400, 'actif : true ou false');
+      if (d.actif && !u.email) return this.erreur(res, 400, 'ce compte n\'a pas d\'adresse e-mail');
+      const avant = !!(u.carnet && u.carnet.actif), m = moisCouvert();
+      const c = this.comptes.definirCarnet(u.login, { actif: d.actif, noms: d.noms });
+      const suite = {};
+      if (c.actif && !avant) {
+        // À l'activation, le carnet du mois écoulé part tout de suite : le
+        // titulaire voit ce qu'il recevra. Une fois par mois au plus.
+        if (!(c.dernier && c.dernier >= m.cle) && u.socles.length) {
+          try { await this.carnets.envoyer(u, m); suite.envoye = m.cle; }
+          catch (e) {
+            suite.nonEnvoye = 'premier carnet non envoyé ; le suivant partira à la date prévue';
+            this.o.journal(`carnet ${m.cle} non envoyé à ${masquerEmail(u.email)} : ${e.message}`);
+          }
+        }
+        this.comptes.definirCarnet(u.login, { dernier: m.cle });
+      }
+      if (c.actif !== avant) this.noterTitulaire('compte.carnet', refCompte(u.login), { actif: c.actif });
+      return this.json(res, 200, this.etatCarnet(u, suite));
     }
     if (methode === 'GET' && chemin === '/api/moi/export') {
       res.setHeader('Content-Disposition', 'attachment; filename="terrariums-compte.json"');

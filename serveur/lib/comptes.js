@@ -134,6 +134,7 @@ class Comptes {
       clesAcces: (u.cles || []).map(c => ({ nom: c.nom, cree: c.cree, derniereUtilisation: c.vu || null, synchronisee: !!c.synchronisee })),
       sessions: [...this.donnees.sessions.values()].filter(s_ => s_.login === cle).map(s_ => ({ ouverte: s_.cree || null, expire: s_.expire, appareil: s_.agent || '' })),
       notificationsPush: (this.donnees.abonnementsPush.get(cle) || []).map(a => ({ appareil: a.agent, cree: a.cree })),
+      carnetMensuel: u.carnet ? { actif: !!u.carnet.actif, depuis: u.carnet.depuis || null, dernierMoisCouvert: u.carnet.dernier || null, nomsDesSocles: { ...(u.carnet.noms || {}) } } : null,
       exporte: new Date().toISOString()
     };
   }
@@ -383,6 +384,7 @@ class Comptes {
     const u = this.utilisateur(login);
     if (!u) return;
     u.socles = u.socles.filter(s => s !== id);
+    if (u.carnet && u.carnet.noms) delete u.carnet.noms[id];
     this.sauver();
   }
 
@@ -412,6 +414,41 @@ class Comptes {
   }
 
   abonnementsPush(login) { return this.donnees.abonnementsPush.get(String(login).toLowerCase()) || []; }
+
+  // --- carnet du mois par e-mail ---------------------------------------------------
+  // La préférence du titulaire, le dernier mois envoyé, et les noms qu'il
+  // donne à ses socles (l'application les connaît, le serveur non). Le
+  // premier carnet attendu est celui du mois en cours : `dernier` part du
+  // mois écoulé, déjà couvert ou envoyé à l'activation.
+  definirCarnet(login, { actif, noms, dernier } = {}) {
+    const u = this.utilisateur(login);
+    if (!u) throw new Error('utilisateur inconnu');
+    const c = u.carnet || (u.carnet = { actif: false, noms: {}, depuis: null, dernier: null });
+    if (actif !== undefined) {
+      if (actif && !c.actif) c.depuis = new Date().toISOString();
+      c.actif = !!actif;
+    }
+    if (noms && typeof noms === 'object' && !Array.isArray(noms)) {
+      const propres = {};
+      for (const id of u.socles) {
+        const n = typeof noms[id] === 'string' ? noms[id].replace(/\p{Cc}/gu, ' ').trim().slice(0, 60) : '';
+        if (n) propres[id] = n;
+      }
+      c.noms = propres;
+    }
+    if (dernier !== undefined && (!c.dernier || dernier > c.dernier)) c.dernier = dernier;
+    this.sauver();
+    return c;
+  }
+
+  noterCarnetEnvoye(login, cle) {
+    const u = this.utilisateur(login);
+    if (!u || !u.carnet) return;
+    if (!u.carnet.dernier || cle > u.carnet.dernier) u.carnet.dernier = cle;
+    this.sauver();
+  }
+
+  abonnesCarnet() { return [...this.donnees.utilisateurs.values()].filter(u => u.carnet && u.carnet.actif && u.email); }
 
   resume() {
     return {
