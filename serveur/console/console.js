@@ -36,6 +36,7 @@
     filtres: { socles: 'tous', comptes: 'tous', demandes: 'ouvertes' },
     tableau: null, socles: [], comptes: [], appareils: [], rapports: [], journal: null,
     demandes: [], accesOuverts: [], equipe: null, sortie: {},
+    reponses: [], variables: {}, // réponses types, et ce que la demande ouverte permet d'y remplir
     fiche: null,              // { type: 'socle' | 'compte', id }
     lecture: null,            // nom du rapport ouvert
     emailEnCours: null,
@@ -374,6 +375,7 @@
       tuile(nombre(t.socles.enDefaut), 'en défaut', 'socles:defaut', t.socles.enDefaut ? 'ko' : null),
       tuile(nombre(sup.ouvertes), `demandes ouvertes (${nombre(sup.nouvelles)} nouvelle${sup.nouvelles > 1 ? 's' : ''})`, 'support:ouvertes', sup.nouvelles ? 'warn' : null),
       tuile(nombre(sup.acces), 'accès support ouverts', 'support:ouvertes'),
+      sup.relancesDues ? tuile(nombre(sup.relancesDues), `relance${sup.relancesDues > 1 ? 's' : ''} à faire`, 'support:toutes', 'warn') : null,
       tuile(nombre(t.socles.sansProprietaire), 'sans propriétaire', 'socles:orphelin'),
       estSupport() ? null : tuile(nombre(t.comptes.total), `comptes (${nombre(t.comptes.email)} par e-mail)`, 'comptes:tous'),
       tuile(nombre(t.rapports.semaine), 'rapports sur 7 jours', 'rapports'),
@@ -478,6 +480,25 @@
     etat.accesOuverts = acc.acces;
     vueSupport();
   }
+  async function chargerReponses() {
+    const r = await admin('GET', '/api/admin/support/reponses');
+    etat.reponses = r.reponses;
+    remplir($('#rt-variables'), r.variables.map((v, i) => [i ? ', ' : '', h('code', { texte: `{${v}}` })]));
+    remplir($('#liste-reponses'), etat.reponses.length ? [...etat.reponses].sort((x, y) => (y.usages || 0) - (x.usages || 0)).map(x => h('li', {},
+      h('span', {}, h('b', { texte: x.titre }), h('span', { class: 'discret', texte: ` · utilisée ${x.usages || 0} fois` }),
+        h('span', { class: 'texte-message extrait-reponse', texte: x.texte })),
+      h('span', { class: 'boutons' },
+        h('button', { type: 'button', class: 'btn btn-fantome btn-petit', 'data-action': 'reponse-editer', 'data-id': x.id, texte: 'Modifier' }),
+        h('button', { type: 'button', class: 'btn btn-fantome btn-petit', 'data-action': 'reponse-supprimer', 'data-id': x.id, texte: 'Supprimer' }))))
+      : h('li', {}, h('span', { class: 'aide', texte: 'Aucune réponse type.' })));
+  }
+  function viderFormReponse() {
+    /** @type {HTMLInputElement} */ ($('#rt-id')).value = '';
+    /** @type {HTMLInputElement} */ ($('#rt-titre')).value = '';
+    /** @type {HTMLTextAreaElement} */ ($('#rt-texte')).value = '';
+    remplir($('#rt-titre-form'), 'Nouvelle réponse type');
+  }
+
   function vueSupport() {
     remplir($('#acces-ouverts'), etat.accesOuverts.length ? [
       h('h3', { texte: `Accès ouverts par les propriétaires (${etat.accesOuverts.length})` }),
@@ -490,7 +511,8 @@
     remplir($('#corps-demandes'), etat.demandes.map(d => h('tr', {},
       h('th', { scope: 'row' }, h('button', { type: 'button', class: 'lien', 'data-demande': d.n, texte: `n°${d.n}` })),
       h('td', {}, badge(d.gravite, tonGravite(d.gravite))),
-      h('td', {}, badge(d.statut, tonStatut(d.statut)), d.demandeAcces ? [' ', badge('accès demandé', 'neutre')] : null, d.acces && d.acces.actif ? [' ', badge('accès ouvert', 'ok')] : null),
+      h('td', {}, badge(d.statut, tonStatut(d.statut)), d.demandeAcces ? [' ', badge('accès demandé', 'neutre')] : null, d.acces && d.acces.actif ? [' ', badge('accès ouvert', 'ok')] : null,
+        d.relance ? [' ', d.relance.due ? badge('relance à faire', 'warn') : badge(`relance ${date(d.relance.quand)}`, 'neutre')] : null),
       h('td', {}, d.socle ? lienSocle(d.socle) : '—'),
       h('td', {}, d.compte ? pii(d.compte) : '—'),
       h('td', {}, d.responsable ? pii(d.responsable) : h('span', { class: 'discret', texte: 'personne' })),
@@ -527,7 +549,10 @@
     'support.acces.fermer': 'Accès support fermé', 'support.acces.echu': 'Accès support échu', 'support.acces.demander': 'Accès demandé au propriétaire',
     'support.acces.refuser': 'Accès refusé par le propriétaire', 'support.commande': 'Commande du support', 'support.copie': 'Copie des réglages',
     'support.remettre': 'Réglages remis comme à l\'ouverture', 'support.transfert': 'Réglages transférés depuis un autre socle',
-    'support.demande.creer': 'Demande ouverte', 'support.demande.maj': 'Demande mise à jour', 'support.demande.message': 'Message', 'support.demande.note': 'Note interne'
+    'support.demande.creer': 'Demande ouverte', 'support.demande.maj': 'Demande mise à jour', 'support.demande.message': 'Message', 'support.demande.note': 'Note interne',
+    'support.reponse.creer': 'Réponse type créée', 'support.reponse.modifier': 'Réponse type modifiée', 'support.reponse.supprimer': 'Réponse type supprimée',
+    'support.relance.programmer': 'Relance programmée', 'support.relance.annuler': 'Relance annulée', 'support.relance.envoyee': 'Relance envoyée au client',
+    'support.relance.abandonnee': 'Relance abandonnée'
   };
   // Ce que le serveur a vu du socle lui-même (frise).
   const EVENEMENTS = { 'en ligne': 'Revenu en ligne', 'hors ligne': 'Hors ligne', redemarrage: 'Redémarrage', defaut: 'Défaut',
@@ -535,9 +560,10 @@
   const LIBELLES_DETAILS = { compte: 'compte', admin: 'administrateur', sessions: 'sessions', socles: 'socles', historiquesEffaces: 'historiques effacés',
     motDePasse: 'mot de passe', proprietairesDetaches: 'propriétaires détachés', nom: 'nom', fichier: 'fichier', lignes: 'lignes', raison: 'raison', teteAttendue: 'tête attendue',
     support: 'support', jusqua: 'jusqu\'au', heures: 'heures', action: 'action', valeurs: 'valeurs', ok: 'réussie', erreur: 'erreur', demande: 'demande n°',
-    gravite: 'gravité', statut: 'statut', responsable: 'responsable', de: 'de', longueur: 'caractères', copie: 'copie du', par: 'par', proprietaires: 'propriétaires' };
+    gravite: 'gravité', statut: 'statut', responsable: 'responsable', de: 'de', longueur: 'caractères', copie: 'copie du', par: 'par', proprietaires: 'propriétaires',
+    modele: 'réponse type n°', titre: 'titre', quand: 'pour le', message: 'message au client' };
   const valeurDetail = (k, v) => typeof v === 'boolean' ? (v ? 'oui' : 'non')
-    : (v && typeof v === 'object') ? JSON.stringify(v) : (k === 'jusqua' || k === 'copie') && /^\d{4}-/.test(String(v)) ? date(v) : v;
+    : (v && typeof v === 'object') ? JSON.stringify(v) : (k === 'jusqua' || k === 'copie' || k === 'quand') && /^\d{4}-/.test(String(v)) ? date(v) : v;
   function texteDetails(d) {
     if (!d) return '';
     return Object.entries(d).map(([k, v]) => `${LIBELLES_DETAILS[k] || k} : ${valeurDetail(k, v)}`).join(' · ');
@@ -697,11 +723,15 @@
 
   async function ficheDemande(n, ouvrir = true) {
     const d = await admin('GET', `/api/admin/support/demandes/${n}`);
-    const [acc, fr, eq] = await Promise.all([
+    const [acc, fr, eq, rep, vars] = await Promise.all([
       d.socle ? admin('GET', `/api/admin/support/acces/${d.socle}`).catch(() => null) : null,
       d.socle ? admin('GET', `/api/admin/socles/${d.socle}/frise`).catch(() => null) : null,
-      etat.equipe ? etat.equipe : admin('GET', '/api/admin/support/equipe').then(r => r.equipe).catch(() => [])]);
+      etat.equipe ? etat.equipe : admin('GET', '/api/admin/support/equipe').then(r => r.equipe).catch(() => []),
+      admin('GET', '/api/admin/support/reponses').catch(() => ({ reponses: [] })),
+      admin('GET', `/api/admin/support/demandes/${n}/variables`).catch(() => ({ variables: {} }))]);
     etat.equipe = eq;
+    etat.reponses = rep.reponses;
+    etat.variables = vars.variables;
     etat.fiche = { type: 'demande', id: d.n };
     if (!ouvrir && !$('#fiche').open) return;
     const corps = ouvrirFiche(`Demande n°${d.n}${d.socle ? ` — ${d.socle}` : ''}`);
@@ -722,8 +752,13 @@
           h('span', { class: 'discret' }, m.de === 'client' ? 'Client' : `Support${m.qui ? ` (${quiAffiche(m.qui)})` : ''}`, ' · ', h('time', { datetime: m.t, texte: date(m.t) })),
           h('p', { class: 'texte-message', texte: m.texte })))) : h('p', { class: 'aide', texte: 'Aucun message.' }),
         h('form', { class: 'ligne-message', 'data-form': 'repondre', 'data-n': d.n, novalidate: true },
+          etat.reponses.length ? h('div', { class: 'ligne-modele' },
+            h('label', { for: 'dm-modele', texte: 'Réponse type' }),
+            h('select', { id: 'dm-modele' }, h('option', { value: '', texte: 'Insérer une réponse type…' }),
+              [...etat.reponses].sort((x, y) => (y.usages || 0) - (x.usages || 0)).map(r => h('option', { value: String(r.id), texte: r.titre })))) : null,
           h('label', { for: 'dm-reponse', texte: 'Répondre au client' }),
-          h('textarea', { id: 'dm-reponse', rows: '3' }),
+          h('textarea', { id: 'dm-reponse', rows: '3', 'aria-describedby': 'dm-reponse-aide' }),
+          h('p', { class: 'aide', id: 'dm-reponse-aide', texte: 'Une variable restée entre accolades est inconnue du serveur : à compléter avant l\'envoi.' }),
           h('div', { class: 'boutons' }, h('button', { type: 'submit', class: 'btn btn-petit', texte: 'Envoyer au client' })))),
       section('Notes internes',
         d.notes.length ? h('ul', { class: 'liste-actions' }, d.notes.map(no => h('li', {},
@@ -732,6 +767,25 @@
           h('label', { for: 'dm-note', texte: 'Ajouter une note (jamais montrée au client)' }),
           h('textarea', { id: 'dm-note', rows: '2' }),
           h('div', { class: 'boutons' }, h('button', { type: 'submit', class: 'btn btn-secondaire btn-petit', texte: 'Ajouter la note' })))),
+      section('Relance',
+        d.relance ? h('div', { class: 'relance-actuelle' },
+          h('p', {}, d.relance.due ? badge('à faire', 'warn') : badge('prévue', 'neutre'), ` ${date(d.relance.quand)} — `,
+            d.relance.message ? 'message au client s\'il n\'a pas répondu d\'ici là' : 'rappel pour l\'équipe',
+            d.relance.repondu ? ` (le client a répondu le ${date(d.relance.repondu)} : rien ne lui sera envoyé)` : '',
+            h('span', { class: 'discret', texte: ` · ${quiAffiche(d.relance.qui)}` })),
+          d.relance.texte ? h('p', { class: 'texte-message', texte: d.relance.texte }) : null,
+          h('div', { class: 'boutons' }, h('button', { type: 'button', class: 'btn btn-fantome btn-petit', 'data-action': 'annuler-relance', 'data-n': d.n, texte: d.relance.due ? 'C\'est fait, retirer' : 'Annuler la relance' }))) : null,
+        h('form', { class: 'ligne-message', 'data-form': 'relance', 'data-n': d.n, novalidate: true },
+          h('label', { for: 'dm-rel-quand', texte: d.relance ? 'Remplacer par une relance le' : 'Relancer le' }),
+          h('div', { class: 'ligne-relance' },
+            h('input', { id: 'dm-rel-quand', type: 'datetime-local' }),
+            [['Dans 2 h', 'h2'], ['Demain 10:00', 'demain'], ['Dans 48 h', 'h48']].map(([libelle, k]) =>
+              h('button', { type: 'button', class: 'btn btn-fantome btn-petit', 'data-action': 'relance-raccourci', 'data-quand': k, texte: libelle }))),
+          h('label', { for: 'dm-rel-texte', texte: 'Texte : rappel pour l\'équipe, ou message au client' }),
+          h('textarea', { id: 'dm-rel-texte', rows: '2' }),
+          h('label', { class: 'case' }, h('input', { type: 'checkbox', id: 'dm-rel-message', disabled: !d.compte }),
+            ' Envoyer ce texte au client à l\'échéance, s\'il n\'a pas répondu d\'ici là'),
+          h('div', { class: 'boutons' }, h('button', { type: 'submit', class: 'btn btn-secondaire btn-petit', texte: 'Programmer la relance' })))),
       d.socle ? section('Accès au socle', acc && acc.actif
         ? h('div', { class: 'panneau-acces' },
           h('p', { class: 'aide', texte: `Ouvert par le propriétaire jusqu'au ${date(acc.jusqua)}${acc.prolonge ? ' (prolongé)' : ''}. Chaque geste est signé avec la clé de session et noté au journal ; la coupure à 40 °C du socle reste active.` }),
@@ -960,6 +1014,42 @@
         : '';
       $('#nd-texte').focus();
     },
+    async 'reponses-types'(el) {
+      const p = $('#panneau-reponses');
+      p.hidden = !p.hidden;
+      el.setAttribute('aria-expanded', String(!p.hidden));
+      if (!p.hidden) { await chargerReponses(); $('#rt-titre').focus(); }
+    },
+    'reponse-editer'(el) {
+      const r = etat.reponses.find(x => String(x.id) === el.dataset.id);
+      if (!r) return;
+      /** @type {HTMLInputElement} */ ($('#rt-id')).value = String(r.id);
+      /** @type {HTMLInputElement} */ ($('#rt-titre')).value = r.titre;
+      /** @type {HTMLTextAreaElement} */ ($('#rt-texte')).value = r.texte;
+      remplir($('#rt-titre-form'), `Modifier « ${r.titre} »`);
+      $('#rt-titre').focus();
+    },
+    'reponse-vider'() { viderFormReponse(); },
+    async 'reponse-supprimer'(el) {
+      const r = etat.reponses.find(x => String(x.id) === el.dataset.id);
+      if (!r || !await confirmer({ titre: `Supprimer « ${r.titre} » ?`, texte: 'La réponse type disparaît pour toute l\'équipe.', bouton: 'Supprimer' })) return;
+      await admin('DELETE', `/api/admin/support/reponses/${r.id}`);
+      message('Réponse type supprimée.');
+      await chargerReponses();
+    },
+    'relance-raccourci'(el) {
+      const d = new Date();
+      if (el.dataset.quand === 'h2') d.setHours(d.getHours() + 2);
+      else if (el.dataset.quand === 'h48') d.setHours(d.getHours() + 48);
+      else { d.setDate(d.getDate() + 1); d.setHours(10, 0, 0, 0); }
+      const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      /** @type {HTMLInputElement} */ ($('#dm-rel-quand')).value = local;
+    },
+    async 'annuler-relance'(el) {
+      await admin('DELETE', `/api/admin/support/demandes/${el.dataset.n}/relance`);
+      message('Relance retirée.');
+      await actualiser();
+    },
     async 'demander-acces'(el) {
       await admin('POST', `/api/admin/support/demandes/${el.dataset.n}/demander-acces`);
       message('Demande d\'accès envoyée au propriétaire.');
@@ -1093,9 +1183,31 @@
       const texte = champ.value.trim();
       if (!texte) return;
       const route = f.dataset.form === 'repondre' ? 'messages' : 'notes';
-      admin('POST', `/api/admin/support/demandes/${f.dataset.n}/${route}`, { texte }).then(async () => {
+      const modele = route === 'messages' && f.dataset.modele ? +f.dataset.modele : undefined;
+      admin('POST', `/api/admin/support/demandes/${f.dataset.n}/${route}`, { texte, modele }).then(async () => {
         champ.value = '';
+        delete f.dataset.modele;
         message(route === 'messages' ? 'Réponse envoyée ; le client est prévenu.' : 'Note ajoutée.');
+        await actualiser();
+      }).catch(echec);
+    } else if (f.id === 'form-reponse') {
+      const id = /** @type {HTMLInputElement} */ ($('#rt-id')).value;
+      const titre = /** @type {HTMLInputElement} */ ($('#rt-titre')).value.trim();
+      const texte = /** @type {HTMLTextAreaElement} */ ($('#rt-texte')).value.trim();
+      if (!titre || !texte) { message('Un titre et un texte.', true); return; }
+      admin('POST', `/api/admin/support/reponses${id ? `/${id}` : ''}`, { titre, texte }).then(async () => {
+        message(id ? 'Réponse type modifiée.' : 'Réponse type ajoutée.');
+        viderFormReponse();
+        await chargerReponses();
+      }).catch(echec);
+    } else if (f.dataset.form === 'relance') {
+      const quand = /** @type {HTMLInputElement} */ ($('#dm-rel-quand')).value;
+      const texte = /** @type {HTMLTextAreaElement} */ ($('#dm-rel-texte')).value.trim();
+      const auClient = /** @type {HTMLInputElement} */ ($('#dm-rel-message')).checked;
+      if (!quand) { message('Choisir la date et l\'heure de la relance.', true); return; }
+      if (auClient && !texte) { message('Écrire le message à envoyer au client.', true); return; }
+      admin('POST', `/api/admin/support/demandes/${f.dataset.n}/relance`, { quand: new Date(quand).toISOString(), texte, message: auClient }).then(async () => {
+        message(auClient ? 'Relance programmée : le message partira à l\'échéance si le client n\'a pas répondu.' : 'Relance programmée.');
         await actualiser();
       }).catch(echec);
     } else if (f.dataset.form === 'transferer') {
@@ -1118,6 +1230,19 @@
   // Statut, gravité, responsable d'une demande : enregistrés dès qu'ils changent.
   document.addEventListener('change', e => {
     const el = /** @type {HTMLSelectElement} */ (e.target);
+    if (el.id === 'dm-modele') {
+      const r = (etat.reponses || []).find(x => String(x.id) === el.value);
+      const f = /** @type {HTMLFormElement} */ (el.form);
+      if (!r || !f) return;
+      const champ = /** @type {HTMLTextAreaElement} */ (f.querySelector('textarea'));
+      const v = etat.variables || {};
+      const rempli = r.texte.replace(/\{([^{}]{1,30})\}/g, (tout, nom) => (v[nom] !== undefined && v[nom] !== '' ? v[nom] : tout));
+      champ.value = champ.value.trim() ? `${champ.value.trim()}\n\n${rempli}` : rempli;
+      f.dataset.modele = String(r.id);
+      el.value = '';
+      champ.focus();
+      return;
+    }
     if (!el.dataset || !el.dataset.champ) return;
     admin('POST', `/api/admin/support/demandes/${el.dataset.n}`, { [el.dataset.champ]: el.value || null })
       .then(() => { message('Demande mise à jour.'); return chargerSupport(); }).catch(err => { echec(err); actualiser().catch(() => {}); });

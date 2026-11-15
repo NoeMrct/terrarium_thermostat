@@ -104,7 +104,8 @@ class Admin {
       audit: { ok: v.ok, n: v.n, tete: v.tete || null, rupture: v.rupture || null },
       support: a.support ? { ouvertes: [...a.support.demandes.values()].filter(d => d.statut !== 'résolue').length,
         nouvelles: [...a.support.demandes.values()].filter(d => d.statut === 'nouvelle').length,
-        acces: [...a.support.acces.keys()].filter(id => a.support.accesActif(id)).length } : null,
+        acces: [...a.support.acces.keys()].filter(id => a.support.accesActif(id)).length,
+        relancesDues: [...a.support.demandes.values()].filter(d => d.relance && Date.parse(d.relance.quand) <= a.support.maintenant()).length } : null,
       alertes: this.alertes(socles)
     };
   }

@@ -121,6 +121,22 @@ const ID = 'terraSUP001', CODE = 'SIMULATIONTESTJETON00001';
     await cons.click('[data-form="note"] [type="submit"]');
     await attendreTexte(cons, '#fiche-corps', /Sonde 2 à vérifier/);
     v('réponse au client et note interne', /allons regarder/.test(await texteDe(cons, '#fiche-corps .fil')) && /Sonde 2 à vérifier/.test(await texteDe(cons, '#fiche-corps')));
+    // Réponse type : insérée dans le champ, variables remplies avec la demande.
+    const modele = await cons.$eval('#dm-modele', el => [...el.options].find(o => /Demander l.accès/.test(o.textContent)).value);
+    await cons.selectOption('#dm-modele', modele);
+    const insere = await cons.inputValue('#dm-reponse');
+    v('une réponse type s\'insère, référence du socle remplie', insere.includes(ID) && !insere.includes('{référence}') && /onglet Service/.test(insere), insere.slice(0, 60));
+    await cons.fill('#dm-reponse', '');
+    // Relance : demain 10:00, rappel pour l'équipe ; visible dans la fiche et la file, puis retirée.
+    await cons.click('[data-action="relance-raccourci"][data-quand="demain"]');
+    await cons.fill('#dm-rel-texte', 'Rappeler si la sonde 2 ne revient pas.');
+    await cons.click('[data-form="relance"] [type="submit"]');
+    await attendreTexte(cons, '#fiche-corps .relance-actuelle', /rappel pour l'équipe/);
+    v('une relance se programme (rappel pour l\'équipe)', /prévue/.test(await texteDe(cons, '#fiche-corps .relance-actuelle')) && !!(await api('GET', '/api/admin/support/demandes/1')).relance);
+    await cons.click('[data-action="annuler-relance"]');
+    for (let i = 0; i < 50 && (await api('GET', '/api/admin/support/demandes/1')).relance; i++) await new Promise(r => setTimeout(r, 100));
+    await attendreTexte(cons, '#fiche-corps', /Relancer le/);
+    v('…et s\'annule', !(await cons.isVisible('#fiche-corps .relance-actuelle')));
     await cons.click('[data-action="demander-acces"]');
     await attendreTexte(cons, '#fiche-corps', /Accès demandé au propriétaire le/);
     v('« Demander l\'accès au propriétaire »', /Accès demandé au propriétaire le/.test(await texteDe(cons, '#fiche-corps')));

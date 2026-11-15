@@ -165,3 +165,13 @@ label.case input { width: 18px; height: 18px; min-height: 0; margin: 0; }
 .sortie-support { max-height: 260px; }
 .frise li[data-source="client"] { box-shadow: inset 3px 0 0 var(--ok); }
 .frise li[data-source="support"] { box-shadow: inset 3px 0 0 var(--attention); }
+
+/* ---- réponses types et relances ------------------------------------------------ */
+.ligne-modele { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.ligne-modele label { margin: 0; }
+.ligne-modele select { flex: 1 1 220px; width: auto; }
+.ligne-relance { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ligne-relance input { flex: 0 1 230px; width: auto; }
+.relance-actuelle p { margin: 0 0 6px; }
+.liste-actions .extrait-reponse { color: var(--texte-2); white-space: pre-line; margin-top: 4px; }
+#panneau-reponses .formulaire-ligne { margin-top: 12px; }

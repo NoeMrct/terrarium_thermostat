@@ -337,6 +337,16 @@ jour.
   simulateur (sondes inversées, couplage légitime, pic isolé, canicule,
   priorité, essai de chauffe, soleil), fuzzing des liaisons et du soleil, tests
   de la page locale pour chaque nouveauté.
+- **Console support — réponses types** : textes partagés par l'équipe, classés
+  par usage, insérés depuis la fiche d'une demande avec leurs variables
+  remplies (nom du terrarium, référence, zone et défaut, heure du défaut tirée
+  de la frise, fin de l'accès, version, signal) ; une variable inconnue reste
+  à compléter. Six réponses de départ, modifiables depuis l'onglet Support.
+- **Console support — relances programmées** : un rappel pour l'équipe (« à
+  faire » dans la fiche, la file et le tableau de bord), ou un message qui
+  part au client à l'échéance s'il n'a pas répondu entre-temps. Journal
+  d'audit pour chaque geste ; tests serveur et de bout en bout
+  (`test-support.js`).
 
 ### Modifié
 - **Le chauffage continue pendant une mise à jour** (W2). La boucle principale

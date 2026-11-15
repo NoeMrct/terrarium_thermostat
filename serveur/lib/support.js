@@ -26,6 +26,21 @@ const R_ID = /^terra[0-9A-Za-z]{6}$/;
 // Ce que le support ne demande pas par la route générique : l'accès lui-même
 // (routes dédiées) et la mise à jour (déploiement : phase suivante).
 const ACTIONS_REFUSEES = new Set(['service']);
+const MAX_RELANCE = 1000;
+const RELANCE_MAX_JOURS = 90;
+
+// Réponses types de départ (ton simple, tutoiement, une idée par phrase). Les
+// variables entre accolades se remplissent avec la demande ouverte ; celles
+// que le serveur ne connaît pas restent telles quelles, à compléter.
+const VARIABLES = ['terrarium', 'référence', 'zone', 'défaut', 'heure_défaut', 'fin_accès', 'version', 'signal'];
+const REPONSES_DEPART = [
+  { titre: 'Demander l\'accès au support', texte: 'Bonjour, merci pour ton message. Peux-tu ouvrir l\'accès au support depuis l\'onglet Service de l\'application ? Il ne me faut rien d\'autre : j\'ai déjà la référence de « {terrarium} » ({référence}).' },
+  { titre: 'Accès ouvert, merci', texte: 'Merci, l\'accès est bien ouvert jusqu\'au {fin_accès}. Je regarde « {terrarium} » et je te tiens au courant ici.' },
+  { titre: 'Sonde muette : échange proposé', texte: 'Bonjour, la sonde de la zone « {zone} » de « {terrarium} » ne répond plus depuis {heure_défaut} : c\'est une panne matérielle.\nJe te propose un échange : on t\'envoie un socle neuf déjà réglé, tu n\'as rien à brancher. L\'autre zone continue de chauffer en attendant.' },
+  { titre: 'Wi-Fi faible', texte: 'Bonjour, le signal Wi-Fi de « {terrarium} » est faible ({signal} dBm). Si tu peux, rapproche la box ou ajoute un répéteur : le socle sera plus réactif. La régulation, elle, ne dépend pas du Wi-Fi.' },
+  { titre: 'Mise à jour disponible', texte: 'Bonjour, une mise à jour est prête pour « {terrarium} » (aujourd\'hui en {version}). Elle s\'installera cette nuit, dans ta plage horaire ; tu n\'as rien à faire, et le chauffage continue pendant le téléchargement.' },
+  { titre: 'Fin d\'intervention', texte: 'Bonjour, j\'ai terminé sur « {terrarium} » et fermé l\'accès. Si quelque chose te paraît anormal, réponds simplement ici. Merci pour ta patience !' }
+];
 
 function lire(f, defaut) { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { return defaut; } }
 function ecrire(f, donnees) {
@@ -57,7 +72,15 @@ class Support {
     const d = lire(this.fDemandes, { suivante: 1, demandes: [] });
     this.suivante = d.suivante || 1;
     this.demandes = new Map((d.demandes || []).map(x => [x.n, x]));
+    this.fReponses = path.join(this.dossier, 'reponses.json');
+    const r = lire(this.fReponses, null);
+    this.reponses = r && Array.isArray(r.reponses) ? r.reponses
+      : REPONSES_DEPART.map((x, i) => ({ id: i + 1, ...x, usages: 0, maj: null, par: null }));
+    this.reponseSuivante = r && r.suivante ? r.suivante : this.reponses.length + 1;
   }
+
+  sauverReponses() { ecrire(this.fReponses, { suivante: this.reponseSuivante, reponses: this.reponses }); }
+  reponse(id) { return this.reponses.find(x => x.id === +id) || null; }
 
   sauverAcces() { ecrire(this.fAcces, Object.fromEntries(this.acces)); }
   sauverDemandes() { ecrire(this.fDemandes, { suivante: this.suivante, demandes: [...this.demandes.values()] }); }
@@ -113,6 +136,7 @@ class Support {
     const t = new Date(this.maintenant()).toISOString();
     d.messages.push({ t, de, qui: de === 'support' ? qui : null, texte: texteBorne(texte) });
     if (de === 'client' && ['attente client', 'résolue'].includes(d.statut)) d.statut = 'en cours';
+    if (de === 'client' && d.relance && d.relance.message) d.relance = { ...d.relance, message: false, repondu: t };
     if (de === 'support' && d.statut !== 'résolue') d.statut = 'attente client';
     d.maj = t;
     this.sauverDemandes();
@@ -185,6 +209,65 @@ class RoutesSupport {
     this.s.sauverAcces();
     this.noter(qui, 'support.copie', id, null);
     return a.copie;
+  }
+
+  // Ce que les réponses types peuvent citer, tiré de la demande ouverte. Une
+  // valeur inconnue manque à l'appel : la variable reste à compléter à la main.
+  variables(dm) {
+    const a = this.api, v = {};
+    const quand = iso => {
+      const fmt = o => new Date(iso).toLocaleString('fr-FR', { timeZone: 'Europe/Paris', ...o });
+      const jour = x => new Date(x).toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' });
+      return jour(iso) === jour(this.s.maintenant()) ? fmt({ hour: '2-digit', minute: '2-digit' })
+        : `${fmt({ day: '2-digit', month: '2-digit' })} à ${fmt({ hour: '2-digit', minute: '2-digit' })}`;
+    };
+    if (!dm.socle) return v;
+    v['référence'] = dm.socle;
+    const titulaire = (dm.compte && a.comptes.utilisateur(dm.compte)) || a.comptes.proprietaires(dm.socle)[0] || null;
+    v.terrarium = a.comptes.nomSocle(titulaire, dm.socle);
+    const r = a.broker.resumeSocle(dm.socle);
+    if (r) {
+      if (r.version) v.version = r.version;
+      if (typeof r.rssi === 'number') v.signal = String(r.rssi);
+      const i = r.zones.findIndex(z => z.defaut);
+      if (i >= 0) {
+        v.zone = r.zones[i].nom || `zone ${i + 1}`;
+        if (typeof r.zones[i].defaut === 'string') v['défaut'] = r.zones[i].defaut;
+      }
+    }
+    const defaut = a.evenements ? a.evenements.lire(dm.socle, { limite: 100 }).find(e => e.type === 'defaut') : null;
+    if (defaut) {
+      v.heure_défaut = quand(defaut.t);
+      if (!v.zone && defaut.zone && r && r.zones[defaut.zone - 1]) v.zone = r.zones[defaut.zone - 1].nom || `zone ${defaut.zone}`;
+    }
+    const acc = this.s.vueAcces(dm.socle);
+    if (acc.actif) v['fin_accès'] = quand(acc.jusqua);
+    return v;
+  }
+
+  // Relances arrivées à échéance (appelé chaque minute). Un rappel interne
+  // reste affiché « dû » jusqu'à ce que l'équipe le retire ; un message prévu
+  // part au client, sauf s'il a répondu entre-temps ou si la demande est close.
+  traiterRelances() {
+    const maintenant = this.s.maintenant();
+    let envoyees = 0;
+    for (const dm of this.s.demandes.values()) {
+      const r = dm.relance;
+      if (!r || !r.message || Date.parse(r.quand) > maintenant) continue;
+      const cible = dm.socle || (dm.compte ? refCompte(dm.compte) : null);
+      if (dm.statut === 'résolue') {
+        dm.relance = null;
+        this.noter('serveur', 'support.relance.abandonnee', cible, { demande: dm.n, raison: 'demande résolue' });
+        continue;
+      }
+      dm.relance = null;
+      this.s.ajouterMessage(dm, { de: 'support', qui: `${r.qui} (relance programmée)`, texte: r.texte });
+      this.noter('serveur', 'support.relance.envoyee', cible, { demande: dm.n, par: r.qui });
+      if (dm.socle) this.notifier(dm.socle, { titre: 'Message du support', corps: `À propos de ${dm.socle} : ouvrez l'application pour lire et répondre.`, tag: 'message' });
+      envoyees++;
+    }
+    if (envoyees) this.s.sauverDemandes();
+    return envoyees;
   }
 
   // --- propriétaire ------------------------------------------------------------
@@ -272,7 +355,8 @@ class RoutesSupport {
     const ligneDemande = d => ({ n: d.n, socle: d.socle, compte: d.compte, statut: d.statut, gravite: d.gravite, responsable: d.responsable,
       cree: d.cree, maj: d.maj, demandeAcces: d.demandeAcces, messages: d.messages.length, notes: d.notes.length,
       dernier: d.messages.length ? { t: d.messages[d.messages.length - 1].t, de: d.messages[d.messages.length - 1].de, extrait: d.messages[d.messages.length - 1].texte.slice(0, 140) } : null,
-      acces: d.socle ? this.s.vueAcces(d.socle) : null });
+      acces: d.socle ? this.s.vueAcces(d.socle) : null,
+      relance: d.relance ? { ...d.relance, due: Date.parse(d.relance.quand) <= this.s.maintenant() } : null });
 
     if (chemin === '/api/admin/support/demandes') {
       if (methode === 'GET') {
@@ -296,7 +380,7 @@ class RoutesSupport {
         return a.json(res, 201, ligneDemande(dm));
       }
     }
-    const mD = /^\/api\/admin\/support\/demandes\/(\d{1,9})(\/messages|\/notes|\/demander-acces)?$/.exec(chemin);
+    const mD = /^\/api\/admin\/support\/demandes\/(\d{1,9})(\/messages|\/notes|\/demander-acces|\/variables|\/relance)?$/.exec(chemin);
     if (mD) {
       const dm = this.s.demande(mD[1]);
       if (!dm) return a.erreur(res, 404, 'demande inconnue');
@@ -328,7 +412,10 @@ class RoutesSupport {
         const d = await a.lireJson(req);
         if (!texteBorne(d.texte)) return a.erreur(res, 400, 'message vide');
         this.s.ajouterMessage(dm, { de: 'support', qui: quiNom, texte: d.texte });
-        this.noter(quiNom, 'support.demande.message', cible, { demande: dm.n, de: 'support', longueur: texteBorne(d.texte).length });
+        // Réponse type de départ : son compteur d'usage (la plus utile en tête de liste).
+        const modele = d.modele !== undefined && d.modele !== null ? this.s.reponse(d.modele) : null;
+        if (modele) { modele.usages = (modele.usages || 0) + 1; this.s.sauverReponses(); }
+        this.noter(quiNom, 'support.demande.message', cible, { demande: dm.n, de: 'support', longueur: texteBorne(d.texte).length, ...(modele ? { modele: modele.id } : {}) });
         if (dm.socle) this.notifier(dm.socle, { titre: 'Réponse du support', corps: `À propos de ${dm.socle} : ouvrez l'application pour lire la réponse.`, tag: 'message' });
         return a.json(res, 200, ligneDemande(dm));
       }
@@ -338,6 +425,31 @@ class RoutesSupport {
         this.s.ajouterNote(dm, { qui: quiNom, texte: d.texte });
         this.noter(quiNom, 'support.demande.note', cible, { demande: dm.n, longueur: texteBorne(d.texte).length });
         return a.json(res, 200, ligneDemande(dm));
+      }
+      if (mD[2] === '/variables' && methode === 'GET') return a.json(res, 200, { variables: this.variables(dm) });
+      if (mD[2] === '/relance') {
+        if (methode === 'DELETE') {
+          const avait = !!dm.relance;
+          dm.relance = null;
+          this.s.sauverDemandes();
+          if (avait) this.noter(quiNom, 'support.relance.annuler', cible, { demande: dm.n });
+          return a.json(res, 200, ligneDemande(dm));
+        }
+        if (methode === 'POST') {
+          const d = await a.lireJson(req);
+          const quand = Date.parse(String(d.quand || ''));
+          const maintenant = this.s.maintenant();
+          if (!Number.isFinite(quand) || quand <= maintenant) return a.erreur(res, 400, 'échéance : une date à venir');
+          if (quand > maintenant + RELANCE_MAX_JOURS * 86400000) return a.erreur(res, 400, `échéance : ${RELANCE_MAX_JOURS} jours au plus`);
+          const texte = String(d.texte || '').replace(/\r\n?/g, '\n').trim().slice(0, MAX_RELANCE);
+          const message = d.message === true;
+          if (message && !texte) return a.erreur(res, 400, 'le message à envoyer au client est vide');
+          if (message && !dm.compte) return a.erreur(res, 400, 'demande sans client : rappel interne seulement');
+          dm.relance = { quand: new Date(quand).toISOString(), texte, message, qui: quiNom, cree: new Date(maintenant).toISOString() };
+          this.s.sauverDemandes();
+          this.noter(quiNom, 'support.relance.programmer', cible, { demande: dm.n, quand: dm.relance.quand, message });
+          return a.json(res, 200, ligneDemande(dm));
+        }
       }
       if (mD[2] === '/demander-acces' && methode === 'POST') {
         if (!dm.socle) return a.erreur(res, 400, 'demande sans socle');
@@ -349,6 +461,40 @@ class RoutesSupport {
         return a.json(res, 200, ligneDemande(dm));
       }
       return a.erreur(res, 404, 'route inconnue');
+    }
+
+    if (chemin === '/api/admin/support/reponses') {
+      if (methode === 'GET') return a.json(res, 200, { reponses: this.s.reponses, variables: VARIABLES });
+      if (methode === 'POST') {
+        const d = await a.lireJson(req);
+        const titre = String(d.titre || '').replace(/\p{Cc}/gu, ' ').trim().slice(0, 80), texte = texteBorne(d.texte);
+        if (!titre || !texte) return a.erreur(res, 400, 'titre et texte attendus');
+        const r = { id: this.s.reponseSuivante++, titre, texte, usages: 0, maj: new Date().toISOString(), par: quiNom };
+        this.s.reponses.push(r);
+        this.s.sauverReponses();
+        this.noter(quiNom, 'support.reponse.creer', `réponse ${r.id}`, { titre });
+        return a.json(res, 201, r);
+      }
+    }
+    const mR = /^\/api\/admin\/support\/reponses\/(\d{1,6})$/.exec(chemin);
+    if (mR) {
+      const r = this.s.reponse(mR[1]);
+      if (!r) return a.erreur(res, 404, 'réponse type inconnue');
+      if (methode === 'POST') {
+        const d = await a.lireJson(req);
+        const titre = String(d.titre || '').replace(/\p{Cc}/gu, ' ').trim().slice(0, 80), texte = texteBorne(d.texte);
+        if (!titre || !texte) return a.erreur(res, 400, 'titre et texte attendus');
+        Object.assign(r, { titre, texte, maj: new Date().toISOString(), par: quiNom });
+        this.s.sauverReponses();
+        this.noter(quiNom, 'support.reponse.modifier', `réponse ${r.id}`, { titre });
+        return a.json(res, 200, r);
+      }
+      if (methode === 'DELETE') {
+        this.s.reponses = this.s.reponses.filter(x => x !== r);
+        this.s.sauverReponses();
+        this.noter(quiNom, 'support.reponse.supprimer', `réponse ${r.id}`, { titre: r.titre });
+        return a.json(res, 200, { ok: true });
+      }
     }
 
     if (methode === 'GET' && chemin === '/api/admin/support/equipe') {
@@ -443,4 +589,4 @@ class RoutesSupport {
   }
 }
 
-module.exports = { Support, RoutesSupport, STATUTS, GRAVITES };
+module.exports = { Support, RoutesSupport, STATUTS, GRAVITES, VARIABLES };

@@ -327,3 +327,89 @@ test('support : demandes, accès ouvert par le propriétaire, diagnostics, trans
     await attendre(10);
   });
 });
+
+test('support : réponses types (variables, usages) et relances programmées', async t => {
+  const donnees = fs.mkdtempSync(path.join(os.tmpdir(), 'terrarium-relances-'));
+  const pushes = [];
+  const s = await demarrerServeur({ port: 0, portMqtt: 0, donnees, adminJeton: ADMIN, journal: () => {},
+    envoyerPush: async (abonnement, charge) => { pushes.push(JSON.parse(charge)); }, antiSpamMs: 1, echeancesMs: 100 });
+  const P = s.port;
+  let socle = null;
+  t.after(async () => { if (socle) socle.client.end(true); await s.arreter(); });
+
+  const app = await appel(P, 'POST', '/api/admin/appareils', { id: 'terraR3P0N5' }, ADMIN);
+  socle = await socleFactice(s.portMqtt, 'terraR3P0N5', app.donnees.motDePasse, 'CODEDAPPAIRAGERELANCE001');
+  await attendreQue(() => s.broker.flotte.terraR3P0N5 && s.broker.flotte.terraR3P0N5.sante);
+  await appel(P, 'POST', '/api/admin/utilisateurs', { login: 'claire@exemple.fr', motDePasse: 'mot-de-passe-claire' }, ADMIN);
+  await appel(P, 'POST', '/api/admin/socles/terraR3P0N5/proprietaires', { login: 'claire@exemple.fr' }, ADMIN);
+  const J = (await appel(P, 'POST', '/api/session', { login: 'claire@exemple.fr', motDePasse: 'mot-de-passe-claire' })).donnees.jeton;
+  await appel(P, 'POST', '/api/push/abonnement', { abonnement: { endpoint: 'https://push.exemple/claire', keys: { p256dh: 'x', auth: 'y' } } }, J);
+  assert.equal((await appel(P, 'POST', '/api/moi/noms', { noms: { terraR3P0N5: 'Terrarium du salon' } }, J)).status, 200);
+  // La sonde de la zone fraîche lâche : le serveur note le défaut (frise, variables).
+  socle.client.publish('terrarium/terraR3P0N5/zone2/etat', JSON.stringify({ temp: -127, consigne: 26, defaut: '1', defaut_libelle: 'SONDE', nom: 'Frais' }));
+  await attendreQue(() => s.evenements.lire('terraR3P0N5').some(e => e.type === 'defaut'));
+  const dm = (await appel(P, 'POST', '/api/support/demandes', { socle: 'terraR3P0N5', texte: 'Plus rien côté frais.' }, J)).donnees;
+
+  // Les réponses types de départ, et les variables tirées de la demande.
+  const rep = await appel(P, 'GET', '/api/admin/support/reponses', undefined, ADMIN);
+  assert.equal(rep.status, 200);
+  assert.ok(rep.donnees.reponses.length >= 5 && rep.donnees.variables.includes('heure_défaut'));
+  const v = (await appel(P, 'GET', `/api/admin/support/demandes/${dm.n}/variables`, undefined, ADMIN)).donnees.variables;
+  assert.equal(v.terrarium, 'Terrarium du salon');
+  assert.equal(v['référence'], 'terraR3P0N5');
+  assert.equal(v.zone, 'Frais');
+  assert.equal(v['défaut'], 'SONDE');
+  assert.match(v.heure_défaut, /^\d{2}:\d{2}$/);
+  assert.equal(v.version, '3.5.0');
+  assert.equal(v.signal, '-60');
+  assert.equal(v['fin_accès'], undefined, 'pas d\'accès ouvert : variable laissée à compléter');
+
+  // Créer, modifier, supprimer ; un envoi qui part d'un modèle le compte.
+  const cree = await appel(P, 'POST', '/api/admin/support/reponses', { titre: 'Essai', texte: 'Bonjour, « {terrarium} » va mieux ?' }, ADMIN);
+  assert.equal(cree.status, 201);
+  assert.equal((await appel(P, 'POST', `/api/admin/support/reponses/${cree.donnees.id}`, { titre: 'Essai 2', texte: 'Re-bonjour' }, ADMIN)).donnees.titre, 'Essai 2');
+  assert.equal((await appel(P, 'POST', '/api/admin/support/reponses', { titre: '', texte: 'x' }, ADMIN)).status, 400);
+  assert.equal((await appel(P, 'DELETE', `/api/admin/support/reponses/${cree.donnees.id}`, undefined, ADMIN)).status, 200);
+  assert.equal((await appel(P, 'DELETE', `/api/admin/support/reponses/${cree.donnees.id}`, undefined, ADMIN)).status, 404);
+  const sonde = rep.donnees.reponses.find(r => /Sonde muette/.test(r.titre));
+  await appel(P, 'POST', `/api/admin/support/demandes/${dm.n}/messages`, { texte: 'Bonjour, la sonde ne répond plus.', modele: sonde.id }, ADMIN);
+  const apres = (await appel(P, 'GET', '/api/admin/support/reponses', undefined, ADMIN)).donnees.reponses;
+  assert.equal(apres.find(r => r.id === sonde.id).usages, 1);
+  assert.ok(fs.existsSync(path.join(donnees, 'support', 'reponses.json')));
+
+  // Relances : une date passée est refusée ; un message prévu part à l'échéance.
+  const R = `/api/admin/support/demandes/${dm.n}/relance`;
+  assert.equal((await appel(P, 'POST', R, { quand: new Date(Date.now() - 60000).toISOString(), texte: 'x' }, ADMIN)).status, 400);
+  assert.equal((await appel(P, 'POST', R, { quand: new Date(Date.now() + 60000).toISOString(), message: true, texte: '' }, ADMIN)).status, 400);
+  const p1 = await appel(P, 'POST', R, { quand: new Date(Date.now() + 400).toISOString(), message: true, texte: 'Tu as pu regarder la sonde ?' }, ADMIN);
+  assert.equal(p1.status, 200);
+  assert.equal(p1.donnees.relance.due, false);
+  const pushesAvant = pushes.length;
+  await attendreQue(() => s.support.demande(dm.n).relance === null, 3000);
+  const vueClient = (await appel(P, 'GET', '/api/support/demandes', undefined, J)).donnees.demandes.find(x => x.n === dm.n);
+  assert.equal(vueClient.messages[vueClient.messages.length - 1].texte, 'Tu as pu regarder la sonde ?');
+  await attendreQue(() => pushes.length > pushesAvant);
+
+  // Le client répond avant l'échéance : rien ne part, le rappel reste à l'équipe.
+  await appel(P, 'POST', R, { quand: new Date(Date.now() + 400).toISOString(), message: true, texte: 'Toujours rien ?' }, ADMIN);
+  await appel(P, 'POST', `/api/support/demandes/${dm.n}/messages`, { texte: 'Je regarde ce soir.' }, J);
+  const nbMessages = s.support.demande(dm.n).messages.length;
+  await attendre(700);
+  const ligne = (await appel(P, 'GET', `/api/admin/support/demandes/${dm.n}`, undefined, ADMIN)).donnees;
+  assert.equal(ligne.messages.length, nbMessages, 'aucun message automatique après la réponse du client');
+  assert.equal(ligne.relance.message, false);
+  assert.ok(ligne.relance.repondu && ligne.relance.due);
+  assert.equal((await appel(P, 'GET', '/api/admin/tableau', undefined, ADMIN)).donnees.support.relancesDues, 1);
+  assert.equal((await appel(P, 'DELETE', R, undefined, ADMIN)).donnees.relance, null);
+
+  // Une demande résolue entre-temps : la relance est abandonnée.
+  await appel(P, 'POST', R, { quand: new Date(Date.now() + 300).toISOString(), message: true, texte: 'Et maintenant ?' }, ADMIN);
+  await appel(P, 'POST', `/api/admin/support/demandes/${dm.n}`, { statut: 'résolue' }, ADMIN);
+  const n2 = s.support.demande(dm.n).messages.length;
+  await attendreQue(() => s.support.demande(dm.n).relance === null, 3000);
+  assert.equal(s.support.demande(dm.n).messages.length, n2);
+  const journal = (await appel(P, 'GET', '/api/admin/audit?limite=200', undefined, ADMIN)).donnees;
+  const actions = (journal.lignes || journal.entrees || journal.journal || []).map(e => e.action);
+  for (const a of ['support.reponse.creer', 'support.reponse.modifier', 'support.reponse.supprimer', 'support.relance.programmer', 'support.relance.envoyee', 'support.relance.annuler', 'support.relance.abandonnee'])
+    assert.ok(actions.includes(a), `journal : ${a}`);
+});

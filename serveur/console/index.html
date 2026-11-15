@@ -106,8 +106,23 @@
         <button type="button" data-filtre="résolue" aria-pressed="false">Résolues</button>
         <button type="button" data-filtre="toutes" aria-pressed="false">Toutes</button>
       </div>
+      <button type="button" class="btn btn-secondaire btn-petit" data-action="reponses-types" aria-controls="panneau-reponses" aria-expanded="false">Réponses types</button>
       <button type="button" class="btn btn-petit" data-action="nouvelle-demande" aria-controls="form-nouvelle-demande" aria-expanded="false">Nouvelle demande</button>
     </div>
+    <section id="panneau-reponses" class="carte" aria-labelledby="t-reponses" hidden>
+      <h3 id="t-reponses">Réponses types</h3>
+      <p class="aide" id="rt-aide">Elles s'insèrent depuis la fiche d'une demande. Variables : <span id="rt-variables"></span>. Ton simple, tutoiement, une idée par phrase.</p>
+      <ul id="liste-reponses" class="liste-actions"></ul>
+      <form id="form-reponse" class="formulaire-ligne" novalidate>
+        <h4 id="rt-titre-form">Nouvelle réponse type</h4>
+        <input type="hidden" id="rt-id">
+        <label for="rt-titre">Titre</label>
+        <input id="rt-titre" maxlength="80" required>
+        <label for="rt-texte">Texte</label>
+        <textarea id="rt-texte" rows="4" required aria-describedby="rt-aide"></textarea>
+        <div class="boutons"><button type="submit" class="btn btn-petit">Enregistrer</button><button type="button" class="btn btn-fantome btn-petit" data-action="reponse-vider">Vider</button></div>
+      </form>
+    </section>
     <form id="form-nouvelle-demande" class="carte formulaire-ligne" novalidate hidden>
       <h3>Écrire à un client, à propos d'un socle</h3>
       <div class="champs">

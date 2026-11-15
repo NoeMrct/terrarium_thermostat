@@ -232,6 +232,7 @@ async function demarrerServeur(surcharge = {}) {
   // Accès support échus : la clé quitte le disque (le socle, lui, la refuse déjà).
   const echeances = setInterval(() => {
     for (const id of support.purgerAcces()) audit.noter({ qui: 'serveur', action: 'support.acces.echu', cible: id });
+    api.routesSupport.traiterRelances();
   }, o.echeancesMs || 60000);
   echeances.unref();
   // Carnet du mois : vérifié toutes les heures, envoyé le 1er à partir de 8 h.

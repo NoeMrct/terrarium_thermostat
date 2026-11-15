@@ -177,6 +177,23 @@ est en défaut à l'ouverture) et un responsable ; la file met les urgentes et
 les plus anciennes en tête. Les **notes internes** ne sont jamais montrées au
 client, ni le nom de qui a répondu.
 
+**Réponses types** (console : « Réponses types » dans l'onglet Support, et
+« Insérer une réponse type » dans la fiche d'une demande) : textes partagés par
+l'équipe, classés par usage, avec des variables remplies par la demande
+ouverte — `{terrarium}` (le nom que le propriétaire a donné au socle),
+`{référence}`, `{zone}` et `{défaut}` (zone en défaut), `{heure_défaut}` (tirée
+de la frise), `{fin_accès}`, `{version}`, `{signal}`. Une variable que le
+serveur ne connaît pas reste entre accolades, à compléter avant l'envoi. Six
+réponses de départ (accès, sonde muette, Wi-Fi faible, mise à jour, fin
+d'intervention…), modifiables (`donnees/support/reponses.json`).
+
+**Relances** : une par demande, à une date choisie (raccourcis « dans 2 h »,
+« demain 10:00 », « dans 48 h »), 90 jours au plus. Un rappel pour l'équipe
+s'affiche « à faire » à l'échéance (fiche, file, tuile du tableau de bord)
+jusqu'à ce qu'on le retire ; un message au client part à l'échéance (et le
+client est notifié), sauf s'il a répondu entre-temps — la relance redevient
+alors un rappel pour l'équipe — ou si la demande est close.
+
 **L'accès au socle**, ouvert par le propriétaire seul : l'application tire une
 clé de session (32 octets), l'envoie au socle (`service ouvrir`, signée avec le
 code d'appairage, que le serveur ne voit jamais), puis la remet au serveur, qui
@@ -212,7 +229,9 @@ Routes du propriétaire (session) : `GET|POST /api/support/acces`,
 `DELETE /api/support/acces/:id`, `POST /api/support/acces/:id/refuser`,
 `GET|POST /api/support/demandes`, `POST /api/support/demandes/:n/messages`.
 De l'équipe (`/api/admin/support/…`) : `GET|POST demandes`, `GET|POST
-demandes/:n`, `POST demandes/:n/messages|notes|demander-acces`, `GET equipe`,
+demandes/:n`, `POST demandes/:n/messages {texte, modele?}|notes|demander-acces`,
+`GET demandes/:n/variables`, `POST|DELETE demandes/:n/relance {quand, texte,
+message}`, `GET|POST reponses`, `POST|DELETE reponses/:id`, `GET equipe`,
 `GET acces`, `GET acces/:id`, `POST acces/:id/commande|prolonger|fermer|copie`,
 `POST acces/:id/remettre {confirmation}`, `POST transferer {de, vers,
 confirmation}` ; et `GET /api/admin/socles/:id/frise`.
@@ -286,7 +305,8 @@ donnees/
   rapports/<date>-<login>.txt       diagnostics envoyés par l'application
   audit/AAAA-MM.ndjson              journal d'audit chaîné, 12 mois
   support/acces.json                accès ouverts (clés de session, 0600, effacées à l'échéance)
-  support/demandes.json             demandes, messages et notes internes
+  support/demandes.json             demandes, messages, notes internes et relances
+  support/reponses.json             réponses types de l'équipe
   evenements/<id>/AAAA-MM.ndjson    ce que chaque socle a vécu (frise, alertes)
 ```
 
