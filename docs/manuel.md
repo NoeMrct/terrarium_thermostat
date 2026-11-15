@@ -90,18 +90,27 @@ thermomètre infrarouge avant d'installer un animal.
 
 ## 6. Appairer dans l'application
 
-À la première ouverture, l'application accueille : **Se connecter à mon serveur**, **Essayer la
-démo**, ou **Sans serveur, chez moi seulement**, qui explique la page locale du socle.
+À la première ouverture, l'application accueille : **Se connecter**, **Essayer la démo**, ou
+**Sans Internet, chez moi seulement**, qui explique la page locale du socle.
+
+Ce manuel est la notice technique (support, atelier, montage soi-même) ; l'application sert aux
+utilisateurs un guide plus court, `docs/guide.md`. Elle ne leur montre rien de technique : la santé
+du socle, le bloc d'alimentation, l'alerte de test et les outils de l'onglet **Service** ne
+paraissent que pour un compte de l'équipe (support ou administrateur du serveur) ou une connexion
+directe au broker.
 
 Pour se connecter, deux cas :
 
-- **Un serveur Terrariums** : son adresse `https://…` suffit. Donne ton adresse e-mail, recopie le
+- **Un serveur Terrariums** : quand l'application connaît son serveur (balise
+  `terrarium-serveur` de `index.html`, ou serveur qui la sert), « Se connecter » mène droit au
+  compte ; sinon, son adresse `https://…` suffit. Donne ton adresse e-mail, recopie le
   code à six chiffres reçu (valable dix minutes) : le compte s'ouvre, sans mot de passe. L'application
   propose ensuite une **clé d'accès** (passkey) : les fois suivantes, un geste suffit (empreinte,
   visage ou code du téléphone), sans e-mail. **Ton compte** (en tête des **Réglages de l'application**) liste les
   clés, exporte les données du compte et le supprime.
-- **Un broker MQTT** : son adresse `wss://…:8884/mqtt`, l'identifiant et le mot de passe qu'il t'a
-  donnés ; **Tester la connexion** dit tout de suite si c'est bon.
+- **Un broker MQTT** (support, développement) : à l'adresse `#/technique` de l'application, son
+  adresse `wss://…:8884/mqtt`, l'identifiant et le mot de passe qu'il t'a donnés ; **Tester la
+  connexion** dit tout de suite si c'est bon.
 
 Le bouton **+** lance l'**installation d'un socle**, en trois étapes :
 
@@ -124,8 +133,7 @@ Partager → Sur l'écran d'accueil sur iPhone). Elle fonctionne alors hors lign
 interface, et se met à jour toute seule en proposant « Recharger ».
 
 Sous la liste des socles, **Réglages de l'application** rassemble le compte, la langue, le thème
-(clair, sombre, ou celui du téléphone), la configuration de l'appli, le code de verrouillage, l'aide
-et le diagnostic. **Organiser mes socles** y range la liste : ordre (flèches), noms, **groupes**
+(clair, sombre, ou celui du téléphone), le code de verrouillage et l'aide. **Organiser mes socles** y range la liste : ordre (flèches), noms, **groupes**
 (« Maison », « Élevage »…, un socle descendu en fin de groupe passe dans le suivant), **vue
 compacte** (une ligne par socle et ses deux températures, pour qui en a beaucoup) et **actions
 groupées** : entretien de 30 minutes ou levée des défauts sur tous les socles cochés, avec le compte
@@ -264,11 +272,6 @@ double-clic pour revenir. **Exporter en CSV** donne le fichier pour un tableur.
 Les statistiques sur 24 h (min, max, moyenne, part du temps hors plage, heures de chauffe, kWh)
 disent si un terrarium **tient** ses valeurs, pas seulement s'il les atteint.
 
-La rubrique **Consommation** additionne ce que le socle a chauffé depuis le 1er du mois, en kWh et
-en euros, avec une projection sur le mois et sur l'année, les barres de chaque jour (aujourd'hui en
-gris, en cours) et le détail par tapis. Le prix du kWh se règle en bas de l'écran : c'est celui de
-ton contrat. Le socle lui-même (carte, écran) compte pour une estimation fixe d'un demi-watt.
-
 La rubrique **Journal** raconte ce qui s'est passé, jour par jour : alertes et retours à la
 normale, réglages modifiés (depuis l'application ou la page locale), passages en jour et en nuit,
 coupures de courant, accès du support, mises à jour. Filtres **Alertes**, **Réglages** et **Socle**.
@@ -332,9 +335,6 @@ Le socle garde ses derniers événements ; les plus anciens s'effacent d'eux-mê
   sur la cible n'est pas touchée ; « Annuler » remet tout comme avant. **Exporter** écrit les
   réglages d'un socle dans un fichier chiffré par un mot de passe (introuvable si on l'oublie) ;
   **Importer** relit ce fichier, un ancien export, ou la sauvegarde de la page locale du socle.
-- **Exporter la configuration de l'appli** (Réglages de l'application) : l'application entière — broker et socles — pour
-  changer de téléphone. Le fichier contient les codes d'appairage et le mot de passe du broker :
-  garde-le pour toi.
 - **Redémarrer**, **Effacer l'historique** : rubrique Appareil. L'historique local de l'application est
   effacé en même temps.
 
@@ -389,16 +389,13 @@ L'arbre de décision complet est dans `docs/depannage.md`. Les trois cas les plu
 
 ## 15. Diagnostic et aide
 
-**Aide et notice** (Réglages de l'application) cherche dans cette notice, même hors ligne : tape un
-mot (« sonde », « vacances »…), chaque section qui en parle s'ouvre d'un appui. La même page mène au
-diagnostic, au dépannage, aux questions les plus fréquentes et, avec le serveur Terrariums, au
-support.
+**Aide** (Réglages de l'application) cherche dans le guide de l'utilisateur, même hors ligne : tape
+un mot (« sonde », « vacances »…), chaque section qui en parle s'ouvre d'un appui. La même page
+mène aux questions les plus fréquentes et, avec le serveur Terrariums, à la demande d'aide.
 
-**Diagnostic** (Réglages de l'application) assemble un rapport : version de
-l'application, navigateur, état du broker, pour chaque socle sa version, son signal Wi-Fi, sa
-mémoire, son dernier redémarrage, et les erreurs récentes. Il ne contient ni mot de passe ni code
-d'appairage. **Copier le rapport** et le joindre à une demande d'aide fait gagner un aller-retour ;
-avec le serveur Terrariums, **Envoyer au serveur** le dépose directement.
+Côté support, ce que montrait le diagnostic de l'application (version, signal, mémoire, dernier
+redémarrage de chaque socle) se lit dans la fiche du socle de la console et dans son rapport (onglet
+Service, compte de l'équipe).
 
 Sur le socle, la commande série `test usine` vérifie l'écran, les sondes, la mémoire, les
 partitions et le Wi-Fi en une fois (`test usine oui` actionne aussi chaque MOSFET une fraction de

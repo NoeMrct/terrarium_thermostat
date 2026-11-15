@@ -68,21 +68,22 @@ const TEXTES = {
     fichierInvalide: 'Ce fichier n\'est pas une sauvegarde de socle.',
     oui: 'Continuer',
     assistance: 'Assistance',
-    sansServeur: 'L\'assistance à distance passe par un serveur Terrariums : ce socle n\'y est pas relié.',
-    accesFerme: 'Le support n\'a pas accès à ce socle. S\'il vous le demande, autorisez-le ici : 24 h, refermable à tout moment, sans donner votre code d\'appairage.',
+    sansServeur: 'L\'assistance à distance passe par ton compte Terrariums : ce socle n\'y est pas relié.',
+    accesFerme: 'Le support n\'a pas accès à ce socle. S\'il te le demande, autorise-le ici : 24 h, refermable à tout moment.',
+    accesHorsLigne: 'Le socle doit être allumé et connecté pour ouvrir l\'accès au support.',
     accesDemande: 'Le support demande l\'accès à ce socle (demande n°{n}).',
     accesOuvert: 'Le support a accès à ce socle jusqu\'au {d}{p}.',
-    prolonge: ' (prolongé)',
-    accesAide: 'Il peut lancer des diagnostics et changer des réglages ; chaque geste est noté au journal du socle, et son écran affiche « Support connecté ».',
+    prolonge: ' (prolongé)', accesTitre: 'Accès du support',
+    accesAide: 'Il peut vérifier le socle et changer des réglages ; chaque geste est noté, et l\'écran du socle affiche « Support connecté ».',
     autoriser: 'Autoriser le support (24 h)', refuser: 'Refuser', fermerAcces: 'Fermer l\'accès',
     autoriserTitre: 'Ouvrir l\'accès au support ?',
-    autoriserTexte: 'Pendant 24 h, le support pourra diagnostiquer et régler ce socle à distance. Vous pourrez fermer l\'accès à tout moment.',
+    autoriserTexte: 'Pendant 24 h, le support pourra vérifier et régler ce socle à distance. Tu pourras fermer l\'accès à tout moment.',
     confirmFermer: 'Le support ne pourra plus agir sur ce socle.',
     ouvertOk: 'Accès ouvert pour 24 h.', fermeOk: 'Accès fermé.', refuseOk: 'Demande d\'accès refusée.',
-    demandes: 'Vos échanges avec le support', vous: 'Vous', support: 'Support', demandeN: 'Demande n°{n} — {s}',
+    demandes: 'Tes échanges avec le support', vous: 'Toi', support: 'Support', demandeN: 'Demande n°{n} — {s}',
     repondre: 'Répondre', envoyer2: 'Envoyer', envoye: 'Message envoyé.',
-    ecrire: 'Écrire au support', aideEcrire: 'Décrivez ce que vous constatez (depuis quand, quelle zone) : la réponse arrive ici, avec une notification.',
-    nouveauMessage: 'Votre message', actualiser: 'Actualiser',
+    ecrire: 'Demander de l\'aide', aideEcrire: 'Décris ce que tu constates (depuis quand, quelle zone) : la réponse arrive ici, avec une notification.',
+    nouveauMessage: 'Ton message', actualiser: 'Actualiser',
     statuts: { nouvelle: 'reçue', 'en cours': 'en cours', 'attente client': 'réponse du support', 'résolue': 'résolue' }
   },
   en: {
@@ -135,11 +136,12 @@ const TEXTES = {
     fichierInvalide: 'This file is not a base backup.',
     oui: 'Continue',
     assistance: 'Support',
-    sansServeur: 'Remote support goes through a Terrariums server: this base is not linked to one.',
-    accesFerme: 'Support has no access to this base. If they ask you, allow it here: 24 h, closable at any time, without giving your pairing code.',
+    sansServeur: 'Remote support goes through your Terrariums account: this base is not linked to one.',
+    accesFerme: 'Support has no access to this base. If they ask you, allow it here: 24 h, closable at any time.',
+    accesHorsLigne: 'The base must be on and connected to open support access.',
     accesDemande: 'Support asks for access to this base (request #{n}).',
     accesOuvert: 'Support has access to this base until {d}{p}.',
-    prolonge: ' (extended)',
+    prolonge: ' (extended)', accesTitre: 'Support access',
     accesAide: 'They can run diagnostics and change settings; every action is written in the base\'s log, and its screen shows “Support connecté”.',
     autoriser: 'Allow support (24 h)', refuser: 'Decline', fermerAcces: 'Close access',
     autoriserTitre: 'Open access to support?',
@@ -148,7 +150,7 @@ const TEXTES = {
     ouvertOk: 'Access open for 24 h.', fermeOk: 'Access closed.', refuseOk: 'Access request declined.',
     demandes: 'Your conversations with support', vous: 'You', support: 'Support', demandeN: 'Request #{n} — {s}',
     repondre: 'Reply', envoyer2: 'Send', envoye: 'Message sent.',
-    ecrire: 'Write to support', aideEcrire: 'Describe what you see (since when, which zone): the answer arrives here, with a notification.',
+    ecrire: 'Ask for help', aideEcrire: 'Describe what you see (since when, which zone): the answer arrives here, with a notification.',
     nouveauMessage: 'Your message', actualiser: 'Refresh',
     statuts: { nouvelle: 'received', 'en cours': 'in progress', 'attente client': 'support replied', 'résolue': 'solved' }
   }
@@ -367,17 +369,17 @@ export default function service(app) {
     if (!sp) return h + `<p class="aide" aria-busy="true">${tx('chargement')}</p>`;
     if (sp.erreur) return h + `<p class="aide">${esc(sp.erreur)}</p>`;
     const a = sp.acces;
+    const enLigne = !!(app.etat(id) || {}).enLigne;
     const actualiser = btn('actualiserSupport', tx('actualiser'), 'btn btn-fantome');
-    if (a.actif) {
-      h += `<p class="bandeau-ok" role="status">${tx('accesOuvert', { d: dateCourte(a.jusqua), p: a.prolonge ? tx('prolonge') : '' })}</p>
-        <p class="aide">${tx('accesAide')}</p>
-        <div class="boutons">${btn('fermerSupport', tx('fermerAcces'), 'btn btn-danger')}${actualiser}</div>`;
-    } else if (a.demandeAcces) {
-      h += `<p class="aide" role="status"><b>${tx('accesDemande', { n: a.demandeAcces.n })}</b></p>
-        <div class="boutons">${btn('autoriserSupport', tx('autoriser'), 'btn')}${btn('refuserSupport', tx('refuser'))}${actualiser}</div>`;
-    } else {
-      h += `<p class="aide">${tx('accesFerme')}</p><div class="boutons">${btn('autoriserSupport', tx('autoriser'))}${actualiser}</div>`;
-    }
+    const ouvert = sp.demandes.find(d => d.statut !== 'résolue');
+    const ecrire = `<h3 class="mt">${tx('ecrire')}</h3><p class="aide">${tx('aideEcrire')}</p>
+      <form data-form="sv-nouvelle" novalidate>
+        <label for="sv-nouvelle">${tx('nouveauMessage')}</label>
+        <textarea id="sv-nouvelle" rows="3"></textarea>
+        <div class="boutons"><button type="submit" class="btn">${tx('envoyer2')}</button></div>
+      </form>`;
+    // Rien en cours : demander de l'aide vient en premier.
+    if (!ouvert) h += ecrire;
     if (sp.demandes.length) {
       h += `<h3 class="mt">${tx('demandes')}</h3>`;
       sp.demandes.forEach((d, i) => {
@@ -391,12 +393,21 @@ export default function service(app) {
           </form></details>`;
       });
     }
-    h += `<h3 class="mt">${tx('ecrire')}</h3><p class="aide">${tx('aideEcrire')}</p>
-      <form data-form="sv-nouvelle" novalidate>
-        <label for="sv-nouvelle">${tx('nouveauMessage')}</label>
-        <textarea id="sv-nouvelle" rows="3"></textarea>
-        <div class="boutons"><button type="submit" class="btn btn-secondaire">${tx('envoyer2')}</button></div>
-      </form>`;
+    // L'accès du support : ouvert, demandé ou fermé ; il faut le socle en ligne pour l'ouvrir.
+    h += `<h3 class="mt">${tx('accesTitre')}</h3>`;
+    if (a.actif) {
+      h += `<p class="bandeau-ok" role="status">${tx('accesOuvert', { d: dateCourte(a.jusqua), p: a.prolonge ? tx('prolonge') : '' })}</p>
+        <p class="aide">${tx('accesAide')}</p>
+        <div class="boutons">${btn('fermerSupport', tx('fermerAcces'), 'btn btn-danger')}${actualiser}</div>`;
+    } else if (a.demandeAcces) {
+      h += `<p class="aide" role="status"><b>${tx('accesDemande', { n: a.demandeAcces.n })}</b></p>
+        ${enLigne ? `<div class="boutons">${btn('autoriserSupport', tx('autoriser'), 'btn')}${btn('refuserSupport', tx('refuser'))}${actualiser}</div>`
+          : `<p class="aide">${tx('accesHorsLigne')}</p><div class="boutons">${btn('refuserSupport', tx('refuser'))}${actualiser}</div>`}`;
+    } else {
+      h += `<p class="aide">${tx(enLigne ? 'accesFerme' : 'accesHorsLigne')}</p><div class="boutons">${enLigne ? btn('autoriserSupport', tx('autoriser')) : ''}${actualiser}</div>`;
+    }
+    // Une demande en cours : écrire une nouvelle demande reste possible, plus bas.
+    if (ouvert) h += ecrire;
     return h;
   }
 
@@ -404,19 +415,30 @@ export default function service(app) {
   const CARTES = [['support', carteSupport], ['sondes', carteSondes], ['essai', carteEssai], ['surv', carteSurveillance],
                   ['alim', carteAlim], ['rapport', carteRapport], ['journal', carteJournal], ['jours', carteJours], ['sauv', carteSauvegarde]];
 
+  // Un client ne voit que l'assistance (demander de l'aide, ouvrir l'accès au
+  // support) ; le reste — sondes, essai, surveillance, alimentation, rapport,
+  // journal, sauvegarde — est réservé à l'équipe (compte support ou admin).
+  const cartes = () => (app.equipe() ? CARTES : CARTES.filter(([cle]) => cle === 'support'));
+
   function peindreTout() {
     const id = app.socleOuvert();
     const racine = app.racine();
     if (!id || !racine || !app.ouvert()) return;
     const e = app.etat(id) || {};
-    if (!(e.proto >= 4) || !e.enLigne) return;
-    CARTES.forEach(([cle, f]) => app.peindre(racine.querySelector(`[data-sv-carte="${cle}"]`), f(id, e)));
-    suivre(id);
+    if (app.equipe() && (!(e.proto >= 4) || !e.enLigne)) return;
+    cartes().forEach(([cle, f]) => app.peindre(racine.querySelector(`[data-sv-carte="${cle}"]`), f(id, e)));
+    if (app.equipe()) suivre(id);
   }
 
   return {
     // L'ossature de l'onglet ; les cartes se remplissent ensuite.
     structure(s, e) {
+      // Un client demande de l'aide même socle éteint : c'est le serveur qui répond.
+      if (!app.equipe()) {
+        const d = m(s.id);
+        if (!d.supportLu || Date.now() - d.supportLu > 20000) chargerSupport(s.id);
+        return '<section class="carte" data-sv-carte="support"></section>';
+      }
       if (!e.enLigne) return `<section class="carte"><p class="aide">${tx('horsLigne')}</p></section>`;
       if (!(e.proto >= 4)) return `<section class="carte"><p class="aide">${tx('protoAncien')}</p></section>`;
       const d = m(s.id);

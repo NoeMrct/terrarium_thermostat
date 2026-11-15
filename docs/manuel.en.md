@@ -91,18 +91,26 @@ Check with an infrared thermometer before putting an animal in.
 
 ## 6. Pairing in the app
 
-At first launch, the app welcomes you: **Connect to my server**, **Try the demo**, or **No server, at
-home only**, which explains the base's local page.
+At first launch, the app welcomes you: **Sign in**, **Try the demo**, or **No internet, at home
+only**, which explains the base's local page.
+
+This manual is the technical reference (support, workshop, self-assembly); the app serves users a
+shorter guide, `docs/guide.en.md`. It shows them nothing technical: base health, the power supply
+block, the test alert and the **Service** tab tools only appear for a team account (support or
+server administrator) or a direct broker connection.
 
 To connect, two cases:
 
-- **A Terrariums server**: its `https://…` address is enough. Enter your e-mail address, type the
+- **A Terrariums server**: when the app knows its server (`terrarium-serveur` tag in
+  `index.html`, or the server serving it), "Sign in" goes straight to the account; otherwise, its
+  `https://…` address is enough. Enter your e-mail address, type the
   six-digit code you receive (valid ten minutes): the account opens, with no password. The app then
   offers a **passkey**: next time, one gesture is enough (fingerprint, face or phone PIN), no e-mail.
   **Your account** (at the top of the **App settings**) lists the passkeys, exports the account data and deletes
   the account.
-- **An MQTT broker**: its `wss://…:8884/mqtt` address, the username and password it gave you;
-  **Test the connection** tells you right away whether it works.
+- **An MQTT broker** (support, development): at the app's `#/technique` address, its
+  `wss://…:8884/mqtt` address, the username and password it gave you; **Test the connection**
+  tells you right away whether it works.
 
 The **+** button starts **installing a base**, in three steps:
 
@@ -124,7 +132,7 @@ Home Screen on iPhone). It then works offline for its interface part, and update
 offering "Reload".
 
 Below the base list, **App settings** gathers the account, the language, the theme (light, dark,
-or the phone's), the app configuration, the lock code, help and diagnostics. **Organise my bases**
+or the phone's), the lock code and help. **Organise my bases**
 tidies the list: order (arrows), names, **groups** ("Home", "Breeding"…; a base moved down past the
 end of a group joins the next one), **compact view** (one line per base with its two temperatures,
 for those who have many) and **group actions**: 30-minute maintenance or clearing faults on every
@@ -320,8 +328,6 @@ erased on their own.
   untouched; "Cancel" puts everything back. **Export** writes a base's settings to a file encrypted
   with a password (lost if forgotten); **Import** reads that file, an older export, or the backup of
   the base's local page.
-- **Export the app configuration** (App settings): the whole app — broker and bases — to change
-  phones. The file contains the pairing codes and the broker password: keep it to yourself.
 - **Restart**, **Erase history**: Device section. The app's local history is erased at the same time.
 
 ## 12. Updating
@@ -375,15 +381,12 @@ The full decision tree is in `docs/depannage.md`. The three most frequent cases:
 
 ## 15. Diagnostics and help
 
-**Help and manual** (App settings) searches this manual, even offline: type a word ("probe",
-"holiday"…), each section that mentions it opens in one tap. The same page leads to diagnostics,
-troubleshooting, the most frequent questions and, with the Terrariums server, to support.
+**Help** (App settings) searches the user guide, even offline: type a word ("probe", "holiday"…),
+each section that mentions it opens in one tap. The same page leads to the most frequent questions
+and, with the Terrariums server, to asking for help.
 
-**Diagnostics** (App settings) assembles a report: app version,
-browser, broker state, and for each base its version, its Wi-Fi signal, its memory, its last
-restart, and the recent errors. It contains no password and no pairing code. **Copy the report**
-and attach it to a support request saves a round trip; with the Terrariums server, **Send to
-the server** files it directly.
+On the support side, what the app diagnostics used to show (version, signal, memory, last restart
+of each base) is in the base's sheet in the console and in its report (Service tab, team account).
 
 On the base, the serial command `test usine` checks the screen, the probes, the memory, the
 partitions and Wi-Fi in one go (`test usine oui` also drives each MOSFET for a fraction of a

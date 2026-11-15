@@ -53,13 +53,12 @@ const EMAIL = 'noe@exemple.fr';
   const connecte = () => page.waitForFunction(() => document.querySelector('#lien') && document.querySelector('#lien').textContent === 'connecté', null, { timeout: 10000 }).then(() => true, () => false);
 
   try {
-    titre('Adresse du serveur, puis e-mail et code');
+    titre('« Se connecter » : droit au compte, e-mail et code');
     await page.goto(base + '/');
+    await page.waitForTimeout(400);           // le serveur qui sert l'application est reconnu
     await page.click('[data-action="accueil"][data-etape="connexion"]');
-    await page.fill('#b-url', base);
-    await page.click('#form-broker [type="submit"]');
     await page.waitForSelector('#form-compte:not([hidden])', { timeout: 5000 }).catch(() => {});
-    v('une adresse https (ici http local) de serveur mène à la connexion par e-mail', await visible('#form-compte') && !(await visible('#form-broker')));
+    v('servie par le serveur, l\'application mène droit à la connexion par e-mail, sans adresse à taper', await visible('#form-compte') && !(await visible('#form-broker')));
     v('le serveur est nommé, la clé d\'accès proposée (navigateur compatible)', (await page.textContent('#compte-serveur')).includes(`localhost:${s.port}`) && await visible('#btn-cle-acces'));
     await page.fill('#c-email', 'pas-une-adresse');
     await page.click('[data-etape-compte="email"] [type="submit"]');
@@ -141,8 +140,6 @@ const EMAIL = 'noe@exemple.fr';
       v('l\'adresse oublie aussitôt le lien (code compris)', !p2.url().includes('#i/'), p2.url());
       v('l\'accueil annonce l\'invitation', /Invitation reçue/.test(await p2.textContent('#bienvenue-etiquette').catch(() => '')));
       await p2.click('[data-action="accueil"][data-etape="connexion"]');
-      await p2.fill('#b-url', base);
-      await p2.click('#form-broker [type="submit"]');
       await p2.waitForSelector('#form-compte:not([hidden])', { timeout: 5000 }).catch(() => {});
       await p2.fill('#c-email', INVITE);
       await p2.click('[data-etape-compte="email"] [type="submit"]');
@@ -186,8 +183,8 @@ const EMAIL = 'noe@exemple.fr';
 
     titre('Mon compte : clés, export');
     await page.click('#vue-liste [data-action="reglagesApp"]');
-    v('les réglages ouvrent sur la carte du compte', await visible('#btn-mon-compte') && (await page.textContent('#btn-mon-compte')).includes(EMAIL)
-      && (await page.textContent('#broker-hote')).includes(EMAIL));
+    v('les réglages ouvrent sur la carte du compte, sans section technique de connexion', await visible('#btn-mon-compte')
+      && (await page.textContent('#btn-mon-compte')).includes(EMAIL) && !(await page.$('#broker-hote')));
     await page.click('#btn-mon-compte');
     await page.waitForSelector('#dlg-compte[open]', { timeout: 5000 }).catch(() => {});
     v('« Mon compte » liste la clé avec son appareil', (await page.textContent('#dlg-compte')).includes('Clé d\'accès — Linux'));
@@ -202,8 +199,6 @@ const EMAIL = 'noe@exemple.fr';
     v('déconnecté : retour à l\'accueil, plus de broker', await visible('#bienvenue') && !(await config()).broker);
     v('la session est fermée sur le serveur', (await fetch(base + '/api/moi', { headers: { Authorization: 'Bearer ' + c1.serveur.jeton } })).status === 401);
     await page.click('[data-action="accueil"][data-etape="connexion"]');
-    await page.fill('#b-url', base);
-    await page.click('#form-broker [type="submit"]');
     await page.waitForSelector('#btn-cle-acces:not([hidden])', { timeout: 5000 }).catch(() => {});
     await page.click('#btn-cle-acces');
     v('connecté par la clé d\'accès, sans code', await connecte() && await visible('#vue-liste'), (await page.textContent('#compte-erreur').catch(() => '')).slice(0, 60));

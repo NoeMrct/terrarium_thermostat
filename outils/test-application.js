@@ -807,8 +807,7 @@ function creerApp(adressePage, avantChargement) {
     await App.reglerGeneraux();
     verifier('le soleil sans position est refusé par le socle', await jusqua(() => /Position inconnue/.test(texte('#message')), 4000), texte('#message').slice(0, 50));
     App.panneau('general');
-    verifier('prix, écran, LED et rapport sont dans Appareil', await jusqua(() => !!$('#gPK') && !!$('#gEN') && !!$('#gRH'), 6000));
-    $('#gPK').value = '0,2516';
+    verifier('écran, LED et rapport sont dans Appareil (plus de prix du kWh)', await jusqua(() => !$('#gPK') && !!$('#gEN') && !!$('#gRH'), 6000));
     $('#gEN').value = '2';
     $('#gRH').value = '21:30';
     await App.reglerGeneraux();
@@ -821,9 +820,9 @@ function creerApp(adressePage, avantChargement) {
     await jusqua(() => /enregistr/i.test(texte('#message')), 4000);
     App.panneau('etat');          // les feuilles se reconstruisent d'après la réponse du socle
     App.panneau('general');
-    verifier('prix, écran et heure du rapport enregistrés',
-             await jusqua(() => !!$('#gPK') && $('#gPK').value === '0.2516' && $('#gEN').value === '2' && $('#gRH').value === '21:30', 6000),
-             $('#gPK') ? `${$('#gPK').value} ${$('#gEN').value} ${$('#gRH').value}` : '');
+    verifier('écran et heure du rapport enregistrés',
+             await jusqua(() => !!$('#gEN') && $('#gEN').value === '2' && $('#gRH').value === '21:30', 6000),
+             $('#gEN') ? `${$('#gEN').value} ${$('#gRH').value}` : '');
     App.panneau('securite');
     verifier('zone prioritaire enregistrée', await jusqua(() => !!$('#gZP') && $('#gZP').value === '1', 6000));
     App.panneau('etat');
@@ -874,7 +873,7 @@ function creerApp(adressePage, avantChargement) {
     App.panneau('etat');
   }
 
-  titre('23 bis. Journal du socle et consommation (F4, F3)');
+  titre('23 bis. Journal du socle (F4)');
   {
     App.ouvrir(ID);
     App.panneau('journal');
@@ -889,19 +888,8 @@ function creerApp(adressePage, avantChargement) {
              await jusqua(() => det().includes('Trop chaud') && !det().includes('Passage en jour'), 2000) &&
              $('[data-filtre="alertes"]').getAttribute('aria-pressed') === 'true');
     $('[data-action="filtreJournal"][data-filtre="tout"]').click();
-    App.panneau('conso');
-    verifier('la consommation du mois et sa projection s\'affichent',
-             await jusqua(() => /Depuis le 1er/.test(det()) && det().includes('kWh') && /Environ .* sur un an/.test(det()), 6000), det().slice(0, 90));
-    verifier('…le détail par tapis et le socle lui-même', det().includes('Tapis 1') && det().includes('Le socle lui-même'));
-    verifier('…le rapport d\'hier, tiré du dernier résumé', det().includes('Rapport d\'hier') && /Chauffe 5 h 12/.test(det()), det().match(/Chauffe[^.]*/) && det().match(/Chauffe[^.]*/)[0]);
-    $('#co-prix').value = '0,30';
-    $('#co-prix').closest('form').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
-    verifier('le prix du kWh s\'enregistre sur le socle',
-             await jusqua(() => texte('#message').includes('Prix du kWh enregistré'), 4000), texte('#message'));
-    $('#co-prix').value = '9';
-    $('#co-prix').closest('form').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
-    await attendre(100);
-    verifier('…un prix aberrant est refusé dans l\'application', texte('#message').includes('Prix invalide'), texte('#message'));
+    // La rubrique Consommation n'existe plus : un prix du kWh n'a pas de sens avec un contrat dynamique.
+    verifier('plus de rubrique Consommation', !$('.rubrique[data-nom="conso"]') && !$('#co-prix'));
     App.panneau('etat');
   }
 

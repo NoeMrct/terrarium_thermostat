@@ -13,8 +13,9 @@ sait dire quand quelque chose ne va pas.
 
 **Pour voir l'interface tout de suite** : ouvre `app/demo.html` d'un
 double-clic. Aucun serveur, aucun matériel — l'application réelle avec un socle
-simulé dans la page. Le guide complet est dans `INSTALLATION.md` ; le manuel
-d'utilisation, dans `docs/manuel.md` (servi par l'application sous « Aide »).
+simulé dans la page. Le guide complet est dans `INSTALLATION.md` ; la notice
+technique, dans `docs/manuel.md` ; le guide de l'utilisateur, servi par
+l'application sous « Aide », dans `docs/guide.md`.
 Pour flasher une carte sans IDE : la page « Flasher un socle » du site.
 
 ---
@@ -1035,7 +1036,7 @@ défaut.
 | `app/mqtt.js` | Client MQTT sur WebSocket, écrit pour l'application : quelques kilo-octets au lieu d'une bibliothèque |
 | `app/icones/` | Icônes PNG de l'application installée — **fichiers générés**, voir `outils/generer-icones.js` |
 | `app/demo.html` | Démonstration autonome, ouvrable d'un double-clic — **fichier généré**, voir `outils/construire-demo.js` |
-| `app/aide.html`, `app/aide.en.html` | Le manuel en français et en anglais, servi par l'application — **fichiers générés** depuis `docs/manuel.md` et `docs/manuel.en.md`, voir `outils/construire-aide.js` |
+| `app/aide.html`, `app/aide.en.html` | Le guide de l'utilisateur en français et en anglais, servi par l'application — **fichiers générés** depuis `docs/guide.md` et `docs/guide.en.md`, voir `outils/construire-aide.js` (la notice technique `docs/manuel.md` n'est pas servie) |
 | `app/demarrage-rapide.html` | Fiche de démarrage rapide imprimable (recto français, verso anglais), aussi en PDF dans chaque release |
 | `app/installer.html`, `app/installateur/` | Flashage d'un socle depuis le navigateur (ESP Web Tools, copie vérifiée par somme) |
 | `app/mentions-legales.html`, `app/confidentialite.html` (+ `.en.html`), `app/404.html` | Pages du site |

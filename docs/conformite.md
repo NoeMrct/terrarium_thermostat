@@ -61,5 +61,6 @@ CEM + ErP) : ne jamais vendre un adaptateur sans certificat.
 7. Pages légales (`app/mentions-legales.html`, `app/confidentialite.html`) :
    remplacer les passages « à compléter » ; conditions de vente ; registre
    RGPD si un serveur centralisé est exploité.
-8. Marquage et notice en langue du pays de vente (le manuel existe en
-   français et en anglais : `docs/manuel.md`, `docs/manuel.en.md`).
+8. Marquage et notice en langue du pays de vente (le guide de
+   l'utilisateur et la notice technique existent en français et en anglais :
+   `docs/guide.md`, `docs/guide.en.md`, `docs/manuel.md`, `docs/manuel.en.md`).

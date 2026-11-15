@@ -356,6 +356,34 @@ jour.
   pour les lecteurs d'écran. Rafraîchi avec la fiche.
 
 ### Modifié
+- **Application : plus rien de technique pour un client.**
+  - Accueil : « Se connecter » mène droit au compte (e-mail et code, clé
+    d'accès) sur le serveur de l'application — fixé au déploiement par la
+    balise `<meta name="terrarium-serveur">`, ou celui qui sert l'application
+    (`SERVIR_APP=1`) ; sans lui, son adresse, l'identifiant et le mot de
+    passe. Le formulaire du broker (adresse `wss://`, préfixe, « Tester la
+    connexion ») n'existe plus qu'à l'adresse `#/technique`, pour le support
+    et le développement. « Diagnostic » et « Flasher un socle » quittent
+    l'accueil et l'aide.
+  - Retirés : export et import de la configuration de l'application ;
+    diagnostic de l'application (dialogue, envoi du rapport, raccourci du
+    manifeste) ; section « Connexion » des réglages (gardée pour l'équipe) ;
+    rubrique Consommation, prix du kWh dans Appareil, montants en euros du
+    carnet PDF et du CSV (un prix fixe n'a pas de sens avec un contrat
+    dynamique ; l'énergie en kWh reste).
+  - Réservés à l'équipe (compte support ou administrateur du serveur, ou
+    connexion directe au broker) : alerte de test, bloc Alimentation de la
+    rubrique Sécurité, santé du socle dans Appareil, outils de l'onglet
+    Service (sondes, essai, surveillance, alimentation, rapport, journal,
+    résumés, sauvegarde). Un client n'y trouve que la demande d'aide — même
+    socle hors ligne — et l'accès du support. Le serveur donne le rôle
+    (`equipe` dans `/api/moi` et les réponses de session) ; la démonstration
+    montre la vue d'un client.
+  - Aide : un guide en dix sections pour les utilisateurs (`docs/guide.md`,
+    en anglais `docs/guide.en.md`) remplace la notice technique dans
+    l'application (8 Ko au lieu de 34) ; nouvelles questions fréquentes
+    (« une zone affiche un défaut », « mon socle ne répond plus »). La notice
+    (`docs/manuel.md`) reste dans le dépôt pour le support et l'atelier.
 - **Le chauffage continue pendant une mise à jour** (W2). La boucle principale
   ne tourne plus pendant qu'une image s'écrit : chaque bloc reçu
   (téléchargement depuis les releases, envoi par l'interface locale,

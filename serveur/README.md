@@ -36,9 +36,20 @@ racine (voir le fichier pour les variables). Mettre un **reverse proxy TLS**
 devant (Caddy fait tout seul le certificat) : l'application n'accepte que
 `wss://` hors développement, et le push exige HTTPS.
 
-Dans l'application : adresse du broker `wss://votre-serveur/mqtt`, identifiant
-et mot de passe du compte utilisateur. Elle reconnaît le serveur à son annonce
-MQTT retenue (`<prefixe>/serveur`, lisible par tout compte, écrite par lui
+Dans l'application : « Se connecter » mène droit au compte (e-mail et code,
+clé d'accès, ou identifiant et mot de passe) quand l'application connaît son
+serveur — balise `<meta name="terrarium-serveur" content="https://…">` de
+`app/index.html`, à remplir au déploiement, ou serveur qui sert l'application
+(`SERVIR_APP=1`, reconnu à son `/api/infos`). Sinon, elle demande l'adresse
+`https://` du serveur. Le formulaire complet du broker (`wss://…/mqtt`,
+préfixe) reste à l'adresse `#/technique` de l'application, pour le support et
+le développement. Un compte de l'équipe (`utilisateur support|admin … oui`)
+voit en plus, dans l'application, les blocs techniques réservés au support
+(santé du socle, alimentation, outils de l'onglet Service, alerte de test) :
+`/api/moi` et les réponses de session portent `equipe: true`.
+
+Connectée au broker, l'application reconnaît le serveur à son annonce MQTT
+retenue (`<prefixe>/serveur`, lisible par tout compte, écrite par lui
 seul), confirme par `/api/infos`, ouvre une session et, à l'ajout d'un socle,
 lui demande de le rattacher : le
 serveur interroge le socle avec le code d'appairage et n'accorde les droits que

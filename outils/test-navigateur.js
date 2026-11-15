@@ -61,9 +61,16 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
 
   console.log('\n== Connexion');
   v('premier lancement : l\'accueil s\'affiche', await page.isVisible('#bienvenue') && !(await page.isVisible('#form-broker')));
+  v('l\'accueil ne propose rien de technique (ni diagnostic, ni flashage)', !(await page.isVisible('#vue-broker [data-action="diagnostic"]'))
+    && !(await page.isVisible('#vue-broker a[href="installer.html"]')));
   await page.click('[data-action="accueil"][data-etape="connexion"]');
-  v('« Se connecter à mon serveur » ouvre le formulaire, le focus sur l\'adresse',
-    await page.isVisible('#form-broker') && await page.evaluate(() => document.activeElement && document.activeElement.id === 'b-url'));
+  v('« Se connecter » sans serveur connu : adresse, identifiant, mot de passe, rien sur le broker',
+    await page.isVisible('#b-url') && await page.isVisible('#b-user') && !(await page.isVisible('#b-prefixe')) && !(await page.isVisible('[data-action="testerBroker"]')));
+  // Le formulaire complet (broker MQTT) n'existe qu'à l'adresse technique.
+  await page.evaluate(() => { location.hash = '#/technique'; });
+  await page.waitForFunction(() => !document.querySelector('#b-prefixe').closest('[hidden]'), null, { timeout: 3000 }).catch(() => {});
+  v('#/technique ouvre le formulaire complet, le focus sur l\'adresse',
+    await page.isVisible('#b-prefixe') && await page.evaluate(() => document.activeElement && document.activeElement.id === 'b-url'));
   await page.fill('#b-url', BROKER);
   await page.click('[data-action="testerBroker"]');
   await page.waitForFunction(() => /Connexion réussie|impossible/.test(document.querySelector('#message').textContent), null, { timeout: 12000 }).catch(() => {});
@@ -272,18 +279,14 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   await page.click('#dlg-confirm [data-dlg="non"]');
   await page.waitForTimeout(300);
   v('« Annuler » referme le dialogue sans agir', !(await page.isVisible('#dlg-confirm')) && !(await page.textContent('#message')).includes('acceptée'));
-  // Le Diagnostic est dans les réglages de l'application : on y va depuis la
-  // liste (d'une feuille, d'abord l'accueil du socle, puis la liste).
+  // Les réglages de l'application : depuis la liste (d'une feuille, d'abord
+  // l'accueil du socle, puis la liste).
   await page.click('#vue-socle [data-action="remonter"]');
   await page.click('[data-action="montrer"][data-vue="liste"]');
   await page.click('#vue-liste [data-action="reglagesApp"]');
   v('les réglages de l\'application s\'ouvrent à leur adresse', await page.isVisible('#vue-reglages') && await page.evaluate(() => location.hash) === '#/reglages');
-  await page.click('#vue-reglages [data-action="diagnostic"]');
-  await page.waitForTimeout(300);
-  const rapport = await page.textContent('#diag-texte');
-  v('le rapport de diagnostic nomme le socle et sa santé', rapport.includes(ID) && /rssi -?\d+ dBm/.test(rapport), rapport.split('\n')[0]);
-  v('le rapport ne contient pas le code d\'appairage', !rapport.includes(JETON));
-  await page.click('[data-action="fermerDiag"]');
+  v('ni diagnostic, ni export ou import de la configuration', !(await page.$('#vue-reglages [data-action="diagnostic"]'))
+    && !(await page.$('#vue-reglages [data-action="exporterConfig"]')) && !(await page.$('#vue-reglages [data-action="importerConfig"]')));
   await page.click('#vue-reglages [data-action="remonter"]');
   await page.waitForTimeout(300);
 
@@ -453,7 +456,7 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   await page.reload();
   await page.waitForFunction(() => document.documentElement.lang === 'en' && /Connection/.test(document.querySelector('#vue-broker').textContent), null, { timeout: 8000 }).catch(() => {});
   const lien = await page.textContent('#lien');
-  v('l\'anglais arrive à la demande (page et textes de l\'application)', /Connection/.test(await page.textContent('#vue-broker')) && /not connected/i.test(lien), lien);
+  v('l\'anglais arrive à la demande (page et textes de l\'application)', /Sign in/.test(await page.textContent('#vue-broker')) && /not connected/i.test(lien), lien);
   await page.evaluate(() => localStorage.setItem('terrarium.langue', 'fr'));
 
 

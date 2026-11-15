@@ -646,7 +646,7 @@ const FAUX_MQTT = `
 
 const BANDEAU = `
 <div id="bandeau-demo" role="complementary" aria-label="Démonstration">
-  Démonstration — socle simulé dans la page, aucun matériel ni broker.
+  Démonstration — socle simulé dans la page, sans matériel ni compte.
   Les températures évoluent, les commandes fonctionnent.
 </div>
 `;

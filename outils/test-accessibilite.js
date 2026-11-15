@@ -57,12 +57,13 @@ const ECRANS = [
     for (let i = 0; i < 60 && !document.querySelector('[data-action="exPartager"]'); i++) await new Promise(r => setTimeout(r, 100));
   }],
   ['appareil', () => { App.reglagesApp('organiser'); const c = document.querySelector('#org-compacte'); c.checked = false; c.dispatchEvent(new Event('change', { bubbles: true })); App.ouvrir('terraDEMO002'); App.panneau('general'); }],
-  ['service', () => App.panneau('service')],
+  ['service (client : assistance seule)', () => App.panneau('service')],
+  ['service (équipe)', async () => { App._equipe(true); await new Promise(r => setTimeout(r, 1200)); }],
+  ['appareil et sécurité (équipe)', async () => { App.panneau('general'); await new Promise(r => setTimeout(r, 600)); App.panneau('securite'); await new Promise(r => setTimeout(r, 600)); App._equipe(null); }],
   ['mises à jour', async () => { App.panneau('maj'); await new Promise(r => setTimeout(r, 1500)); }],
-  ['diagnostic', () => App.diagnostic()],
   // L'assistant d'installation : le socle de démonstration neuf arrive en
   // ligne au bout de six secondes.
-  ['installation', () => { document.querySelector('#diag').close(); App.nouveauSocle({ id: 'terra3F8A1C', jeton: 'K7QM2XRP9WTDH4BNZ8LC3FVA' }); }],
+  ['installation', () => App.nouveauSocle({ id: 'terra3F8A1C', jeton: 'K7QM2XRP9WTDH4BNZ8LC3FVA' })],
   ['installation-wifi', () => App.ajouterSocle()],
   ['installation-reglages', async () => { await new Promise(r => setTimeout(r, 9000)); App.instPas('reglages'); }],
   ['installation-fin', async () => { await App.instReglages(); await new Promise(r => setTimeout(r, 1500)); }],
@@ -70,6 +71,7 @@ const ECRANS = [
   ['verrou', () => { App.instQuitter(); App.montrer('verrou'); }],
   ['broker', () => { localStorage.clear(); App.montrer('broker'); }],
   ['connexion', () => App.accueil('connexion')],
+  ['connexion technique', () => App.accueil('technique')],
   ['compte', () => App.ouvrirCompte('https://terrariums.exemple.fr', { serveur: 'terrariums', prefixe: 'terrarium', mqtt: { ws: '/mqtt' }, comptes: { email: true, clesAcces: true } })],
   ['chez-moi', () => App.accueil('chezMoi')]
 ];

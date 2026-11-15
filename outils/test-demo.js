@@ -71,7 +71,8 @@ const attendre = ms => new Promise(r => setTimeout(r, ms));
   App.ouvrir('terraDEMO001');
   await attendre(700);
   v('l\'accueil du socle se remplit', $('#detail').innerHTML.includes('Point chaud') && !!$('#detail .ill'));
-  v('dix rubriques sous les commandes rapides', $('#detail').querySelectorAll('.rubrique').length === 10 && $('#detail').querySelectorAll('.rond-lib').length === 4);
+  v('neuf rubriques sous les commandes rapides (plus de Consommation)', $('#detail').querySelectorAll('.rubrique').length === 9 && $('#detail').querySelectorAll('.rond-lib').length === 4
+    && !$('#detail [data-nom="conso"]'));
   App.zone(0);
   // L'écran montre la cible de la période en cours : la nuit (après 20 h),
   // c'est la consigne de nuit. Ces contrôles portent sur celle de jour.
@@ -120,11 +121,17 @@ const attendre = ms => new Promise(r => setTimeout(r, ms));
 
   App.panneau('securite');
   await attendre(1200);
-  v('coupure et alimentation dans Sécurité', !!$('#m0') && /Bloc 12,0 V/.test(($('#detail .ligne-alim') || {}).textContent || ''),
+  // La démonstration montre ce qu'un client voit : le bloc d'alimentation est réservé à l'équipe.
+  v('Sécurité : la coupure, sans le bloc d\'alimentation (équipe seulement)', !!$('#m0') && !$('#detail .ligne-alim'));
+  App._equipe(true);
+  await attendre(400);
+  v('…que l\'équipe voit', /Bloc 12,0 V/.test(($('#detail .ligne-alim') || {}).textContent || ''),
     (($('#detail .ligne-alim') || {}).textContent || '').replace(/\s+/g, ' ').slice(0, 60));
+  App._equipe(null);
   App.panneau('general');
   await attendre(1200);
   v('les statistiques 24 h arrivent', $('#detail').innerHTML.includes('kWh'));
+  v('Appareil : ni santé du socle ni prix du kWh pour un client', !$('#detail [data-r="sante"]') && !$('#gPK'));
 
   // Socle de démonstration en 3.5.0 : la régulation continue pendant le
   // téléchargement (W2), l'avertissement le dit. On annule.
@@ -147,6 +154,11 @@ const attendre = ms => new Promise(r => setTimeout(r, ms));
   App.panneau('service');
   await attendre(1600);
   const det = () => $('#detail').innerHTML;
+  // Un client ne voit que l'assistance (ici sans serveur : elle l'explique).
+  v('Service, côté client : l\'assistance seule', $('#detail').querySelectorAll('[data-sv-carte]').length === 1
+    && !!$('#detail [data-sv-carte="support"]') && !det().includes('28FF4C1D61160301'));
+  App._equipe(true);
+  await attendre(1600);
   v('l\'onglet Service se charge avec les sondes', det().includes('Sondes') && det().includes('28FF4C1D61160301'));
   v('la surveillance montre le serveur, pas l\'adresse', det().includes('ntfy.sh') && !det().includes('exemple-demo'));
   $('[data-sv="identifier"][data-z="0"]').click();
@@ -175,6 +187,8 @@ const attendre = ms => new Promise(r => setTimeout(r, ms));
   await attendre(1000);
   v('nouvelle adresse d\'alerte enregistrée', $('#message').textContent.includes('Enregistré'), $('#message').textContent);
   v('…et effacée du champ : elle ne se relit plus', $('#sv-ua').value === '' && !det().includes('autre-sujet-secret'));
+
+  App._equipe(null);
 
   console.log('\n== Notifications');
   // Le socle 2 démarre avec une zone en défaut : la lever doit produire une

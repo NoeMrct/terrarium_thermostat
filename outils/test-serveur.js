@@ -44,6 +44,10 @@ function creerApp(adressePage) {
   // jsdom n'a pas fetch : celui de Node, en lui passant les URL absolues.
   w.fetch = (u, o) => globalThis.fetch(String(u), o);
   w.isSecureContext = true;
+  // L'onglet Service est un module importé à la demande ; jsdom n'importe pas
+  // de module : il est fourni d'avance, comme dans la démonstration.
+  w.eval('(function () {\n' + fs.readFileSync(path.join(DOSSIER, 'service.js'), 'utf8')
+    .replace('export default function service(app) {', 'window.SERVICE = function service(app) {') + '\n})();');
   const App = w.eval(fs.readFileSync(path.join(DOSSIER, 'app.js'), 'utf8') + '\n;App');
   w.dispatchEvent(new w.Event('load'));
   return { w, App, $: s => w.document.querySelector(s), texte: s => (w.document.querySelector(s) || {}).textContent || '' };
@@ -138,13 +142,16 @@ function creerApp(adressePage) {
     await App.courbes(168);
     verifier('les points du serveur alimentent la courbe sur 7 jours', await jusqua(() => /point\(s\)/.test(texte('#legendeCourbe')) && !/0 point/.test(texte('#legendeCourbe'))), texte('#legendeCourbe'));
 
-    titre('Diagnostic : envoi au serveur');
-    App.diagnostic();
-    await attendre(200);
-    verifier('le bouton d\'envoi n\'apparaît qu\'avec un serveur', $('#btn-envoyer-rapport') && !$('#btn-envoyer-rapport').hidden);
-    await App.envoyerRapport();
-    verifier('le rapport est reçu et rangé par le serveur', await jusqua(() => /Rapport envoyé/.test(texte('#message'))) && fs.readdirSync(path.join(donnees, 'rapports')).length === 1, texte('#message').slice(0, 50));
-    verifier('le rapport nomme le serveur', texte('#diag-texte').includes('Serveur : http://127.0.0.1'));
+    titre('Compte sans rôle : la vue d\'un client');
+    // Un compte ordinaire du serveur : ni santé du socle, ni outils du Service.
+    App.ouvrir('terraA1B2C3');
+    App.panneau('general');
+    await attendre(300);
+    verifier('Appareil sans santé du socle pour un client', !$('#detail [data-r="sante"]'));
+    App.panneau('service');
+    const assistanceSeule = await jusqua(() => !!$('#detail [data-sv-carte="support"]'), 8000);
+    verifier('Service : l\'assistance seule', assistanceSeule && $('#detail').querySelectorAll('[data-sv-carte]').length === 1,
+      texte('#detail').replace(/\s+/g, ' ').slice(0, 80));
 
     socles.forEach(c => c.end(true));
   } catch (e) {

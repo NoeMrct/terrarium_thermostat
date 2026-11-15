@@ -265,7 +265,7 @@ class Api {
         const u = this.comptes.authentifierUtilisateur(d.login, d.motDePasse);
         if (!u) { this.noterEchec(ip); return this.erreur(res, 401, 'identifiants refusés'); }
         const jeton = this.comptes.ouvrirSession(u.login);
-        return this.json(res, 200, { jeton, login: u.login, socles: u.socles, admin: !!u.admin });
+        return this.json(res, 200, { jeton, login: u.login, socles: u.socles, admin: !!u.admin, equipe: !!(u.admin || u.support) });
       }
       if (methode === 'DELETE') {
         const jeton = Api.jetonDe(req);
@@ -311,7 +311,7 @@ class Api {
       const { u, nouveau } = this.comptes.obtenirParEmail(email);
       const jeton = this.comptes.ouvrirSession(u.login, { agent: req.headers['user-agent'] });
       if (nouveau) { this.o.journal(`compte ouvert : ${masquerEmail(email)}`); this.noterTitulaire('compte.ouvrir', refCompte(email)); }
-      return this.json(res, 200, { jeton, login: u.login, socles: u.socles, admin: !!u.admin, nouveau, clesAcces: (u.cles || []).length });
+      return this.json(res, 200, { jeton, login: u.login, socles: u.socles, admin: !!u.admin, equipe: !!(u.admin || u.support), nouveau, clesAcces: (u.cles || []).length });
     }
     // Connexion par clé d'accès : clés découvrables, aucune liste de clés
     // envoyée (elle dirait quelles adresses ont un compte).
@@ -332,7 +332,7 @@ class Api {
       catch (e) { this.noterEchec(ip); return this.erreur(res, 401, e.message); }
       this.comptes.noterUsageCle(d.id, r.compteur);
       const jeton = this.comptes.ouvrirSession(t.u.login, { agent: req.headers['user-agent'] });
-      return this.json(res, 200, { jeton, login: t.u.login, socles: t.u.socles, admin: !!t.u.admin });
+      return this.json(res, 200, { jeton, login: t.u.login, socles: t.u.socles, admin: !!t.u.admin, equipe: !!(t.u.admin || t.u.support) });
     }
 
     if (methode === 'GET' && chemin === '/api/push/cle') {
@@ -357,7 +357,7 @@ class Api {
     const u = this.utilisateurDe(req);
     if (!u) return this.erreur(res, 401, 'session requise');
     if (methode === 'GET' && chemin === '/api/moi') {
-      return this.json(res, 200, { login: u.login, email: u.email || null, socles: u.socles, admin: !!u.admin, motDePasse: !!u.empreinte, clesAcces: (u.cles || []).length,
+      return this.json(res, 200, { login: u.login, email: u.email || null, socles: u.socles, admin: !!u.admin, equipe: !!(u.admin || u.support), motDePasse: !!u.empreinte, clesAcces: (u.cles || []).length,
         partages: Object.fromEntries(Object.entries(u.partages || {}).map(([id, p]) => [id, { droit: p.droit, jusqua: p.jusqua || null }])) });
     }
     // Partage (F12) : accepter une invitation reçue.

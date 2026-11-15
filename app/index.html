@@ -2,6 +2,9 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
+<!-- Serveur Terrariums de l'application, fixé au déploiement (https://…). Vide :
+     le serveur qui sert l'application (SERVIR_APP=1), sinon l'adresse est demandée. -->
+<meta name="terrarium-serveur" content="">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <title>Terrariums</title>
@@ -91,9 +94,9 @@
     <p class="chapeau" data-i18n="bienvenue-texte">Tes socles chauffants, d'un coup d'œil : températures, alertes et réglages, où que tu sois.</p>
     <p class="bandeau-ok" id="bienvenue-etiquette" role="status" hidden></p>
     <div class="actions-colonne">
-      <button class="btn btn-plein btn-grand" type="button" data-action="accueil" data-etape="connexion" data-i18n="se-connecter-serveur">Se connecter à mon serveur</button>
+      <button class="btn btn-plein btn-grand" type="button" data-action="accueil" data-etape="connexion" data-i18n="se-connecter-serveur">Se connecter</button>
       <a class="btn btn-secondaire btn-plein btn-grand" href="demo.html" data-i18n="essayer-demo">Essayer la démo</a>
-      <button class="btn btn-fantome btn-plein" type="button" data-action="accueil" data-etape="chezMoi" data-i18n="chez-moi">Sans serveur, chez moi seulement</button>
+      <button class="btn btn-fantome btn-plein" type="button" data-action="accueil" data-etape="chezMoi" data-i18n="chez-moi">Sans Internet, chez moi seulement</button>
     </div>
   </div>
   <div id="chez-moi" class="carte chez-moi" hidden>
@@ -105,25 +108,31 @@
       <li><span>2</span><span data-i18n="chez-moi-2">Rejoins ce Wi-Fi : la page du socle s'ouvre toute seule. Choisis-y le Wi-Fi de la maison.</span></li>
       <li><span>3</span><span data-i18n="chez-moi-3">Ensuite, ouvre l'adresse affichée sur l'écran du socle (terraXXXXXX.local) depuis n'importe quel appareil de la maison.</span></li>
     </ol>
-    <p class="aide" data-i18n="chez-moi-plus-tard">Tu pourras relier un serveur plus tard, pour suivre le socle de loin et recevoir ses alertes.</p>
+    <p class="aide" data-i18n="chez-moi-plus-tard">Tu pourras te connecter plus tard, pour suivre le socle de loin et recevoir ses alertes.</p>
     <button class="btn btn-secondaire btn-plein mt" type="button" data-action="accueil" data-etape="bienvenue" data-i18n="retour">Retour</button>
   </div>
   <form class="carte" id="form-broker" data-form="broker" novalidate>
-    <h2 tabindex="-1" data-i18n="connexion-titre">Connexion</h2>
-    <p class="aide" data-i18n="connexion-aide">Ces informations viennent de ton fournisseur MQTT. Elles restent sur cet
+    <h2 tabindex="-1" data-i18n="connexion-titre">Se connecter</h2>
+    <!-- Les parties data-technique ne s'affichent qu'à l'adresse #/technique
+         (support, développement) : un client se connecte par son compte. -->
+    <p class="aide" data-technique data-i18n="connexion-aide">Ces informations viennent de ton fournisseur MQTT. Elles restent sur cet
       appareil et ne sont envoyées à personne d'autre qu'au broker.</p>
-    <label for="b-url" data-i18n="b-url">Adresse du serveur ou du broker</label>
-    <input id="b-url" type="url" inputmode="url" placeholder="https://… ou wss://…/mqtt" autocomplete="url" spellcheck="false" aria-describedby="b-url-aide">
-    <p class="aide" id="b-url-aide" data-i18n="b-url-aide">Serveur Terrariums : son adresse https:// suffit, la connexion se fait ensuite par e-mail. Broker MQTT : wss://…, avec son utilisateur et son mot de passe.</p>
-    <label for="b-user" data-i18n="b-user">Utilisateur</label>
+    <div id="b-url-bloc">
+      <label for="b-url" data-i18n="b-url">Adresse du serveur</label>
+      <input id="b-url" type="url" inputmode="url" placeholder="https://…" autocomplete="url" spellcheck="false" aria-describedby="b-url-aide">
+      <p class="aide" id="b-url-aide" data-technique data-i18n="b-url-aide">Serveur Terrariums : son adresse https:// suffit, la connexion se fait ensuite par e-mail. Broker MQTT : wss://…, avec son utilisateur et son mot de passe.</p>
+    </div>
+    <label for="b-user" data-i18n="b-user">Identifiant</label>
     <input id="b-user" autocomplete="username" autocapitalize="off" spellcheck="false">
     <label for="b-pass" data-i18n="b-pass">Mot de passe</label>
     <input id="b-pass" type="password" autocomplete="current-password">
-    <label for="b-prefixe" data-i18n="b-prefixe">Préfixe des sujets</label>
-    <input id="b-prefixe" value="terrarium" autocapitalize="off" spellcheck="false">
+    <div data-technique>
+      <label for="b-prefixe" data-i18n="b-prefixe">Préfixe des sujets</label>
+      <input id="b-prefixe" value="terrarium" autocapitalize="off" spellcheck="false">
+    </div>
     <div class="boutons">
       <button class="btn" type="submit" data-i18n="se-connecter">Se connecter</button>
-      <button class="btn btn-secondaire" type="button" data-action="testerBroker" data-i18n="tester">Tester la connexion</button>
+      <button class="btn btn-secondaire" type="button" data-action="testerBroker" data-technique data-i18n="tester">Tester la connexion</button>
     </div>
     <button class="btn btn-fantome btn-petit mt" type="button" id="connexion-retour" data-action="accueil" data-etape="bienvenue" data-i18n="retour">Retour</button>
   </form>
@@ -150,7 +159,7 @@
     <p class="erreur-code" id="compte-erreur" role="alert"></p>
     <div class="boutons">
       <button class="btn btn-fantome btn-petit" type="button" data-action="compteMotDePasse" data-i18n="identifiant-mdp">Identifiant et mot de passe</button>
-      <button class="btn btn-fantome btn-petit" type="button" data-action="accueil" data-etape="connexion" data-i18n="retour">Retour</button>
+      <button class="btn btn-fantome btn-petit" type="button" data-action="accueil" data-etape="retourCompte" data-i18n="retour">Retour</button>
     </div>
   </form>
   <footer class="pied colonne">
@@ -158,12 +167,10 @@
       <label class="inline" for="langue"><span data-i18n="langue">Langue</span>
         <select id="langue"><option value="fr">Français</option><option value="en">English</option></select></label>
       <button class="btn btn-fantome btn-petit" type="button" data-action="installer" hidden><svg class="ico" aria-hidden="true"><use href="#i-telecharger"/></svg><span data-i18n="installer">Installer l'application</span></button>
-      <button class="btn btn-fantome btn-petit" type="button" data-action="diagnostic"><svg class="ico" aria-hidden="true"><use href="#i-outil"/></svg><span data-i18n="diagnostic">Diagnostic</span></button>
       <a class="btn btn-fantome btn-petit" href="aide.html"><svg class="ico" aria-hidden="true"><use href="#i-aide"/></svg><span data-i18n="aide">Aide</span></a>
     </div>
     <div class="pied-ligne liens">
       <span class="discret" id="version-app">Terrariums</span>
-      <a href="installer.html" data-i18n="installateur">Flasher un socle</a>
       <a href="mentions-legales.html" data-i18n="mentions">Mentions légales</a>
       <a href="confidentialite.html" data-i18n="confidentialite">Confidentialité</a>
     </div>
@@ -186,7 +193,6 @@
     <div><h2 id="titre-reglages" tabindex="-1">Réglages</h2></div><span></span>
   </header>
   <div id="reglages" class="reglages"></div>
-  <input type="file" id="fichier-config" accept="application/json,.json" hidden>
 </section>
 
 <section id="vue-installation" class="vue" aria-label="Installer un socle">

@@ -44,7 +44,7 @@ const App = (() => {
   // Rubriques de l'accueil d'un socle : chacune s'ouvre en feuille.
   const RUBRIQUES = [
     ['reglages', 'rubTemperatures', 'i-etat'], ['programme', 'rubProgrammation', 'i-horloge'],
-    ['courbes', 'ongletCourbes', 'i-courbes'], ['conso', 'rubConso', 'i-conso'], ['alertes', 'rubAlertes', 'i-cloche'],
+    ['courbes', 'ongletCourbes', 'i-courbes'], ['alertes', 'rubAlertes', 'i-cloche'],
     ['journal', 'rubJournal', 'i-journal'],
     ['securite', 'rubSecurite', 'i-bouclier'], ['general', 'ongletAppareil', 'i-appareil'],
     ['service', 'ongletService', 'i-outil'], ['maj', 'rubMaj', 'i-maj']
@@ -118,7 +118,7 @@ const App = (() => {
       sousTemperatures: 'Jour {j} · nuit {n}', sousProgrammation: 'Jour à {j} · nuit à {n}', sousSoleil: 'Au rythme du soleil',
       sousCourbes: 'Dernières 24 h, 7 et 30 jours', aucuneAlerte: 'Aucune alerte en cours', defautEnCours: 'Un défaut demande ton attention',
       sousSecurite: 'Coupure à {v}°', sousSecuriteAlim: 'Coupure à {v}° · bloc de {a} A', sousAppareil: 'Wi-Fi {r} dBm, signal {q}',
-      sousService: 'Sondes, essai, journal, sauvegarde', versionX: 'Version {v}', majDispoCourt: 'Version {v} disponible',
+      sousService: 'Sondes, essai, journal, sauvegarde', sousServiceClient: 'Demander de l\'aide au support', versionX: 'Version {v}', majDispoCourt: 'Version {v} disponible',
       zones: 'Zones', commandesRapides: 'Commandes rapides', retourAccueil: 'Retour à l\'accueil du socle', entretienCourt: 'Entretien', reprendreCourt: 'Reprendre',
       attention1: '1 socle demande ton attention', attentionN: '{n} socles demandent ton attention',
       baisser: 'Baisser la consigne de 0,5 degré', monter: 'Monter la consigne de 0,5 degré', periode: 'Période',
@@ -158,7 +158,7 @@ const App = (() => {
       alNtfyRemplacer: 'Le socle envoie déjà ses alertes à {h}. Les envoyer plutôt à un sujet ntfy privé ?',
       alNtfyActif: 'Alertes du socle activées : abonne ce téléphone au sujet.', alNtfyCoupe: 'Le socle n\'envoie plus d\'alertes de lui-même.',
       alertesSocleTitre: 'Alertes envoyées par le socle', alertesSocle: 'Le socle prévient aussi tout seul, application fermée (ntfy, webhook, heartbeat) : son adresse se règle dans Service.',
-      ecranCout: 'Écran, coût et rapport', prixKwh: 'Prix du kWh (€)', ecranNuit: 'Écran la nuit', ecranAttenue: 'Atténué', ecranNormal: 'Normal', ecranEteint: 'Éteint',
+      ecranCout: 'Écran et rapport', ecranNuit: 'Écran la nuit', ecranAttenue: 'Atténué', ecranNormal: 'Normal', ecranEteint: 'Éteint',
       zonePrioritaire: 'Zone prioritaire', aucune: 'Aucune', aideZonePrio: 'Quand l\'alimentation ne suffit pas pour tout, la zone prioritaire chauffe deux fois plus souvent.',
       ledEteinte: 'LED de la carte éteinte', rapportActif: 'Rapport quotidien avec les alertes', heureRapport: 'Heure du rapport',
       soleil: 'Jour et nuit au soleil', aideSoleil: 'Le jour commence au lever du soleil et finit à son coucher, calculés pour ta position (une décimale suffit). Le décalage, en minutes, s\'ajoute aux deux.',
@@ -254,14 +254,11 @@ const App = (() => {
       aucunQr: 'Aucun QR détecté.', qrNonReconnu: 'QR non reconnu.', codeLu: 'Étiquette lue.', cameraIndispo: 'Caméra indisponible : {m}',
       nouvelleVersion: 'Nouvelle version de l\'application disponible.', recharger: 'Recharger',
       installer: 'Installer l\'application', installIos: 'Sur iPhone et iPad : bouton Partager, puis « Sur l\'écran d\'accueil ».', installee: 'Application installée.',
-      exportConfigQ: 'Exporter la configuration ?', exportConfigTexte: 'Le fichier contient les codes d\'appairage de tes socles et le mot de passe du broker : garde-le pour toi.',
-      exporter: 'Exporter', importOk: '{n} socle(s) importé(s).', importRien: 'Rien de nouveau dans ce fichier.', importInvalide: 'Fichier non reconnu.',
+      exporter: 'Exporter', importInvalide: 'Fichier non reconnu.',
       telechargementIndispo: 'Téléchargement indisponible ici.',
-      diagnostic: 'Diagnostic', copierRapport: 'Copier le rapport', rapportCopie: 'Rapport copié.', copieImpossible: 'Copie impossible — sélectionne le texte.',
-      fermer: 'Fermer', application: 'Application', navigateur: 'Navigateur', aucuneErreur: 'Aucune erreur enregistrée.', erreursRecentes: 'Erreurs récentes',
+      fermer: 'Fermer', application: 'Application', navigateur: 'Navigateur',
       versionDev: 'version de développement', socles: 'Socles', aucun: 'aucun', installeeOui: 'installée', installeeNon: 'dans le navigateur',
       cacheSw: 'cache hors ligne', derniereMesure: 'dernière mesure il y a {s} s', jamais: 'jamais',
-      aideDiag: 'Ce rapport ne contient ni mot de passe ni code d\'appairage. Joins-le à une demande d\'aide.',
       // verrouillage
       verrouillee: 'verrouillée', cryptoIndispo: 'Chiffrement indisponible dans ce navigateur (il faut HTTPS).',
       codeFaux: 'Code incorrect.', codeFauxAttente: 'Code incorrect — nouvel essai dans {s} s.',
@@ -307,7 +304,6 @@ const App = (() => {
       pushTexte: 'Le serveur peut prévenir ce téléphone même application fermée : défaut, retour à la normale, socle disparu, mise à jour en échec.',
       activerPush: 'Activer les notifications du serveur', pushActif: 'notifications du serveur actives', pushActifTexte: 'Ce téléphone est prévenu même application fermée.',
       pushActive: 'Notifications du serveur activées sur cet appareil.', pushRefuse: 'Impossible d\'activer : {m}', pushIndispo: 'notifications push indisponibles ici',
-      envoyerRapport: 'Envoyer au serveur', rapportEnvoye: 'Rapport envoyé au serveur ({f}).', rapportNonEnvoye: 'Rapport non envoyé : {m}',
       // installation d'un socle
       etapeSur: 'Étape {n} sur 3', instTermine: 'Terminé', installerSocle: 'Installer un socle',
       etiquetteLue: 'Étiquette lue : socle {id}.',
@@ -328,23 +324,25 @@ const App = (() => {
       rgSocles: 'Socles', rgAffichage: 'Affichage', rgDonnees: 'Données', rgConnexion: 'Connexion', rgSecurite: 'Sécurité', rgAide: 'Aide',
       organiserSocles: 'Organiser mes socles', theme: 'Thème', themeClair: 'Clair', themeSombre: 'Sombre', themeAuto: 'Auto',
       lienTransfert: 'Importer, exporter, copier des réglages', lienExports: 'Carnet PDF et mesures en CSV',
-      exporterConfigLib: 'Exporter la configuration de l\'appli', importerConfigLib: 'Importer une configuration',
       serveurLib: 'Serveur', changerServeur: 'Changer',
       codeVerrou: 'Code de verrouillage', codeActifLib: 'Actif : il est demandé à l\'ouverture', codeInactifLib: 'Aucun',
       definirCodeLib: 'Définir', retirerCodeLib: 'Retirer', verrouillerApres: 'Verrouiller après', verrouillerMaintenant: 'Verrouiller maintenant',
       aiTitre: 'Aide', aiChercher: 'Rechercher dans l\'aide', aiExemple: 'Une question ? Par ex. « sonde »',
-      aiDepannage: 'Dépannage', aiDiagnostic: 'Diagnostic de l\'application', aiDepanner: 'Dépanner un socle (sondes, Wi-Fi, port USB)',
-      aiFaq: 'Questions fréquentes', aiNotice: 'Toute la notice', aiSupport: 'Écrire au support',
-      aiIndexAbsent: 'La recherche n\'est pas disponible ici : ouvre toute la notice.', aiRien: 'Rien sur « {q} » dans la notice.',
+      aiFaq: 'Questions fréquentes', aiNotice: 'Tout le guide', aiSupport: 'Demander de l\'aide',
+      aiIndexAbsent: 'La recherche n\'est pas disponible ici : ouvre le guide.', aiRien: 'Rien sur « {q} » dans le guide.',
       aiFaqTour: 'Pourquoi une zone « attend son tour » ?',
       aiFaqTourR: 'Le bloc d\'alimentation ne peut pas alimenter les deux tapis en même temps : le socle les chauffe à tour de rôle, la zone prioritaire d\'abord (rubrique Sécurité).',
       aiFaqInternet: 'Le socle chauffe-t-il sans Internet ?',
       aiFaqInternetR: 'Oui. Il régule et protège tout seul. Sans réseau, seuls l\'application à distance et les alertes s\'arrêtent ; il garde son historique, et ses alertes en attente partent au retour.',
       aiFaqCoupure: 'Et après une coupure de courant ?',
       aiFaqCoupureR: 'Il redémarre seul avec tes réglages, reprend l\'heure sur Internet, et note la coupure dans son journal.',
+      aiFaqDefaut: 'Une zone affiche un défaut : que faire ?',
+      aiFaqDefautR: 'Le chauffage de cette zone est coupé, l\'autre continue. Vérifie que la sonde est branchée et posée à sa place, puis touche « Lever les défauts ». Si le défaut revient, demande de l\'aide dans Service.',
+      aiFaqMuet: 'Mon socle ne répond plus.',
+      aiFaqMuetR: 'Vérifie qu\'il est alimenté et que le Wi-Fi de la maison marche. Il continue de chauffer en attendant. Après un changement de box, il rouvre son réseau « terrarium-config-… » au bout de trois minutes : rejoins-le et choisis le nouveau Wi-Fi.',
       aiFaqSupport: 'Que voit le support quand je l\'autorise ?',
       aiFaqSupportR: 'Pendant la durée accordée (24 h), il voit l\'état et les réglages du socle, et peut les régler, le tester ou le mettre à jour. Tu fermes l\'accès quand tu veux, dans Service.',
-      aideNotice: 'Aide et notice', installerAppli: 'Installer l\'application', conditionsLib: 'Conditions et confidentialité', mentionsLib: 'Mentions légales',
+      aideNotice: 'Aide', installerAppli: 'Installer l\'application', conditionsLib: 'Conditions et confidentialité', mentionsLib: 'Mentions légales',
       toutEffacerTel: 'Tout effacer sur ce téléphone', toutEffacerAide: 'Socles enregistrés, historique local et réglages de l\'appli. Tes socles continuent de chauffer.',
       resumeSocles1: '1 socle', resumeSoclesN: '{n} socles',
       // organiser (U9)
@@ -504,7 +502,25 @@ const App = (() => {
   const PAGES_REGLAGES = ['organiser', 'transfert', 'exports', 'partage', 'aide'];
   let socleOuvert = null;
   let panneauActif = 'etat';        // etat (accueil) ou la feuille ouverte : zone, reglages, programme…
-  let etapeAccueil = 'bienvenue';   // écran sans broker : bienvenue, connexion, compte ou chezMoi
+  let etapeAccueil = 'bienvenue';   // écran sans broker : bienvenue, connexion, technique, compte ou chezMoi
+  // Serveur Terrariums de l'application : fixé au déploiement (balise
+  // <meta name="terrarium-serveur">), sinon celui qui sert l'application
+  // (SERVIR_APP=1, reconnu à son /api/infos). Sans lui, « Se connecter »
+  // demande l'adresse : c'est le cas avant le choix du domaine.
+  let serveurDefaut = '';
+  let detectionServeur = /** @type {Promise<void>|null} */ (null);
+  function chercherServeurDefaut() {
+    const m = doc.querySelector('meta[name="terrarium-serveur"]');
+    const v = m ? (m.getAttribute('content') || '').trim().replace(/\/+$/, '') : '';
+    if (v) { serveurDefaut = v; return; }
+    if (serveurDefaut || detectionServeur) return;
+    if (typeof location === 'undefined' || !/^https?:$/.test(location.protocol) || typeof fetch !== 'function') return;
+    detectionServeur = infosServeur(location.origin).then(i => {
+      if (!i || serveurDefaut) return;
+      serveurDefaut = location.origin;
+      if (vueCourante === 'broker') dessiner();
+    }, () => {});
+  }
   let installation = null;          // assistant d'installation en cours (voir plus bas)
   let etiquetteLue = null;          // { id, jeton } lus dans l'adresse (étiquette scannée par l'appareil photo)
   let invitationLue = null;         // { code, jeton } : lien de partage d'un socle (F12), accepté une fois connecté
@@ -519,7 +535,7 @@ const App = (() => {
   const majAutos = {};              // id -> détail des mises à jour automatiques (action « majauto »)
   const alertesVues = {};           // id -> [libellé|null, …] : dernier défaut notifié
   let versionApp = null;            // contenu de version.json, écrit à la publication
-  const erreurs = [];               // journal des erreurs, pour le diagnostic
+  const erreurs = [];               // dernières erreurs (30), pour le débogage
   let evenementInstall = null;      // beforeinstallprompt, gardé pour le bouton Installer
 
   const doc = document;
@@ -759,7 +775,19 @@ const App = (() => {
 
   // Ce que le serveur dit des socles partagés avec moi (F12) : droits à jour ;
   // un accès retiré par son titulaire se voit.
+  // Ce qui est technique (santé du socle, alimentation, diagnostics, alerte de
+  // test) ne s'affiche que pour l'équipe : un compte support ou administrateur
+  // du serveur, ou une connexion directe au broker (adresse #/technique, jamais
+  // proposée aux clients). La démonstration montre ce qu'un client voit.
+  let equipeForcee = /** @type {boolean|null} */ (null);   // bancs d'essai : App._equipe(true|false|null)
+  function estEquipe() {
+    if (equipeForcee !== null) return equipeForcee;
+    if (serveur.actif()) return !!(config.serveur && config.serveur.equipe);
+    return !!(config.broker && config.broker.url) && config.broker.url !== 'wss://demonstration';
+  }
+
   function noterPartages(d) {
+    if (d && config.serveur) config.serveur.equipe = !!d.equipe;
     if (!d || !Array.isArray(d.socles)) return;
     const p = d.partages || {};
     config.socles.forEach(s => {
@@ -885,7 +913,12 @@ const App = (() => {
   }
 
   function connecter() {
-    if (!config.broker || !config.broker.url) { montrer('broker'); return; }
+    if (!config.broker || !config.broker.url) {
+      chercherServeurDefaut();
+      if (typeof location !== 'undefined' && location.hash === '#/technique') etapeAccueil = 'technique';
+      montrer('broker');
+      return;
+    }
     // Serveur déjà connu de cette configuration : session rouverte tout de
     // suite ; sinon, c'est son annonce MQTT qui déclenchera la détection.
     if (config.serveur) serveur.detecter().then(ok => { invalider(); if (ok) verifierDemandesSupport(); });
@@ -1105,7 +1138,7 @@ const App = (() => {
   // Partagé avec moi en lecture seule, ou accès retiré par son titulaire (F12).
   const lectureSeule = s => !!(s && s.partage && s.partage.droit !== 'reglage');
   const accesRetire = s => !!(s && s.partage && s.partage.droit === 'retire');
-  const LECTURE_BLOQUE = ['reglages', 'programme', 'securite', 'general', 'maj', 'journal', 'conso', 'service'];
+  const LECTURE_BLOQUE = ['reglages', 'programme', 'securite', 'general', 'maj', 'journal', 'service'];
 
   // --- Retours d'action (U10, U40, U11) : « Envoi au socle… » tout de suite,
   // le formulaire grisé pendant l'envoi (pas de double envoi), le message de
@@ -1583,6 +1616,10 @@ const App = (() => {
   // notification) reçoit ses écrans parents dans l'historique : le retour
   // passe par l'accueil du socle puis par la liste.
   function suivreAdresse(demarrage) {
+    if (vueCourante === 'broker') {          // pas encore connecté : seule l'adresse technique compte
+      if (location.hash === '#/technique' && etapeAccueil !== 'technique') api.accueil('technique');
+      return;
+    }
     const r = lireAdresse(location.hash);
     const ouvrable = !!(r && r.id && socle(r.id));
     routeEnCours = true;
@@ -1772,7 +1809,7 @@ const App = (() => {
 
   // Les rubriques qui ne vivent que de réponses du socle : grisées tant qu'il
   // ne répond pas. Courbes (historique local), alertes et service restent.
-  const SOCLE_REQUIS = ['reglages', 'programme', 'securite', 'general', 'maj', 'journal', 'conso'];
+  const SOCLE_REQUIS = ['reglages', 'programme', 'securite', 'general', 'maj', 'journal'];
   const essaisSocle = {};           // id -> { enCours, dernier } : « Réessayer » de la carte hors ligne
   // 14:12 aujourd'hui, « hier 14:12 » ou la date au-delà.
   function heureOuJour(ms) {
@@ -1946,17 +1983,15 @@ const App = (() => {
         <div class="ligne-reglage"><span class="lib" id="lib-theme">${t('theme')}</span>
           <div class="segment trois" role="group" aria-labelledby="lib-theme">${seg('clair', 'themeClair')}${seg('sombre', 'themeSombre')}${seg('auto', 'themeAuto')}</div></div>`)}
       ${sectionRg('rg-donnees', t('rgDonnees'), ligneRg('data-action="reglagesApp" data-page="transfert"', t('lienTransfert'))
-        + ligneRg('data-action="reglagesApp" data-page="exports"', t('lienExports'))
-        + ligneRg('data-action="exporterConfig"', t('exporterConfigLib')) + ligneRg('data-action="importerConfig"', t('importerConfigLib')))}
-      ${sectionRg('rg-connexion', t('rgConnexion'), `<div class="ligne-reglage"><span class="lib">${t('serveurLib')}<small id="broker-hote"></small></span>
-          <button type="button" class="btn btn-secondaire btn-petit" data-action="oublierBroker">${t('changerServeur')}</button></div>`)}
+        + ligneRg('data-action="reglagesApp" data-page="exports"', t('lienExports')))}
+      ${estEquipe() ? sectionRg('rg-connexion', t('rgConnexion'), `<div class="ligne-reglage"><span class="lib">${t('serveurLib')}<small id="broker-hote"></small></span>
+          <button type="button" class="btn btn-secondaire btn-petit" data-action="oublierBroker">${t('changerServeur')}</button></div>`) : ''}
       ${sectionRg('rg-securite', t('rgSecurite'), `<div class="ligne-reglage"><span class="lib">${t('codeVerrou')}<small data-r="code"></small></span>
           <button type="button" class="btn btn-secondaire btn-petit" id="btn-definir-code" data-action="definirCode" hidden>${t('definirCodeLib')}</button>
           <button type="button" class="btn btn-secondaire btn-petit" id="btn-retirer-code" data-action="retirerCode" hidden>${t('retirerCodeLib')}</button></div>
         <label class="ligne-reglage" for="verrou-min" hidden><span class="lib">${t('verrouillerApres')}</span><select id="verrou-min" hidden>${minutes}</select></label>
         <button type="button" class="ligne-reglage" id="btn-verrouiller" data-action="verrouiller" hidden><span class="lib">${t('verrouillerMaintenant')}</span>${icone('i-cadenas')}</button>`)}
       ${sectionRg('rg-aide', t('rgAide'), ligneRg('data-action="reglagesApp" data-page="aide"', t('aideNotice'))
-        + ligneRg('data-action="diagnostic"', t('diagnostic'))
         + `<button type="button" class="ligne-reglage" data-action="installer"${evenementInstall ? '' : ' hidden'}><span class="lib">${t('installerAppli')}</span>${icone('i-telecharger')}</button>`
         + lienRg(pageStatique('confidentialite'), t('conditionsLib')) + lienRg(pageStatique('mentions-legales'), t('mentionsLib')))}
       <div class="zone-effacer"><button type="button" class="btn btn-fantome btn-danger" data-action="effacerTout">${t('toutEffacerTel')}</button>
@@ -1982,7 +2017,7 @@ const App = (() => {
   // --- Aide dans l'application : recherche dans la notice (index construit
   // avec elle, servi hors ligne), dépannage, questions fréquentes, support.
   const ai = { index: /** @type {any} */ (null), chargement: false, q: '' };
-  const FAQ = ['aiFaqTour', 'aiFaqInternet', 'aiFaqCoupure', 'aiFaqSupport'];
+  const FAQ = ['aiFaqDefaut', 'aiFaqMuet', 'aiFaqInternet', 'aiFaqCoupure', 'aiFaqTour', 'aiFaqSupport'];
   function structureAide() {
     if (!ai.index && !ai.chargement && typeof fetch === 'function') {
       ai.chargement = true;
@@ -1991,8 +2026,6 @@ const App = (() => {
     return `<div class="recherche-aide">${icone('i-loupe')}<label for="ai-q" class="sr-only">${t('aiChercher')}</label>
         <input id="ai-q" type="search" autocomplete="off" placeholder="${attr(t('aiExemple'))}" value="${attr(ai.q)}"></div>
       <div aria-live="polite" data-r="ai-resultats"></div>
-      ${sectionRg('ai-dep', t('aiDepannage'), ligneRg('data-action="diagnostic"', t('aiDiagnostic'))
-        + lienRg(pageStatique('aide') + '#' + (langue === 'en' ? '14-troubleshooting' : '14-depanner'), t('aiDepanner')))}
       <section aria-labelledby="ai-faq"><h3 class="titre-section" id="ai-faq">${t('aiFaq')}</h3>
         <div class="faq">${FAQ.map(k => `<details><summary>${t(k)}</summary><p>${t(k + 'R')}</p></details>`).join('')}</div></section>
       <div class="boutons-pile"><a class="btn btn-secondaire" href="${pageStatique('aide')}">${t('aiNotice')}</a>
@@ -2517,18 +2550,18 @@ const App = (() => {
   // (AAAA-MM-JJ). Un socle plus ancien ne connaît pas « depuis » : une page.
   async function lireJours(id, jusquAu) {
     const jours = [];
-    let depuis = 0, prixKwh = 0, aujourdhui = null;
+    let depuis = 0, aujourdhui = null;
     for (let page = 0; page < 20; page++) {
       const r = await commander(id, 'jours', { n: 30, depuis });
       const j = (r && r.jours) || {};
-      if (!page) { prixKwh = j.prixKwh || 0; aujourdhui = j.aujourdhui || null; }
+      if (!page) aujourdhui = j.aujourdhui || null;
       const lot = Array.isArray(j.jours) ? j.jours : [];
       jours.push(...lot);
       if (!lot.length || j.depuis === undefined) break;
       depuis += lot.length;
       if ((j.total !== undefined && depuis >= j.total) || lot[lot.length - 1].date <= jusquAu) break;
     }
-    return { jours, prixKwh, aujourdhui };
+    return { jours, aujourdhui };
   }
   // Mesures fines (un point toutes les 5 min) sur « jours » jours : le serveur
   // Terrariums s'il est là (un an d'historique), sinon le socle (quatorze jours
@@ -2667,14 +2700,13 @@ const App = (() => {
     const debutMois = moisDe(decalageMois), cle = cleMois(debutMois);
     const enCours = decalageMois === 0;
     const dernierJour = enCours ? new Date().getDate() : new Date(debutMois.getFullYear(), debutMois.getMonth() + 1, 0).getDate();
-    const { jours, prixKwh, aujourdhui } = await lireJours(id, cle + '-01');
+    const { jours, aujourdhui } = await lireJours(id, cle + '-01');
     const duMois = jours.filter(j => j && typeof j.date === 'string' && j.date.startsWith(cle)).sort((a, b) => (a.date < b.date ? -1 : 1));
     let journal = [];
     try { journal = lireJournal((await commander(id, 'journal')).texte || '', e.zones || []); } catch (err) { /* journal illisible : la page le dit */ }
     const zonesNoms = [0, 1].map(k => (e.zones && e.zones[k] && e.zones[k].nom) || t('zoneN', { n: k + 1 }));
     const pdf = ecrivainPdf(), C = COULEURS_CN, G = 48, D = 547;
     const titreDoc = t('cnTitre', { m: deMois(debutMois, true) });
-    const euro = v => (langue === 'en' ? '€' + nombreFr(v, 2) : nombreFr(v, 2) + ' €');
     const deg1 = v => (v === null || v === undefined || isNaN(v) ? '—' : nombreFr(v, 1) + '°');
     const parJour = {};
     duMois.forEach(j => { parJour[+j.date.slice(8, 10)] = j; });
@@ -2688,7 +2720,7 @@ const App = (() => {
     pdf.texte(G, 116, t('cnCree', { d: new Date().toLocaleString(langue === 'en' ? 'en-GB' : 'fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }), { taille: 9, couleur: C.gris });
     let y = 156;
     if (!duMois.length) { y += pdf.paragraphe(G, y, t('cnAucunResume'), D - G, { taille: 11, couleur: C.gris }) + 10; }
-    let kwhTotal = 0, eurosTotal = 0;
+    let kwhTotal = 0;
     [0, 1].forEach(k => {
       const z = (e.zones || [])[k] || {};
       const mins = duMois.map(j => j.zones[k] && j.zones[k].min).filter(v => typeof v === 'number');
@@ -2696,8 +2728,7 @@ const App = (() => {
       const moys = duMois.map(j => j.zones[k] && j.zones[k].moyenne).filter(v => typeof v === 'number');
       const h = somme(k, 'heures') + (auj && auj[k] ? +auj[k].heures || 0 : 0);
       const kwh = somme(k, 'kWh') + (auj && auj[k] ? +auj[k].kWh || 0 : 0);
-      const eu = somme(k, 'euros') + (auj && auj[k] ? +auj[k].euros || 0 : 0);
-      kwhTotal += kwh; eurosTotal += eu;
+      kwhTotal += kwh;
       pdf.rect(G, y - 9, 8, 8, C.z[k]);
       pdf.texte(G + 16, y, zonesNoms[k], { taille: 14, gras: true });
       y += 22;
@@ -2706,13 +2737,13 @@ const App = (() => {
       y += 17;
       pdf.texte(G + 16, y, t('cnConsignes', { j: deg1(z.jour), n: deg1(z.nuit), m: deg1(z.max) }), { taille: 11 });
       y += 17;
-      pdf.texte(G + 16, y, prixKwh > 0 ? t('cnChauffeEuros', { h: nombreFr(h, 0), k: nombreFr(kwh, 2), e: euro(eu) }) : t('cnChauffe', { h: nombreFr(h, 0), k: nombreFr(kwh, 2) }), { taille: 11 });
+      pdf.texte(G + 16, y, t('cnChauffe', { h: nombreFr(h, 0), k: nombreFr(kwh, 2) }), { taille: 11 });
       y += 17;
       pdf.texte(G + 16, y, t('cnDefauts', { n: duMois.filter(j => j.zones[k] && j.zones[k].defauts > 0).length }), { taille: 11 });
       y += 34;
     });
     pdf.trait([[G, y - 14], [D, y - 14]], { couleur: C.clair });
-    pdf.texte(G, y + 4, prixKwh > 0 ? t('cnTotalEuros', { k: nombreFr(kwhTotal, 2), e: euro(eurosTotal) }) : t('cnTotal', { k: nombreFr(kwhTotal, 2) }), { taille: 12, gras: true });
+    pdf.texte(G, y + 4, t('cnTotal', { k: nombreFr(kwhTotal, 2) }), { taille: 12, gras: true });
     pdf.texte(G, y + 24, t('cnJoursReleves', { n: duMois.length, t: enCours ? Math.max(0, dernierJour - 1) : dernierJour }), { taille: 11, couleur: C.gris });
 
     // Page 2 : les températures, une courbe par zone.
@@ -2783,7 +2814,7 @@ const App = (() => {
       }
       pdf.trait([[gauche, bas], [D, bas]], { couleur: C.gris, epaisseur: 0.6 });
       [0, 1].forEach(k => { pdf.rect(G + k * 180, bas + 36, 8, 8, C.z[k]); pdf.texte(G + 14 + k * 180, bas + 44, zonesNoms[k], { taille: 10 }); });
-      pdf.texte(G, bas + 74, prixKwh > 0 ? t('cnTotalEuros', { k: nombreFr(kwhTotal, 2), e: euro(eurosTotal) }) : t('cnTotal', { k: nombreFr(kwhTotal, 2) }), { taille: 12, gras: true });
+      pdf.texte(G, bas + 74, t('cnTotal', { k: nombreFr(kwhTotal, 2) }), { taille: 12, gras: true });
     }
 
     // Page 4 : les alertes du journal, sur une ou plusieurs pages.
@@ -2974,11 +3005,11 @@ const App = (() => {
         const depuis = new Date(Date.now() - 365 * 86400000);
         const { jours } = await lireJours(id, depuis.toISOString().slice(0, 10));
         if (!jours.length) throw new Error(t('exSansMesure'));
-        lignes = ['date,zone1_min,zone1_moyenne,zone1_max,zone1_heures,zone1_kwh,zone1_defauts,zone2_min,zone2_moyenne,zone2_max,zone2_heures,zone2_kwh,zone2_defauts,euros']
+        lignes = ['date,zone1_min,zone1_moyenne,zone1_max,zone1_heures,zone1_kwh,zone1_defauts,zone2_min,zone2_moyenne,zone2_max,zone2_heures,zone2_kwh,zone2_defauts']
           .concat(jours.slice().sort((a, b) => (a.date < b.date ? -1 : 1)).map(j => {
             const z = k => j.zones[k] || {};
             return [j.date, g(z(0).min), g(z(0).moyenne), g(z(0).max), g(z(0).heures), g(z(0).kWh), g(z(0).defauts),
-              g(z(1).min), g(z(1).moyenne), g(z(1).max), g(z(1).heures), g(z(1).kWh), g(z(1).defauts), g(Math.round(((+z(0).euros || 0) + (+z(1).euros || 0)) * 1000) / 1000)].join(',');
+              g(z(1).min), g(z(1).moyenne), g(z(1).max), g(z(1).heures), g(z(1).kWh), g(z(1).defauts)].join(',');
           }));
       }
       ex.csv = { nom: `mesures-${nom}-${ex.periode === 30 ? '30j' : '1an'}.csv`, octets: new TextEncoder().encode(lignes.join('\n') + '\n'), lignes: lignes.length - 1 };
@@ -3047,14 +3078,8 @@ const App = (() => {
       }
       case 'general': return e.sante && typeof e.sante.rssi === 'number'
         ? t('sousAppareil', { r: e.sante.rssi, q: t(qualiteSignal(e.sante.rssi)) }) : '';
-      case 'service': return t('sousService');
+      case 'service': return t(estEquipe() ? 'sousService' : 'sousServiceClient');
       case 'journal': return t('sousJournal');
-      case 'conso': {
-        const c = consos[s.id];
-        if (!c || !c.jours || !(c.jours.jours || []).length) return t('sousConso');
-        const prix = c.jours.prixKwh || 0, k = calculerConso(c.jours, prix);
-        return prix > 0 ? t('sousConsoMois', { e: euroTexte(k.kwhMois * prix) }) : t('sousConsoKwh', { k: kwhTexte(k.kwhMois) });
-      }
       default: {
         const dispo = versionApp && versionApp.firmware && versionApp.firmware.version;
         if (!e.version) return '';
@@ -3138,12 +3163,13 @@ const App = (() => {
     // structure change : autre feuille, zones qui arrivent, réglages chargés.
     const conteneur = detail.querySelector('[data-r="panneau"]');
     const zonesConnues = (e.zones || []).filter(Boolean).length;
-    let cle = `${panneauActif}|${zonesConnues}|${generaux[s.id] ? 1 : 0}`;
+    // estEquipe() : les blocs techniques arrivent quand le serveur confirme le rôle.
+    let cle = `${panneauActif}|${zonesConnues}|${generaux[s.id] ? 1 : 0}|${estEquipe() ? 1 : 0}`;
     if (panneauActif === 'general') cle += `|${stats[s.id] ? 1 : 0}`;
     if (panneauActif === 'zone') cle += `|${zoneOuverte}`;
     if (panneauActif === 'plages') cle += `|${programmes[s.id] ? (programmes[s.id].erreur ? 'e' : 1) : 0}|${generaux[s.id] ? 1 : 0}|${langue}`;
     if (panneauActif === 'vacances') cle += `|${generaux[s.id] && generaux[s.id].vacancesDebut !== undefined ? 1 : 0}`;
-    if (panneauActif === 'service') cle += `|${serviceMod ? 1 : 0}|${e.enLigne ? 1 : 0}|${e.proto || 0}`;
+    if (panneauActif === 'service') cle += `|${serviceMod ? 1 : 0}|${e.enLigne ? 1 : 0}|${e.proto || 0}|${serveur.actif() ? 1 : 0}`;
     if (panneauActif === 'maj') {
       const d = majAutos[s.id];
       cle += `|${e.enLigne ? 1 : 0}|${e.sante && e.sante.majAuto ? 1 : 0}|${d ? [d.actif, d.plageDebut, d.plageFin, d.reporteeJusqua || 0].join(',') : '-'}`;
@@ -3169,7 +3195,6 @@ const App = (() => {
       case 'service': return structureService(s, e);
       case 'maj': return '<section class="carte" data-r="maj"></section>' + structureMajAuto(s, e);
       case 'journal': return structureJournal();
-      case 'conso': return structureConso();
       default: return structureGeneral(s);
     }
   }
@@ -3207,7 +3232,7 @@ const App = (() => {
       <h3 class="titre-leger">${enCours.length ? t(enCours.length === 1 ? 'alUneEnCours' : 'alNEnCours', { n: enCours.length }) : t('alAucune')}</h3>
       ${enCours.map(z => `<p>${esc(z.nom || '')} · ${z.defaut ? t('defautLib', { d: esc(z.defaut) }) : z.tropChaud ? t('tropChaud') : t('derive')}</p>`).join('')}
       ${e.alertesEnAttente ? `<p class="aide">${t('alertesAttente', { n: e.alertesEnAttente })}</p>` : ''}
-      ${res && res.alertes ? (essai ? `<span class="bandeau-fait"><span>${t('alEssaiParti', { h: new Date(essai).toTimeString().slice(0, 5) })}</span></span>`
+      ${res && res.alertes && estEquipe() ? (essai ? `<span class="bandeau-fait"><span>${t('alEssaiParti', { h: new Date(essai).toTimeString().slice(0, 5) })}</span></span>`
         : `<button type="button" class="btn btn-secondaire" data-action="alEssai">${t('alEssai')}</button>`) : ''}`);
     const box = /** @type {any} */ ($('#al-ntfy'));
     if (box && res) box.checked = !!res.alertes;
@@ -3686,6 +3711,7 @@ const App = (() => {
   const outilsService = {
     langue: () => langue, esc, icone, peindre, commander, message, confirmer, telecharger, lireFichier,
     serveur: { actif: () => serveur.actif(), appel: (methode, chemin, corps) => serveur.appel(methode, chemin, corps) },
+    equipe: () => estEquipe(),
     socleOuvert: () => socleOuvert, etat: id => etats[id], racine: () => $('#detail [data-r="panneau"]'),
     generauxRelus: (id, g) => { generaux[id] = g; invalider(); },
     ouvert: () => vueCourante === 'socle' && panneauActif === 'service'
@@ -3731,7 +3757,6 @@ const App = (() => {
         c.querySelectorAll('[data-action="filtreJournal"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.filtre === filtreJournal)));
         peindre(r('journal'), vivantJournal(s.id));
         break;
-      case 'conso': peindre(r('conso'), vivantConso(s.id)); break;
       default:
         peindre(r('sante'), vivantSante(e));
         peindre(r('stats'), vivantStats(stats[s.id]));
@@ -3907,107 +3932,6 @@ const App = (() => {
       <div class="boutons centre"><button type="button" class="btn btn-secondaire" data-action="actualiserJournal"${j.chargement ? ' disabled' : ''}>${t('jnlActualiser')}</button></div>`;
   }
 
-  // --- Consommation et coût (F3) : les résumés journaliers du socle (action
-  // « jours », jusqu'à un mois) et la journée en cours. Le socle lui-même
-  // (carte, convertisseur, écran) compte pour une estimation fixe.
-  const consos = {};                // id -> { jours, chargement, erreur }
-  const SOCLE_W = 0.5;
-  function chargerConso(id) {
-    consos[id] = Object.assign({}, consos[id], { chargement: true, erreur: false });
-    invalider();
-    commander(id, 'jours', { n: 31 }).then(r => { consos[id] = { jours: r.jours || {}, chargement: false, erreur: false }; invalider(); })
-      .catch(() => { consos[id] = Object.assign({}, consos[id], { chargement: false, erreur: true }); invalider(); });
-    if (!generaux[id]) commander(id, 'globaux').then(r => { generaux[id] = r; invalider(); }).catch(() => {});
-  }
-  const cleJour = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  const somme = (zs, k) => (zs || []).reduce((a, z) => a + (z && typeof z[k] === 'number' ? z[k] : 0), 0);
-  const kwhTexte = k => Number(k).toLocaleString(langue === 'en' ? 'en-GB' : 'fr-FR', { minimumFractionDigits: k < 10 ? 2 : 1, maximumFractionDigits: k < 10 ? 2 : 1 });
-  const euroTexte = e => Number(e).toLocaleString(langue === 'en' ? 'en-GB' : 'fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: e < 10 ? 2 : 0 });
-  const dureeTexte = h => { const m = Math.round(h * 60); return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`; };
-
-  // Les chiffres de l'écran, à partir de la réponse « jours ».
-  function calculerConso(jr, prix, maintenant) {
-    const now = maintenant || new Date();
-    const socleJour = SOCLE_W * 24 / 1000;
-    const heuresAuj = (now.getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) / 3600000;
-    const complets = (jr.jours || []).filter(d => d.zones && d.zones.every(z => z && typeof z.kWh === 'number'));
-    const kwhJour = d => somme(d.zones, 'kWh') + socleJour;
-    const mois = cleJour(now).slice(0, 7);
-    const auj = Array.isArray(jr.aujourdhui) ? somme(jr.aujourdhui, 'kWh') + SOCLE_W * heuresAuj / 1000 : null;
-    const duMois = complets.filter(d => d.date.slice(0, 7) === mois);
-    const kwhMois = duMois.reduce((a, d) => a + kwhJour(d), 0) + (auj || 0);
-    const moyenne = complets.length ? complets.reduce((a, d) => a + kwhJour(d), 0) / complets.length : null;
-    const joursMois = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    const parJour = {};
-    complets.forEach(d => { parJour[d.date] = kwhJour(d); });
-    const zones = [0, 1].map(i => {
-      const zs = complets.map(d => d.zones[i]).filter(Boolean);
-      return zs.length ? { heures: somme(zs, 'heures') / zs.length, kwh: somme(zs, 'kWh') / zs.length } : null;
-    });
-    return { kwhMois, eurosMois: prix > 0 ? kwhMois * prix : null, moyenne, joursMois, auj, parJour, zones, socleJour,
-      hier: complets[0] && complets[0].date === cleJour(new Date(now.getTime() - 86400000)) ? complets[0] : null };
-  }
-
-  function structureConso() {
-    return '<div data-r="conso"></div>';
-  }
-
-  function vivantConso(id) {
-    const c = consos[id], g = generaux[id] || {};
-    if (!c || (c.chargement && !c.jours)) return `<p class="aide centre">${t('coChargement')}</p>`;
-    if (c.erreur && !c.jours) return `<p class="aide centre">${t('coIndispo')}</p>`;
-    const jr = c.jours, prix = typeof jr.prixKwh === 'number' ? jr.prixKwh : 0;
-    if (!(jr.jours || []).length && !Array.isArray(jr.aujourdhui)) return `<p class="aide centre">${t('coRien')}</p>${formPrix(prix)}`;
-    const now = new Date(), k = calculerConso(jr, prix, now), loc = langue === 'en' ? 'en-GB' : 'fr-FR';
-    const nomMois = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString(loc, { month: 'long' });
-    const premier = langue === 'en' ? `1 ${nomMois}` : `1er ${nomMois}`;
-    const projection = k.moyenne === null ? '' : prix > 0
-      ? t('coProjection', { m: euroTexte(k.moyenne * k.joursMois * prix), a: euroTexte(k.moyenne * 365 * prix) })
-      : t('coProjectionKwh', { m: kwhTexte(k.moyenne * k.joursMois), a: kwhTexte(k.moyenne * 365) });
-    // Barres du mois : du SVG, la CSP refuse les styles en ligne.
-    const n = now.getDate(), valeurs = [];
-    for (let j = 1; j <= n; j++) {
-      const cle = cleJour(new Date(now.getFullYear(), now.getMonth(), j));
-      valeurs.push(j === n ? (k.auj || 0) : (k.parJour[cle] || 0));
-    }
-    const maxi = Math.max(...valeurs, 0.001), largeur = 100 / Math.max(n, 14);
-    const barres = valeurs.map((v, i) => {
-      const h = Math.max(v > 0 ? 2 : 0, v / maxi * 100);
-      return `<rect class="${i === n - 1 ? 'en-cours' : ''}" x="${(i * largeur + largeur * 0.2).toFixed(2)}" y="${(100 - h).toFixed(2)}" width="${(largeur * 0.6).toFixed(2)}" height="${h.toFixed(2)}" rx="1"/>`;
-    }).join('');
-    const etiquettes = valeurs.map((v, i) => (i % 3 === 0 || i === n - 1) ? `<text x="${((i * largeur + largeur / 2) * 3).toFixed(1)}" y="10">${i + 1}</text>` : '').join('');
-    const mois = now.toLocaleDateString(loc, { month: 'long' });
-    const libelle = t('coBarresLabel', { k: k.moyenne === null ? '—' : kwhTexte(k.moyenne), a: kwhTexte(k.auj || 0), h: now.toTimeString().slice(0, 5) });
-    const zs = (etats[id] && etats[id].zones) || [];
-    const ligne = (classe, titre, detail, valeur) => `<div class="conso-ligne"><span class="pastille ${classe}" aria-hidden="true"></span>
-      <span class="conso-texte"><span>${titre}</span><small>${detail}</small></span><span class="conso-valeur">${valeur}</span></div>`;
-    const lignes = k.zones.map((z, i) => z ? ligne(i ? 'z2' : '', t('coTapis', { n: i + 1, z: nomZone(zs[i], i) }),
-      t('coTapisDetail', { w: g.watts === undefined ? '—' : esc(String(g.watts)), h: dureeTexte(z.heures) }), kwhTexte(z.kwh) + ' kWh') : '').join('')
-      + ligne('socle', t('coSocle'), t('coSocleDetail'), kwhTexte(k.socleJour) + ' kWh');
-    let rapport = '';
-    if (k.hier) {
-      const kh = somme(k.hier.zones, 'kWh') + k.socleJour, def = somme(k.hier.zones, 'defauts');
-      const e = prix > 0 ? t('coSoit', { e: kh * prix < 1 ? t('coCentimes', { n: Math.round(kh * prix * 100) }) : euroTexte(kh * prix) }) : '';
-      rapport = `<section class="carte"><h2>${t('coRapportHier')}</h2><p class="aide">${esc(t('coRapport', {
-        k: kwhTexte(kh), e, h1: dureeTexte(k.hier.zones[0].heures || 0), h2: dureeTexte((k.hier.zones[1] || {}).heures || 0),
-        d: def ? t('coDefauts', { n: def }) : t('coAucunDefaut') }))}</p></section>`;
-    }
-    return `<section class="conso-tete"><span class="sous">${t('coDepuis', { d: esc(premier) })}</span>
-        <span class="conso-total"><span class="grand">${k.eurosMois === null ? kwhTexte(k.kwhMois) : euroTexte(k.eurosMois)}</span>${k.eurosMois === null ? '<span>kWh</span>' : `<span>${kwhTexte(k.kwhMois)} kWh</span>`}</span>
-        ${projection ? `<p class="aide">${projection}</p>` : ''}</section>
-      <section class="conso-barres"><svg viewBox="0 0 100 110" preserveAspectRatio="none" role="img" aria-label="${esc(libelle)}"><g transform="translate(0 0)">${barres}</g></svg>
-        <svg class="conso-jours" viewBox="0 0 300 13" aria-hidden="true">${etiquettes}</svg>
-        <p class="discret conso-legende"><span>${t('coBarres', { mois: esc(mois.charAt(0).toUpperCase() + mois.slice(1)) })}</span><span>${t('coAujourdhuiGris')}</span></p></section>
-      <h3 class="conso-titre">${t('coMoyenne')}</h3><div class="conso-lignes">${lignes}</div>
-      ${rapport}${formPrix(prix)}
-      <div class="boutons"><button type="button" class="btn btn-secondaire" data-action="panneau" data-nom="securite">${icone('i-bouclier')}${t('coPuissance')}</button></div>`;
-  }
-
-  function formPrix(prix) {
-    return `<form class="conso-prix" data-form="prix"><label for="co-prix"><span>${t('coPrix')}</span><small>${t('coPrixAide')}</small></label>
-      <span class="champ-euro"><input id="co-prix" inputmode="decimal" autocomplete="off" value="${prix > 0 ? esc(Number(prix).toLocaleString(langue === 'en' ? 'en-GB' : 'fr-FR', { maximumFractionDigits: 4 })) : ''}"><span aria-hidden="true">€</span></span></form>`;
-  }
-
   // --- Une zone, façon climatisation : la cible en grand, réglée par pas de
   // 0,5 °C ; l'envoi part une seconde après le dernier appui.
   let zoneOuverte = 0, periodeChoisie = null;      // null : la période en cours
@@ -4172,11 +4096,12 @@ const App = (() => {
     if (!g) return formGeneraux(g, '');
     const deux = 2 * (+g.watts || 0) / (+g.volts || 12);
     const ensemble = deux <= (+g.amperes || 0) + 1e-6;
-    return `<section class="carte carte-alim"><h2>${t('alimentation')}</h2>
+    // Le bloc d'alimentation (réglé à l'atelier) ne regarde que l'équipe.
+    return `${estEquipe() ? `<section class="carte carte-alim"><h2>${t('alimentation')}</h2>
       <div class="ligne-alim"><span class="lib"><strong>${t('blocAlim', { v: decimal(g.volts), a: decimal(g.amperes) })}</strong>
         <small>${t(ensemble ? 'alimEnsemble' : 'alimTourDeRole', { i: decimal(Math.round(deux * 10) / 10), w: decimal(g.watts) })}</small></span>
         <span class="verrou-atelier">${icone('i-cadenas')}${t('atelier')}</span></div>
-      <p class="aide">${t('aideAlimAtelier')}</p></section>
+      <p class="aide">${t('aideAlimAtelier')}</p></section>` : ''}
       ${g.zonePrioritaire === undefined ? '' : formGeneraux(g, `<section class="carte"><h2>${t('zonePrioritaire')}</h2>
         <div class="rangee"><div><label for="gZP">${t('zonePrioritaire')}</label><select id="gZP">${optionG(0, t('aucune'), g.zonePrioritaire)}${optionG(1, t('zoneN', { n: 1 }), g.zonePrioritaire)}${optionG(2, t('zoneN', { n: 2 }), g.zonePrioritaire)}</select></div></div>
         <p class="aide">${t('aideZonePrio')}</p>${soumettre()}</section>`)}`;
@@ -4192,9 +4117,10 @@ const App = (() => {
 
   function structureGeneral(s) {
     const g = generaux[s.id];
-    return `<section class="carte" data-r="sante"></section>` + formGeneraux(g, g && `${g.prixKwh === undefined ? '' : `<section class="carte">
+    // La santé du socle (signal, mémoire, redémarrages) ne regarde que l'équipe.
+    return (estEquipe() ? `<section class="carte" data-r="sante"></section>` : '') + formGeneraux(g, g && `${g.prixKwh === undefined ? '' : `<section class="carte">
         <h2>${t('ecranCout')}</h2>
-        <div class="rangee">${champG('gPK', t('prixKwh'), g.prixKwh)}
+        <div class="rangee">
           <div><label for="gEN">${t('ecranNuit')}</label><select id="gEN">${optionG(0, t('ecranAttenue'), g.ecranNuit)}${optionG(1, t('ecranNormal'), g.ecranNuit)}${optionG(2, t('ecranEteint'), g.ecranNuit)}</select></div></div>
         ${bascule('gLE', 'ledEteinte', g.ledEteinte)}${bascule('gRA', 'rapportActif', g.rapportActif)}
         <div class="rangee">${champG('gRH', t('heureRapport'), enHHMM(g.rapportMinutes), 'numeric')}</div>${soumettre()}</section>`}
@@ -4700,7 +4626,6 @@ const App = (() => {
         case 'oublierBroker':     api.oublierBroker(); break;
         case 'definirCode':       api.definirCode(); break;
         case 'activerPush':       api.activerPush(); break;
-        case 'envoyerRapport':    api.envoyerRapport(); break;
         case 'retirerCode':       api.retirerCode(); break;
         case 'verrouiller':       api.verrouillerMaintenant(); break;
         case 'effacerTout':       api.effacerTout(); break;
@@ -4708,12 +4633,7 @@ const App = (() => {
         case 'effacerHistorique': api.effacerHistorique(); break;
         case 'notifications':     api.activerNotifications(); break;
         case 'redemarrer':        api.redemarrer(); break;
-        case 'exporterConfig':    api.exporterConfig(); break;
-        case 'importerConfig':    { const f = $('#fichier-config'); if (f) f.click(); break; }
         case 'installer':         api.installer(); break;
-        case 'diagnostic':        api.diagnostic(); break;
-        case 'fermerDiag':        fermerDialogue($('#diag')); break;
-        case 'copierRapport':     api.copierRapport(); break;
         case 'sv':                if (serviceMod) serviceMod.clic(d.sv, el); break;
         case 'zone':              api.zone(+d.z); break;
         case 'cible':             api.cible(+d.pas); break;
@@ -4753,7 +4673,6 @@ const App = (() => {
         case 'zone-complet': api.reglerZoneComplet(+f.dataset.z); break;
         case 'generaux':     api.reglerGeneraux(); break;
         case 'majauto':      api.reglerMajAuto(); break;
-        case 'prix':         api.prixKwh(); break;
         case 'verrou':       api.deverrouiller(); break;
         case 'sv-surveillance': case 'sv-message': case 'sv-nouvelle': case 'sv-alim': if (serviceMod) serviceMod.soumettre(f); break;
       }
@@ -4785,9 +4704,7 @@ const App = (() => {
       if (el.id === 'vac-debut' || el.id === 'vac-fin') { vac.erreur = ''; invalider(); return; }
       if (el.id === 'org-compacte') { api.vueCompacte(el.checked); return; }
       if (el.id === 'ex-mail') { basculerCarnetMail(el.checked); return; }
-      if (el.id === 'fichier-config' && el.files && el.files[0]) { api.importerConfig(el.files[0]); el.value = ''; }
       if (el.id === 'verrou-min') api.changerVerrouMin(el.value);
-      if (el.id === 'co-prix') api.prixKwh();
       if (el.id === 'fichier-reglages' && el.files && el.files[0]) { importerReglagesFichier(el.files[0]); el.value = ''; }
       if (el.id === 'sv-fichier' && el.files && el.files[0] && serviceMod) { serviceMod.fichier(el.files[0]); el.value = ''; }
       if (el.id === 'langue' || el.id === 'langue-liste') api.changerLangue(el.value);
@@ -4887,34 +4804,6 @@ const App = (() => {
   }
 
   // -------------------------------------------------------------- diagnostic
-  function rapportDiagnostic() {
-    const nav = /** @type {any} */ (navigator);
-    const standalone = (typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)').matches) || nav.standalone === true;
-    const l = [];
-    l.push(`Terrariums — ${t('diagnostic')} — ${new Date().toISOString()}`);
-    l.push(`${t('application')} : ${versionApp ? `v${versionApp.version} (${versionApp.commit || '?'}, ${versionApp.date || '?'})` : t('versionDev')} · ${t('protocole')} ${PROTO_APP} · ${standalone ? t('installeeOui') : t('installeeNon')} · ${langue}`);
-    l.push(`${t('navigateur')} : ${nav.userAgent} · ${nav.onLine === false ? t('horsLigne') : t('enLigne')} · ${window.innerWidth}×${window.innerHeight}`);
-    l.push(`${t('cacheSw')} : ${nav.serviceWorker && nav.serviceWorker.controller ? 'actif' : 'absent'}`);
-    l.push(`${t('serveur')} : ${serveur.actif() ? `${serveur.origine()} (${config.serveur.login || '?'}${config.serveur.pushActif ? ', push' : ''})` : t('aucun')}`);
-    let hote = t('aucun');
-    if (config.broker && config.broker.url) { try { hote = new URL(config.broker.url).host; } catch (e) { hote = '?'; } }
-    l.push(`Broker : ${hote} · ${($('#lien') || {}).textContent || ''}`);
-    l.push(`${t('socles')} : ${config.socles.length || t('aucun')}`);
-    config.socles.forEach(s => {
-      const e = etats[s.id] || {};
-      const h = e.sante || {};
-      const age = e.derniereMaj ? Math.round((Date.now() - e.derniereMaj) / 1000) : null;
-      l.push(`  - ${s.id} (${s.nom || ''}) : ${e.enLigne ? t('enLigne') : t('horsLigne')} · ${age === null ? t('jamais') : t('derniereMesure', { s: age })}` +
-        ` · firmware ${e.version || h.version || '?'} · proto ${e.proto !== undefined ? e.proto : '?'} · rssi ${h.rssi !== undefined ? h.rssi + ' dBm' : '?'}` +
-        ` · heap ${h.heap !== undefined ? Math.round(h.heap / 1024) + ' Ko' : '?'}${h.heapMin !== undefined ? ' (min ' + Math.round(h.heapMin / 1024) + ' Ko)' : ''}` +
-        ` · uptime ${dureeLisible(h.uptime !== undefined ? h.uptime : e.uptime)} · reset ${h.reset || '?'}` +
-        ` · zones ${(e.zones || []).map(z => z ? (z.defaut ? 'DEFAUT:' + z.defaut : (z.temp !== undefined ? Number(z.temp).toFixed(1) + '°C' : '?')) : '?').join(' / ')}`);
-    });
-    l.push(`${t('erreursRecentes')} : ${erreurs.length ? '' : t('aucuneErreur')}`);
-    erreurs.slice(-15).forEach(e => l.push(`  ${e.quand}  ${e.texte}`));
-    return l.join('\n');
-  }
-
   // ------------------------------------------------------------ installation
   // L'assistant d'installation d'un socle, en trois étapes : l'étiquette (scan
   // ou saisie), le Wi-Fi, les réglages de départ. Le Wi-Fi se donne au socle
@@ -5250,12 +5139,21 @@ const App = (() => {
   }
 
   // ---- écran sans broker : bienvenue, connexion, « chez moi seulement »
+  // « connexion » : identifiant et mot de passe d'un compte du serveur, et son
+  // adresse seulement quand l'application n'en connaît aucun. « technique »
+  // (adresse #/technique, jamais proposée aux clients) : le formulaire
+  // complet, broker MQTT compris, pour le support et le développement.
   function dessinerAccueil() {
     const e = etapeAccueil;
     const b = $('#bienvenue'), c = $('#chez-moi'), f = $('#form-broker'), fc = $('#form-compte');
     if (b) b.hidden = e !== 'bienvenue';
     if (c) c.hidden = e !== 'chezMoi';
-    if (f) f.hidden = e !== 'connexion';
+    if (f) {
+      f.hidden = e !== 'connexion' && e !== 'technique';
+      f.querySelectorAll('[data-technique]').forEach(x => { x.hidden = e !== 'technique'; });
+      const blocUrl = $('#b-url-bloc');
+      if (blocUrl) blocUrl.hidden = e === 'connexion' && !!serveurDefaut;
+    }
     if (fc) fc.hidden = e !== 'compte';
     if (e === 'compte') dessinerCompte();
     doc.body.dataset.accueil = e;
@@ -5329,17 +5227,15 @@ const App = (() => {
         if (vueCourante === 'liste') suivreAdresse(true);
       } else {
         lien(t('nonConnecte'), 'ko');
-        etapeAccueil = 'bienvenue';
+        chercherServeurDefaut();
+        etapeAccueil = location.hash === '#/technique' ? 'technique' : 'bienvenue';
         montrer('broker');
       }
-      // Raccourcis du manifeste : installer un socle (scanner ouvert) ou le diagnostic.
+      // Raccourci du manifeste : installer un socle (scanner ouvert).
       const h = location.hash;
       if (h === '#scanner' || h === '#diagnostic') {
         try { history.replaceState(null, '', location.pathname); } catch (e) { /* file:// */ }
-        setTimeout(() => {
-          if (h === '#diagnostic') api.diagnostic();
-          else if (config.broker) { api.nouveauSocle(); api.scanner(); }
-        }, 300);
+        if (h === '#scanner') setTimeout(() => { if (config.broker) { api.nouveauSocle(); api.scanner(); } }, 300);
       }
     },
 
@@ -5348,6 +5244,9 @@ const App = (() => {
     // Pour les bancs d'essai : injecte un version.json (version publiée du
     // firmware) sans passer par le réseau.
     _versionPubliee(v) { versionApp = v; peindreVersion(); },
+    // Pour les bancs d'essai : vue de l'équipe (true), d'un client (false), ou
+    // celle du compte (null).
+    _equipe(v) { equipeForcee = v === null || v === undefined ? null : !!v; dessiner(); },
     // Pour les bancs d'essai : délais de l'assistant avant l'écran d'échec.
     _delaisInstallation(socleMs, lienMs) { delaisInstallation.socle = socleMs; delaisInstallation.lien = lienMs; },
 
@@ -5461,7 +5360,7 @@ const App = (() => {
     compteMotDePasse() {
       const c = compteEnCours;
       if (c) $('#b-url').value = c.ws;
-      api.accueil('connexion');
+      api.accueil('identifiants');
     },
 
     async cleAcces() {
@@ -5571,6 +5470,8 @@ const App = (() => {
     // Après déconnexion ou suppression : retour à l'accueil, socles gardés.
     finCompte(texteMessage) {
       if (client) { try { client.end(true); } catch (e) { /* déjà fermé */ } client = null; }
+      compteEnCours = null;
+      chercherServeurDefaut();
       config.broker = null;
       config.serveur = null;
       sauver();
@@ -5735,11 +5636,6 @@ const App = (() => {
       catch (e) { message(t('rattachementRefuse', { m: e.message }), true); }
     },
 
-    async envoyerRapport() {
-      try { const d = await serveur.appel('POST', '/api/rapports', rapportDiagnostic()); message(t('rapportEnvoye', { f: d.fichier || '' })); }
-      catch (e) { message(t('rapportNonEnvoye', { m: e.message }), true); }
-    },
-
     async oublierBroker() {
       if (!await confirmer({ titre: t('oublierBrokerQ'), texte: t('oublierBrokerTexte'), ok: t('oublier'), danger: true })) return;
       config.broker = null;
@@ -5855,7 +5751,6 @@ const App = (() => {
       if (nom === 'courbes' && !courbes[id]) api.courbes(24);
       if (nom === 'alertes') chargerReseau(id);
       if (nom === 'journal') chargerJournal(id);
-      if (nom === 'conso') chargerConso(id);
       if ((['general', 'programme', 'securite'].includes(nom) && !generaux[id]) || (['plages', 'vacances'].includes(nom) && avant !== nom))
         commander(id, 'globaux').then(r => { generaux[id] = r; dessiner(); }).catch(() => {});
       if (nom === 'general' && !stats[id]) commander(id, 'stats').then(r => { stats[id] = r; dessiner(); }).catch(() => {});
@@ -5882,23 +5777,6 @@ const App = (() => {
       try { await commander(id, 'etat'); } catch (e) { /* toujours muet */ }
       essai.enCours = false; essai.dernier = Date.now();
       invalider();
-    },
-
-    // Prix du kWh, depuis l'écran Consommation : enregistré sur le socle, qui
-    // calcule les coûts de ses résumés.
-    async prixKwh() {
-      const id = socleOuvert, el = /** @type {any} */ ($('#co-prix'));
-      if (!id || !el) return;
-      const v = el.value.trim() === '' ? 0 : nombre(el.value);
-      if (v === null || isNaN(v) || v < 0 || v > 2) { message(t('coPrixInvalide'), true); return; }
-      const actuel = consos[id] && consos[id].jours ? consos[id].jours.prixKwh || 0 : null;
-      if (actuel !== null && Math.abs(actuel - v) < 0.00005) return;
-      const r = await envoyer(id, 'globaux', { prixKwh: v }, { formulaire: el.closest('form'), succes: () => t('coPrixEnregistre') });
-      if (r) {
-        generaux[id] = r;
-        if (consos[id] && consos[id].jours) consos[id].jours.prixKwh = v;
-        invalider();
-      }
     },
 
     // Chevrons ‹ › : 0,5 °C par appui, envoyé une seconde après le dernier.
@@ -5948,10 +5826,28 @@ const App = (() => {
       instAller(lue ? 'reference' : 'scan');
     },
 
-    accueil(etape) {
-      etapeAccueil = ['bienvenue', 'connexion', 'chezMoi'].includes(etape) || (etape === 'compte' && compteEnCours) ? etape : 'bienvenue';
+    async accueil(etape) {
+      // Retour depuis la connexion par e-mail : à l'accueil quand le serveur est
+      // celui de l'application, sinon à son adresse.
+      if (etape === 'retourCompte') { compteEnCours = null; etape = serveurDefaut ? 'bienvenue' : 'connexion'; }
+      // « Se connecter » : avec un serveur connu, droit à son compte (e-mail et
+      // code, clé d'accès) ; un serveur sans comptes par e-mail demande
+      // l'identifiant et le mot de passe, son adresse déjà remplie.
+      // Après une session ouverte au démarrage (rechargement), la détection n'a pas encore eu lieu.
+      if (etape === 'connexion') chercherServeurDefaut();
+      if (etape === 'connexion' && !serveurDefaut && detectionServeur) await detectionServeur;   // appui avant la fin de la détection
+      if (etape === 'connexion' && serveurDefaut) {
+        let i;
+        try { i = await infosServeur(serveurDefaut); } catch (e) { i = null; }
+        if (i && i.comptes && i.comptes.email) { api.ouvrirCompte(serveurDefaut, i); return; }
+        $('#b-url').value = i ? serveurDefaut.replace(/^http/, 'ws') + ((i.mqtt && i.mqtt.ws) || '/mqtt') : serveurDefaut;
+      }
+      // « identifiants » : identifiant et mot de passe d'un compte du serveur, sans repasser par l'e-mail.
+      if (etape === 'identifiants') etape = 'connexion';
+      etapeAccueil = ['bienvenue', 'connexion', 'technique', 'chezMoi'].includes(etape) || (etape === 'compte' && compteEnCours) ? etape : 'bienvenue';
       if (vueCourante !== 'broker') montrer('broker'); else dessiner();
-      const cible = etapeAccueil === 'connexion' ? $('#b-url') : doc.querySelector(etapeAccueil === 'chezMoi' ? '#chez-moi h2' : '#bienvenue h2');
+      const cible = etapeAccueil === 'technique' || (etapeAccueil === 'connexion' && !serveurDefaut) ? $('#b-url')
+        : etapeAccueil === 'connexion' ? $('#b-user') : doc.querySelector(etapeAccueil === 'chezMoi' ? '#chez-moi h2' : '#bienvenue h2');
       if (cible) { try { cible.focus(); } catch (e) { /* hors écran */ } }
     },
 
@@ -6152,7 +6048,7 @@ const App = (() => {
       if (sa) params.saisonActive = !!sa.checked;
       // Firmware 3.5 (protocole 4) : chaque champ n'est lu que s'il est affiché.
       const el = id => /** @type {any} */ (doc.getElementById(id));
-      for (const [id, cle] of [['gPK', 'prixKwh'], ['gLat', 'latitude'], ['gLon', 'longitude']]) {
+      for (const [id, cle] of [['gLat', 'latitude'], ['gLon', 'longitude']]) {
         const v = champNombre(id);
         if (v !== undefined) params[cle] = v;
       }
@@ -6181,73 +6077,13 @@ const App = (() => {
       if (r) setTimeout(() => commander(id, 'etat').catch(() => {}), 800);
     },
 
-    // ---- sauvegardes ---------------------------------------------------------
-    async exporterConfig() {
-      if (!await confirmer({ titre: t('exportConfigQ'), texte: t('exportConfigTexte'), ok: t('exporter') })) return;
-      telecharger('terrariums-configuration.json',
-        JSON.stringify({ format: 'terrariums-config', version: 1, broker: config.broker, socles: config.socles }, null, 2) + '\n',
-        'application/json');
-    },
-
-    async importerConfig(fichier) {
-      let d;
-      try { d = JSON.parse(await lireFichier(fichier)); } catch (e) { message(t('importInvalide'), true); return; }
-      if (!d || d.format !== 'terrariums-config' || !Array.isArray(d.socles)) { message(t('importInvalide'), true); return; }
-      let n = 0;
-      d.socles.forEach(s => {
-        if (!s || typeof s.id !== 'string' || typeof s.jeton !== 'string' || s.jeton.length !== 24 || socle(s.id)) return;
-        const nouveau = { id: s.id, jeton: s.jeton.toUpperCase(), nom: String(s.nom || s.id) };
-        config.socles.push(nouveau); abonner(nouveau); n++;
-      });
-      if (d.broker && d.broker.url && !config.broker) config.broker = { url: d.broker.url, user: d.broker.user || '', pass: d.broker.pass || '', prefixe: d.broker.prefixe || 'terrarium' };
-      sauver();
-      message(n ? t('importOk', { n }) : t('importRien'), !n);
-      if (config.broker && !client) { connecter(); montrer('liste'); }
-      config.socles.forEach(s => commander(s.id, 'etat').catch(() => {}));
-      dessiner();
-    },
-
-    // ---- installation et diagnostic ----------------------------------------
+    // ---- installation de l'application -------------------------------------
     async installer() {
       if (!evenementInstall) { message(t('installIos')); return; }
       try { evenementInstall.prompt(); await evenementInstall.userChoice; } catch (e) { /* refusé */ }
       evenementInstall = null;
       doc.querySelectorAll('[data-action="installer"]').forEach((/** @type {any} */ b) => { b.hidden = true; });
     },
-
-    diagnostic() {
-      let dlg = $('#diag');
-      if (!dlg) {
-        dlg = doc.createElement('dialog');
-        dlg.id = 'diag'; dlg.className = 'feuille large';
-        html(dlg, `<h2>${t('diagnostic')}</h2><p class="aide">${t('aideDiag')}</p>
-          <pre id="diag-texte" class="rapport" tabindex="0"></pre>
-          <div class="boutons fin"><button type="button" class="btn btn-secondaire" data-action="fermerDiag">${t('fermer')}</button>
-          <button type="button" class="btn btn-secondaire" data-action="envoyerRapport" id="btn-envoyer-rapport">${t('envoyerRapport')}</button>
-          <button type="button" class="btn" data-action="copierRapport">${t('copierRapport')}</button></div>`);
-        doc.body.appendChild(dlg);
-      }
-      texte($('#diag-texte'), rapportDiagnostic());
-      const envoyer = $('#btn-envoyer-rapport'); if (envoyer) envoyer.hidden = !serveur.actif();
-      ouvrirDialogue(dlg);
-    },
-
-    async copierRapport() {
-      const texteRapport = ($('#diag-texte') || {}).textContent || rapportDiagnostic();
-      const nav = /** @type {any} */ (navigator);
-      try {
-        if (nav.clipboard && nav.clipboard.writeText) { await nav.clipboard.writeText(texteRapport); message(t('rapportCopie')); return; }
-      } catch (e) { /* refus : on tente l'ancienne méthode */ }
-      try {
-        const ta = doc.createElement('textarea');
-        ta.value = texteRapport; doc.body.appendChild(ta); ta.select();
-        const ok = doc.execCommand && doc.execCommand('copy');
-        ta.remove();
-        message(ok ? t('rapportCopie') : t('copieImpossible'), !ok);
-      } catch (e) { message(t('copieImpossible'), true); }
-    },
-
-    rapport: rapportDiagnostic,
 
     // Lecture du QR code collé sous le socle (ou affiché sur son écran), quand
     // le navigateur sait le faire.
