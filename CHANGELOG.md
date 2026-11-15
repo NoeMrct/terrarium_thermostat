@@ -334,6 +334,11 @@ jour.
 
 ### Corrigé
 
+- Application : sous WebKit (Safari, et tout navigateur sur iPhone), recharger
+  la page après être remonté d'un écran pouvait la faire planter (bug WebKit
+  300402 sur l'historique empilé). Là, l'adresse suit désormais l'écran sans
+  empiler d'entrée : rechargement, liens et notifications ouvrent toujours le
+  bon écran ; le bouton retour du téléphone (Android) garde son comportement.
 - Application : l'agent de service ne mettait rien en cache après son
   installation. Il copiait chaque réponse trop tard, quand la page l'avait
   déjà lue, et l'erreur passait inaperçue : la coque n'était jamais

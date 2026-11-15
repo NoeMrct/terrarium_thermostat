@@ -1284,6 +1284,12 @@ const App = (() => {
   // parent (remonter()), sinon réécrit l'entrée courante : jamais un écran
   // déjà quitté ne revient au retour suivant.
   const PANNEAUX = RUBRIQUES.map(r => r[0]);
+  // WebKit (Safari, et tout navigateur sur iPhone) : une page rechargée après
+  // un retour dans des entrées empilées par pushState peut planter (bug WebKit
+  // 300402, Navigation::initializeForNewWindow ; vu en intégration continue).
+  // Là, l'adresse suit l'écran sans rien empiler : rechargement, liens et
+  // notifications marchent, et l'iPhone n'a pas de bouton retour à intercepter.
+  const EMPILER = !/AppleWebKit\/(?!537\.36)/.test(navigator.userAgent || '');
   function adresseCourante() {
     if (vueCourante === 'liste') return '#/';
     if (vueCourante !== 'socle' || !socleOuvert) return null;   // verrou, installation, broker : l'adresse ne bouge pas
@@ -1299,7 +1305,8 @@ const App = (() => {
     const a = adresseCourante(), h = adresseActuelle();
     if (!a || a === h) return;
     try {
-      if (profondeur(a) < profondeur(h)) history.replaceState({ terrarium: true, avant: parentDe(a) }, '', a);
+      if (!EMPILER) history.replaceState({ terrarium: true, avant: null }, '', a);
+      else if (profondeur(a) < profondeur(h)) history.replaceState({ terrarium: true, avant: parentDe(a) }, '', a);
       else history.pushState({ terrarium: true, avant: h }, '', a);
     } catch (e) { /* file:// d'un vieux navigateur : l'écran change, l'adresse non */ }
   }
@@ -1309,7 +1316,7 @@ const App = (() => {
   function remonter() {
     const a = adresseCourante(), etat = history.state;
     const parent = a && parentDe(a);
-    if (parent && a === adresseActuelle() && etat && etat.terrarium && etat.avant === parent) {
+    if (EMPILER && parent && a === adresseActuelle() && etat && etat.terrarium && etat.avant === parent) {
       try { history.back(); return; } catch (e) { /* repli ci-dessous */ }
     }
     if (vueCourante === 'socle' && panneauActif !== 'etat') api.panneau('etat');
@@ -1345,7 +1352,7 @@ const App = (() => {
       }
     } finally { routeEnCours = false; }
     // Une entrée déjà à nous (rechargement) a déjà ses parents dans l'historique.
-    if (!demarrage || !r || !r.id || (history.state && history.state.terrarium)) return;
+    if (!EMPILER || !demarrage || !r || !r.id || (history.state && history.state.terrarium)) return;
     try {
       const ici = adresseCourante() || '#/';
       history.replaceState({ terrarium: true, avant: null }, '', '#/');

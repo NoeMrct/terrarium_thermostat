@@ -232,6 +232,21 @@ function creerApp(adressePage, avantChargement) {
     r.w.history.back();
     verifier('…puis à la liste', await jusqua(() => r.$('#vue-liste').style.display !== 'none', 3000, 50), r.w.location.hash);
     r.w.close();
+    // WebKit : l'adresse suit l'écran sans rien empiler (bug WebKit 300402 :
+    // recharger après un retour dans des entrées empilées fait planter la page).
+    const k = creerApp(`http://localhost:8080/#/${ID}/courbes`, x => {
+      x.localStorage.setItem('terrarium.config.v1', cfg);
+      Object.defineProperty(x.navigator, 'userAgent', { value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1' });
+    });
+    const longueurK = k.w.history.length;
+    const rouvertK = await jusqua(() => !k.$('#detail [data-r="feuille"]').hidden && /Courbes/.test(k.texte('#titre-feuille')), 4000, 50);
+    k.App.panneau('securite');
+    verifier('WebKit : lien profond rouvert, l\'adresse suit sans empiler d\'entrée',
+             rouvertK && k.w.location.hash === `#/${ID}/securite` && k.w.history.length === longueurK, `${k.w.location.hash}, ${k.w.history.length} entrée(s)`);
+    k.$('#detail [data-action="remonter"]').click();
+    verifier('…la flèche remonte tout de suite, sans retour dans l\'historique',
+             k.$('#detail [data-r="feuille"]').hidden && k.w.location.hash === '#/' + ID && k.w.history.length === longueurK, k.w.location.hash);
+    k.w.close();
     App.ouvrir(ID);
   }
 
