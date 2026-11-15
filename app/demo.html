@@ -1097,6 +1097,15 @@ div.ligne-reglage, label.ligne-reglage { cursor: default; }
 .segment.un { grid-template-columns: minmax(0, 1fr); }
 .rond[aria-disabled="true"] { opacity: .35; }
 
+/* Sécurité : l'alimentation, réglée à l'atelier (U20). */
+.ligne-alim { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
+.ligne-alim .lib { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ligne-alim strong { font-size: 16px; font-weight: 500; }
+.ligne-alim small { font-size: 13px; color: var(--texte-2); }
+.verrou-atelier { display: inline-flex; align-items: center; gap: 6px; flex: none; font-size: 13px; color: var(--texte-2); }
+.verrou-atelier .ico { width: 16px; height: 16px; }
+.carte-alim .aide { margin-top: 10px; }
+
 </style>
 <script>
 /* =============================================================================
@@ -2212,6 +2221,10 @@ window.TEXTES_EN = {
     cnJournalDepuis: 'The base\'s log goes back to {d}: anything earlier is no longer in it.', cnTableau: 'Day by day',
     cnDate: 'Date', cnMin: 'min', cnMoy: 'avg', cnMax: 'max', cnHeures: 'Heating', cnDefautsCourt: 'Faults', cnPied: 'Terrariums · {n} · {m}', cnPage: 'page {p} / {t}',
     plageJusqua: '{p} until {h}', enVacances: 'on holiday',
+    blocAlim: '{v} V · {a} A block', atelier: 'Workshop',
+    alimEnsemble: 'Two {w} W mats together draw {i} A: they can heat at the same time.',
+    alimTourDeRole: 'Two {w} W mats together draw {i} A: they take turns heating.',
+    aideAlimAtelier: 'Set at the workshop from the block supplied. A changed block is declared in Service.',
     ensuitePlage: 'Next, at {h}: {r} min ramp to {v}°',
     ciblePlage: 'Setpoint of the “{p}” slot', ciblePlages: 'Setpoint of the time slots', modifierPlages: 'Edit the time slots',
     ciblePlagesMessage: 'The time slots set the setpoints: edit them in Schedule, Time slots and seasons.',
@@ -2357,6 +2370,11 @@ const TEXTES = {
     aideCalib: 'Pose les deux sondes côte à côte quelques minutes : la zone 2 est alors alignée sur la zone 1.',
     calibrer: 'Aligner la zone 2 sur la zone 1',
     confirmCalib: 'Les deux sondes sont-elles côte à côte, au même endroit, depuis au moins 5 minutes ?',
+    alim: 'Alimentation (atelier)',
+    aideAlim: 'À régler d\'après l\'étiquette du bloc 12 V et celle des tapis : le socle n\'allume jamais plus de tapis que ce courant ne le permet.',
+    courant: 'Courant du bloc (A)', puissance: 'Puissance d\'un tapis (W)', tension: 'Tension (V)',
+    confirmAlim: 'Le socle pourra allumer jusqu\'à {n} tapis à la fois avec {a} A. Ces valeurs sont-elles celles des étiquettes du bloc et des tapis ?',
+    alimEnregistree: 'Alimentation enregistrée.',
     rapport: 'Rapport du jour', aideRapport: 'Le résumé que le socle envoie chaque jour avec les alertes, si le rapport est activé.',
     lire: 'Lire', envoyer: 'Envoyer maintenant',
     journal: 'Journal', aideJournal: 'Les derniers événements du socle (redémarrages, défauts, réglages modifiés).',
@@ -2375,7 +2393,7 @@ const TEXTES = {
     videInchange: 'Vide : inchangée', effacerAdresses: 'Couper les alertes',
     confirmCouper: 'Le socle n\'enverra plus aucune alerte ni heartbeat. Continuer ?',
     wifi: 'Wi-Fi : {s}{s2}. Il se règle sur la page locale du socle, jamais à distance.', secours: ' (secours : {s})',
-    enregistrer: 'Enregistrer', enregistre: 'Enregistré.',
+    enregistrer: 'Enregistrer', enregistre: 'Enregistré.', valeursInvalides: 'Courant, puissance et tension : des nombres positifs.',
     sauvegarde: 'Sauvegarde du socle',
     aideSauv: 'Zones, réglages et sondes, pour remplacer une carte en une minute. Ni mot de passe, ni adresse d\'alerte.',
     telecharger: 'Télécharger', restaurer: 'Restaurer…',
@@ -2419,6 +2437,11 @@ const TEXTES = {
     aideCalib: 'Put both probes side by side for a few minutes: zone 2 is then aligned with zone 1.',
     calibrer: 'Align zone 2 with zone 1',
     confirmCalib: 'Have both probes been side by side, in the same spot, for at least 5 minutes?',
+    alim: 'Power supply (workshop)',
+    aideAlim: 'Set from the labels of the 12 V block and of the mats: the base never turns on more mats than this current allows.',
+    courant: 'Block current (A)', puissance: 'Power of one mat (W)', tension: 'Voltage (V)',
+    confirmAlim: 'The base will be able to turn on up to {n} mats at once with {a} A. Are these the values on the labels of the block and the mats?',
+    alimEnregistree: 'Power supply saved.',
     rapport: 'Daily report', aideRapport: 'The summary the base sends every day with its alerts, when the report is on.',
     lire: 'Read', envoyer: 'Send now',
     journal: 'Log', aideJournal: 'The base\'s latest events (restarts, faults, changed settings).',
@@ -2437,7 +2460,7 @@ const TEXTES = {
     videInchange: 'Empty: unchanged', effacerAdresses: 'Turn alerts off',
     confirmCouper: 'The base will send no alert and no heartbeat anymore. Continue?',
     wifi: 'Wi-Fi: {s}{s2}. It is set on the base\'s local page, never remotely.', secours: ' (backup: {s})',
-    enregistrer: 'Save', enregistre: 'Saved.',
+    enregistrer: 'Save', enregistre: 'Saved.', valeursInvalides: 'Current, power and voltage: positive numbers.',
     sauvegarde: 'Base backup',
     aideSauv: 'Zones, settings and probes, to replace a board in a minute. No password, no alert address.',
     telecharger: 'Download', restaurer: 'Restore…',
@@ -2651,6 +2674,19 @@ window.SERVICE = function service(app) {
     return h;
   }
 
+  // L'alimentation : verrouillée ailleurs dans l'application (U20), elle se
+  // déclare ici quand le bloc ou les tapis changent.
+  function carteAlim(id) {
+    const g = m(id).globaux;
+    const h = `<h2>${tx('alim')}</h2><p class="aide">${tx('aideAlim')}</p>`;
+    if (!g) return h + `<p class="aide" aria-busy="true">${tx('chargement')}</p>`;
+    return h + `<form class="pile" data-form="sv-alim"><div class="rangee">
+        <div><label for="sv-a">${tx('courant')}</label><input id="sv-a" inputmode="decimal" value="${esc(g.amperes)}"></div>
+        <div><label for="sv-w">${tx('puissance')}</label><input id="sv-w" inputmode="decimal" value="${esc(g.watts)}"></div>
+        <div><label for="sv-v">${tx('tension')}</label><input id="sv-v" inputmode="decimal" value="${esc(g.volts)}"></div></div>
+        <div class="boutons"><button class="btn" type="submit">${tx('enregistrer')}</button></div></form>`;
+  }
+
   function carteSauvegarde() {
     return `<h2>${tx('sauvegarde')}</h2><p class="aide">${tx('aideSauv')}</p>
       <div class="boutons">${btn('telechargerSauvegarde', tx('telecharger'))}${btn('restaurer', tx('restaurer'))}
@@ -2699,7 +2735,7 @@ window.SERVICE = function service(app) {
 
   /** @type {Array<[string, (id: string, e: any) => string]>} */
   const CARTES = [['support', carteSupport], ['sondes', carteSondes], ['essai', carteEssai], ['surv', carteSurveillance],
-                  ['rapport', carteRapport], ['journal', carteJournal], ['jours', carteJours], ['sauv', carteSauvegarde]];
+                  ['alim', carteAlim], ['rapport', carteRapport], ['journal', carteJournal], ['jours', carteJours], ['sauv', carteSauvegarde]];
 
   function peindreTout() {
     const id = app.socleOuvert();
@@ -2721,6 +2757,7 @@ window.SERVICE = function service(app) {
         d.lu = true;
         relireEtat(s.id);
         faire(s.id, 'reseau', {}, 'reseau');
+        faire(s.id, 'globaux', {}, 'globaux');
         chargerSupport(s.id);
       } else if (!d.supportLu || Date.now() - d.supportLu > 20000) chargerSupport(s.id);
       return CARTES.map(([cle]) => `<section class="carte" data-sv-carte="${cle}"></section>`).join('');
@@ -2830,6 +2867,17 @@ window.SERVICE = function service(app) {
           app.message(tx('envoye'));
         } catch (e) { app.message(e.message, true); }
         await chargerSupport(id);
+        return;
+      }
+      if (form.dataset.form === 'sv-alim') {
+        const racine = app.racine();
+        const nb = sel => parseFloat(String(/** @type {any} */ (racine.querySelector(sel)).value || '').replace(',', '.'));
+        const p = { amperes: nb('#sv-a'), watts: nb('#sv-w'), volts: nb('#sv-v') };
+        if ([p.amperes, p.watts, p.volts].some(v => !(v > 0))) { app.message(tx('valeursInvalides'), true); return; }
+        const n = Math.max(0, Math.min(2, Math.floor((p.amperes * p.volts) / p.watts + 1e-6)));
+        if (!await app.confirmer({ titre: tx('alim'), texte: tx('confirmAlim', { n, a: String(p.amperes).replace('.', app.langue() === 'en' ? '.' : ',') }), ok: tx('enregistrer') })) return;
+        const r = await faire(id, 'globaux', p, 'globaux');
+        if (r && r.ok !== false) { app.message(tx('alimEnregistree')); if (app.generauxRelus) app.generauxRelus(id, r); }
         return;
       }
       if (form.dataset.form !== 'sv-surveillance') return;
@@ -3023,6 +3071,10 @@ const App = (() => {
       chargementReglages: 'Chargement des réglages de l\'appareil…', alimentation: 'Alimentation',
       aideAlim: 'Ce que le socle a le droit de tirer : il n\'allume jamais plus de tapis que l\'alimentation n\'en supporte.',
       courantDispo: 'Courant disponible (A)', puissanceTapis: 'Puissance d\'un tapis (W)', tension: 'Tension (V)',
+      blocAlim: 'Bloc {v} V · {a} A', atelier: 'Atelier',
+      alimEnsemble: 'Deux tapis de {w} W ensemble demandent {i} A : ils peuvent chauffer en même temps.',
+      alimTourDeRole: 'Deux tapis de {w} W ensemble demandent {i} A : ils chauffent à tour de rôle.',
+      aideAlimAtelier: 'Réglée à l\'atelier d\'après le bloc livré. Un bloc changé se déclare dans Service.',
       zonesSimultanees: '{n} zone(s) peuvent chauffer en même temps.', cyclage: 'Cyclage saisonnier',
       aideCyclage: 'Abaisse progressivement les consignes puis les remonte, pour simuler une saison fraîche.',
       cycleActif: 'Cycle saisonnier actif', abaissement: 'Abaissement (°C)', descente: 'Descente (jours)', plateau: 'Plateau (jours)', remontee: 'Remontée (jours)',
@@ -3425,6 +3477,23 @@ const App = (() => {
     }
     try { localStorage.setItem(CLE_CONFIG, JSON.stringify(config)); }
     catch (e) { message(t('sauverImpossible'), true); }
+    synchroniserNoms();
+  }
+  // Les noms donnés aux socles partent au serveur Terrariums : ses
+  // notifications et son carnet les reprennent (U35). Une fois par changement.
+  let nomsEnvoyes = '', minuteurNoms = /** @type {any} */ (null);
+  function synchroniserNoms() {
+    if (!config.serveur || !config.serveur.jeton) return;
+    clearTimeout(minuteurNoms);
+    minuteurNoms = setTimeout(() => {
+      if (!serveur.actif()) return;
+      const rattaches = config.serveur.socles || [];
+      const noms = {};
+      config.socles.forEach(s => { if (rattaches.includes(s.id) && s.nom && s.nom !== s.id) noms[s.id] = s.nom; });
+      const sig = JSON.stringify(noms);
+      if (sig === nomsEnvoyes || sig === '{}') return;
+      serveur.appel('POST', '/api/moi/noms', { noms }).then(() => { nomsEnvoyes = sig; }, () => {});
+    }, 1500);
   }
 
   const socle = id => config.socles.find(s => s.id === id);
@@ -6240,6 +6309,7 @@ const App = (() => {
     langue: () => langue, esc, icone, peindre, commander, message, confirmer, telecharger, lireFichier,
     serveur: { actif: () => serveur.actif(), appel: (methode, chemin, corps) => serveur.appel(methode, chemin, corps) },
     socleOuvert: () => socleOuvert, etat: id => etats[id], racine: () => $('#detail [data-r="panneau"]'),
+    generauxRelus: (id, g) => { generaux[id] = g; invalider(); },
     ouvert: () => vueCourante === 'socle' && panneauActif === 'service'
   };
   function chargerService() {
@@ -6718,12 +6788,20 @@ const App = (() => {
       <span class="os os-1"></span><span class="os os-3"></span><span class="os os-3"></span></div></section>`;
   const soumettre = () => `<div class="boutons"><button class="btn" type="submit">${t('enregistrer')}</button></div>`;
 
+  // L'alimentation se lit ici ; elle se règle à l'atelier, ou dans Service
+  // (U20) : un courant trop haut laisserait deux tapis tirer plus que le bloc.
   function carteAlim(g) {
-    return formGeneraux(g, g && `<section class="carte"><h2>${t('alimentation')}</h2><p class="aide">${t('aideAlim')}</p>
-      <div class="rangee">${champG('gA', t('courantDispo'), g.amperes)}${champG('gW', t('puissanceTapis'), g.watts)}${champG('gV', t('tension'), g.volts)}</div>
-      <p class="aide">${t('zonesSimultanees', { n: g.zonesSimultanees })}</p>
-      ${g.zonePrioritaire === undefined ? '' : `<div class="rangee mt"><div><label for="gZP">${t('zonePrioritaire')}</label><select id="gZP">${optionG(0, t('aucune'), g.zonePrioritaire)}${optionG(1, t('zoneN', { n: 1 }), g.zonePrioritaire)}${optionG(2, t('zoneN', { n: 2 }), g.zonePrioritaire)}</select></div></div>
-      <p class="aide">${t('aideZonePrio')}</p>`}${soumettre()}</section>`);
+    if (!g) return formGeneraux(g, '');
+    const deux = 2 * (+g.watts || 0) / (+g.volts || 12);
+    const ensemble = deux <= (+g.amperes || 0) + 1e-6;
+    return `<section class="carte carte-alim"><h2>${t('alimentation')}</h2>
+      <div class="ligne-alim"><span class="lib"><strong>${t('blocAlim', { v: decimal(g.volts), a: decimal(g.amperes) })}</strong>
+        <small>${t(ensemble ? 'alimEnsemble' : 'alimTourDeRole', { i: decimal(Math.round(deux * 10) / 10), w: decimal(g.watts) })}</small></span>
+        <span class="verrou-atelier">${icone('i-cadenas')}${t('atelier')}</span></div>
+      <p class="aide">${t('aideAlimAtelier')}</p></section>
+      ${g.zonePrioritaire === undefined ? '' : formGeneraux(g, `<section class="carte"><h2>${t('zonePrioritaire')}</h2>
+        <div class="rangee"><div><label for="gZP">${t('zonePrioritaire')}</label><select id="gZP">${optionG(0, t('aucune'), g.zonePrioritaire)}${optionG(1, t('zoneN', { n: 1 }), g.zonePrioritaire)}${optionG(2, t('zoneN', { n: 2 }), g.zonePrioritaire)}</select></div></div>
+        <p class="aide">${t('aideZonePrio')}</p>${soumettre()}</section>`)}`;
   }
 
   function carteSoleil(g) {
@@ -7269,7 +7347,7 @@ const App = (() => {
         case 'majauto':      api.reglerMajAuto(); break;
         case 'prix':         api.prixKwh(); break;
         case 'verrou':       api.deverrouiller(); break;
-        case 'sv-surveillance': case 'sv-message': case 'sv-nouvelle': if (serviceMod) serviceMod.soumettre(f); break;
+        case 'sv-surveillance': case 'sv-message': case 'sv-nouvelle': case 'sv-alim': if (serviceMod) serviceMod.soumettre(f); break;
       }
     });
     doc.addEventListener('change', ev => {
@@ -8628,7 +8706,7 @@ const App = (() => {
 
     async reglerGeneraux() {
       const params = {};
-      for (const [id, cle] of [['gA', 'amperes'], ['gW', 'watts'], ['gV', 'volts'], ['gSD', 'saisonDelta']]) {
+      for (const [id, cle] of [['gSD', 'saisonDelta']]) {
         const v = champNombre(id);
         if (v !== undefined) params[cle] = v;
       }

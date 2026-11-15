@@ -84,7 +84,7 @@ class Carnets {
 
   // Le texte du carnet, et son objet.
   rediger(u, m, resumes) {
-    const noms = (u.carnet && u.carnet.noms) || {};
+    const noms = Object.assign({}, u.noms, (u.carnet && u.carnet.noms) || {});
     const l = ['Bonjour,', '', `Voici le carnet ${deMois(m.index)} ${m.annee} de vos socles.`];
     for (const r of resumes) {
       l.push('', noms[r.id] || r.id);

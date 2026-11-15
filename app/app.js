@@ -153,6 +153,10 @@ const App = (() => {
       chargementReglages: 'Chargement des réglages de l\'appareil…', alimentation: 'Alimentation',
       aideAlim: 'Ce que le socle a le droit de tirer : il n\'allume jamais plus de tapis que l\'alimentation n\'en supporte.',
       courantDispo: 'Courant disponible (A)', puissanceTapis: 'Puissance d\'un tapis (W)', tension: 'Tension (V)',
+      blocAlim: 'Bloc {v} V · {a} A', atelier: 'Atelier',
+      alimEnsemble: 'Deux tapis de {w} W ensemble demandent {i} A : ils peuvent chauffer en même temps.',
+      alimTourDeRole: 'Deux tapis de {w} W ensemble demandent {i} A : ils chauffent à tour de rôle.',
+      aideAlimAtelier: 'Réglée à l\'atelier d\'après le bloc livré. Un bloc changé se déclare dans Service.',
       zonesSimultanees: '{n} zone(s) peuvent chauffer en même temps.', cyclage: 'Cyclage saisonnier',
       aideCyclage: 'Abaisse progressivement les consignes puis les remonte, pour simuler une saison fraîche.',
       cycleActif: 'Cycle saisonnier actif', abaissement: 'Abaissement (°C)', descente: 'Descente (jours)', plateau: 'Plateau (jours)', remontee: 'Remontée (jours)',
@@ -555,6 +559,23 @@ const App = (() => {
     }
     try { localStorage.setItem(CLE_CONFIG, JSON.stringify(config)); }
     catch (e) { message(t('sauverImpossible'), true); }
+    synchroniserNoms();
+  }
+  // Les noms donnés aux socles partent au serveur Terrariums : ses
+  // notifications et son carnet les reprennent (U35). Une fois par changement.
+  let nomsEnvoyes = '', minuteurNoms = /** @type {any} */ (null);
+  function synchroniserNoms() {
+    if (!config.serveur || !config.serveur.jeton) return;
+    clearTimeout(minuteurNoms);
+    minuteurNoms = setTimeout(() => {
+      if (!serveur.actif()) return;
+      const rattaches = config.serveur.socles || [];
+      const noms = {};
+      config.socles.forEach(s => { if (rattaches.includes(s.id) && s.nom && s.nom !== s.id) noms[s.id] = s.nom; });
+      const sig = JSON.stringify(noms);
+      if (sig === nomsEnvoyes || sig === '{}') return;
+      serveur.appel('POST', '/api/moi/noms', { noms }).then(() => { nomsEnvoyes = sig; }, () => {});
+    }, 1500);
   }
 
   const socle = id => config.socles.find(s => s.id === id);
@@ -3370,6 +3391,7 @@ const App = (() => {
     langue: () => langue, esc, icone, peindre, commander, message, confirmer, telecharger, lireFichier,
     serveur: { actif: () => serveur.actif(), appel: (methode, chemin, corps) => serveur.appel(methode, chemin, corps) },
     socleOuvert: () => socleOuvert, etat: id => etats[id], racine: () => $('#detail [data-r="panneau"]'),
+    generauxRelus: (id, g) => { generaux[id] = g; invalider(); },
     ouvert: () => vueCourante === 'socle' && panneauActif === 'service'
   };
   function chargerService() {
@@ -3848,12 +3870,20 @@ const App = (() => {
       <span class="os os-1"></span><span class="os os-3"></span><span class="os os-3"></span></div></section>`;
   const soumettre = () => `<div class="boutons"><button class="btn" type="submit">${t('enregistrer')}</button></div>`;
 
+  // L'alimentation se lit ici ; elle se règle à l'atelier, ou dans Service
+  // (U20) : un courant trop haut laisserait deux tapis tirer plus que le bloc.
   function carteAlim(g) {
-    return formGeneraux(g, g && `<section class="carte"><h2>${t('alimentation')}</h2><p class="aide">${t('aideAlim')}</p>
-      <div class="rangee">${champG('gA', t('courantDispo'), g.amperes)}${champG('gW', t('puissanceTapis'), g.watts)}${champG('gV', t('tension'), g.volts)}</div>
-      <p class="aide">${t('zonesSimultanees', { n: g.zonesSimultanees })}</p>
-      ${g.zonePrioritaire === undefined ? '' : `<div class="rangee mt"><div><label for="gZP">${t('zonePrioritaire')}</label><select id="gZP">${optionG(0, t('aucune'), g.zonePrioritaire)}${optionG(1, t('zoneN', { n: 1 }), g.zonePrioritaire)}${optionG(2, t('zoneN', { n: 2 }), g.zonePrioritaire)}</select></div></div>
-      <p class="aide">${t('aideZonePrio')}</p>`}${soumettre()}</section>`);
+    if (!g) return formGeneraux(g, '');
+    const deux = 2 * (+g.watts || 0) / (+g.volts || 12);
+    const ensemble = deux <= (+g.amperes || 0) + 1e-6;
+    return `<section class="carte carte-alim"><h2>${t('alimentation')}</h2>
+      <div class="ligne-alim"><span class="lib"><strong>${t('blocAlim', { v: decimal(g.volts), a: decimal(g.amperes) })}</strong>
+        <small>${t(ensemble ? 'alimEnsemble' : 'alimTourDeRole', { i: decimal(Math.round(deux * 10) / 10), w: decimal(g.watts) })}</small></span>
+        <span class="verrou-atelier">${icone('i-cadenas')}${t('atelier')}</span></div>
+      <p class="aide">${t('aideAlimAtelier')}</p></section>
+      ${g.zonePrioritaire === undefined ? '' : formGeneraux(g, `<section class="carte"><h2>${t('zonePrioritaire')}</h2>
+        <div class="rangee"><div><label for="gZP">${t('zonePrioritaire')}</label><select id="gZP">${optionG(0, t('aucune'), g.zonePrioritaire)}${optionG(1, t('zoneN', { n: 1 }), g.zonePrioritaire)}${optionG(2, t('zoneN', { n: 2 }), g.zonePrioritaire)}</select></div></div>
+        <p class="aide">${t('aideZonePrio')}</p>${soumettre()}</section>`)}`;
   }
 
   function carteSoleil(g) {
@@ -4399,7 +4429,7 @@ const App = (() => {
         case 'majauto':      api.reglerMajAuto(); break;
         case 'prix':         api.prixKwh(); break;
         case 'verrou':       api.deverrouiller(); break;
-        case 'sv-surveillance': case 'sv-message': case 'sv-nouvelle': if (serviceMod) serviceMod.soumettre(f); break;
+        case 'sv-surveillance': case 'sv-message': case 'sv-nouvelle': case 'sv-alim': if (serviceMod) serviceMod.soumettre(f); break;
       }
     });
     doc.addEventListener('change', ev => {
@@ -5758,7 +5788,7 @@ const App = (() => {
 
     async reglerGeneraux() {
       const params = {};
-      for (const [id, cle] of [['gA', 'amperes'], ['gW', 'watts'], ['gV', 'volts'], ['gSD', 'saisonDelta']]) {
+      for (const [id, cle] of [['gSD', 'saisonDelta']]) {
         const v = champNombre(id);
         if (v !== undefined) params[cle] = v;
       }

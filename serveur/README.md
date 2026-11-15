@@ -65,6 +65,7 @@ Variables d'environnement, ou `serveur/.env` :
 | `COURRIEL_JOURNAL` | 0 | `1` : sans SMTP, l'e-mail (et son code) est écrit dans le journal — développement seulement |
 | `RP_ID` | domaine de la première origine de `ORIGINES` | domaine des clés d'accès : celui où tourne l'application (`app.exemple.fr`, ou `exemple.fr` pour tous ses sous-domaines). Le changer rend inutilisables les clés déjà créées |
 | `RP_NOM` | Terrariums | nom affiché par le téléphone à la création d'une clé |
+| `DELAI_HORS_LIGNE_MIN` | 5 | un socle qui quitte le broker n'est notifié qu'au bout de ce délai (0 : tout de suite) ; s'il revient avant, rien ne part ; après une notification, son retour en ligne est notifié aussi |
 | `TZ` | celui du système (UTC en conteneur) | fuseau des jours et des mois du carnet envoyé par e-mail : `Europe/Paris` |
 
 ## API
@@ -85,7 +86,9 @@ d'un socle qui n'a plus aucun propriétaire aussi), `POST /api/cles/options-crea
 puis `POST /api/cles` (inscrire une clé d'accès), `GET /api/cles`,
 `DELETE /api/cles/:id`,
 `GET /api/moi/carnet`, `POST /api/moi/carnet {actif, noms}` (carnet du mois par
-e-mail, voir plus bas),
+e-mail, voir plus bas), `POST /api/moi/noms {noms: {<socle>: <nom>}}` (les noms
+donnés aux socles dans l'application, 40 caractères, ses socles seuls : titres
+des notifications et du carnet ; l'application les envoie d'elle-même),
 `POST /api/socles/revendiquer {id, jeton}`, `DELETE /api/socles/:id`,
 `GET /api/socles/:id/historique?depuis&jusqua&pas` (même format que le socle :
 `[epoch, t1, consigne1, t2, consigne2]` en centièmes), `POST|DELETE

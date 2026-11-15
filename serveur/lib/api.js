@@ -385,6 +385,12 @@ class Api {
       if (c.actif !== avant) this.noterTitulaire('compte.carnet', refCompte(u.login), { actif: c.actif });
       return this.json(res, 200, this.etatCarnet(u, suite));
     }
+    // Noms des socles dans l'application : titres des notifications (U35).
+    if (chemin === '/api/moi/noms' && methode === 'POST') {
+      const d = await this.lireJson(req);
+      try { return this.json(res, 200, { noms: this.comptes.definirNoms(u.login, d.noms) }); }
+      catch (e) { return this.erreur(res, 400, e.message); }
+    }
     if (methode === 'GET' && chemin === '/api/moi/export') {
       res.setHeader('Content-Disposition', 'attachment; filename="terrariums-compte.json"');
       return this.json(res, 200, this.exportCompte(u.login));

@@ -1080,3 +1080,12 @@ div.ligne-reglage, label.ligne-reglage { cursor: default; }
 .alerte-texte:empty { display: none; }
 .segment.un { grid-template-columns: minmax(0, 1fr); }
 .rond[aria-disabled="true"] { opacity: .35; }
+
+/* Sécurité : l'alimentation, réglée à l'atelier (U20). */
+.ligne-alim { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
+.ligne-alim .lib { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ligne-alim strong { font-size: 16px; font-weight: 500; }
+.ligne-alim small { font-size: 13px; color: var(--texte-2); }
+.verrou-atelier { display: inline-flex; align-items: center; gap: 6px; flex: none; font-size: 13px; color: var(--texte-2); }
+.verrou-atelier .ico { width: 16px; height: 16px; }
+.carte-alim .aide { margin-top: 10px; }

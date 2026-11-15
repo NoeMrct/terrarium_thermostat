@@ -161,8 +161,9 @@ au socle une seconde après le dernier appui. Les rubriques **Températures**, *
 L'**autotune** règle lui-même la bande et le gain : lance-le une fois le terrarium en place et stable,
 il fait osciller la zone pendant environ une heure, puis enregistre ce qu'il a appris.
 
-Rubrique **Sécurité** : la coupure max de chaque zone et l'alimentation (ampères disponibles,
-puissance d'un tapis). Rubrique **Appareil** : le cyclage saisonnier, les statistiques, la santé du
+Rubrique **Sécurité** : la coupure max de chaque zone, et l'alimentation telle que l'atelier l'a
+réglée (le bloc, et si deux tapis peuvent chauffer ensemble ou à tour de rôle) ; elle ne se change
+que dans **Service**, quand le bloc ou les tapis changent, après une confirmation. Rubrique **Appareil** : le cyclage saisonnier, les statistiques, la santé du
 socle, les sauvegardes de réglages.
 
 Avec le firmware 3.5, l'application règle aussi ce qui suit (le soleil dans Programmation, la zone

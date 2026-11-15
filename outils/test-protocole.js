@@ -247,7 +247,8 @@ client.on('connect', async () => {
     const glob3 = await commander('globaux', { hiverDebut: 1340 });
     verifier('globaux : date d\'hiver invalide refusée', glob3.ok === false && /MMJJ/.test(glob3.erreur || ''), glob3.erreur || '');
     const glob4 = await commander('globaux', { vacancesDebut: 0, vacancesFin: 0, prechauffage: false, saisonsActives: false });
-    const prog4 = await commander('programme', { actif: false });
+    // Le programme d'origine revient : les suites suivantes (l'application) partent de lui.
+    const prog4 = await commander('programme', { actif: false, weekend: prog0.weekend, semaine: prog0.semaine, weekEnd: prog0.weekEnd });
     verifier('on revient au jour et à la nuit, sans vacances', glob4.ok === true && glob4.vacancesEnCours === false && prog4.ok === true && prog4.actif === false);
 
     titre('12. Réglages fins d\'une zone');

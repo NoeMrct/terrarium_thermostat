@@ -120,12 +120,8 @@ const attendre = ms => new Promise(r => setTimeout(r, ms));
 
   App.panneau('securite');
   await attendre(1200);
-  v('coupure et alimentation dans Sécurité', !!$('#m0') && !!$('#gA'), $('#gA') && $('#gA').value);
-  $('#gA').value = '5';
-  await App.reglerGeneraux();
-  await attendre(600);
-  v('5 A débloquent deux zones', $('#message').textContent.includes('2 zone'),
-    $('#message').textContent);
+  v('coupure et alimentation dans Sécurité', !!$('#m0') && /Bloc 12,0 V/.test(($('#detail .ligne-alim') || {}).textContent || ''),
+    (($('#detail .ligne-alim') || {}).textContent || '').replace(/\s+/g, ' ').slice(0, 60));
   App.panneau('general');
   await attendre(1200);
   v('les statistiques 24 h arrivent', $('#detail').innerHTML.includes('kWh'));

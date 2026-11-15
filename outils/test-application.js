@@ -337,19 +337,35 @@ function creerApp(adressePage, avantChargement) {
   const generalPret = await jusqua(() => !!$('#gSD') && texte('#detail').includes('Sur 24 heures'), 12000);
   verifier('la saison et les statistiques arrivent dans Appareil', generalPret);
   App.panneau('securite');
-  await jusqua(() => !!$('#gA'), 6000);
-  verifier('l\'ampérage est pré-rempli', $('#gA') && parseFloat($('#gA').value) > 0, $('#gA') && $('#gA').value);
-  $('#gA').value = '5';
-  await App.reglerGeneraux();
-  await attendre(400);
-  verifier('5 A débloquent deux zones simultanées',
-           texte('#message').includes('2 zone'), texte('#message'));
-  $('#gA').value = '99';
-  await App.reglerGeneraux();
-  await attendre(400);
+  await jusqua(() => !!$('#detail .ligne-alim'), 6000);
+  verifier('Sécurité : l\'alimentation se lit, réglée à l\'atelier (U20)',
+           /Bloc 12,0 V · 3,0 A/.test(texte('#detail .ligne-alim')) && /Atelier/.test(texte('#detail .ligne-alim')) && !$('#gA'), texte('#detail .ligne-alim').replace(/\s+/g, ' '));
+  verifier('…deux tapis ensemble : à tour de rôle sur 3 A', /tour de rôle/.test(texte('#detail .ligne-alim')));
+  App.panneau('service');
+  verifier('Service : l\'alimentation s\'y déclare', await jusqua(() => !!$('#sv-a') && parseFloat($('#sv-a').value) > 0, 8000), $('#sv-a') && $('#sv-a').value);
+  $('#sv-a').value = '5';
+  $('[data-form="sv-alim"]').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+  await jusqua(() => !!$('#dlg-confirm[open] [data-dlg="oui"]'), 3000);
+  verifier('…après confirmation (deux tapis à la fois avec 5 A)', /2 tapis/.test(texte('#dlg-texte')), texte('#dlg-texte'));
+  $('#dlg-confirm [data-dlg="oui"]').click();
+  verifier('5 A débloquent deux zones simultanées', await jusqua(() => texte('#message').includes('Alimentation enregistrée'), 6000), texte('#message'));
+  App.panneau('securite');
+  verifier('…et Sécurité le dit', await jusqua(() => /5,0 A/.test(texte('#detail .ligne-alim')) && /en même temps/.test(texte('#detail .ligne-alim')), 6000), texte('#detail .ligne-alim').replace(/\s+/g, ' '));
+  App.panneau('service');
+  await jusqua(() => !!$('#sv-a'), 6000);
+  $('#sv-a').value = '99';
+  $('[data-form="sv-alim"]').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+  await jusqua(() => !!$('#dlg-confirm[open] [data-dlg="oui"]'), 3000);
+  $('#dlg-confirm [data-dlg="oui"]').click();
   verifier('un ampérage aberrant est refusé par le socle',
-           texte('#message').toLowerCase().includes('amperage') ||
-           texte('#message').toLowerCase().includes('ampérage'), texte('#message'));
+           await jusqua(() => texte('#message').toLowerCase().includes('amperage') || texte('#message').toLowerCase().includes('ampérage'), 6000), texte('#message'));
+  // Le socle simulé retrouve son bloc de 3 A pour la suite.
+  $('#sv-a').value = '3';
+  $('[data-form="sv-alim"]').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+  await jusqua(() => !!$('#dlg-confirm[open] [data-dlg="oui"]'), 3000);
+  $('#dlg-confirm [data-dlg="oui"]').click();
+  await jusqua(() => texte('#message').includes('Alimentation enregistrée'), 6000);
+  App.panneau('etat');
 
   titre('12 bis. Une réponse « stats » ne passe pas pour un état');
   {

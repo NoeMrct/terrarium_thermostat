@@ -37,6 +37,11 @@ const TEXTES = {
     aideCalib: 'Pose les deux sondes côte à côte quelques minutes : la zone 2 est alors alignée sur la zone 1.',
     calibrer: 'Aligner la zone 2 sur la zone 1',
     confirmCalib: 'Les deux sondes sont-elles côte à côte, au même endroit, depuis au moins 5 minutes ?',
+    alim: 'Alimentation (atelier)',
+    aideAlim: 'À régler d\'après l\'étiquette du bloc 12 V et celle des tapis : le socle n\'allume jamais plus de tapis que ce courant ne le permet.',
+    courant: 'Courant du bloc (A)', puissance: 'Puissance d\'un tapis (W)', tension: 'Tension (V)',
+    confirmAlim: 'Le socle pourra allumer jusqu\'à {n} tapis à la fois avec {a} A. Ces valeurs sont-elles celles des étiquettes du bloc et des tapis ?',
+    alimEnregistree: 'Alimentation enregistrée.',
     rapport: 'Rapport du jour', aideRapport: 'Le résumé que le socle envoie chaque jour avec les alertes, si le rapport est activé.',
     lire: 'Lire', envoyer: 'Envoyer maintenant',
     journal: 'Journal', aideJournal: 'Les derniers événements du socle (redémarrages, défauts, réglages modifiés).',
@@ -55,7 +60,7 @@ const TEXTES = {
     videInchange: 'Vide : inchangée', effacerAdresses: 'Couper les alertes',
     confirmCouper: 'Le socle n\'enverra plus aucune alerte ni heartbeat. Continuer ?',
     wifi: 'Wi-Fi : {s}{s2}. Il se règle sur la page locale du socle, jamais à distance.', secours: ' (secours : {s})',
-    enregistrer: 'Enregistrer', enregistre: 'Enregistré.',
+    enregistrer: 'Enregistrer', enregistre: 'Enregistré.', valeursInvalides: 'Courant, puissance et tension : des nombres positifs.',
     sauvegarde: 'Sauvegarde du socle',
     aideSauv: 'Zones, réglages et sondes, pour remplacer une carte en une minute. Ni mot de passe, ni adresse d\'alerte.',
     telecharger: 'Télécharger', restaurer: 'Restaurer…',
@@ -99,6 +104,11 @@ const TEXTES = {
     aideCalib: 'Put both probes side by side for a few minutes: zone 2 is then aligned with zone 1.',
     calibrer: 'Align zone 2 with zone 1',
     confirmCalib: 'Have both probes been side by side, in the same spot, for at least 5 minutes?',
+    alim: 'Power supply (workshop)',
+    aideAlim: 'Set from the labels of the 12 V block and of the mats: the base never turns on more mats than this current allows.',
+    courant: 'Block current (A)', puissance: 'Power of one mat (W)', tension: 'Voltage (V)',
+    confirmAlim: 'The base will be able to turn on up to {n} mats at once with {a} A. Are these the values on the labels of the block and the mats?',
+    alimEnregistree: 'Power supply saved.',
     rapport: 'Daily report', aideRapport: 'The summary the base sends every day with its alerts, when the report is on.',
     lire: 'Read', envoyer: 'Send now',
     journal: 'Log', aideJournal: 'The base\'s latest events (restarts, faults, changed settings).',
@@ -117,7 +127,7 @@ const TEXTES = {
     videInchange: 'Empty: unchanged', effacerAdresses: 'Turn alerts off',
     confirmCouper: 'The base will send no alert and no heartbeat anymore. Continue?',
     wifi: 'Wi-Fi: {s}{s2}. It is set on the base\'s local page, never remotely.', secours: ' (backup: {s})',
-    enregistrer: 'Save', enregistre: 'Saved.',
+    enregistrer: 'Save', enregistre: 'Saved.', valeursInvalides: 'Current, power and voltage: positive numbers.',
     sauvegarde: 'Base backup',
     aideSauv: 'Zones, settings and probes, to replace a board in a minute. No password, no alert address.',
     telecharger: 'Download', restaurer: 'Restore…',
@@ -331,6 +341,19 @@ export default function service(app) {
     return h;
   }
 
+  // L'alimentation : verrouillée ailleurs dans l'application (U20), elle se
+  // déclare ici quand le bloc ou les tapis changent.
+  function carteAlim(id) {
+    const g = m(id).globaux;
+    const h = `<h2>${tx('alim')}</h2><p class="aide">${tx('aideAlim')}</p>`;
+    if (!g) return h + `<p class="aide" aria-busy="true">${tx('chargement')}</p>`;
+    return h + `<form class="pile" data-form="sv-alim"><div class="rangee">
+        <div><label for="sv-a">${tx('courant')}</label><input id="sv-a" inputmode="decimal" value="${esc(g.amperes)}"></div>
+        <div><label for="sv-w">${tx('puissance')}</label><input id="sv-w" inputmode="decimal" value="${esc(g.watts)}"></div>
+        <div><label for="sv-v">${tx('tension')}</label><input id="sv-v" inputmode="decimal" value="${esc(g.volts)}"></div></div>
+        <div class="boutons"><button class="btn" type="submit">${tx('enregistrer')}</button></div></form>`;
+  }
+
   function carteSauvegarde() {
     return `<h2>${tx('sauvegarde')}</h2><p class="aide">${tx('aideSauv')}</p>
       <div class="boutons">${btn('telechargerSauvegarde', tx('telecharger'))}${btn('restaurer', tx('restaurer'))}
@@ -379,7 +402,7 @@ export default function service(app) {
 
   /** @type {Array<[string, (id: string, e: any) => string]>} */
   const CARTES = [['support', carteSupport], ['sondes', carteSondes], ['essai', carteEssai], ['surv', carteSurveillance],
-                  ['rapport', carteRapport], ['journal', carteJournal], ['jours', carteJours], ['sauv', carteSauvegarde]];
+                  ['alim', carteAlim], ['rapport', carteRapport], ['journal', carteJournal], ['jours', carteJours], ['sauv', carteSauvegarde]];
 
   function peindreTout() {
     const id = app.socleOuvert();
@@ -401,6 +424,7 @@ export default function service(app) {
         d.lu = true;
         relireEtat(s.id);
         faire(s.id, 'reseau', {}, 'reseau');
+        faire(s.id, 'globaux', {}, 'globaux');
         chargerSupport(s.id);
       } else if (!d.supportLu || Date.now() - d.supportLu > 20000) chargerSupport(s.id);
       return CARTES.map(([cle]) => `<section class="carte" data-sv-carte="${cle}"></section>`).join('');
@@ -510,6 +534,17 @@ export default function service(app) {
           app.message(tx('envoye'));
         } catch (e) { app.message(e.message, true); }
         await chargerSupport(id);
+        return;
+      }
+      if (form.dataset.form === 'sv-alim') {
+        const racine = app.racine();
+        const nb = sel => parseFloat(String(/** @type {any} */ (racine.querySelector(sel)).value || '').replace(',', '.'));
+        const p = { amperes: nb('#sv-a'), watts: nb('#sv-w'), volts: nb('#sv-v') };
+        if ([p.amperes, p.watts, p.volts].some(v => !(v > 0))) { app.message(tx('valeursInvalides'), true); return; }
+        const n = Math.max(0, Math.min(2, Math.floor((p.amperes * p.volts) / p.watts + 1e-6)));
+        if (!await app.confirmer({ titre: tx('alim'), texte: tx('confirmAlim', { n, a: String(p.amperes).replace('.', app.langue() === 'en' ? '.' : ',') }), ok: tx('enregistrer') })) return;
+        const r = await faire(id, 'globaux', p, 'globaux');
+        if (r && r.ok !== false) { app.message(tx('alimEnregistree')); if (app.generauxRelus) app.generauxRelus(id, r); }
         return;
       }
       if (form.dataset.form !== 'sv-surveillance') return;

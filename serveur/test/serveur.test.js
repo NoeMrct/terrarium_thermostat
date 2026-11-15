@@ -74,7 +74,7 @@ function connexion(port, username, password) {
 test('serveur : comptes, droits, appairage, historique, push, API', async t => {
   const donnees = dossierTemp();
   const pushs = [];
-  const s = await demarrerServeur({ port: 0, portMqtt: 0, donnees, adminJeton: ADMIN, pasHistoriqueMs: 20, antiSpamMs: 50,
+  const s = await demarrerServeur({ port: 0, portMqtt: 0, donnees, adminJeton: ADMIN, pasHistoriqueMs: 20, antiSpamMs: 50, delaiHorsLigneMs: 300,
     envoyerPush: async (abonnement, charge) => { pushs.push({ endpoint: abonnement.endpoint, charge: JSON.parse(charge) }); }, journal: () => {} });
   t.after(async () => { await s.arreter(); fs.rmSync(donnees, { recursive: true, force: true }); });
 
@@ -233,22 +233,40 @@ test('serveur : comptes, droits, appairage, historique, push, API', async t => {
     socle.publish('terrarium/terraA1B2C3/zone1/etat', JSON.stringify({ temp: 30, consigne: 32, defaut: '1', defaut_libelle: 'SONDE', nom: 'Point chaud' }));
     await attendre(200);
     assert.equal(pushs.length, 1, 'un défaut déclenche une notification');
-    assert.ok(/DÉFAUT/.test(pushs[0].charge.titre) && /SONDE/.test(pushs[0].charge.corps) && pushs[0].charge.urgent === true);
+    assert.equal(pushs[0].charge.titre, 'terraA1B2C3', 'sans nom donné : l\'identifiant');
+    assert.ok(/^Point chaud sans mesure : chauffe coupée par sécurité/.test(pushs[0].charge.corps) && pushs[0].charge.urgent === true && pushs[0].charge.genre === 'defaut', pushs[0].charge.corps);
+    // Les noms de l'application (U35) : le titre des suivantes.
+    const noms = await appel(s.port, 'POST', '/api/moi/noms', { noms: { terraA1B2C3: 'Terrarium\u0007 du salon', terraD4E5F6: 'Pas à moi' } }, jeton);
+    assert.equal(noms.status, 200);
+    assert.deepEqual(noms.donnees.noms, { terraA1B2C3: 'Terrarium  du salon' }, 'nettoyé, et seulement pour ses socles');
+    assert.equal((await appel(s.port, 'POST', '/api/moi/noms', { noms: 'x' }, jeton)).status, 400);
+    await appel(s.port, 'POST', '/api/moi/noms', { noms: { terraA1B2C3: 'Terrarium du salon' } }, jeton);
     socle.publish('terrarium/terraA1B2C3/zone1/etat', JSON.stringify({ temp: 30, consigne: 32, defaut: '1', defaut_libelle: 'SONDE' }));
     await attendre(100);
     assert.equal(pushs.length, 1, 'un défaut qui persiste ne renotifie pas');
     socle.publish('terrarium/terraA1B2C3/zone1/etat', JSON.stringify({ temp: 30, consigne: 32, defaut: '0' }));
     await attendre(200);
     assert.equal(pushs.length, 2, 'le retour à la normale est notifié');
-    assert.ok(/rétabli/.test(pushs[1].charge.titre));
+    assert.equal(pushs[1].charge.titre, 'Terrarium du salon', 'titre : le nom donné dans l\'application');
+    assert.ok(/revenue à la normale/.test(pushs[1].charge.corps));
     await new Promise(res => socle.end(false, {}, res));          // départ propre : le testament « hors ligne » ne part pas…
     socle = socleFactice(s.portMqtt, 'terraA1B2C3', 'secret-du-socle');
     await attendre(200);
     pushs.length = 0;
     socle.publish('terrarium/terraA1B2C3/statut', 'hors ligne', { retain: true });   // …on le simule
+    await attendre(100);
+    assert.equal(pushs.length, 0, 'délai de grâce : rien tout de suite (U34)');
+    socle.publish('terrarium/terraA1B2C3/statut', 'en ligne', { retain: true });
+    await attendre(400);
+    assert.equal(pushs.length, 0, 'revenu avant la fin du délai : rien du tout');
+    socle.publish('terrarium/terraA1B2C3/statut', 'hors ligne', { retain: true });
+    await attendre(500);
+    assert.equal(pushs.length, 1, 'passage hors ligne notifié après le délai');
+    assert.ok(/^Hors ligne depuis \d+ min/.test(pushs[0].charge.corps) && pushs[0].charge.titre === 'Terrarium du salon' && pushs[0].charge.urgent === true, pushs[0].charge.corps);
+    socle.publish('terrarium/terraA1B2C3/statut', 'en ligne', { retain: true });
     await attendre(200);
-    assert.equal(pushs.length, 1, 'passage hors ligne notifié');
-    assert.ok(/hors ligne/.test(pushs[0].charge.titre));
+    assert.equal(pushs.length, 2, 'puis le retour en ligne');
+    assert.ok(/^De nouveau en ligne/.test(pushs[1].charge.corps) && pushs[1].charge.urgent === false);
   });
 
   await t.test('notifications push : mise à jour disponible, une fois par version (F15)', async () => {
@@ -259,14 +277,14 @@ test('serveur : comptes, droits, appairage, historique, push, API', async t => {
     sante({ actif: true, attente: 'plage', disponible: '3.6.0' });
     await attendre(200);
     assert.equal(pushs.length, 1, 'une nouvelle version disponible est annoncée');
-    assert.ok(/3\.6\.0/.test(pushs[0].charge.titre) && /cette nuit/.test(pushs[0].charge.corps) && pushs[0].charge.urgent === false);
+    assert.ok(/3\.6\.0/.test(pushs[0].charge.corps) && /cette nuit/.test(pushs[0].charge.corps) && pushs[0].charge.urgent === false);
     sante({ actif: true, attente: 'plage', disponible: '3.6.0' });
     await attendre(150);
     assert.equal(pushs.length, 1, 'la même version ne se réannonce pas');
     sante({ actif: false, attente: 'desactivee', disponible: '3.6.1', securite: true });
     await attendre(200);
     assert.equal(pushs.length, 2, 'la suivante, si');
-    assert.ok(/sécurité/.test(pushs[1].charge.titre) && /depuis l'application/.test(pushs[1].charge.corps) && pushs[1].charge.urgent === true);
+    assert.ok(/sécurité/.test(pushs[1].charge.corps) && /depuis l'application/.test(pushs[1].charge.corps) && pushs[1].charge.urgent === true);
     const fiche = await appel(s.port, 'GET', '/api/admin/socles/terraA1B2C3', undefined, 'jeton-admin-de-test');
     if (fiche.status === 200) assert.equal(fiche.donnees.majAuto.disponible, '3.6.1', 'résumé de flotte : mises à jour automatiques');
   });
@@ -279,22 +297,22 @@ test('serveur : comptes, droits, appairage, historique, push, API', async t => {
     etat({ trop_chaud: '1', derive: '0' });
     await attendre(200);
     assert.equal(pushs.length, 1, 'une zone trop chaude est notifiée');
-    assert.ok(/trop chaud/.test(pushs[0].charge.titre) && /Point froid/.test(pushs[0].charge.corps) && pushs[0].charge.urgent === true);
+    assert.ok(/^Point froid trop chaude/.test(pushs[0].charge.corps) && pushs[0].charge.urgent === true, pushs[0].charge.corps);
     etat({ trop_chaud: '1', derive: '0' });
     await attendre(150);
     assert.equal(pushs.length, 1, 'qui le reste ne renotifie pas');
     etat({ trop_chaud: '0', derive: '0' });
     await attendre(200);
     assert.equal(pushs.length, 2, 'le retour à la normale est notifié');
-    assert.ok(/rétabli/.test(pushs[1].charge.titre));
+    assert.ok(/revenue à la normale/.test(pushs[1].charge.corps));
     etat({ temp: 24, trop_chaud: '0', derive: '1' });
     await attendre(200);
     assert.equal(pushs.length, 3, 'une dérive est notifiée');
-    assert.ok(/dérive/.test(pushs[2].charge.titre) && pushs[2].charge.urgent === false);
+    assert.ok(/s'éloigne de sa consigne/.test(pushs[2].charge.corps) && pushs[2].charge.genre === 'dérive' && pushs[2].charge.urgent === false);
     etat({ temp: 24, defaut: '1', defaut_libelle: 'SONDE', trop_chaud: '0', derive: '1' });
     await attendre(200);
     assert.equal(pushs.length, 4, 'un défaut l\'emporte sur la dérive');
-    assert.ok(/DÉFAUT/.test(pushs[3].charge.titre));
+    assert.ok(/sans mesure : chauffe coupée/.test(pushs[3].charge.corps));
     etat({ trop_chaud: '0', derive: '0' });
     await attendre(200);
   });

@@ -76,6 +76,18 @@ jour.
   journée au milieu de l'hiver. S'ajoute au cyclage saisonnier existant.
 - Journal : changements de plage, plages modifiées, début et fin des
   vacances, lus en phrases par l'application.
+- **Notifications lisibles** (U35) : le titre d'une notification du serveur
+  est le nom que chacun donne au socle dans son application (envoyé au
+  serveur par l'application, `POST /api/moi/noms`), le corps une phrase :
+  « Zone fraîche sans mesure : chauffe coupée par sécurité. Touche pour
+  dépanner. » Le carnet par e-mail reprend ces noms.
+- **Délai de grâce hors ligne** (U34) : un socle qui quitte le broker n'est
+  notifié qu'au bout de 5 minutes (`DELAI_HORS_LIGNE_MIN`) ; revenu avant,
+  rien ne part ; notifié, son retour en ligne l'est aussi.
+- **Alimentation verrouillée** (U20) : la rubrique Sécurité montre le bloc
+  (« Bloc 12 V · 3 A ») et dit si deux tapis peuvent chauffer ensemble ou à
+  tour de rôle ; elle ne se modifie plus que dans Service, après
+  confirmation de ce que cela permet.
 - Firmware : `jours` se lit par pages (`depuis`, la réponse donne `total`) et
   `historique` par fenêtres plus anciennes (`decalage`, en heures) : un mois
   de résumés ou quatorze jours de mesures fines passent le broker message par

@@ -134,6 +134,7 @@ class Comptes {
       clesAcces: (u.cles || []).map(c => ({ nom: c.nom, cree: c.cree, derniereUtilisation: c.vu || null, synchronisee: !!c.synchronisee })),
       sessions: [...this.donnees.sessions.values()].filter(s_ => s_.login === cle).map(s_ => ({ ouverte: s_.cree || null, expire: s_.expire, appareil: s_.agent || '' })),
       notificationsPush: (this.donnees.abonnementsPush.get(cle) || []).map(a => ({ appareil: a.agent, cree: a.cree })),
+      nomsDesSocles: { ...(u.noms || {}) },
       carnetMensuel: u.carnet ? { actif: !!u.carnet.actif, depuis: u.carnet.depuis || null, dernierMoisCouvert: u.carnet.dernier || null, nomsDesSocles: { ...(u.carnet.noms || {}) } } : null,
       exporte: new Date().toISOString()
     };
@@ -385,10 +386,32 @@ class Comptes {
     if (!u) return;
     u.socles = u.socles.filter(s => s !== id);
     if (u.carnet && u.carnet.noms) delete u.carnet.noms[id];
+    if (u.noms) delete u.noms[id];
     this.sauver();
   }
 
   possede(u, id) { return !!u && (u.admin || u.socles.includes(id)); }
+
+  // Les noms que le titulaire donne à ses socles dans l'application : titres
+  // des notifications et du carnet. Texte seul, 40 caractères, ses socles seuls.
+  definirNoms(login, noms) {
+    const u = this.utilisateur(login);
+    if (!u) throw new Error('utilisateur inconnu');
+    if (!noms || typeof noms !== 'object' || Array.isArray(noms)) throw new Error('noms : un objet { socle: nom }');
+    const propres = Object.assign({}, u.noms);
+    for (const [id, nom] of Object.entries(noms)) {
+      if (!u.socles.includes(id)) continue;
+      const n = typeof nom === 'string' ? nom.replace(/\p{Cc}/gu, ' ').trim().slice(0, 40) : '';
+      if (n) propres[id] = n; else delete propres[id];
+    }
+    u.noms = propres;
+    this.sauver();
+    return u.noms;
+  }
+  nomSocle(u, id) {
+    const n = (u && u.noms && u.noms[id]) || (u && u.carnet && u.carnet.noms && u.carnet.noms[id]);
+    return typeof n === 'string' && n ? n : id;
+  }
 
   // Tous les utilisateurs qui ont un socle donné : destinataires des notifications.
   proprietaires(id) { return [...this.donnees.utilisateurs.values()].filter(u => u.socles.includes(id)); }

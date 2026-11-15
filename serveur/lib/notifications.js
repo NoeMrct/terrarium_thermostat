@@ -37,7 +37,8 @@ class Notifications {
       if (Date.now() - avant < this.antiSpamMs) return 0;
       this.derniers[cleAntiSpam] = Date.now();
     }
-    const charge = JSON.stringify({ titre: notification.titre, corps: notification.corps, socle: notification.socle, tag: notification.tag || notification.socle, urgent: !!notification.urgent });
+    const charge = JSON.stringify({ titre: notification.titre, corps: notification.corps, socle: notification.socle, tag: notification.tag || notification.socle, urgent: !!notification.urgent,
+      ...(notification.genre ? { genre: notification.genre } : {}) });
     let reussis = 0;
     for (const a of comptes.abonnementsPush(login)) {
       try {
@@ -51,9 +52,15 @@ class Notifications {
     return reussis;
   }
 
+  // « {nom} » dans le titre ou le corps : le nom que chaque titulaire donne au
+  // socle dans son application (l'identifiant, à défaut).
   async notifierProprietaires(comptes, socle, notification, cleAntiSpam) {
     let n = 0;
-    for (const u of comptes.proprietaires(socle)) n += await this.notifier(comptes, u.login, notification, cleAntiSpam ? `${cleAntiSpam}:${u.login}` : null);
+    for (const u of comptes.proprietaires(socle)) {
+      const nom = typeof comptes.nomSocle === 'function' ? comptes.nomSocle(u, socle) : socle;
+      const perso = { ...notification, titre: String(notification.titre).split('{nom}').join(nom), corps: String(notification.corps || '').split('{nom}').join(nom) };
+      n += await this.notifier(comptes, u.login, perso, cleAntiSpam ? `${cleAntiSpam}:${u.login}` : null);
+    }
     return n;
   }
 }

@@ -159,8 +159,9 @@ the last tap. The **Temperatures**, **Schedule** and **Safety** sections hold ev
 **Autotune** sets the band and the gain by itself: run it once the terrarium is in place and
 stable, it makes the zone oscillate for about an hour, then saves what it learned.
 
-**Safety** section: each zone's max cut-off and the power supply (available amps, power of one
-mat). **Device** section: seasonal cycling, statistics, the base's health, settings backups.
+**Safety** section: each zone's max cut-off, and the power supply as the workshop set it (the
+block, and whether two mats can heat together or take turns); it only changes in **Service**, when
+the block or the mats change, after a confirmation. **Device** section: seasonal cycling, statistics, the base's health, settings backups.
 
 With firmware 3.5, the app also sets what follows (the sun in Schedule, the priority zone in
 Safety, the rest in Device); in the local interface, it is

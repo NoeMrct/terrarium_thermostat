@@ -91,6 +91,9 @@ function configuration(surcharge = {}) {
     contactVapid: env.CONTACT_VAPID || 'mailto:admin@example.invalid',
     retentionJours: +env.RETENTION_JOURS || 400,
     pushActif: env.PUSH !== '0',
+    // Un socle qui quitte le broker n'est annoncé qu'après ce délai : un
+    // redémarrage ou une box qui se reconnecte ne réveille personne (U34).
+    delaiHorsLigneMin: env.DELAI_HORS_LIGNE_MIN !== undefined ? Math.max(0, +env.DELAI_HORS_LIGNE_MIN) : 5,
     // Clés d'accès : le domaine (RP ID) est celui où tourne l'application.
     rpId: env.RP_ID || (env.ORIGINES ? (() => { try { return new URL(env.ORIGINES.split(',')[0].trim()).hostname; } catch (e) { return null; } })() : null),
     rpNom: env.RP_NOM || 'Terrariums',
@@ -104,6 +107,12 @@ function configuration(surcharge = {}) {
 
 // Texte des notifications : court, lisible sur un écran verrouillé.
 function nomZone(etat, zone) { return (etat && etat.nom) || `Zone ${zone + 1}`; }
+// Les défauts du firmware, en mots (U35) : « Zone fraîche sans mesure ».
+const DEFAUTS_LISIBLES = { 'SONDE': 'sans mesure', 'SURCHAUFFE': 'au-dessus de sa coupure', 'SONDE FIGEE': 'sonde figée', 'CHAUFFE SANS EFFET': 'chauffe sans effet' };
+function defautLisible(etat) {
+  const d = String((etat && (etat.defaut_libelle || etat.defaut)) || '').trim();
+  return DEFAUTS_LISIBLES[d.toUpperCase()] || (d && d !== '1' ? `en défaut (${d})` : 'en défaut');
+}
 
 async function demarrerServeur(surcharge = {}) {
   const o = configuration(surcharge);
@@ -151,30 +160,52 @@ async function demarrerServeur(surcharge = {}) {
       evenements.noter(id, a || 'retabli', { zone: zone + 1, ...(a === 'defaut' ? { libelle: String(etat.defaut_libelle || etat.defaut) } : {}) });
     }
     const envoyer = (n, cle) => notifications.notifierProprietaires(comptes, id, { ...n, socle: id }, `${cle}:${id}:${zone}`).catch(() => {});
+    // Le titre : le nom du socle chez chaque titulaire ; le corps : une phrase (U35).
     if (a === 'defaut') {
-      envoyer({ titre: `${id} — DÉFAUT`, corps: `${nomZone(etat, zone)} : ${etat.defaut_libelle || etat.defaut}. Chauffage coupé.`, urgent: true }, 'defaut');
+      envoyer({ titre: '{nom}', corps: `${nomZone(etat, zone)} ${defautLisible(etat)} : chauffe coupée par sécurité. Touche pour dépanner.`, urgent: true, genre: 'defaut' }, 'defaut');
     } else if (a && avant === undefined) {
       // Premier état vu depuis le démarrage du serveur (état retenu rejoué) :
       // une dérive en cours depuis des heures n'est pas une nouvelle.
     } else if (a === 'trop_chaud') {
-      envoyer({ titre: `${id} — trop chaud`, corps: `${nomZone(etat, zone)} dépasse sa consigne sans chauffer : aérer ou ombrer.`, urgent: true }, 'tropchaud');
+      envoyer({ titre: '{nom}', corps: `${nomZone(etat, zone)} trop chaude, sans chauffer : aère ou ombre le terrarium.`, urgent: true, genre: 'trop chaud' }, 'tropchaud');
     } else if (a === 'derive') {
-      envoyer({ titre: `${id} — dérive`, corps: `${nomZone(etat, zone)} s'éloigne de sa consigne.` }, 'derive');
+      envoyer({ titre: '{nom}', corps: `${nomZone(etat, zone)} s'éloigne de sa consigne.`, genre: 'dérive' }, 'derive');
     } else if (!a && avant) {
-      envoyer({ titre: `${id} — rétabli`, corps: `${nomZone(etat, zone)} est revenue à la normale.` }, 'retabli');
+      envoyer({ titre: '{nom}', corps: `${nomZone(etat, zone)} est revenue à la normale.`, genre: 'rétabli' }, 'retabli');
     }
   });
-  broker.on('enLigne', id => evenements.noter(id, 'en ligne'));
+  // Hors ligne (U34) : annoncé après un délai de grâce, puis le retour en ligne
+  // aussi ; un socle revenu avant la fin du délai ne fait rien sonner.
+  const absences = new Map();          // id -> { minuteur, annonce, depuis }
+  const delaiHorsLigneMs = o.delaiHorsLigneMs !== undefined ? o.delaiHorsLigneMs : o.delaiHorsLigneMin * 60000;
+  broker.on('enLigne', id => {
+    evenements.noter(id, 'en ligne');
+    const a = absences.get(id);
+    if (!a) return;
+    clearTimeout(a.minuteur);
+    absences.delete(id);
+    if (a.annonce && notifications) {
+      notifications.notifierProprietaires(comptes, id, { titre: '{nom}', corps: 'De nouveau en ligne. Les valeurs sont à jour.', socle: id, genre: 'en ligne' }).catch(() => {});
+    }
+  });
   broker.on('redemarrage', (id, sante) => evenements.noter(id, 'redemarrage', { reset: sante.reset || null, version: sante.version || null }));
   broker.on('horsLigne', id => {
     evenements.noter(id, 'hors ligne');
-    if (notifications) notifications.notifierProprietaires(comptes, id, { titre: `${id} — hors ligne`, corps: 'Le socle a quitté le broker (coupure de courant ou de réseau).', socle: id, urgent: true }, `horsligne:${id}`).catch(() => {});
+    if (!notifications || absences.has(id)) return;
+    const a = { annonce: false, depuis: Date.now(), minuteur: null };
+    a.minuteur = setTimeout(() => {
+      a.annonce = true;
+      const min = Math.max(1, Math.round((Date.now() - a.depuis) / 60000));
+      notifications.notifierProprietaires(comptes, id, { titre: '{nom}', corps: `Hors ligne depuis ${min} min : coupure de réseau ou de courant. Sans réseau, il continue de chauffer selon sa programmation.`, socle: id, urgent: true, genre: 'hors ligne' }, `horsligne:${id}`).catch(() => {});
+    }, delaiHorsLigneMs);
+    if (a.minuteur.unref) a.minuteur.unref();
+    absences.set(id, a);
   });
   broker.on('maj', (id, maj) => {
     if (maj) evenements.noter(id, 'maj', { etape: maj.etape, version: maj.version || null, detail: maj.detail || null });
     if (!notifications || !maj) return;
     if (maj.etape === 'echec' || maj.etape === 'retour arriere') {
-      notifications.notifierProprietaires(comptes, id, { titre: `${id} — mise à jour ${maj.etape}`, corps: `${maj.version || ''} : ${maj.detail || ''}`, socle: id, urgent: true }, `maj:${id}:${maj.etape}:${maj.version}`).catch(() => {});
+      notifications.notifierProprietaires(comptes, id, { titre: '{nom}', corps: `Mise à jour ${maj.version || ''} ${maj.etape === 'echec' ? 'en échec' : 'annulée, retour à la version d\'avant'}${maj.detail ? ` : ${maj.detail}` : ''}.`, socle: id, urgent: true, genre: `mise à jour ${maj.etape}` }, `maj:${id}:${maj.etape}:${maj.version}`).catch(() => {});
     }
   });
   // Mises à jour automatiques (F15) : le propriétaire est prévenu une fois par
@@ -184,10 +215,10 @@ async function demarrerServeur(surcharge = {}) {
     if (!notifications) return;
     const auto = majAuto.actif && !['desactivee', 'non-signee', 'echecs', 'refusee'].includes(majAuto.attente);
     notifications.notifierProprietaires(comptes, id, {
-      titre: `${id} — mise à jour ${majAuto.disponible}${majAuto.securite ? ' (sécurité)' : ''}`,
-      corps: auto ? 'Disponible : le socle l\'installera seul cette nuit. Reporter ou couper depuis l\'application.'
-                  : 'Disponible : à installer depuis l\'application (rubrique Mises à jour).',
-      socle: id, urgent: !!majAuto.securite
+      titre: '{nom}',
+      corps: `Mise à jour ${majAuto.disponible}${majAuto.securite ? ' (sécurité)' : ''} disponible : ` + (auto ? 'le socle l\'installera seul cette nuit. Reporter ou couper depuis l\'application.'
+                  : 'à installer depuis l\'application (rubrique Mises à jour).'),
+      socle: id, urgent: !!majAuto.securite, genre: 'mise à jour'
     }, `majdispo:${id}:${majAuto.disponible}`).catch(() => {});
   });
   const purge = setInterval(() => {
@@ -213,7 +244,11 @@ async function demarrerServeur(surcharge = {}) {
 
   return {
     port, portMqtt, comptes, broker, historique, notifications, api, audit, support, evenements, carnets,
-    async arreter() { clearInterval(purge); clearInterval(echeances); clearInterval(tourCarnets); await broker.arreter(); await new Promise(r => serveurHttp.close(r)); }
+    async arreter() {
+      clearInterval(purge); clearInterval(echeances); clearInterval(tourCarnets);
+      for (const a of absences.values()) clearTimeout(a.minuteur);
+      await broker.arreter(); await new Promise(r => serveurHttp.close(r));
+    }
   };
 }
 
