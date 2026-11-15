@@ -204,6 +204,16 @@ double-clic pour revenir. **Exporter en CSV** donne le fichier pour un tableur.
 Les statistiques sur 24 h (min, max, moyenne, part du temps hors plage, heures de chauffe, kWh)
 disent si un terrarium **tient** ses valeurs, pas seulement s'il les atteint.
 
+La rubrique **Consommation** additionne ce que le socle a chauffé depuis le 1er du mois, en kWh et
+en euros, avec une projection sur le mois et sur l'année, les barres de chaque jour (aujourd'hui en
+gris, en cours) et le détail par tapis. Le prix du kWh se règle en bas de l'écran : c'est celui de
+ton contrat. Le socle lui-même (carte, écran) compte pour une estimation fixe d'un demi-watt.
+
+La rubrique **Journal** raconte ce qui s'est passé, jour par jour : alertes et retours à la
+normale, réglages modifiés (depuis l'application ou la page locale), passages en jour et en nuit,
+coupures de courant, accès du support, mises à jour. Filtres **Alertes**, **Réglages** et **Socle**.
+Le socle garde ses derniers événements ; les plus anciens s'effacent d'eux-mêmes.
+
 ## 10. Être prévenu
 
 - **Notifications du navigateur** : un défaut ou une dérive affiche une notification tant que

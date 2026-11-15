@@ -287,10 +287,35 @@ void restaurerHeure() {
   journal("Heure restauree depuis la flash (approximative) : %s", horodatage().c_str());
 }
 
+// Passage en jour ou en nuit, noté au journal (une ligne par zone et par
+// basculement, jamais au démarrage) : des repères dans le journal de
+// l'application. Rien sans heure fiable.
+void suivrePeriodes() {
+  static int8_t vu[NB_ZONES];
+  static bool pret = false;
+  if (!pret) {
+    for (uint8_t z = 0; z < NB_ZONES; z++) vu[z] = -1;
+    pret = true;
+  }
+  for (uint8_t z = 0; z < NB_ZONES; z++) {
+    const int8_t p = ctrl.periodeJour(z);
+    if (p < 0) continue;
+    if (vu[z] >= 0 && p != vu[z])
+      journal("[PERIODE z%u] Passage en %s, consigne %.1f C", (unsigned)z + 1, p ? "jour" : "nuit",
+              (double)(p ? ctrl.cfg[z].consigneJour : ctrl.cfg[z].consigneNuit));
+    vu[z] = p;
+  }
+}
+
 void traiterNotifications() {
   Notification n;
   while (ctrl.prendreNotification(n)) {
-    journal("%s", n.texte);
+    // Nature et zone en tête de ligne, entre crochets : l'application range
+    // le journal par catégorie sans deviner d'après la phrase.
+    if (n.zone < NB_ZONES)
+      journal("[%s z%u] %s", nomNotification(n.type), (unsigned)n.zone + 1, n.texte);
+    else
+      journal("[%s] %s", nomNotification(n.type), n.texte);
     Reseau::alerter(n.type, n.zone, String(n.texte));
   }
 
@@ -508,6 +533,7 @@ void loop() {
     const float dt = (maintenant - tMesure) / 1000.0f;
     tMesure = maintenant;
     ctrl.horloge(g_heureFiable, minutesDuJour());
+    suivrePeriodes();
     for (uint8_t z = 0; z < NB_ZONES; z++) ctrl.mesure(z, Sondes::lire(z), maintenant, dt);
     Sondes::suivre(maintenant);  // identification en cours, sonde rebranchée
     Essai::suivre(maintenant);   // essai de chauffe en cours

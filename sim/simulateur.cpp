@@ -322,7 +322,19 @@ static void scenarioJourNuit(bool csv) {
   verifier("consignes jour et nuit distinctes", fabsf(cJour - 32.0f) < 0.01f && fabsf(cNuit - 26.0f) < 0.01f,
            d);
   verifier("la rampe interpole entre les deux", cRampe < cJour && cRampe > cNuit);
+  // Le basculement noté au journal : au début de la rampe ; sans heure, rien.
+  s.ctrl.horloge(true, 12 * 60);
+  const int8_t pMidi = s.ctrl.periodeJour(0);
+  s.ctrl.horloge(true, 20 * 60 + 1);
+  const int8_t pSoir = s.ctrl.periodeJour(0);
+  s.ctrl.horloge(true, 7 * 60 + 59);
+  const int8_t pAube = s.ctrl.periodeJour(0);
+  s.ctrl.horloge(true, 8 * 60);
+  const int8_t pMatin = s.ctrl.periodeJour(0);
   s.ctrl.horloge(false, 0);
+  verifier("periode : jour a midi et des 8:00, nuit des le debut de la rampe du soir et a 7:59",
+           pMidi == 1 && pSoir == 0 && pAube == 0 && pMatin == 1);
+  verifier("periode : inconnue sans heure fiable", s.ctrl.periodeJour(0) == -1);
   s.avancer(4);
   verifier("sans heure fiable, repli sur la consigne de jour",
            fabsf(s.ctrl.zone[0].consigneEff - 32.0f) < 0.01f);

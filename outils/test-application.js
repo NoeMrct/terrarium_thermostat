@@ -626,6 +626,37 @@ function creerApp(adressePage, avantChargement) {
     App.panneau('etat');
   }
 
+  titre('23 bis. Journal du socle et consommation (F4, F3)');
+  {
+    App.ouvrir(ID);
+    App.panneau('journal');
+    const det = () => texte('#detail');
+    verifier('le journal du socle se lit en phrases, par jour',
+             await jusqua(() => det().includes('Trop chaud') && det().includes('Hier') && det().includes('Passage en nuit'), 6000), det().slice(0, 80));
+    verifier('…les passages des deux zones à la même minute font une seule entrée',
+             /Vers 26,0° et 24,0°/.test(det()), (det().match(/Vers [^A-Z]{0,30}/) || [''])[0]);
+    verifier('…une coupure de courant y est expliquée', det().includes('Coupure de courant') && det().includes('retour à 13:05'));
+    $('[data-action="filtreJournal"][data-filtre="alertes"]').click();
+    verifier('le filtre « Alertes » ne garde que les alertes',
+             await jusqua(() => det().includes('Trop chaud') && !det().includes('Passage en jour'), 2000) &&
+             $('[data-filtre="alertes"]').getAttribute('aria-pressed') === 'true');
+    $('[data-action="filtreJournal"][data-filtre="tout"]').click();
+    App.panneau('conso');
+    verifier('la consommation du mois et sa projection s\'affichent',
+             await jusqua(() => /Depuis le 1er/.test(det()) && det().includes('kWh') && /Environ .* sur un an/.test(det()), 6000), det().slice(0, 90));
+    verifier('…le détail par tapis et le socle lui-même', det().includes('Tapis 1') && det().includes('Le socle lui-même'));
+    verifier('…le rapport d\'hier, tiré du dernier résumé', det().includes('Rapport d\'hier') && /Chauffe 5 h 12/.test(det()), det().match(/Chauffe[^.]*/) && det().match(/Chauffe[^.]*/)[0]);
+    $('#co-prix').value = '0,30';
+    $('#co-prix').closest('form').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+    verifier('le prix du kWh s\'enregistre sur le socle',
+             await jusqua(() => texte('#message').includes('Prix du kWh enregistré'), 4000), texte('#message'));
+    $('#co-prix').value = '9';
+    $('#co-prix').closest('form').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+    await attendre(100);
+    verifier('…un prix aberrant est refusé dans l\'application', texte('#message').includes('Prix invalide'), texte('#message'));
+    App.panneau('etat');
+  }
+
   titre('24. Lien de l\'étiquette : l\'installation part de l\'adresse, sans rien recopier');
   {
     const b = creerApp('http://localhost:8080/#a/terra3f8a1c/K7QM2X-RP9WTD-H4BNZ8-LC3FVA');

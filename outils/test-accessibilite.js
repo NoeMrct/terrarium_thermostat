@@ -32,6 +32,8 @@ const ECRANS = [
   ['programme', () => App.panneau('programme')],
   ['securite', () => App.panneau('securite')],
   ['courbes', () => App.panneau('courbes')],
+  ['consommation', () => App.panneau('conso')],
+  ['journal', () => App.panneau('journal')],
   ['appareil', () => App.panneau('general')],
   ['service', () => App.panneau('service')],
   ['mises à jour', async () => { App.panneau('maj'); await new Promise(r => setTimeout(r, 1500)); }],
@@ -114,7 +116,7 @@ let violationsGraves = 0, total = 0;
     await page.addScriptTag({ content: AXE });
     for (const [ecran, action] of ECRANS) {
       await page.evaluate(action);
-      await page.waitForTimeout(['courbes', 'appareil', 'service', 'programme', 'securite'].includes(ecran) ? 1500 : 500);
+      await page.waitForTimeout(['courbes', 'appareil', 'service', 'programme', 'securite', 'consommation', 'journal'].includes(ecran) ? 1500 : 500);
       await analyser(page, nom + ' / ' + ecran);
     }
     await ctx.close();

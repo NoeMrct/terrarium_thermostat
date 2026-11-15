@@ -55,7 +55,7 @@ const socle = {
     ssid: 'Maison', ssid2: '', urlAlertes: '', urlHeartbeat: '',
     heartbeatMinutes: 5, formatAlertes: 0
   },
-  journal: ['Demarrage (simulation)'],
+  journal: [],
   // Historique en anneau, comme le socle réel : un point par minute, gardé en
   // mémoire ici puisqu'il n'y a pas de flash.
   historique: [],
@@ -119,10 +119,30 @@ function hoteUrl(u) {
   try { return new URL(u).hostname || 'definie'; } catch (e) { return 'definie'; }
 }
 
-const journal = t => {
-  socle.journal.push(`${new Date().toISOString().slice(11, 19)} ${t}`);
+// Le format du firmware : « AAAA-MM-JJ hh:mm:ss | texte », heure locale.
+const horodatage = ms => {
+  const d = new Date(ms), z = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`;
+};
+const journal = (t, ms = Date.now()) => {
+  socle.journal.push(`${horodatage(ms)} | ${t}`);
   if (socle.journal.length > 200) socle.journal.shift();
 };
+// Quelques jours de vie passée, pour que le journal de l'application ait
+// de quoi se remplir : passages jour et nuit, une coupure, une alerte.
+{
+  const h = (jours, hh, mm) => { const d = new Date(Date.now() - jours * 86400000); d.setHours(hh, mm, 0, 0); return d.getTime(); };
+  journal('[PERIODE z1] Passage en nuit, consigne 26.0 C', h(2, 20, 0));
+  journal('[PERIODE z2] Passage en nuit, consigne 24.0 C', h(2, 20, 0));
+  journal('[PERIODE z1] Passage en jour, consigne 32.0 C', h(1, 8, 0));
+  journal('Coupure de courant de 2 min a 4 min, retour a 13:05 : chauffage arrete pendant ce temps.', h(1, 13, 5));
+  journal('[TROP_CHAUD z1] Point chaud : 4.4 C AU-DESSUS de la consigne depuis 30 min sans chauffer (36.40 C) — aerer, ombrer.', h(1, 13, 12));
+  journal('[DERIVE_FIN z1] Point chaud : temperature redescendue a 32.00 C (consigne 32.00).', h(1, 13, 20));
+  journal('[PERIODE z1] Passage en nuit, consigne 26.0 C', h(1, 20, 0));
+  journal('Zone 1 modifiee via le canal de commande', h(1, 21, 14));
+  if (h(0, 8, 0) < Date.now()) journal('[PERIODE z1] Passage en jour, consigne 32.0 C', h(0, 8, 0));
+}
+journal('Demarrage — mise sous tension (simulation)');
 
 // Les mêmes bornes que reglagesValides() dans le firmware. Si l'un des deux
 // change, le test du protocole doit le faire remarquer.
@@ -636,7 +656,10 @@ client.on('message', (sujet, charge) => {
         const date = new Date(Date.now() - (i + 1) * 86400000).toISOString().slice(0, 10);
         jours.push({ date, zones: socle.zones.map(z => ({ min: z.temp - 1, max: z.temp + 1, moyenne: z.temp, heures: 5.2, kWh: 0.104, euros: 0.026, defauts: 0 })) });
       }
-      return repondre(d.req, true, { jours: { prixKwh: socle.globaux.prixKwh, jours } });
+      // La journée en cours, depuis minuit, comme le firmware.
+      const fraction = (Date.now() - new Date().setHours(0, 0, 0, 0)) / 86400000;
+      const aujourdhui = socle.zones.map(() => ({ heures: +(5.2 * fraction).toFixed(2), kWh: +(0.104 * fraction).toFixed(3), euros: +(0.026 * fraction).toFixed(3) }));
+      return repondre(d.req, true, { jours: { prixKwh: socle.globaux.prixKwh, jours, aujourdhui } });
     }
     case 'journal':
       return repondre(d.req, true, { texte: socle.journal.join('\n').slice(-5000) });

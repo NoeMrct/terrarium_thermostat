@@ -192,6 +192,12 @@ float Controleur::consignePour(uint8_t z) const {
   return borne(base + saison, CONSIGNE_MIN, CONSIGNE_MAX);
 }
 
+int8_t Controleur::periodeJour(uint8_t z) const {
+  if (!m_heureConnue || z >= NB_ZONES) return -1;
+  const uint16_t dJour = debutJour(z), dNuit = debutNuit(z);
+  return ecartCirculaire(dJour, m_minutes) < ecartCirculaire(dJour, dNuit) ? 1 : 0;
+}
+
 // ============================ NOTIFICATIONS ==================================
 
 void Controleur::notifier(TypeNotif t, uint8_t z, const char *fmt, ...) {

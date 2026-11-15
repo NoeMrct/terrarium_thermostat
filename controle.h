@@ -261,6 +261,9 @@ public:
   void arreterAutotune(uint8_t z);
 
   float consignePour(uint8_t z) const;  // consigne courante calculée
+  // Jour (1) ou nuit (0) pour la zone à l'heure courante, -1 sans heure
+  // fiable. Le basculement est pris au début de la rampe, comme consignePour.
+  int8_t periodeJour(uint8_t z) const;
 
   // Jour et nuit calés sur le soleil : lever et coucher du jour (minutes
   // locales), qui remplacent les horaires fixes de toutes les zones. Les

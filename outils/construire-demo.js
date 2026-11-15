@@ -161,15 +161,43 @@ const FAUX_MQTT = `
       s.f1 = { presentes, liaisons: presentes.slice(), ident: null, identResultat: '',
         essai: { zone: 0, fin: 0, resultat: '' },
         reseau: { urlAlertes: 'https://ntfy.sh/exemple-demo', urlHeartbeat: '', heartbeatMinutes: 5, formatAlertes: 1 },
-        journal: ['08:00:02 Demarrage (mise sous tension), firmware 3.5.0', '08:00:05 Wi-Fi connecte', '08:00:07 MQTT connecte'],
+        journal: journalDemo(),
         g: { prixKwh: 0.2516, rapportActif: true, rapportMinutes: 1200, ledEteinte: false, ecranNuit: 0, soleilActif: false,
           soleilDecalageMin: 0, latitude: 0, longitude: 0, zonePrioritaire: 0 } };
     }
     return s.f1;
   }
+  // Le format du firmware : « AAAA-MM-JJ hh:mm:ss | texte », heure locale.
+  function horodatage(ms) {
+    const d = new Date(ms), z = n => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + ' ' + z(d.getHours()) + ':' + z(d.getMinutes()) + ':' + z(d.getSeconds());
+  }
+  // Trois jours de vie du socle : passages jour et nuit, une coupure, une
+  // alerte « trop chaud » et son retour, un réglage changé.
+  function journalDemo() {
+    const h = (jours, hh, mm) => { const d = new Date(Date.now() - jours * 86400000); d.setHours(hh, mm, 0, 0); return d.getTime(); };
+    const l = [];
+    const n = (ms, t) => { if (ms <= Date.now()) l.push(horodatage(ms) + ' | ' + t); };
+    n(h(2, 20, 0), '[PERIODE z1] Passage en nuit, consigne 26.0 C');
+    n(h(2, 20, 0), '[PERIODE z2] Passage en nuit, consigne 24.0 C');
+    n(h(1, 8, 0), '[PERIODE z1] Passage en jour, consigne 32.0 C');
+    n(h(1, 8, 0), '[PERIODE z2] Passage en jour, consigne 28.0 C');
+    n(h(1, 13, 5), 'Coupure de courant de 2 min a 4 min, retour a 13:05 : chauffage arrete pendant ce temps.');
+    n(h(1, 13, 12), '[TROP_CHAUD z1] Point chaud : 4.4 C AU-DESSUS de la consigne depuis 30 min sans chauffer (36.40 C) — aerer, ombrer.');
+    n(h(1, 13, 20), '[DERIVE_FIN z1] Point chaud : temperature redescendue a 32.00 C (consigne 32.00).');
+    n(h(1, 20, 0), '[PERIODE z1] Passage en nuit, consigne 26.0 C');
+    n(h(1, 20, 0), '[PERIODE z2] Passage en nuit, consigne 24.0 C');
+    n(h(1, 21, 14), 'Zone 1 modifiee via le canal de commande');
+    n(h(0, 8, 0), '[PERIODE z1] Passage en jour, consigne 32.0 C');
+    n(h(0, 8, 0), '[PERIODE z2] Passage en jour, consigne 28.0 C');
+    n(Date.now() - 120000, 'Demarrage — mise sous tension, firmware 3.5.0');
+    n(Date.now() - 115000, 'WiFi connecte a Maison, adresse 192.168.1.46');
+    n(Date.now() - 113000, 'MQTT connecte a broker.exemple.fr');
+    return l;
+  }
   function noter(s, texte) {
     const j = f1(s).journal;
-    j.push(new Date().toTimeString().slice(0, 8) + ' ' + texte);
+    j.push(horodatage(Date.now()) + ' | ' + texte);
     if (j.length > 60) j.shift();
   }
 
@@ -452,7 +480,13 @@ const FAUX_MQTT = `
               heures: +h.toFixed(2), kWh: +(h * 0.02).toFixed(3), euros: +(h * 0.02 * f1(s).g.prixKwh).toFixed(3), defauts: z.defaut && i === 0 ? 1 : 0 };
           }) });
         }
-        return rep(true, { jours: { prixKwh: f1(s).g.prixKwh, jours } });
+        // La journée en cours, depuis minuit, comme le firmware.
+        const fraction = (Date.now() - new Date().setHours(0, 0, 0, 0)) / 86400000;
+        const aujourdhui = s.zones.map((z, k) => {
+          const h = (4.5 + k * 0.75) * fraction;
+          return { heures: +h.toFixed(2), kWh: +(h * 0.02).toFixed(3), euros: +(h * 0.02 * f1(s).g.prixKwh).toFixed(3) };
+        });
+        return rep(true, { jours: { prixKwh: f1(s).g.prixKwh, jours, aujourdhui } });
       }
       case 'journal':
         return rep(true, { texte: f1(s).journal.join('\\n') });

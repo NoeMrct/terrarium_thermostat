@@ -20,6 +20,20 @@ jour.
   notification touchée ouvre son socle (application ouverte ou non ;
   verrouillée, l'écran attend le code). Remonter avec le bouton de
   l'application revient dans l'historique au lieu d'y empiler un écran.
+- **Journal du socle** (F4), nouvelle rubrique : ce qui s'est passé, jour par
+  jour, en phrases — alertes et retours à la normale, réglages modifiés
+  (depuis l'application ou la page locale), passages en jour et en nuit (les
+  deux zones à la même minute en une entrée), coupures de courant, accès du
+  support, mises à jour ; filtres Alertes, Réglages, Socle. Le firmware
+  étiquette désormais ses lignes d'alerte (`[TROP_CHAUD z1] …`) et note les
+  passages en jour et en nuit (`[PERIODE z1] Passage en nuit, consigne 26.0
+  C`) ; une ligne non reconnue s'affiche telle quelle.
+- **Consommation et coût** (F3, F2), nouvelle rubrique : dépense depuis le 1er
+  du mois en euros et en kWh, projection sur le mois et l'année, barres par
+  jour (aujourd'hui en cours), moyenne par tapis, le socle lui-même (estimation
+  fixe de 0,5 W), rapport d'hier tiré du dernier résumé, prix du kWh réglable
+  sur place. L'action `jours` donne en plus la journée en cours
+  (`aujourdhui`, zone par zone depuis minuit).
 - **Sondes sûres.** Chaque zone suit l'adresse de sa sonde et une sonde n'est
   jamais liée à deux zones. Plus de repli sur « la n-ième sonde du bus » : une
   zone sans sonde liée reste en défaut SONDE, chauffe coupée. La liaison

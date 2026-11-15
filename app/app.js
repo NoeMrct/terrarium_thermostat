@@ -41,7 +41,8 @@ const App = (() => {
   // Rubriques de l'accueil d'un socle : chacune s'ouvre en feuille.
   const RUBRIQUES = [
     ['reglages', 'rubTemperatures', 'i-etat'], ['programme', 'rubProgrammation', 'i-horloge'],
-    ['courbes', 'ongletCourbes', 'i-courbes'], ['alertes', 'rubAlertes', 'i-cloche'],
+    ['courbes', 'ongletCourbes', 'i-courbes'], ['conso', 'rubConso', 'i-conso'], ['alertes', 'rubAlertes', 'i-cloche'],
+    ['journal', 'rubJournal', 'i-journal'],
     ['securite', 'rubSecurite', 'i-bouclier'], ['general', 'ongletAppareil', 'i-appareil'],
     ['service', 'ongletService', 'i-outil'], ['maj', 'rubMaj', 'i-maj']
   ];
@@ -77,6 +78,37 @@ const App = (() => {
       cibleDeg: 'Cible {v}°', chauffePct: 'Chauffe · {p} %', attendPct: 'Attend son tour · {p} %', auRepos: 'Au repos', autotuneEnCours: 'Autoréglage en cours',
       chauffeCible: 'Chauffe · cible {v}°', attendCible: 'Attend · cible {v}°', reposCible: 'Au repos · cible {v}°',
       rubTemperatures: 'Températures', rubProgrammation: 'Programmation', rubAlertes: 'Alertes', rubSecurite: 'Sécurité', rubMaj: 'Mises à jour',
+      rubJournal: 'Journal', rubConso: 'Consommation', sousJournal: 'Ce qui s\'est passé, jour par jour', sousConso: 'Énergie et coût',
+      sousConsoMois: '{e} depuis le 1er', sousConsoKwh: '{k} kWh depuis le 1er',
+      jnlTout: 'Tout', jnlAlertes: 'Alertes', jnlReglages: 'Réglages', jnlSocle: 'Socle', jnlFiltrer: 'Filtrer le journal',
+      jnlAujourdhui: 'Aujourd\'hui', jnlHier: 'Hier', jnlSansHeure: 'Avant la mise à l\'heure', jnlVide: 'Rien à afficher pour ce filtre.',
+      jnlChargement: 'Lecture du journal du socle…', jnlIndispo: 'Le socle ne répond pas : son journal n\'est pas lisible pour l\'instant.',
+      jnlActualiser: 'Actualiser', jnlFin: 'Le socle garde ses derniers événements ; les plus anciens s\'effacent d\'eux-mêmes.',
+      jnlJour: 'Passage en jour', jnlNuit: 'Passage en nuit', jnlVers: 'Vers {c}', jnlDefaut: 'Défaut : {z}', jnlDefautDetail: '{d} · chauffe coupée',
+      jnlRetabli: 'Défaut levé : {z}', jnlRetabliDetail: 'Régulation reprise', jnlDerive: '{z} sous sa consigne', jnlDeriveDetail: '{t}° au lieu de {c}°',
+      jnlNormale: '{z} revenu à la normale', jnlTropChaud: 'Trop chaud : {z}', jnlFigee: 'Sonde figée : {z}', jnlChute: 'Chute brutale : {z}',
+      jnlChuteDetail: 'Terrarium ouvert ?', jnlSansEffet: 'Chauffe sans effet : {z}', jnlAutoreglage: 'Autoréglage : {z}',
+      jnlEntretien: 'Entretien : chauffage coupé {m} min', jnlEntretienFin: 'Fin de l\'entretien', jnlCoupure: 'Coupure de courant',
+      jnlCoupureDetail: 'Entre {a} et {b} ; retour à {h}', jnlDemarrage: 'Démarrage', jnlEnLigne: 'Connecté au serveur', jnlHorsLigne: 'Hors ligne',
+      jnlHorsLigneDetail: 'Il continue de chauffer normalement', jnlEchecServeur: 'Serveur injoignable', jnlWifi: 'Wi-Fi connecté',
+      jnlWifiPerdu: 'Wi-Fi perdu', jnlHeure: 'Heure réglée', jnlZoneModifiee: 'Réglages modifiés : {z}', jnlDepuisAppli: 'Depuis l\'application',
+      jnlDepuisPage: 'Depuis la page locale', jnlGeneraux: 'Réglages généraux modifiés', jnlSurveillance: 'Alertes et surveillance modifiées',
+      jnlSoleil: 'Jour et nuit calés sur le soleil', jnlHorairesFixes: 'Retour aux horaires fixes', jnlDefautsLeves: 'Défauts levés',
+      jnlHistorique: 'Historique effacé', jnlSupportOuvert: 'Accès du support ouvert', jnlSupportProlonge: 'Accès du support prolongé',
+      jnlSupportFerme: 'Accès du support fermé', jnlSupport: 'Le support : {a}', jnlRapport: 'Rapport du jour envoyé',
+      jnlMajInstallee: 'Mise à jour validée', jnlMajVers: 'Mise à jour vers {v}', jnlRetourArriere: 'Retour à la version précédente',
+      jnlSondeAbsente: 'Sonde débranchée', jnlSondeMuette: 'Sonde muette : {z}', jnlSondeRevenue: 'Sonde revenue : {z}',
+      jnlRedemarrages: 'Redémarrages à répétition', jnlCommandeRefusee: 'Commande refusée', jnlTentatives: 'Trop de tentatives sur la page locale',
+      jnlEssai: 'Essai de chauffe', jnlIdentification: 'Identification d\'une sonde',
+      defSonde: 'Sonde', defSurchauffe: 'Surchauffe', defFigee: 'Sonde figée', defInefficace: 'Chauffe sans effet',
+      coDepuis: 'Depuis le {d}', coProjection: 'Environ {m} sur le mois, {a} sur un an.', coProjectionKwh: 'Environ {m} kWh sur le mois, {a} kWh sur un an.',
+      coBarres: '{mois}, kWh par jour', coAujourdhuiGris: 'Gris : aujourd\'hui, en cours', coBarresLabel: 'Environ {k} kWh par jour. Aujourd\'hui {a} kWh à {h}.',
+      coMoyenne: 'Par jour, en moyenne', coTapis: 'Tapis {n} · {z}', coTapisDetail: '{w} W · chauffe {h}', coSocle: 'Le socle lui-même',
+      coSocleDetail: 'Électronique et écran, estimation', coRapportHier: 'Rapport d\'hier', coRapport: '{k} kWh{e}. Chauffe {h1} au point chaud et {h2} en zone fraîche. {d}',
+      coSoit: ', soit {e}', coAucunDefaut: 'Aucun défaut.', coDefauts: '{n} défaut(s).', coPrix: 'Prix du kWh', coPrixAide: 'Celui de ton contrat',
+      coPrixEnregistre: 'Prix du kWh enregistré.', coPuissance: 'Puissance des tapis', coChargement: 'Lecture des résumés du socle…',
+      coIndispo: 'Le socle ne répond pas : sa consommation n\'est pas lisible pour l\'instant.', coRien: 'Pas encore de résumé : le premier s\'écrit à minuit, heure réseau connue.',
+      coCentimes: '{n} centimes', coPrixInvalide: 'Prix invalide : un nombre entre 0 et 2 €.',
       sousTemperatures: 'Jour {j} · nuit {n}', sousProgrammation: 'Jour à {j} · nuit à {n}', sousSoleil: 'Au rythme du soleil',
       sousCourbes: 'Dernières 24 h, 7 et 30 jours', aucuneAlerte: 'Aucune alerte en cours', defautEnCours: 'Un défaut demande ton attention',
       sousSecurite: 'Coupure à {v}°', sousSecuriteAlim: 'Coupure à {v}° · bloc de {a} A', sousAppareil: 'Wi-Fi {r} dBm, signal {q}',
@@ -1459,6 +1491,13 @@ const App = (() => {
       case 'general': return e.sante && typeof e.sante.rssi === 'number'
         ? t('sousAppareil', { r: e.sante.rssi, q: t(qualiteSignal(e.sante.rssi)) }) : '';
       case 'service': return t('sousService');
+      case 'journal': return t('sousJournal');
+      case 'conso': {
+        const c = consos[s.id];
+        if (!c || !c.jours || !(c.jours.jours || []).length) return t('sousConso');
+        const prix = c.jours.prixKwh || 0, k = calculerConso(c.jours, prix);
+        return prix > 0 ? t('sousConsoMois', { e: euroTexte(k.kwhMois * prix) }) : t('sousConsoKwh', { k: kwhTexte(k.kwhMois) });
+      }
       default: {
         const dispo = versionApp && versionApp.firmware && versionApp.firmware.version;
         if (!e.version) return '';
@@ -1556,6 +1595,8 @@ const App = (() => {
           <div class="boutons"><button type="button" class="btn btn-secondaire" data-action="panneau" data-nom="service">${icone('i-outil')}${t('ongletService')}</button></div></section>`;
       case 'service': return structureService(s, e);
       case 'maj': return '<section class="carte" data-r="maj"></section>' + structureMajAuto(s, e);
+      case 'journal': return structureJournal();
+      case 'conso': return structureConso();
       default: return structureGeneral(s);
     }
   }
@@ -1604,10 +1645,276 @@ const App = (() => {
       case 'alertes': peindre(r('notifs'), vivantNotifications()); break;
       case 'service': if (serviceMod) serviceMod.patcher(); break;
       case 'maj': peindre(r('maj'), vivantMaj(e) + (e.sante ? etapeMaj(e.sante) : '')); peindre(r('majauto'), vivantMajAuto(e)); break;
+      case 'journal':
+        c.querySelectorAll('[data-action="filtreJournal"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.filtre === filtreJournal)));
+        peindre(r('journal'), vivantJournal(s.id));
+        break;
+      case 'conso': peindre(r('conso'), vivantConso(s.id)); break;
       default:
         peindre(r('sante'), vivantSante(e));
         peindre(r('stats'), vivantStats(stats[s.id]));
     }
+  }
+
+  // --- Journal du socle (F4) : la fin de son journal (action « journal »),
+  // rangée par jour, en phrases. Les alertes de la régulation et les passages
+  // en jour ou en nuit arrivent étiquetés ([TROP_CHAUD z1], [PERIODE z2]) ;
+  // les autres lignes sont reconnues à leur début. Une ligne inconnue reste
+  // telle quelle, rangée dans « Socle ».
+  const journaux = {};              // id -> { entrees, chargement, erreur }
+  let filtreJournal = 'tout';
+  const LIBELLES_DEFAUT = { 'SONDE': 'defSonde', 'SURCHAUFFE': 'defSurchauffe', 'SONDE FIGEE': 'defFigee', 'CHAUFFE SANS EFFET': 'defInefficace' };
+  const decimal = x => deg(parseFloat(x));
+  const LIGNE_JOURNAL = /^(\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d):\d\d \| (.*)$/;
+  const LIGNE_SANS_HEURE = /^-+ --:--:-- \| (.*)$/;
+  function phraseJournal(m, zones) {
+    const nz = n => (zones[n - 1] && zones[n - 1].nom) || t('zoneN', { n });
+    const e = (cat, ton, titre, detail) => ({ cat, ton, titre, detail: detail || '' });
+    const tag = /^\[([A-Z_]+)(?: z(\d))?\] (.*)$/.exec(m);
+    if (tag) {
+      const n = +tag[2] || 0, x = tag[3], z = n ? nz(n) : '';
+      const v = re => re.exec(x) || [];
+      switch (tag[1]) {
+        case 'PERIODE': {
+          const p = /Passage en (jour|nuit), consigne ([\d.]+) C/.exec(x);
+          if (!p) return e('socle', 'neutre', x);
+          return Object.assign(e('socle', 'neutre', t(p[1] === 'jour' ? 'jnlJour' : 'jnlNuit'), t('jnlVers', { c: decimal(p[2]) + '°' })),
+            { periode: p[1], consignes: [decimal(p[2]) + '°'] });
+        }
+        case 'DEFAUT': {
+          const d = v(/DEFAUT : ([A-Z ]+?)(?: \(|\.|$)/)[1];
+          return e('alertes', 'urgent', t('jnlDefaut', { z }), t('jnlDefautDetail', { d: LIBELLES_DEFAUT[d] ? t(LIBELLES_DEFAUT[d]) : (d || '?') }));
+        }
+        case 'RETABLI': return e('alertes', 'bon', t('jnlRetabli', { z }), t('jnlRetabliDetail'));
+        case 'DERIVE': {
+          const d = v(/\(([\d.]+) au lieu de ([\d.]+)\)/);
+          return e('alertes', 'attention', t('jnlDerive', { z }), d[1] ? t('jnlDeriveDetail', { t: decimal(d[1]), c: decimal(d[2]) }) : '');
+        }
+        case 'DERIVE_FIN': { const d = v(/a ([\d.]+) C/)[1]; return e('alertes', 'bon', t('jnlNormale', { z }), d ? decimal(d) + '°' : ''); }
+        case 'TROP_CHAUD': { const d = v(/\(([\d.]+) C\)/)[1]; return e('alertes', 'urgent', t('jnlTropChaud', { z }), d ? decimal(d) + '°' : ''); }
+        case 'SONDE_FIGEE': { const d = v(/figee a ([\d.]+) C/)[1]; return e('alertes', 'attention', t('jnlFigee', { z }), d ? decimal(d) + '°' : ''); }
+        case 'CHUTE': return e('alertes', 'attention', t('jnlChute', { z }), t('jnlChuteDetail'));
+        case 'SANS_EFFET': return e('alertes', 'attention', t('jnlSansEffet', { z }));
+        case 'AUTOTUNE': return e('socle', 'neutre', t('jnlAutoreglage', { z }), x.replace(/^[^:]*: /, ''));
+        case 'INFO': {
+          const d = v(/chauffage coupe pour (\d+) min/)[1];
+          if (d) return e('socle', 'neutre', t('jnlEntretien', { m: d }));
+          return /maintenance/i.test(x) ? e('socle', 'neutre', t('jnlEntretienFin')) : e('socle', 'neutre', x);
+        }
+        default: return e('alertes', 'attention', x);
+      }
+    }
+    /** @type {Array<[RegExp, (r: RegExpExecArray) => any]>} */
+    const regles = [
+      [/^Coupure de courant de (.+?) a (.+?), retour a (\d\d:\d\d)/, r => e('socle', 'attention', t('jnlCoupure'), t('jnlCoupureDetail', { a: r[1], b: r[2], h: r[3] }))],
+      [/^Demarrage — (.*)$/, r => e('socle', 'neutre', t('jnlDemarrage'), r[1])],
+      [/^MQTT connecte a /, () => e('socle', 'bon', t('jnlEnLigne'))],
+      [/^MQTT deconnecte de /, () => e('socle', 'attention', t('jnlHorsLigne'), t('jnlHorsLigneDetail'))],
+      [/^MQTT : echec vers [^:]+:\d+ : (.*)$/, r => e('socle', 'attention', t('jnlEchecServeur'), r[1])],
+      [/^WiFi perdu/, () => e('socle', 'attention', t('jnlWifiPerdu'), t('jnlHorsLigneDetail'))],
+      [/^WiFi connecte a (.+), adresse/, r => e('socle', 'neutre', t('jnlWifi'), r[1])],
+      [/^Heure synchronisee par NTP/, () => e('socle', 'neutre', t('jnlHeure'))],
+      [/^(?:Zone (\d) modifiee via le canal de commande|Consigne zone (\d) modifiee via MQTT)$/, r => e('reglages', 'reglage', t('jnlZoneModifiee', { z: nz(+(r[1] || r[2])) }), t('jnlDepuisAppli'))],
+      [/^Reglages zone (\d) modifies via l'interface web$/, r => e('reglages', 'reglage', t('jnlZoneModifiee', { z: nz(+r[1]) }), t('jnlDepuisPage'))],
+      [/^Reglages globaux modifies via (le canal|l'interface)/, r => e('reglages', 'reglage', t('jnlGeneraux'), t(r[1] === 'le canal' ? 'jnlDepuisAppli' : 'jnlDepuisPage'))],
+      [/^Surveillance \(alertes, heartbeat\) modifiee/, () => e('reglages', 'reglage', t('jnlSurveillance'))],
+      [/^Jour et nuit cales sur le soleil : jour a (\S+), nuit a (\S+)/, r => e('reglages', 'reglage', t('jnlSoleil'), `${r[1]} – ${r[2]}`)],
+      [/^Jour et nuit : retour aux horaires fixes/, () => e('reglages', 'reglage', t('jnlHorairesFixes'))],
+      [/^Defauts leves via (le canal|l'interface)/, r => e('reglages', 'bon', t('jnlDefautsLeves'), t(r[1] === 'le canal' ? 'jnlDepuisAppli' : 'jnlDepuisPage'))],
+      [/^Historique efface/, () => e('reglages', 'reglage', t('jnlHistorique'))],
+      [/^Acces support ouvert/, () => e('socle', 'neutre', t('jnlSupportOuvert'))],
+      [/^Acces support prolonge/, () => e('socle', 'neutre', t('jnlSupportProlonge'))],
+      [/^Acces support (?:ferme|echu)/, () => e('socle', 'neutre', t('jnlSupportFerme'))],
+      [/^Support : (.*)$/, r => e('reglages', 'reglage', t('jnlSupport', { a: r[1] }))],
+      [/^Rapport quotidien/, () => e('socle', 'neutre', t('jnlRapport'))],
+      [/^Mise a jour validee/, () => e('socle', 'bon', t('jnlMajInstallee'))],
+      [/^Mise a jour automatique vers ([\w.-]+)/, r => e('socle', 'neutre', t('jnlMajVers', { v: r[1] }))],
+      [/^RETOUR ARRIERE/, () => e('socle', 'attention', t('jnlRetourArriere'))],
+      [/^Sonde \S+ disparue du bus/, () => e('alertes', 'attention', t('jnlSondeAbsente'))],
+      [/^Zone (\d) : sa sonde \S+ ne repond/, r => e('alertes', 'urgent', t('jnlSondeMuette', { z: nz(+r[1]) }))],
+      [/^Zone (\d) : sa sonde repond de nouveau/, r => e('alertes', 'bon', t('jnlSondeRevenue', { z: nz(+r[1]) }))],
+      [/redemarrages anormaux de suite/, () => e('alertes', 'urgent', t('jnlRedemarrages'))],
+      [/^Commande MQTT refusee : (.*)$/, r => e('socle', 'attention', t('jnlCommandeRefusee'), r[1])],
+      [/^Interface web : trop de tentatives/, () => e('alertes', 'attention', t('jnlTentatives'))],
+      [/^Essai de chauffe/, () => e('socle', 'neutre', t('jnlEssai'), m.replace(/^Essai de chauffe\s*:?\s*/, ''))],
+      [/^Identification lancee/, () => e('socle', 'neutre', t('jnlIdentification'))]
+    ];
+    for (const [re, f] of regles) { const r = re.exec(m); if (r) return f(r); }
+    return e('socle', 'neutre', m.length > 140 ? m.slice(0, 139) + '…' : m);
+  }
+
+  // Le texte du journal -> entrées, de la plus récente à la plus ancienne. Une
+  // ligne écrite avant l'heure réseau prend le jour de la ligne datée qui la
+  // suit (la mise à l'heure suit le démarrage de près). Les passages en jour
+  // ou en nuit des deux zones à la même minute ne font qu'une entrée.
+  function lireJournal(texte, zones) {
+    const brutes = String(texte || '').split('\n');
+    const entrees = [];
+    for (const l of brutes) {
+      const d = LIGNE_JOURNAL.exec(l), s = d ? null : LIGNE_SANS_HEURE.exec(l);
+      if (!d && !s) continue;
+      const msg = d ? d[6] : s[1];
+      const p = phraseJournal(msg, zones);
+      p.jour = d ? `${d[1]}-${d[2]}-${d[3]}` : null;
+      p.heure = d ? `${d[4]}:${d[5]}` : '--:--';
+      const avant = entrees[entrees.length - 1];
+      if (p.periode && avant && avant.periode === p.periode && avant.jour === p.jour && avant.heure === p.heure) {
+        avant.consignes.push(...p.consignes);
+        avant.detail = t('jnlVers', { c: avant.consignes.join(langue === 'en' ? ' and ' : ' et ') });
+        continue;
+      }
+      entrees.push(p);
+    }
+    let suivant = null;
+    for (let i = entrees.length - 1; i >= 0; i--) {
+      if (entrees[i].jour) suivant = entrees[i].jour; else entrees[i].jour = suivant;
+    }
+    return entrees.reverse();
+  }
+
+  function titreJour(jour) {
+    if (!jour) return t('jnlSansHeure');
+    const auj = new Date(), cle = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (jour === cle(auj)) return t('jnlAujourdhui');
+    if (jour === cle(new Date(auj.getTime() - 86400000))) return t('jnlHier');
+    const [a, mo, j] = jour.split('-').map(Number), d = new Date(a, mo - 1, j);
+    const recent = auj.getTime() - d.getTime() < 6 * 86400000;
+    const s = d.toLocaleDateString(langue === 'en' ? 'en-GB' : 'fr-FR', recent ? { weekday: 'long', day: 'numeric' } : { day: 'numeric', month: 'long' });
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  function chargerJournal(id) {
+    journaux[id] = Object.assign({}, journaux[id], { chargement: true, erreur: false });
+    invalider();
+    commander(id, 'journal').then(r => {
+      const zones = (etats[id] && etats[id].zones) || [];
+      journaux[id] = { entrees: lireJournal(r.texte, zones), chargement: false, erreur: false };
+      invalider();
+    }).catch(() => { journaux[id] = Object.assign({}, journaux[id], { chargement: false, erreur: true }); invalider(); });
+  }
+
+  function structureJournal() {
+    const puce = (f, cle) => `<button type="button" class="puce" data-action="filtreJournal" data-filtre="${f}" aria-pressed="${filtreJournal === f}">${t(cle)}</button>`;
+    return `<div class="puces" role="group" aria-label="${t('jnlFiltrer')}">${puce('tout', 'jnlTout')}${puce('alertes', 'jnlAlertes')}${puce('reglages', 'jnlReglages')}${puce('socle', 'jnlSocle')}</div>
+      <div class="journal" aria-live="polite" data-r="journal"></div>`;
+  }
+
+  function vivantJournal(id) {
+    const j = journaux[id];
+    if (!j || (j.chargement && !j.entrees)) return `<p class="aide centre">${t('jnlChargement')}</p>`;
+    if (j.erreur && !j.entrees) return `<p class="aide centre">${t('jnlIndispo')}</p>
+      <div class="boutons centre"><button type="button" class="btn btn-secondaire" data-action="actualiserJournal">${t('jnlActualiser')}</button></div>`;
+    const visibles = j.entrees.filter(x => filtreJournal === 'tout' || x.cat === filtreJournal);
+    if (!visibles.length) return `<p class="aide centre">${t('jnlVide')}</p>`;
+    let h = '', jour;
+    for (const x of visibles) {
+      if (x.jour !== jour || !h) { jour = x.jour; h += `<h3 class="journal-jour">${esc(titreJour(x.jour))}</h3>`; }
+      h += `<div class="journal-ligne"><span class="journal-heure">${esc(x.heure)}</span><span class="journal-point ${x.ton}" aria-hidden="true"></span>
+        <span class="journal-texte"><span>${esc(x.titre)}</span>${x.detail ? `<small>${esc(x.detail)}</small>` : ''}</span></div>`;
+    }
+    return h + `<p class="discret journal-fin">${t('jnlFin')}</p>
+      <div class="boutons centre"><button type="button" class="btn btn-secondaire" data-action="actualiserJournal"${j.chargement ? ' disabled' : ''}>${t('jnlActualiser')}</button></div>`;
+  }
+
+  // --- Consommation et coût (F3) : les résumés journaliers du socle (action
+  // « jours », jusqu'à un mois) et la journée en cours. Le socle lui-même
+  // (carte, convertisseur, écran) compte pour une estimation fixe.
+  const consos = {};                // id -> { jours, chargement, erreur }
+  const SOCLE_W = 0.5;
+  function chargerConso(id) {
+    consos[id] = Object.assign({}, consos[id], { chargement: true, erreur: false });
+    invalider();
+    commander(id, 'jours', { n: 31 }).then(r => { consos[id] = { jours: r.jours || {}, chargement: false, erreur: false }; invalider(); })
+      .catch(() => { consos[id] = Object.assign({}, consos[id], { chargement: false, erreur: true }); invalider(); });
+    if (!generaux[id]) commander(id, 'globaux').then(r => { generaux[id] = r; invalider(); }).catch(() => {});
+  }
+  const cleJour = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const somme = (zs, k) => (zs || []).reduce((a, z) => a + (z && typeof z[k] === 'number' ? z[k] : 0), 0);
+  const kwhTexte = k => Number(k).toLocaleString(langue === 'en' ? 'en-GB' : 'fr-FR', { minimumFractionDigits: k < 10 ? 2 : 1, maximumFractionDigits: k < 10 ? 2 : 1 });
+  const euroTexte = e => Number(e).toLocaleString(langue === 'en' ? 'en-GB' : 'fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: e < 10 ? 2 : 0 });
+  const dureeTexte = h => { const m = Math.round(h * 60); return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`; };
+
+  // Les chiffres de l'écran, à partir de la réponse « jours ».
+  function calculerConso(jr, prix, maintenant) {
+    const now = maintenant || new Date();
+    const socleJour = SOCLE_W * 24 / 1000;
+    const heuresAuj = (now.getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) / 3600000;
+    const complets = (jr.jours || []).filter(d => d.zones && d.zones.every(z => z && typeof z.kWh === 'number'));
+    const kwhJour = d => somme(d.zones, 'kWh') + socleJour;
+    const mois = cleJour(now).slice(0, 7);
+    const auj = Array.isArray(jr.aujourdhui) ? somme(jr.aujourdhui, 'kWh') + SOCLE_W * heuresAuj / 1000 : null;
+    const duMois = complets.filter(d => d.date.slice(0, 7) === mois);
+    const kwhMois = duMois.reduce((a, d) => a + kwhJour(d), 0) + (auj || 0);
+    const moyenne = complets.length ? complets.reduce((a, d) => a + kwhJour(d), 0) / complets.length : null;
+    const joursMois = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const parJour = {};
+    complets.forEach(d => { parJour[d.date] = kwhJour(d); });
+    const zones = [0, 1].map(i => {
+      const zs = complets.map(d => d.zones[i]).filter(Boolean);
+      return zs.length ? { heures: somme(zs, 'heures') / zs.length, kwh: somme(zs, 'kWh') / zs.length } : null;
+    });
+    return { kwhMois, eurosMois: prix > 0 ? kwhMois * prix : null, moyenne, joursMois, auj, parJour, zones, socleJour,
+      hier: complets[0] && complets[0].date === cleJour(new Date(now.getTime() - 86400000)) ? complets[0] : null };
+  }
+
+  function structureConso() {
+    return '<div data-r="conso"></div>';
+  }
+
+  function vivantConso(id) {
+    const c = consos[id], g = generaux[id] || {};
+    if (!c || (c.chargement && !c.jours)) return `<p class="aide centre">${t('coChargement')}</p>`;
+    if (c.erreur && !c.jours) return `<p class="aide centre">${t('coIndispo')}</p>`;
+    const jr = c.jours, prix = typeof jr.prixKwh === 'number' ? jr.prixKwh : 0;
+    if (!(jr.jours || []).length && !Array.isArray(jr.aujourdhui)) return `<p class="aide centre">${t('coRien')}</p>${formPrix(prix)}`;
+    const now = new Date(), k = calculerConso(jr, prix, now), loc = langue === 'en' ? 'en-GB' : 'fr-FR';
+    const nomMois = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString(loc, { month: 'long' });
+    const premier = langue === 'en' ? `1 ${nomMois}` : `1er ${nomMois}`;
+    const projection = k.moyenne === null ? '' : prix > 0
+      ? t('coProjection', { m: euroTexte(k.moyenne * k.joursMois * prix), a: euroTexte(k.moyenne * 365 * prix) })
+      : t('coProjectionKwh', { m: kwhTexte(k.moyenne * k.joursMois), a: kwhTexte(k.moyenne * 365) });
+    // Barres du mois : du SVG, la CSP refuse les styles en ligne.
+    const n = now.getDate(), valeurs = [];
+    for (let j = 1; j <= n; j++) {
+      const cle = cleJour(new Date(now.getFullYear(), now.getMonth(), j));
+      valeurs.push(j === n ? (k.auj || 0) : (k.parJour[cle] || 0));
+    }
+    const maxi = Math.max(...valeurs, 0.001), largeur = 100 / Math.max(n, 14);
+    const barres = valeurs.map((v, i) => {
+      const h = Math.max(v > 0 ? 2 : 0, v / maxi * 100);
+      return `<rect class="${i === n - 1 ? 'en-cours' : ''}" x="${(i * largeur + largeur * 0.2).toFixed(2)}" y="${(100 - h).toFixed(2)}" width="${(largeur * 0.6).toFixed(2)}" height="${h.toFixed(2)}" rx="1"/>`;
+    }).join('');
+    const etiquettes = valeurs.map((v, i) => (i % 3 === 0 || i === n - 1) ? `<text x="${((i * largeur + largeur / 2) * 3).toFixed(1)}" y="10">${i + 1}</text>` : '').join('');
+    const mois = now.toLocaleDateString(loc, { month: 'long' });
+    const libelle = t('coBarresLabel', { k: k.moyenne === null ? '—' : kwhTexte(k.moyenne), a: kwhTexte(k.auj || 0), h: now.toTimeString().slice(0, 5) });
+    const zs = (etats[id] && etats[id].zones) || [];
+    const ligne = (classe, titre, detail, valeur) => `<div class="conso-ligne"><span class="pastille ${classe}" aria-hidden="true"></span>
+      <span class="conso-texte"><span>${titre}</span><small>${detail}</small></span><span class="conso-valeur">${valeur}</span></div>`;
+    const lignes = k.zones.map((z, i) => z ? ligne(i ? 'z2' : '', t('coTapis', { n: i + 1, z: nomZone(zs[i], i) }),
+      t('coTapisDetail', { w: g.watts === undefined ? '—' : esc(String(g.watts)), h: dureeTexte(z.heures) }), kwhTexte(z.kwh) + ' kWh') : '').join('')
+      + ligne('socle', t('coSocle'), t('coSocleDetail'), kwhTexte(k.socleJour) + ' kWh');
+    let rapport = '';
+    if (k.hier) {
+      const kh = somme(k.hier.zones, 'kWh') + k.socleJour, def = somme(k.hier.zones, 'defauts');
+      const e = prix > 0 ? t('coSoit', { e: kh * prix < 1 ? t('coCentimes', { n: Math.round(kh * prix * 100) }) : euroTexte(kh * prix) }) : '';
+      rapport = `<section class="carte"><h2>${t('coRapportHier')}</h2><p class="aide">${esc(t('coRapport', {
+        k: kwhTexte(kh), e, h1: dureeTexte(k.hier.zones[0].heures || 0), h2: dureeTexte((k.hier.zones[1] || {}).heures || 0),
+        d: def ? t('coDefauts', { n: def }) : t('coAucunDefaut') }))}</p></section>`;
+    }
+    return `<section class="conso-tete"><span class="sous">${t('coDepuis', { d: esc(premier) })}</span>
+        <span class="conso-total"><span class="grand">${k.eurosMois === null ? kwhTexte(k.kwhMois) : euroTexte(k.eurosMois)}</span>${k.eurosMois === null ? '<span>kWh</span>' : `<span>${kwhTexte(k.kwhMois)} kWh</span>`}</span>
+        ${projection ? `<p class="aide">${projection}</p>` : ''}</section>
+      <section class="conso-barres"><svg viewBox="0 0 100 110" preserveAspectRatio="none" role="img" aria-label="${esc(libelle)}"><g transform="translate(0 0)">${barres}</g></svg>
+        <svg class="conso-jours" viewBox="0 0 300 13" aria-hidden="true">${etiquettes}</svg>
+        <p class="discret conso-legende"><span>${t('coBarres', { mois: esc(mois.charAt(0).toUpperCase() + mois.slice(1)) })}</span><span>${t('coAujourdhuiGris')}</span></p></section>
+      <h3 class="conso-titre">${t('coMoyenne')}</h3><div class="conso-lignes">${lignes}</div>
+      ${rapport}${formPrix(prix)}
+      <div class="boutons"><button type="button" class="btn btn-secondaire" data-action="panneau" data-nom="securite">${icone('i-bouclier')}${t('coPuissance')}</button></div>`;
+  }
+
+  function formPrix(prix) {
+    return `<form class="conso-prix" data-form="prix"><label for="co-prix"><span>${t('coPrix')}</span><small>${t('coPrixAide')}</small></label>
+      <span class="champ-euro"><input id="co-prix" inputmode="decimal" autocomplete="off" value="${prix > 0 ? esc(Number(prix).toLocaleString(langue === 'en' ? 'en-GB' : 'fr-FR', { maximumFractionDigits: 4 })) : ''}"><span aria-hidden="true">€</span></span></form>`;
   }
 
   // --- Une zone, façon climatisation : la cible en grand, réglée par pas de
@@ -2206,6 +2513,8 @@ const App = (() => {
         case 'ouvrir':            api.ouvrir(d.id); break;
         case 'montrer':           montrer(d.vue); break;
         case 'panneau':           api.panneau(d.nom); break;
+        case 'filtreJournal':     filtreJournal = d.filtre || 'tout'; invalider(); break;
+        case 'actualiserJournal': if (socleOuvert) chargerJournal(socleOuvert); break;
         case 'courbes':           api.courbes(+d.heures); break;
         case 'zoomReinit':        zooms[socleOuvert] = null; patcherCourbes(socleOuvert); break;
         case 'exporterCsv':       api.exporterCsv(); break;
@@ -2277,6 +2586,7 @@ const App = (() => {
         case 'zone-complet': api.reglerZoneComplet(+f.dataset.z); break;
         case 'generaux':     api.reglerGeneraux(); break;
         case 'majauto':      api.reglerMajAuto(); break;
+        case 'prix':         api.prixKwh(); break;
         case 'verrou':       api.deverrouiller(); break;
         case 'sv-surveillance': case 'sv-message': case 'sv-nouvelle': if (serviceMod) serviceMod.soumettre(f); break;
       }
@@ -2286,6 +2596,7 @@ const App = (() => {
       if (!el || !el.id) return;
       if (el.id === 'fichier-config' && el.files && el.files[0]) { api.importerConfig(el.files[0]); el.value = ''; }
       if (el.id === 'verrou-min') api.changerVerrouMin(el.value);
+      if (el.id === 'co-prix') api.prixKwh();
       if (el.id === 'fichier-reglages' && el.files && el.files[0]) { api.importerReglages(el.files[0]); el.value = ''; }
       if (el.id === 'sv-fichier' && el.files && el.files[0] && serviceMod) { serviceMod.fichier(el.files[0]); el.value = ''; }
       if (el.id === 'langue' || el.id === 'langue-liste') api.changerLangue(el.value);
@@ -3261,6 +3572,8 @@ const App = (() => {
       const titre = $('#titre-feuille');
       if (titre) titre.focus();
       if (nom === 'courbes' && !courbes[id]) api.courbes(24);
+      if (nom === 'journal') chargerJournal(id);
+      if (nom === 'conso') chargerConso(id);
       if (['general', 'programme', 'securite'].includes(nom) && !generaux[id])
         commander(id, 'globaux').then(r => { generaux[id] = r; dessiner(); }).catch(() => {});
       if (nom === 'general' && !stats[id]) commander(id, 'stats').then(r => { stats[id] = r; dessiner(); }).catch(() => {});
@@ -3275,6 +3588,24 @@ const App = (() => {
       api.panneau('zone');
     },
     periode(p) { periodeChoisie = p; dessiner(); },
+
+    // Prix du kWh, depuis l'écran Consommation : enregistré sur le socle, qui
+    // calcule les coûts de ses résumés.
+    async prixKwh() {
+      const id = socleOuvert, el = /** @type {any} */ ($('#co-prix'));
+      if (!id || !el) return;
+      const v = el.value.trim() === '' ? 0 : nombre(el.value);
+      if (v === null || isNaN(v) || v < 0 || v > 2) { message(t('coPrixInvalide'), true); return; }
+      const actuel = consos[id] && consos[id].jours ? consos[id].jours.prixKwh || 0 : null;
+      if (actuel !== null && Math.abs(actuel - v) < 0.00005) return;
+      try {
+        const r = await commander(id, 'globaux', { prixKwh: v });
+        generaux[id] = r;
+        if (consos[id] && consos[id].jours) consos[id].jours.prixKwh = v;
+        message(t('coPrixEnregistre'));
+        invalider();
+      } catch (e) { message(e.message, true); }
+    },
 
     // Chevrons ‹ › : 0,5 °C par appui, envoyé une seconde après le dernier.
     cible(pas) {

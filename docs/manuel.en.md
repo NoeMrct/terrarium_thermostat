@@ -202,6 +202,16 @@ the file for a spreadsheet.
 The 24 h statistics (min, max, average, share of time out of range, heating hours, kWh) tell
 whether a terrarium **holds** its values, not only whether it reaches them.
 
+The **Energy use** section adds up what the base heated since the 1st of the month, in kWh and in
+euros, with a projection for the month and the year, a bar for each day (today in grey, in
+progress) and the detail per mat. The price per kWh is set at the bottom of the screen: the one on
+your contract. The base itself (board, display) counts as a fixed estimate of half a watt.
+
+The **Log** section tells what happened, day by day: alerts and returns to normal, changed settings
+(from the app or the local page), day and night changes, power cuts, support access, updates.
+**Alerts**, **Settings** and **Base** filters. The base keeps its latest events; older ones are
+erased on their own.
+
 ## 10. Being warned
 
 - **Browser notifications**: a fault or a drift shows a notification as long as the app is open

@@ -284,12 +284,31 @@ String joursJson(uint16_t n, size_t maxOctets) {
     }
     jour += "]}";
     // Un message MQTT a une taille : les jours les plus anciens restent alors
-    // sur le socle (la page locale, elle, n'a pas de limite).
-    if (maxOctets && j.length() + jour.length() + 3 > maxOctets) break;
+    // sur le socle (la page locale, elle, n'a pas de limite). La journée en
+    // cours, ajoutée après, a sa place réservée.
+    if (maxOctets && j.length() + jour.length() + 3 + 180 > maxOctets) break;
     if (i) j += ",";
     j += jour;
   }
-  j += "]}";
+  j += "]";
+  // La journée en cours : la chauffe depuis le dernier résumé (minuit),
+  // quand il existe et que le cumul n'a pas été remis à zéro depuis.
+  if (Stockage::joursLire(0, r)) {
+    j += ",\"aujourdhui\":[";
+    for (uint8_t z = 0; z < NB_ZONES; z++) {
+      if (z) j += ",";
+      const uint32_t total = secondesChauffeTotales(z);
+      if (total >= r.secondesChauffe[z]) {
+        const uint32_t sec = total - r.secondesChauffe[z];
+        j += "{\"heures\":" + String(sec / 3600.0f, 2) + ",\"kWh\":" + String(kwh(sec), 3) +
+             ",\"euros\":" + String(euros(sec), 3) + "}";
+      } else {
+        j += "null";
+      }
+    }
+    j += "]";
+  }
+  j += "}";
   return j;
 }
 

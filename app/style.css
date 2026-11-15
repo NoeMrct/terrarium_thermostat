@@ -782,3 +782,55 @@ main.page > * + * { margin-top: 14px; }
 
 /* ---- mise à jour du firmware ---------------------------------------------- */
 .progression { display: block; width: 100%; height: 8px; margin-top: 8px; accent-color: var(--accent); }
+
+/* ---- journal du socle ------------------------------------------------------ */
+.aide.centre { text-align: center; }
+.puces { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 10px; }
+.puce {
+  min-height: 40px; padding: 0 16px; border: 1px solid var(--ligne-forte); border-radius: 20px;
+  background: var(--fond); color: var(--texte); font: inherit; font-size: 14px; font-weight: 500; white-space: nowrap; cursor: pointer;
+}
+.puce[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-texte); }
+.puce:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.journal-jour {
+  margin: 0; padding: 14px 0 6px; border-top: 1px solid var(--ligne);
+  font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--texte-2);
+}
+.journal > .journal-jour:first-child { border-top: 0; }
+.journal-ligne { display: flex; gap: 14px; padding: 12px 0; border-top: 1px solid var(--ligne); }
+.journal-heure { width: 44px; flex: none; font-size: 14px; color: var(--texte-2); font-variant-numeric: tabular-nums; }
+.journal-point { width: 8px; height: 8px; margin-top: 7px; border-radius: 50%; flex: none; background: var(--texte-3); }
+.journal-point.urgent { background: var(--danger); }
+.journal-point.attention { background: var(--attention); }
+.journal-point.bon { background: var(--ok); }
+.journal-point.reglage { background: var(--texte); }
+.journal-texte { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.journal-texte > span { font-size: 16px; overflow-wrap: anywhere; }
+.journal-texte small { font-size: 13px; color: var(--texte-2); overflow-wrap: anywhere; }
+.journal-fin { margin-top: 14px; text-align: center; }
+
+/* ---- consommation ------------------------------------------------------------ */
+.conso-tete { display: flex; flex-direction: column; gap: 4px; padding-top: 6px; }
+.conso-total { display: flex; align-items: baseline; flex-wrap: wrap; gap: 12px; }
+.conso-total > span:last-child { font-size: 16px; color: var(--texte-2); font-variant-numeric: tabular-nums; }
+.conso-barres { margin-top: 22px; }
+.conso-barres > svg:first-child { display: block; width: 100%; height: 130px; }
+.conso-barres rect { fill: var(--texte); }
+.conso-barres rect.en-cours { fill: var(--ligne-forte); }
+.conso-jours { display: block; width: 100%; height: auto; margin-top: 4px; }
+.conso-jours text { font-size: 9px; fill: var(--texte-2); text-anchor: middle; font-variant-numeric: tabular-nums; }
+.conso-legende { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; }
+.conso-titre { margin: 24px 0 6px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+.conso-lignes { border-bottom: 1px solid var(--ligne); margin-bottom: 18px; }
+.conso-ligne { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 0; border-top: 1px solid var(--ligne); }
+.pastille.socle { background: var(--texte-3); }
+.conso-texte { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.conso-texte > span { font-size: 16px; overflow-wrap: anywhere; }
+.conso-texte small { font-size: 13px; color: var(--texte-2); }
+.conso-valeur { font-size: 15px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.conso-prix { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; }
+.conso-prix label { display: flex; flex-direction: column; gap: 2px; margin: 0; }
+.conso-prix label > span { font-size: 16px; color: var(--texte); font-weight: 400; }
+.conso-prix small { font-size: 13px; color: var(--texte-2); }
+.champ-euro { display: flex; align-items: center; gap: 6px; }
+.champ-euro input { width: 84px; text-align: right; }

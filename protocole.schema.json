@@ -750,6 +750,39 @@
                   "zones"
                 ]
               }
+            },
+            "aujourdhui": {
+              "type": "array",
+              "description": "La journée en cours, zone par zone : chauffe depuis le dernier résumé (minuit) ; null pour une zone dont le cumul a été remis à zéro depuis. Absent tant qu'aucun résumé n'existe.",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "heures",
+                      "kWh",
+                      "euros"
+                    ],
+                    "properties": {
+                      "heures": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "kWh": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "euros": {
+                        "type": "number",
+                        "minimum": 0
+                      }
+                    }
+                  }
+                ]
+              }
             }
           }
         },
