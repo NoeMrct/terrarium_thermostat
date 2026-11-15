@@ -141,7 +141,7 @@ struct ResumeJour {
 
 // ------------------------ Services partagés ---------------------------------
 extern Controleur ctrl;
-extern bool otaEnCours;
+extern bool otaEnCours;  // une image s'écrit : autre mise à jour et identification refusées
 
 void journal(const char *fmt, ...);  // trace horodatée persistante
 String horodatage();                 // "2026-09-03 18:57:12" ou "----"
@@ -156,6 +156,16 @@ const char *raisonRedemarrage();                // « mise sous tension », « P
 bool redemarrageAnormal();                      // panique, watchdog, chute d'alimentation
 const char *resumePlantage();                   // résumé du dernier coredump, ou ""
 bool otaEnAttenteValidation();                  // image neuve pas encore confirmée
-void couperChauffagePourMaj(bool actif);        // sorties coupées tout de suite, pas au prochain tour
+
+// Mise à jour du firmware : la boucle principale ne tourne plus pendant qu'une
+// image s'écrit. Régime du chauffage pendant ce temps (terrarium_thermostat.ino).
+enum RegimeMaj : uint8_t {
+  REGIME_NORMAL = 0,  // pas d'image en cours : la boucle régule
+  REGIME_FLUX,        // blocs en cours de réception : un tour de régulation par bloc
+  REGIME_COUPE        // étape qui ne rend pas la main : sorties coupées tout de suite
+};
+void regimeMaj(RegimeMaj r);   // tient otaEnCours à jour
+void tourPendantMaj();         // chien de garde, et un tour de régulation hors REGIME_COUPE
+bool chauffageCoupePourMaj();  // REGIME_COUPE en cours
 
 #endif  // CONFIG_H

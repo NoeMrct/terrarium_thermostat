@@ -332,9 +332,11 @@ erased on their own.
   version is published and a button makes the base **download and install it by itself**
   (signature checked if the base requires it). Otherwise: the Flash a base page (USB), the
   Network tab of the local interface (upload of the `.bin` file, or "Update from GitHub"), or
-  OTA from the IDE if an OTA password is set. While writing, the heating is cut; at restart, the
-  new version must declare itself healthy within a minute and a half, otherwise the base goes
-  back to the previous version by itself — and the app shows "rolled back".
+  OTA from the IDE if an OTA password is set. The heating keeps running during the download or
+  upload: it only stops for a few seconds, to connect, check the image and restart (before
+  firmware 3.5.0 it was off for the whole write). At restart, the new version must declare itself
+  healthy within a minute and a half, otherwise the base goes back to the previous version by
+  itself — and the app shows "rolled back".
 - **Automatic updates** (on out of the box): every day the base checks whether a version has been
   published. It lets you know (alert, server notification), then installs it **by itself at
   night**, between 03:00 and 05:00 by default, never during a fault, an autotune, a test,

@@ -5,8 +5,9 @@
    Ce que ni les bancs sur PC ni la compilation ne prouvent : que le binaire
    démarre sur l'ESP32, que la console répond, que la santé est cohérente, que
    l'auto-test usine passe, que le chien de garde ne redémarre pas la carte au
-   repos — et, en option, qu'une mise à jour par /api/maj puis sa validation se
-   passent bien. Pensé pour un exécuteur GitHub auto-hébergé avec la carte
+   repos — et, en option, qu'une mise à jour par /api/maj (même version,
+   réinstallée), la régulation pendant l'envoi puis la validation se passent
+   bien. Pensé pour un exécuteur GitHub auto-hébergé avec la carte
    branchée (.github/workflows/materiel.yml), mais se lance aussi à la main :
 
      node test-materiel.js --port /dev/ttyUSB0 [--flasher <dossier des binaires>] [--version 3.4.0]
@@ -93,8 +94,12 @@ const { ouvrirSerie } = require('./serie');
     if (UTILISATEUR) entetes.Authorization = 'Basic ' + Buffer.from(`${UTILISATEUR}:${MDP}`).toString('base64');
     depuis = serie.position();
     let r;
-    try { r = await fetch(`${OTA}/api/maj`, { method: 'POST', headers: entetes, body: form }); } catch (e) { r = null; }
+    // forcer=1 : c'est la version qui tourne déjà, l'anti-retour refuserait sinon.
+    try { r = await fetch(`${OTA}/api/maj?forcer=1`, { method: 'POST', headers: entetes, body: form }); } catch (e) { r = null; }
     v('le socle accepte l\'image', !!r && r.status === 200, r ? `HTTP ${r.status}` : 'injoignable');
+    // W2 : chaque bloc reçu fait un tour de régulation ; le firmware en dit le compte.
+    const flux = await serie.attendre(/Image recue : (\d+) tours de regulation pendant le flux/, 5000, depuis);
+    v('la régulation a tourné pendant l\'envoi', !!flux && +flux[1] > 0, flux ? `${flux[1]} tours` : 'ligne absente');
     const valide = await serie.attendre(/Mise a jour validee : retour arriere annule/, 150000, depuis);
     v('après redémarrage, l\'image est validée (rollback annulé) sous 2 min 30', !!valide);
   }

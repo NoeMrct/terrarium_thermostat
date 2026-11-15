@@ -653,10 +653,15 @@ arduino-cli upload --fqbn esp32:esp32:esp32 \
 
 ## Ce qui se passe pendant la mise à jour
 
-**Le chauffage est coupé dès la première seconde du transfert**, et reste coupé
-jusqu'à la fin. C'est délibéré : un transfert interrompu ne doit pas laisser un
-tapis alimenté sans régulation derrière lui. Le transfert dure une dizaine de
-secondes, la coupure est donc sans conséquence thermique.
+**La régulation continue pendant le transfert** : chaque bloc reçu fait un
+tour de régulation (mesures, sécurités, tapis, courant), comme la boucle
+principale, qui ne tourne plus pendant ce temps. Le chauffage n'est coupé que
+pendant les étapes qui ne rendent pas la main — la connexion pour une mise à
+jour téléchargée, la vérification de l'image entière et le redémarrage —,
+quelques secondes en tout. C'est délibéré : à aucun instant un tapis ne reste
+alimenté sans régulation derrière lui, et un transfert interrompu rend la main
+à la boucle, qui reprend où elle en était. (Avant le firmware 3.5.0, le
+chauffage était coupé pendant tout le transfert.)
 
 ## Pourquoi c'est sûr
 

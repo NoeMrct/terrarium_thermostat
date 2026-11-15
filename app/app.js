@@ -273,7 +273,7 @@ const App = (() => {
       // mise à jour du firmware
       majTitre: 'Mise à jour du firmware', majInconnue: 'Firmware {v}. La version publiée n\'est pas connue ici (application hors ligne ou de développement).',
       majAJour: 'Firmware {v} : à jour.', majDisponible: 'Version {v} disponible (installée : {a}). Le socle la télécharge lui-même, signature vérifiée, et revient en arrière seul si elle plante avant validation.',
-      majInstaller: 'Mettre à jour vers {v}', majQ: 'Mettre à jour vers {v} ?', majTexte: 'Le chauffage est coupé le temps de l\'écriture (moins d\'une minute), puis le socle redémarre. Ne coupe pas son alimentation.', majOk: 'Mettre à jour',
+      majInstaller: 'Mettre à jour vers {v}', majQ: 'Mettre à jour vers {v} ?', majTexte: 'Le chauffage continue pendant le téléchargement, puis s\'arrête quelques secondes, le temps de vérifier l\'image et de redémarrer. Ne coupe pas l\'alimentation du socle.', majTexteAncien: 'Le chauffage est coupé le temps de l\'écriture (moins d\'une minute), puis le socle redémarre. Ne coupe pas son alimentation.', majOk: 'Mettre à jour',
       majLancee: 'Téléchargement lancé sur le socle.', majRefusee: 'Mise à jour refusée : {m}', majTelechargement: 'Téléchargement en cours : {p} %', majRedemarre: 'Image écrite, le socle redémarre.',
       majErreur: 'Mise à jour en échec : {m}', interfaceLocale: 'interface locale (sur le même réseau)',
       majEtape_en_validation: 'en validation', majEtape_validee: 'validée', majEtape_retour_arriere: 'retour arrière', majEtape_echec: 'échec',
@@ -6069,7 +6069,12 @@ const App = (() => {
     // et sa santé dit si l'image a été validée.
     async mettreAJour(version) {
       if (!version) return;
-      if (!await confirmer({ titre: t('majQ', { v: version }), texte: t('majTexte'), ok: t('majOk') })) return;
+      // C'est le firmware en place qui télécharge : avant la 3.5.0, il coupait
+      // le chauffage pendant tout le flux.
+      const vu = etats[socleOuvert] || {};
+      const actuelle = vu.version || (vu.sante && vu.sante.version) || '';
+      const texte = t(compareVersions(actuelle, '3.5.0') >= 0 ? 'majTexte' : 'majTexteAncien');
+      if (!await confirmer({ titre: t('majQ', { v: version }), texte, ok: t('majOk') })) return;
       const e = etats[socleOuvert] || (etats[socleOuvert] = { enLigne: false, zones: [] });
       try {
         await commander(socleOuvert, 'maj', { version });

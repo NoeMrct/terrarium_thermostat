@@ -81,7 +81,7 @@ void restaurerHeure();
 void traiterNotifications();
 void enregistrerHistorique();
 void journaliserEtat();
-void couperChauffagePourMaj(bool actif);
+void tourRegulation(uint32_t maintenant);
 
 uint8_t g_masqueAlimente = 0;  // état réel des broches de puissance
 StatsZone g_stats[NB_ZONES];
@@ -173,15 +173,45 @@ void validerImage() {
   g_otaEnAttente = false;
 }
 
-// Pendant qu'une image s'ecrit (telechargement ou envoi par le navigateur), la
-// boucle principale ne tourne plus : les sorties sont coupees ICI, tout de
-// suite, et non au prochain tour de boucle qui n'arrivera qu'apres le
-// redemarrage. Une mise a jour interrompue ne laisse ainsi jamais un tapis
-// alimente sans regulation derriere.
-void couperChauffagePourMaj(bool actif) {
-  otaEnCours = actif;
-  ctrl.suspendre(actif);
-  if (actif) appliquerSorties(0);
+// Pendant qu'une image s'écrit (téléchargement, envoi par le navigateur,
+// ArduinoOTA), la boucle principale ne tourne plus jusqu'au redémarrage. Le
+// chauffage suit alors l'un de deux régimes :
+//  - REGIME_FLUX, tant que les blocs arrivent : chacun fait un tour de
+//    régulation (tourPendantMaj). Mesures, sécurités, tapis et courant suivent
+//    comme d'habitude ; les terrariums restent chauffés le temps du
+//    téléchargement, au lieu d'attendre une minute sans chauffage ;
+//  - REGIME_COUPE, pendant les étapes qui bloquent sans rendre la main
+//    (connexion au serveur, vérification de l'image entière, redémarrage) :
+//    les sorties sont coupées ICI, tout de suite, et non au prochain tour de
+//    boucle qui n'arriverait pas.
+// À aucun instant un tapis n'est donc alimenté sans régulation derrière. Une
+// mise à jour refusée ou interrompue repasse en REGIME_NORMAL et rend la main à
+// la boucle, qui reprend où elle en était.
+RegimeMaj g_regimeMaj = REGIME_NORMAL;
+uint32_t g_toursMaj = 0;  // tours de régulation faits pendant le flux en cours
+
+void regimeMaj(RegimeMaj r) {
+  if (r == REGIME_FLUX && g_regimeMaj != REGIME_FLUX) g_toursMaj = 0;
+  // Bilan lisible sur la console : c'est ce que vérifie test-materiel.js.
+  if (r == REGIME_COUPE && g_regimeMaj == REGIME_FLUX)
+    journal("Image recue : %lu tours de regulation pendant le flux, chauffage coupe pour la verification",
+            (unsigned long)g_toursMaj);
+  g_regimeMaj = r;
+  otaEnCours = r != REGIME_NORMAL;
+  // L'identification d'une sonde suspend aussi la chauffe : la reprise attend sa fin.
+  ctrl.suspendre(r == REGIME_COUPE || Sondes::zoneEnIdentification() >= 0);
+  if (r == REGIME_COUPE) appliquerSorties(0);
+}
+
+bool chauffageCoupePourMaj() { return g_regimeMaj == REGIME_COUPE; }
+
+// Appelée à chaque bloc d'image reçu, accepté ou non : le serveur web lit tout
+// le corps d'un envoi avant de rendre la main, même refusé dès l'en-tête.
+void tourPendantMaj() {
+  esp_task_wdt_reset();  // écrire un mégaoctet prend plusieurs secondes
+  if (g_regimeMaj == REGIME_COUPE) return;
+  tourRegulation(millis());
+  if (g_regimeMaj == REGIME_FLUX) g_toursMaj++;
 }
 
 bool redemarrageAnormal() {
@@ -228,7 +258,7 @@ void lirePlantage() {
 // IRLZ44N, le transistor repassait brièvement en zone linéaire à chaque fois,
 // ce qui l'échauffe pour rien et génère des parasites.
 void appliquerSorties(uint8_t masque) {
-  if (otaEnCours) masque = 0;
+  if (g_regimeMaj == REGIME_COUPE) masque = 0;
   for (uint8_t i = 0; i < NB_TAPIS; i++)  // ceinture et bretelles
     if (ctrl.zone[ZONE_DE_TAPIS[i]].defaut != DEF_AUCUN) masque &= (uint8_t) ~(1u << i);
 
@@ -556,15 +586,14 @@ void setup() {
 
 // ============================ LOOP ===========================================
 
-void loop() {
-  esp_task_wdt_reset();
-  const uint32_t maintenant = millis();
-
-  Console::boucle();
-  Facade::boucle(maintenant);  // bouton BOOT et LED d'état
-  Reseau::boucle(maintenant);  // jamais bloquant : la régulation tient sans réseau
-  Taches::boucle(maintenant);  // rapport, résumés du jour, soleil, mémoire
-
+// Un tour de régulation : mesures, consignes de l'heure, sécurités, tapis,
+// courant. Rien qui passe par le réseau : loop() l'appelle à chaque tour, et
+// une mise à jour en cours à chaque bloc reçu (tourPendantMaj), depuis le fond
+// de Reseau::boucle() ou de la console. `maintenant` est toujours lu juste
+// avant l'appel : une mise à jour refusée rend la main à une boucle dont
+// l'heure de début date de plusieurs secondes, et les intervalles ci-dessous
+// ne doivent jamais remonter le temps.
+void tourRegulation(uint32_t maintenant) {
   // --- mesures, en deux temps pour ne pas bloquer sur la conversion ---
   if (!conversionDemandee && maintenant - tMesure >= PERIODE_MESURE_MS) {
     Sondes::demanderConversion();
@@ -590,6 +619,30 @@ void loop() {
   ctrl.avancer(maintenant);
   appliquerSorties(ctrl.masqueTapis());
   Courant::boucle(maintenant, g_masqueAlimente);
+
+  if (maintenant - tResync >= 5000) {
+    tResync = maintenant;
+    resynchroniserSorties();
+  }
+}
+
+void loop() {
+  esp_task_wdt_reset();
+  const uint32_t maintenant = millis();
+
+  Console::boucle();
+  Facade::boucle(maintenant);  // bouton BOOT et LED d'état
+  Reseau::boucle(maintenant);  // jamais bloquant : la régulation tient sans réseau
+  Taches::boucle(maintenant);  // rapport, résumés du jour, soleil, mémoire
+
+  // Une mise à jour se joue tout entière dans l'un des appels ci-dessus : elle
+  // redémarre l'appareil, ou rend la main en REGIME_NORMAL. Un régime resté en
+  // place ici serait un oubli, dont le chauffage ne doit pas dépendre.
+  if (g_regimeMaj != REGIME_NORMAL) {
+    journal("Mise a jour : regime %u laisse en place, regulation retablie", (unsigned)g_regimeMaj);
+    regimeMaj(REGIME_NORMAL);
+  }
+  tourRegulation(millis());
 
   traiterNotifications();
 
@@ -620,10 +673,6 @@ void loop() {
       }
   }
 
-  if (maintenant - tResync >= 5000) {
-    tResync = maintenant;
-    resynchroniserSorties();
-  }
   if (maintenant - tAffichage >= 1000) {
     tAffichage = maintenant;
     Affichage::rafraichir();

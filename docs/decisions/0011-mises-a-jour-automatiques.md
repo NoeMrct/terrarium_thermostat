@@ -59,8 +59,10 @@ tout le parc une version qui casse quelque chose.
 - Tant que la paire de clés n'existe pas, rien ne s'installe seul : la créer
   (docs/publication.md) est le prérequis de la fonction. La perdre oblige à
   reflasher chaque socle par câble.
-- Le chauffage reste coupé pendant le téléchargement (W2 non traité) : une
-  minute environ, la nuit, ce qu'un terrarium tient sans peine.
+- Le chauffage restait coupé pendant le téléchargement : une minute environ,
+  la nuit, ce qu'un terrarium tient sans peine. Depuis le firmware 3.5.0 (W2),
+  chaque bloc reçu fait un tour de régulation ; seules la connexion et la
+  vérification finale coupent encore le chauffage, quelques secondes.
 - `ReglagesGlobaux` passe de 64 à 68 octets (relecture tolérante : une mémoire
   plus ancienne garde les mises à jour automatiques actives, plage par
   défaut) ; l'état (report, tentatives, refus, annonce) vit à part en NVS.

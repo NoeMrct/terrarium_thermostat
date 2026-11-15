@@ -346,9 +346,11 @@ Le socle garde ses derniers événements ; les plus anciens s'effacent d'eux-mê
   si une version plus récente est publiée et un bouton la fait **télécharger et installer par le socle
   lui-même** (signature vérifiée si le socle l'exige). Sinon : page Flasher un socle (USB), onglet
   Réseau de l'interface locale (envoi du fichier `.bin`, ou « Mise à jour depuis GitHub »), ou OTA
-  depuis l'IDE si un mot de passe OTA est défini. Pendant l'écriture, le chauffage est coupé ; au
-  redémarrage, la nouvelle version doit se déclarer saine dans la minute et demie, sinon le socle
-  revient de lui-même à la version précédente — et l'application affiche « retour arrière ».
+  depuis l'IDE si un mot de passe OTA est défini. Le chauffage continue pendant le téléchargement ou
+  l'envoi : il ne s'arrête que quelques secondes, le temps de se connecter, de vérifier l'image et de
+  redémarrer (avant le firmware 3.5.0, il était coupé pendant toute l'écriture). Au redémarrage, la
+  nouvelle version doit se déclarer saine dans la minute et demie, sinon le socle revient de
+  lui-même à la version précédente — et l'application affiche « retour arrière ».
 - **Mises à jour automatiques** (activées d'origine) : chaque jour, le socle regarde si une version
   est publiée. Il te prévient (alerte, notification du serveur), puis l'installe **seul la nuit**,
   entre 03:00 et 05:00 par défaut, jamais pendant un défaut, un autotune, un essai, un entretien ou

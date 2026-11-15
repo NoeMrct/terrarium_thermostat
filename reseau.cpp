@@ -1099,7 +1099,7 @@ void routeMajFin() {
     return;
   }
   if (Update.hasError() || g_majErreur[0]) {
-    couperChauffagePourMaj(false);
+    regimeMaj(REGIME_NORMAL);
     journal("Mise a jour par le navigateur en echec : %s", g_majErreur[0] ? g_majErreur : "ecriture refusee");
     serveur.send(500, "text/plain",
                  String("Mise a jour refusee : ") + (g_majErreur[0] ? g_majErreur : "ecriture refusee"));
@@ -1133,38 +1133,47 @@ void routeMajFragment() {
     }
     g_majAutorisee = true;
 
-    // Le chauffage est coupé pendant toute l'écriture, broches comprises : une
-    // mise à jour interrompue laisserait sinon un tapis alimenté sans
-    // régulation derrière.
-    couperChauffagePourMaj(true);
+    // La régulation continue pendant la réception : un tour par bloc reçu
+    // (REGIME_FLUX, voir terrarium_thermostat.ino).
+    regimeMaj(REGIME_FLUX);
     journal("Mise a jour par le navigateur : reception de %s", u.filename.c_str());
     if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
       snprintf(g_majErreur, sizeof g_majErreur, "%s", Update.errorString());
-      couperChauffagePourMaj(false);
+      regimeMaj(REGIME_NORMAL);
     }
     // ?retour=1 : case « autoriser une version plus ancienne » de la page.
     imageDebut(serveur.arg("forcer") == "1", serveur.arg("retour") == "1");
     return;
   }
 
+  // Le serveur lit tout le corps de la requête avant de rendre la main à la
+  // boucle, même refusé dès le premier bloc : chaque bloc fait un tour de
+  // régulation et nourrit le chien de garde.
+  if (u.status == UPLOAD_FILE_WRITE) tourPendantMaj();
+  // Envoi coupé en route, refusé ou non : routeMajFin ne sera pas appelée,
+  // tout se rétablit ici (sinon la mise à jour resterait « en cours »).
+  if (u.status == UPLOAD_FILE_ABORTED) {
+    if (!g_majAutorisee) return;
+    Update.abort();
+    if (!g_majErreur[0]) snprintf(g_majErreur, sizeof g_majErreur, "Envoi interrompu");
+    regimeMaj(REGIME_NORMAL);
+    journal("Mise a jour par le navigateur interrompue : %s", g_majErreur);
+    return;
+  }
   if (!g_majAutorisee || g_majErreur[0]) return;
 
   if (u.status == UPLOAD_FILE_WRITE) {
-    // Écrire un mégaoctet prend plusieurs secondes : sans cela le chien de garde
-    // redémarrerait la carte au milieu de la mise à jour.
-    esp_task_wdt_reset();
     const char *refus = imageEcrire(u.buf, u.currentSize);
     if (refus) {
       snprintf(g_majErreur, sizeof g_majErreur, "%s", refus);
       Update.abort();
     }
   } else if (u.status == UPLOAD_FILE_END) {
+    // Vérification de l'image entière, puis redémarrage : rien ne rend plus la
+    // main à la boucle, chauffage coupé (rétabli par routeMajFin en cas de refus).
+    regimeMaj(REGIME_COUPE);
     const char *refus = imageFin();
     if (refus) snprintf(g_majErreur, sizeof g_majErreur, "%s", refus);
-  } else if (u.status == UPLOAD_FILE_ABORTED) {
-    Update.abort();
-    snprintf(g_majErreur, sizeof g_majErreur, "Envoi interrompu");
-    couperChauffagePourMaj(false);
   }
 }
 
@@ -1686,9 +1695,11 @@ bool ouvrirRelease(HTTPClient &http, WiFiClientSecure &securise, const String &u
   return true;
 }
 
-// Télécharge et écrit une image. Bloquant (quelques dizaines de secondes, le
-// chien de garde est nourri à chaque bloc) : le chauffage est coupé avant,
-// l'appareil redémarre après. false et `erreur` renseignée en cas de refus.
+// Télécharge et écrit une image. Bloquant (quelques dizaines de secondes) : la
+// boucle principale ne reprend qu'en cas de refus, l'appareil redémarre sinon.
+// Le chauffage n'est coupé que pendant la connexion et la vérification finale,
+// qui ne rendent pas la main ; pendant le flux, chaque bloc reçu fait un tour
+// de régulation (voir regimeMaj). false et `erreur` renseignée en cas de refus.
 // `forcer` admet la même version ; jamais une plus ancienne (en-tête lu avant
 // toute écriture).
 bool majDepuisUrl(const String &url, bool forcer, char *erreur, size_t taille) {
@@ -1714,17 +1725,22 @@ bool majDepuisUrl(const String &url, bool forcer, char *erreur, size_t taille) {
   HTTPClient http;
   journal("Mise a jour distante : %s", url.c_str());
   publierMaj("telechargement", 0, nullptr);
-  if (!ouvrirRelease(http, securise, url, erreur, taille)) return false;
+  // Négociation TLS et redirections : quelques secondes sans rendre la main.
+  regimeMaj(REGIME_COUPE);
+  if (!ouvrirRelease(http, securise, url, erreur, taille)) {
+    regimeMaj(REGIME_NORMAL);
+    return false;
+  }
   const int longueur = http.getSize();  // -1 si le serveur ne la donne pas
 
-  couperChauffagePourMaj(true);
   if (!Update.begin(longueur > 0 ? (size_t)longueur : UPDATE_SIZE_UNKNOWN)) {
     snprintf(erreur, taille, "%s", Update.errorString());
     http.end();
-    couperChauffagePourMaj(false);
+    regimeMaj(REGIME_NORMAL);
     return false;
   }
   imageDebut(forcer, false);
+  regimeMaj(REGIME_FLUX);
 
   WiFiClient *flux = http.getStreamPtr();
   uint8_t tampon[2048];
@@ -1732,7 +1748,7 @@ bool majDepuisUrl(const String &url, bool forcer, char *erreur, size_t taille) {
   int dernierDizaine = -1;
   uint32_t dernierOctet = millis();
   while (http.connected() && (longueur < 0 || recu < (size_t)longueur)) {
-    esp_task_wdt_reset();
+    tourPendantMaj();  // y compris en attendant les octets
     const size_t dispo = flux->available();
     if (!dispo) {
       if (millis() - dernierOctet > 15000) {
@@ -1763,18 +1779,21 @@ bool majDepuisUrl(const String &url, bool forcer, char *erreur, size_t taille) {
 
   if (erreur[0]) {
     Update.abort();
-    couperChauffagePourMaj(false);
+    regimeMaj(REGIME_NORMAL);
     return false;
   }
   if (longueur > 0 && recu != (size_t)longueur) {
     Update.abort();
-    couperChauffagePourMaj(false);
+    regimeMaj(REGIME_NORMAL);
     snprintf(erreur, taille, "image incomplete (%u/%d octets)", (unsigned)recu, longueur);
     return false;
   }
+  // Vérification de la signature et de l'image entière (une à deux secondes),
+  // puis redémarrage chez l'appelant : chauffage coupé dès maintenant.
+  regimeMaj(REGIME_COUPE);
   const char *refus = imageFin();
   if (refus) {
-    couperChauffagePourMaj(false);
+    regimeMaj(REGIME_NORMAL);
     snprintf(erreur, taille, "%s", refus);
     return false;
   }
@@ -2906,24 +2925,22 @@ void lancerServices() {
   } else if (r.otaMotDePasse[0]) {
     ArduinoOTA.setHostname(g_id.c_str());
     ArduinoOTA.setPassword(r.otaMotDePasse);
-    // Une mise à jour interrompue laisserait sinon un tapis alimenté sans
-    // aucune régulation derrière.
+    // Même régimes que les autres chemins : régulation à chaque bloc reçu,
+    // chauffage coupé pour la vérification finale (Update.end, juste après le
+    // dernier bloc) et le redémarrage qui suit onEnd.
     ArduinoOTA.onStart([]() {
-      otaEnCours = true;
-      ctrl.suspendre(true);
+      regimeMaj(REGIME_FLUX);
       journal("OTA demarree");
     });
-    ArduinoOTA.onEnd([]() {
-      otaEnCours = false;
-      ctrl.suspendre(false);
-      journal("OTA terminee");
-    });
+    ArduinoOTA.onEnd([]() { journal("OTA terminee"); });
     ArduinoOTA.onError([](ota_error_t e) {
-      otaEnCours = false;
-      ctrl.suspendre(false);
+      regimeMaj(REGIME_NORMAL);
       journal("OTA en echec (code %d)", (int)e);
     });
-    ArduinoOTA.onProgress([](unsigned int, unsigned int) { esp_task_wdt_reset(); });
+    ArduinoOTA.onProgress([](unsigned int recu, unsigned int total) {
+      if (total && recu >= total) regimeMaj(REGIME_COUPE);
+      tourPendantMaj();
+    });
     ArduinoOTA.begin();
     g_otaLancee = true;
   } else {

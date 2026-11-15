@@ -196,7 +196,7 @@ export default {
     effacerToutQ: 'Erase everything?', effacerToutTexte: 'Broker, bases and local history disappear from this device. The bases keep heating; their pairing codes are on their screen (jeton command).', effacerTout: 'Erase everything',
     majTitre: 'Firmware update', majInconnue: 'Firmware {v}. The published version is not known here (offline or development build).',
     majAJour: 'Firmware {v}: up to date.', majDisponible: 'Version {v} available (installed: {a}). The base downloads it itself, verifies the signature, and rolls back on its own if it crashes before validation.',
-    majInstaller: 'Update to {v}', majQ: 'Update to {v}?', majTexte: 'Heating is off while the image is written (under a minute), then the base restarts. Do not cut its power.', majOk: 'Update',
+    majInstaller: 'Update to {v}', majQ: 'Update to {v}?', majTexte: 'Heating keeps running during the download, then stops for a few seconds while the image is checked and the base restarts. Do not cut its power.', majTexteAncien: 'Heating is off while the image is written (under a minute), then the base restarts. Do not cut its power.', majOk: 'Update',
     majLancee: 'Download started on the base.', majRefusee: 'Update refused: {m}', majTelechargement: 'Downloading: {p} %', majRedemarre: 'Image written, the base is restarting.',
     majErreur: 'Update failed: {m}', interfaceLocale: 'local interface (same network)',
     majEtape_en_validation: 'being validated', majEtape_validee: 'validated', majEtape_retour_arriere: 'rolled back', majEtape_echec: 'failed',

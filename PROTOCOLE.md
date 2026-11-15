@@ -269,8 +269,9 @@ Réponse de `majauto` : `"majAuto":{"actif","signee","plageDebut","plageFin",
 "verifiee","erreur","reporteeJusqua","refusee","essais"}` (les champs sans
 objet sont absents). `sante` en porte un résumé : `actif`, `attente`,
 `disponible`, `securite`. L'image installée seule suit le chemin de `maj` :
-signature vérifiée, anti-retour, chauffage coupé pendant l'écriture,
-validation après 90 s ou retour arrière (et la version est alors refusée pour
+signature vérifiée, anti-retour, régulation maintenue pendant le
+téléchargement (chauffage coupé seulement pour la connexion, la vérification
+finale et le redémarrage), validation après 90 s ou retour arrière (et la version est alors refusée pour
 l'installation automatique). Une installation réussie est annoncée après sa
 validation.
 

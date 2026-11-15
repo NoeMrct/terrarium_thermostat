@@ -353,8 +353,9 @@ function formulaires(){
         id="jet">…</div></div>
    <div class="card"><h3 style="margin-top:0">Mise à jour du firmware</h3>
    <div class="g">Envoie le fichier <code>.ino.bin</code> produit par « Croquis → Exporter les binaires »
-   (ou le fichier signé de la release). Le chauffage est coupé pendant l'écriture, et l'appareil
-   redémarre ensuite. Ne coupe pas l'alimentation. <span id="sig"></span></div>
+   (ou le fichier signé de la release). Le chauffage continue pendant l'envoi ; il ne s'arrête que
+   quelques secondes, le temps de vérifier l'image et de redémarrer. Ne coupe pas l'alimentation.
+   <span id="sig"></span></div>
    <input class="w" type="file" id="binaire" accept=".bin">
    <label>Version plus ancienne ou inconnue</label><select id="retourMaj"><option value="0">refusée (anti-retour)</option><option value="1">autorisée cette fois (retour arrière)</option></select>
    <progress id="progMaj" value="0" max="100" hidden></progress>
@@ -443,7 +444,7 @@ async function effacerJetonAlerte(){
 function envoyerMaj(){
  const f=document.getElementById('binaire').files[0];
  if(!f){alert('Choisis d\'abord un fichier .bin');return;}
- if(!confirm('Téléverser '+f.name+' ('+Math.round(f.size/1024)+' Ko) ? Le chauffage est coupé pendant l\'écriture.'))return;
+ if(!confirm('Téléverser '+f.name+' ('+Math.round(f.size/1024)+' Ko) ? Le chauffage continue pendant l\'envoi, puis s\'arrête quelques secondes pour le redémarrage.'))return;
  const p=document.getElementById('progMaj'),e=document.getElementById('etatMaj');
  p.hidden=false;p.value=0;e.textContent='Envoi…';
  const d=new FormData();d.append('firmware',f);
@@ -494,7 +495,7 @@ async function majAutoOp(op,jours){
 async function majDistante(){
  const c=document.getElementById('majCible').value.trim();
  if(!c){alert('Indique une version (3.4.1) ou une URL https.');return;}
- if(!confirm('Télécharger et installer « '+c+' » ? Le chauffage est coupé pendant l\'écriture, le socle redémarre ensuite.'))return;
+ if(!confirm('Télécharger et installer « '+c+' » ? Le chauffage continue pendant le téléchargement, puis s\'arrête quelques secondes pour le redémarrage.'))return;
  const r=await F('/api/maj-distante',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Terrarium':'1'},
   body:(c.startsWith('https://')?'url=':'version=')+encodeURIComponent(c)});
  document.getElementById('etatMaj').textContent=await r.text();

@@ -81,7 +81,7 @@ void lierAutomatiquement(const char *contexte) {
 
 void terminerIdentification() {
   g_identZone = -1;
-  if (g_identSuspend && !otaEnCours) ctrl.suspendre(false);
+  if (g_identSuspend && !chauffageCoupePourMaj()) ctrl.suspendre(false);
   g_identSuspend = false;
   // La sonde chauffée dans la main va redescendre : ce n'est ni une chute
   // brutale, ni une inversion.

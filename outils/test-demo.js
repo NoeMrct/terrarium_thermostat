@@ -126,6 +126,22 @@ const attendre = ms => new Promise(r => setTimeout(r, ms));
   await attendre(1200);
   v('les statistiques 24 h arrivent', $('#detail').innerHTML.includes('kWh'));
 
+  // Socle de démonstration en 3.5.0 : la régulation continue pendant le
+  // téléchargement (W2), l'avertissement le dit. On annule.
+  App._versionPubliee({ version: '3.6.0', firmware: { version: '3.6.0', date: '2026-11-15' } });
+  App.panneau('maj');
+  await attendre(600);
+  const majBouton = $('[data-action="mettreAJour"]');
+  v('une version publiée plus récente propose la mise à jour', !!majBouton && majBouton.textContent.includes('3.6.0'));
+  if (majBouton) majBouton.click();
+  await attendre(300);
+  v('…en disant que le chauffage continue pendant le téléchargement',
+    /chauffage continue pendant le téléchargement/.test(($('#dlg-texte') || {}).textContent || ''),
+    (($('#dlg-texte') || {}).textContent || '').slice(0, 60));
+  const majNon = $('#dlg-confirm [data-dlg="non"]');
+  if (majNon) majNon.click();
+  await attendre(300);
+
   console.log('\n== Service (protocole 4)');
   App.ouvrir('terraDEMO001');
   App.panneau('service');

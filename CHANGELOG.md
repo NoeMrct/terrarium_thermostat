@@ -339,6 +339,16 @@ jour.
   de la page locale pour chaque nouveauté.
 
 ### Modifié
+- **Le chauffage continue pendant une mise à jour** (W2). La boucle principale
+  ne tourne plus pendant qu'une image s'écrit : chaque bloc reçu
+  (téléchargement depuis les releases, envoi par l'interface locale,
+  ArduinoOTA) fait désormais un tour de régulation — mesures, sécurités,
+  tapis, courant —, au lieu de couper le chauffage pendant tout le flux (une
+  minute environ, la nuit pour les mises à jour automatiques). Seules les
+  étapes qui ne rendent pas la main le coupent encore : connexion au serveur,
+  vérification de l'image entière, redémarrage — quelques secondes. Les textes
+  de l'application, de l'interface locale et de la notice suivent ;
+  l'application garde l'ancien avertissement pour un socle d'avant la 3.5.0.
 - Console : `mqtt off` oublie aussi l'utilisateur, le mot de passe et le
   chiffrement du broker (ils restaient en mémoire).
 - Application : l'anglais vit dans `textes.en.js`, importé au démarrage
@@ -436,6 +446,13 @@ jour.
 
 ### Corrigé
 
+- Firmware : un envoi d'image par l'interface locale, refusé (version, format,
+  signature) puis coupé par le navigateur avant la fin, laissait le chauffage
+  coupé jusqu'au redémarrage suivant ; la mise à jour se rétablit désormais
+  dès l'interruption. La connexion d'une mise à jour téléchargée (TLS,
+  redirections) ne laisse plus non plus un tapis alimenté sans régulation le
+  temps qu'elle s'établisse ; et ArduinoOTA, qui suspendait la régulation sans
+  couper les sorties pendant tout le transfert, suit les mêmes régimes.
 - Application : remonter par la flèche après être arrivé d'une autre branche
   (des réglages depuis un socle, par exemple) pouvait ramener à l'écran
   quitté au lieu du parent ; l'entrée réécrite garde désormais la vraie

@@ -38,8 +38,11 @@ sont là pour qu'une panne coupe, jamais pour qu'elle chauffe.
 - Un **défaut** (sonde, surchauffe, sonde figée, chute brutale, chauffe sans
   effet) coupe la zone et le dit sur l'écran, dans l'application, par alerte.
   On ne lève un défaut qu'après avoir compris sa cause.
-- Pendant une **mise à jour**, le chauffage est coupé ; au redémarrage, une
-  version qui plante est annulée automatiquement. Le socle ne télécharge un
+- Pendant une **mise à jour**, la régulation et ses sécurités continuent
+  pendant le téléchargement ; le chauffage n'est coupé que les quelques
+  secondes où rien ne rend la main (connexion, vérification de l'image,
+  redémarrage). Au redémarrage, une version qui plante est annulée
+  automatiquement. Le socle ne télécharge un
   firmware que sur ordre, en HTTPS, depuis les releases du projet, et vérifie
   la signature si elle est exigée.
 - **Accès** : l'interface locale exige un mot de passe — créé à la première

@@ -629,6 +629,10 @@ function creerApp(adressePage, avantChargement) {
     await attendre(300);
     const oui = $('#dlg-confirm [data-dlg="oui"]');
     verifier('la mise à jour demande confirmation', !!oui && oui.textContent.includes('Mettre à jour'));
+    // Le socle simulé se dit en 3.4.0 : avant la 3.5.0 (W2), le firmware coupait
+    // le chauffage pendant tout le téléchargement, et l'avertissement le dit.
+    verifier('…avec l\'avertissement d\'un firmware d\'avant la 3.5.0 (chauffage coupé)',
+             texte('#dlg-texte').includes('coupé le temps de l\'écriture'), texte('#dlg-texte').slice(0, 60));
     oui.click();
     await attendre(350);
     verifier('la commande est acceptée et la progression s\'affiche',
