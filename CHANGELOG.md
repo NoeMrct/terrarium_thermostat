@@ -347,6 +347,13 @@ jour.
   part au client à l'échéance s'il n'a pas répondu entre-temps. Journal
   d'audit pour chaque geste ; tests serveur et de bout en bout
   (`test-support.js`).
+- **Console — schéma du câblage en direct** (fiche d'un socle) : bloc 12 V et
+  courant mesuré (INA219), convertisseur, ESP32 et son signal, bilames, tapis
+  qui chauffent, MOSFET D16/D17 et leurs commandes, sondes du bus D4 avec leur
+  température. Selon le défaut publié, les organes à vérifier d'abord passent
+  en rouge (sonde muette ou figée ; MOSFET resté passant ou sonde mal placée ;
+  bilame ouvert, tapis coupé ou MOSFET mort) ; la même chose en texte dessous,
+  pour les lecteurs d'écran. Rafraîchi avec la fiche.
 
 ### Modifié
 - **Le chauffage continue pendant une mise à jour** (W2). La boucle principale

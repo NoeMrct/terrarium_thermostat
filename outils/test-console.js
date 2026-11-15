@@ -161,6 +161,10 @@ const JETON = 'admin-console-test';
     v('la fiche s\'ouvre : santé publiée', /3\.5\.0/.test(fiche) && /1 j 2 h/.test(fiche) && /192\.168\.1\.42/.test(fiche) && /protégée/.test(fiche), fiche.replace(/\s+/g, ' ').slice(0, 70));
     v('les zones, la seconde en défaut', /Zone 1.*30,5° pour 31,0°/.test(fiche) && /sonde absente/.test(fiche));
     v('la courbe des 24 heures est tracée', (await page.$$('#fiche-corps svg.courbe-24h polyline')).length === 2);
+    v('le schéma du câblage : tapis 1 en chauffe, la zone 2 en cause',
+      (await page.$$('#fiche-corps svg.schema-cablage .sch-chauffe')).length === 1 && (await page.$$('#fiche-corps svg.schema-cablage .sch-ko')).length === 2
+        && /Tapis 1 .*: chauffe, demande 40 %/.test(fiche) && /Sonde de la zone 2 .*en cause \(sonde absente\)/.test(fiche));
+    if (process.env.CAPTURE_SCHEMA) await page.locator('#fiche-corps .schema').screenshot({ path: process.env.CAPTURE_SCHEMA });
     v('le compte d\'appareil est décrit', /Créé le/.test(fiche));
     await page.click('#fiche-corps [data-action="detacher"]');
     await confirmerDialogue();

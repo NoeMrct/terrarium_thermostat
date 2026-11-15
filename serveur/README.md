@@ -131,8 +131,12 @@ e-mail, le jeton de session est aussi le mot de passe présenté au broker
   disparu depuis plus d'une heure) ; serveur (clients MQTT, pont, e-mail,
   clés d'accès, origines) ; versions de firmware de la flotte.
 - **Socles** : filtres, recherche par identifiant ou propriétaire, fiche
-  (santé publiée, zones, courbe des 24 heures, propriétaires à rattacher ou
-  détacher, compte d'appareil, journal). Le serveur ne voit que ce que le
+  (santé publiée, zones, **schéma du câblage en direct** — bloc 12 V et
+  courant mesuré, convertisseur, ESP32 et son signal, bilames, tapis qui
+  chauffent, MOSFET D16/D17, sondes sur le bus D4 avec leur température ; les
+  organes à vérifier d'abord en rouge selon le défaut, la même chose en texte
+  dessous —, courbe des 24 heures, propriétaires à rattacher ou détacher,
+  compte d'appareil, journal). Le serveur ne voit que ce que le
   socle publie : sans son code d'appairage, il ne peut rien lui commander.
 - **Comptes** : création (mot de passe tiré et montré une fois si laissé
   vide), droits d'administration, « déconnecter partout », réinitialisation du

@@ -641,6 +641,71 @@
     validation: 'image en validation', defaut: 'zone en défaut', autotune: 'autotune', essai: 'essai', entretien: 'entretien', support: 'accès support ouvert'
   };
 
+  // Schéma du câblage annoté de ce que le socle publie (santé, état des zones) :
+  // bloc 12 V, convertisseur 5 V, ESP32, bilames, tapis, MOSFET D16/D17,
+  // sondes sur le bus 1-Wire (D4). Ce qui est en cause passe en rouge ; la
+  // liste dessous dit la même chose en texte, pour les lecteurs d'écran.
+  // Défaut du firmware → organes à vérifier d'abord (une sonde muette ou figée ;
+  // un MOSFET resté passant ou une sonde mal placée ; un bilame ouvert, un
+  // tapis coupé ou un MOSFET mort). Libellé inconnu : la sonde et le tapis.
+  const CAUSES_DEFAUT = {
+    'SONDE': ['sonde'], 'SONDE FIGEE': ['sonde'], 'SURCHAUFFE': ['mosfet', 'sonde'],
+    'CHAUFFE SANS EFFET': ['bilame', 'tapis', 'mosfet']
+  };
+  function schemaCablage(x) {
+    const sa = x.sante || {};
+    const zones = [0, 1].map(i => x.etatsZones.find(z => z.zone === i + 1) || null);
+    const vrai = v => v === true || v === 1 || v === '1';
+    const enDefaut = z => !!z && z.defaut !== undefined && z.defaut !== null && z.defaut !== '0' && z.defaut !== 0 && z.defaut !== false;
+    const causes = zones.map(z => (enDefaut(z) ? (CAUSES_DEFAUT[String(z.defaut_libelle || '').toUpperCase()] || ['sonde', 'tapis']) : []));
+    const anomalieCourant = sa.anomalieCourant ? String(sa.anomalieCourant) : '';
+    const horsLigne = !x.enLigne;
+    const textes = [];
+    const boite = (xx, y, l, ht, titre, sous, etatCss) => s('g', { class: `sch-element ${etatCss || ''}` },
+      s('rect', { x: xx, y, width: l, height: ht, rx: 8 }),
+      s('text', { x: xx + l / 2, y: y + (sous ? ht / 2 - 3 : ht / 2 + 4), 'text-anchor': 'middle', class: 'sch-titre' }, titre),
+      sous ? s('text', { x: xx + l / 2, y: y + ht / 2 + 13, 'text-anchor': 'middle', class: 'sch-valeur' }, sous) : null);
+    const fil = (d, css) => s('path', { d, class: `sch-fil ${css || ''}` });
+    const g = s('svg', { viewBox: '0 0 680 330', class: `schema-cablage${horsLigne ? ' sch-hors-ligne' : ''}`, 'aria-hidden': 'true', focusable: 'false' });
+
+    // Alimentation, rail 12 V, convertisseur, ESP32.
+    const courant = typeof sa.courantA === 'number' ? `${sa.courantA.toFixed(2).replace('.', ',')} A${typeof sa.tensionV === 'number' ? ` · ${sa.tensionV.toFixed(1).replace('.', ',')} V` : ''}` : '';
+    g.append(boite(16, 20, 120, 52, 'Bloc 12 V', courant || null, anomalieCourant ? 'sch-ko' : ''),
+      fil('M136 46 H585', 'sch-12v'), fil('M76 72 V112'),
+      boite(16, 112, 120, 46, 'LM2596', '5 V', ''), fil('M136 135 H176'),
+      boite(176, 104, 150, 70, 'ESP32', sa.rssi !== undefined ? `Wi-Fi ${sa.rssi} dBm` : (horsLigne ? 'hors ligne' : null), horsLigne ? 'sch-ko' : ''));
+    textes.push(`Alimentation 12 V${courant ? ` : ${courant}` : ''}${anomalieCourant ? `, anomalie : ${anomalieCourant}` : ''}.`);
+    textes.push(`ESP32 : ${horsLigne ? `hors ligne${x.vu ? ` depuis ${depuis(x.vu)}` : ''}` : `en ligne${sa.rssi !== undefined ? `, signal ${sa.rssi} dBm` : ''}`}.`);
+
+    // Une branche par tapis : 12 V → bilame → tapis → MOSFET → masse ; grille sur D16/D17.
+    zones.forEach((z, i) => {
+      const x0 = 380 + i * 150, nom = (z && z.nom) || `Zone ${i + 1}`, c = causes[i];
+      const chauffe = !!z && vrai(z.chauffe);
+      const css = el => (c.includes(el) ? 'sch-ko' : '');
+      g.append(fil(`M${x0 + 55} 46 V76`, 'sch-12v'),
+        boite(x0, 76, 110, 34, 'Bilame 70 °C', null, css('bilame')), fil(`M${x0 + 55} 110 V128`, 'sch-12v'),
+        boite(x0, 128, 110, 48, `Tapis ${i + 1}`, chauffe ? 'chauffe' : 'au repos', `${chauffe ? 'sch-chauffe' : ''} ${css('tapis')}`),
+        fil(`M${x0 + 55} 176 V196`),
+        boite(x0, 196, 110, 40, 'MOSFET', `D${16 + i}`, css('mosfet')), fil(`M${x0 + 55} 236 V252`),
+        s('path', { d: `M${x0 + 43} 252 H${x0 + 67} M${x0 + 47} 257 H${x0 + 63} M${x0 + 51} 262 H${x0 + 59}`, class: 'sch-fil' }),
+        // Les deux commandes de grille, sans se croiser ni traverser une branche.
+        fil(i === 0 ? 'M326 150 H360 V216 H380' : 'M326 164 H350 V270 H515 V216 H530', `sch-commande${chauffe ? ' sch-actif' : ''}`));
+      textes.push(`Tapis ${i + 1} (${nom}) : ${chauffe ? 'chauffe' : 'au repos'}${z && z.demande !== undefined ? `, demande ${z.demande} %` : ''}${c.length ? ` — en cause : ${c.join(', ')} (${z.defaut_libelle || 'défaut'})` : ''}.`);
+    });
+
+    // Bus 1-Wire (D4) et les deux sondes.
+    g.append(fil('M251 174 V292 H560', 'sch-bus'),
+      s('text', { x: 258, y: 286, class: 'sch-petit' }, '1-Wire D4 · 4,7 kΩ'));
+    zones.forEach((z, i) => {
+      const x0 = 330 + i * 130, c = causes[i];
+      const temp = z && typeof z.temp === 'number' && z.temp > -100 ? `${degres(z.temp)}` : '—';
+      g.append(fil(`M${x0 + 55} 292 V300`, 'sch-bus'),
+        boite(x0, 300 - 2, 110, 28, `Sonde ${i + 1} · ${temp}`, null, c.includes('sonde') ? 'sch-ko' : ''));
+      textes.push(`Sonde de la zone ${i + 1} : ${temp}${z && typeof z.consigne === 'number' ? ` pour ${degres(z.consigne)}` : ''}${c.includes('sonde') ? ` — en cause (${z.defaut_libelle})` : ''}.`);
+    });
+    return h('div', { class: 'schema' }, g, h('ul', { class: 'legende-schema' }, textes.map(t => h('li', { texte: t }))));
+  }
+
   async function ficheSocle(id, ouvrir = true) {
     const [x, hist, fr] = await Promise.all([admin('GET', `/api/admin/socles/${id}`),
       admin('GET', `/api/admin/socles/${id}/historique?pas=300`).catch(() => null),
@@ -668,6 +733,7 @@
         h('span', {}, h('b', { texte: z.nom || `Zone ${z.zone}` }), ` — ${degres(z.temp)} pour ${degres(z.consigne)}`,
           h('span', { class: 'discret', texte: `demande ${z.demande !== undefined ? z.demande + ' %' : '—'} · ${z.chauffe === '1' || z.chauffe === 1 ? 'chauffe' : 'au repos'}` })),
         z.defaut && z.defaut !== '0' && z.defaut !== 0 ? badge(z.defaut_libelle || 'défaut', 'ko') : badge('normal', 'ok')))) : h('p', { class: 'aide', texte: 'Aucun état de zone reçu depuis le démarrage du serveur.' })),
+      section('Câblage, en direct', schemaCablage(x)),
       section('Dernières 24 heures', courbe(hist ? hist.points : []), h('p', { class: 'legende-courbe' }, h('span', { texte: 'zone 1' }), h('span', { texte: 'zone 2' }))),
       section('Accès support', x.acces && x.acces.actif
         ? h('div', {}, h('p', { class: 'aide', texte: `Ouvert par le propriétaire jusqu'au ${date(x.acces.jusqua)}${x.acces.prolonge ? ' (prolongé)' : ''}.` }),

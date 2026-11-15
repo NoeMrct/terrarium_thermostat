@@ -175,3 +175,24 @@ label.case input { width: 18px; height: 18px; min-height: 0; margin: 0; }
 .relance-actuelle p { margin: 0 0 6px; }
 .liste-actions .extrait-reponse { color: var(--texte-2); white-space: pre-line; margin-top: 4px; }
 #panneau-reponses .formulaire-ligne { margin-top: 12px; }
+
+/* ---- schéma du câblage (fiche d'un socle) ------------------------------------- */
+.schema-cablage { width: 100%; max-width: 680px; height: auto; display: block; }
+.schema-cablage .sch-element rect { fill: var(--carte); stroke: var(--ligne-forte); stroke-width: 1.5; }
+.schema-cablage .sch-titre { fill: var(--texte); font-size: 12px; font-weight: 600; }
+.schema-cablage .sch-valeur { fill: var(--texte-2); font-size: 11px; }
+.schema-cablage .sch-petit { fill: var(--texte-3); font-size: 10px; }
+.schema-cablage .sch-fil { fill: none; stroke: var(--texte-3); stroke-width: 1.5; }
+.schema-cablage .sch-12v { stroke: var(--texte-2); stroke-width: 2.5; }
+.schema-cablage .sch-bus { stroke-dasharray: 5 3; }
+.schema-cablage .sch-commande.sch-actif { stroke: var(--zone-1); stroke-width: 2; }
+.schema-cablage .sch-chauffe rect { fill: var(--frise-chaud); stroke: var(--zone-1); }
+.schema-cablage .sch-ko rect { fill: var(--danger-doux); stroke: var(--danger); stroke-width: 2.5; }
+.schema-cablage .sch-ko .sch-titre { fill: var(--danger); }
+.schema-cablage.sch-hors-ligne { opacity: .55; }
+.legende-schema { margin: 8px 0 0; padding-left: 18px; color: var(--texte-2); font-size: 13px; }
+@media (forced-colors: active) {
+  .schema-cablage .sch-element rect, .schema-cablage .sch-fil { stroke: CanvasText; }
+  .schema-cablage .sch-ko rect { stroke: Highlight; stroke-width: 3; }
+  .schema-cablage text { fill: CanvasText; }
+}
