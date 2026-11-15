@@ -18,7 +18,7 @@
    IndexedDB, WebCrypto, Pointer Events).
    ============================================================================= */
 
-/* global document, navigator, caches, window, localStorage, indexedDB, App, ServiceWorkerRegistration, Notification */
+/* global document, navigator, caches, window, localStorage, indexedDB, location, App, ServiceWorkerRegistration, Notification */
 const { servirApp } = require('./servir-app');
 let playwright;
 try { playwright = require('playwright'); }
@@ -120,7 +120,7 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
     page.click('[data-action="exporterCsv"]')
   ]);
   v('export CSV téléchargé', !!telechargement && /\.csv$/.test(telechargement.suggestedFilename()), telechargement ? telechargement.suggestedFilename() : 'aucun');
-  await page.click('[data-action="remonter"]');
+  await page.click('#vue-socle [data-action="remonter"]');
   await page.click('.rubrique[data-nom=general]');
   await page.waitForFunction(() => !!document.querySelector('#gSD') && document.querySelector('#detail').textContent.includes('Sur 24 heures'), null, { timeout: 8000 }).catch(() => {});
   v('feuille Appareil chargée, santé affichée', !!(await page.$('#gSD')) && (await page.innerHTML('#detail')).includes('Santé'));
@@ -175,11 +175,11 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   await page.setViewportSize({ width: 390, height: 844 });
 
   console.log('\n== Service (module importé à la demande)');
-  await page.click('[data-action="remonter"]');
+  await page.click('#vue-socle [data-action="remonter"]');
   await page.click('.rubrique[data-nom=service]');
   await page.waitForFunction(() => document.querySelector('#detail').textContent.includes('28FF0000000000A1'), null, { timeout: 8000 }).catch(() => {});
   v('le module Service s\'importe et liste les sondes', (await page.innerHTML('#detail')).includes('28FF0000000000A1'));
-  await page.click('[data-action="remonter"]');
+  await page.click('#vue-socle [data-action="remonter"]');
   for (const largeur of [320, 390]) {
     await page.setViewportSize({ width: largeur, height: 800 });
     await page.waitForTimeout(150);
@@ -201,17 +201,20 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   await page.click('#dlg-confirm [data-dlg="non"]');
   await page.waitForTimeout(300);
   v('« Annuler » referme le dialogue sans agir', !(await page.isVisible('#dlg-confirm')) && !(await page.textContent('#message')).includes('acceptée'));
-  await page.click('[data-action="diagnostic"]').catch(() => {});
-  // Le bouton Diagnostic est au pied de la liste : on y revient (d'une
-  // feuille, d'abord l'accueil du socle, puis la liste).
-  await page.click('[data-action="remonter"]');
+  // Le Diagnostic est dans les réglages de l'application : on y va depuis la
+  // liste (d'une feuille, d'abord l'accueil du socle, puis la liste).
+  await page.click('#vue-socle [data-action="remonter"]');
   await page.click('[data-action="montrer"][data-vue="liste"]');
-  await page.click('#vue-liste [data-action="diagnostic"]');
+  await page.click('#vue-liste [data-action="reglagesApp"]');
+  v('les réglages de l\'application s\'ouvrent à leur adresse', await page.isVisible('#vue-reglages') && await page.evaluate(() => location.hash) === '#/reglages');
+  await page.click('#vue-reglages [data-action="diagnostic"]');
   await page.waitForTimeout(300);
   const rapport = await page.textContent('#diag-texte');
   v('le rapport de diagnostic nomme le socle et sa santé', rapport.includes(ID) && /rssi -?\d+ dBm/.test(rapport), rapport.split('\n')[0]);
   v('le rapport ne contient pas le code d\'appairage', !rapport.includes(JETON));
   await page.click('[data-action="fermerDiag"]');
+  await page.click('#vue-reglages [data-action="remonter"]');
+  await page.waitForTimeout(300);
 
   console.log('\n== Retrait annulable');
   await page.click('#socles .socle');
@@ -242,6 +245,7 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   v('…alors que l\'application, elle, a bien rendu la page', (await page.innerHTML('#socles')).includes('Banc réel'));
 
   console.log('\n== Code de verrouillage (configuration chiffrée)');
+  await page.click('#vue-liste [data-action="reglagesApp"]');
   await page.click('#btn-definir-code');
   await page.waitForTimeout(300);
   v('le dialogue de code s\'ouvre', await page.isVisible('#dlg-code'));
@@ -256,6 +260,7 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   v('le code est défini', (await page.textContent('#message')).includes('Code défini'), await page.textContent('#message'));
   const stocke = await page.evaluate(() => localStorage.getItem('terrarium.config.v1'));
   v('la configuration stockée est chiffrée (ni code d\'appairage ni adresse en clair)', stocke.includes('"chiffre":true') && !stocke.includes(JETON) && !stocke.includes('localhost'));
+  await page.click('#vue-reglages [data-action="remonter"]');
   await page.reload();
   await page.waitForTimeout(800);
   v('au relancement, l\'écran de code s\'affiche et rien d\'autre', await page.isVisible('#vue-verrou') && !(await page.isVisible('#vue-liste')));
@@ -269,12 +274,15 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   v('le bon code déverrouille et reconnecte', await page.isVisible('#vue-liste'));
   await page.waitForFunction(() => /Banc réel/.test(document.querySelector('#socles').innerHTML), null, { timeout: 8000 }).catch(() => {});
   v('les socles sont de retour, déchiffrés', (await page.innerHTML('#socles')).includes('Banc réel'));
+  await page.click('#vue-liste [data-action="reglagesApp"]');
   await page.click('#btn-verrouiller');
   await page.waitForTimeout(300);
   v('« Verrouiller » cache tout immédiatement', await page.isVisible('#vue-verrou'));
   await page.fill('#code-verrou', '2468');
   await page.click('#vue-verrou button[type=submit]');
-  await page.waitForFunction(() => document.querySelector('#vue-liste').style.display === 'block', null, { timeout: 8000 }).catch(() => {});
+  // Déverrouillée, l'application rouvre l'écran d'où l'on a verrouillé : les réglages.
+  await page.waitForFunction(() => document.querySelector('#vue-reglages').style.display === 'block', null, { timeout: 8000 }).catch(() => {});
+  v('déverrouillée, l\'application revient là où elle était', await page.isVisible('#vue-reglages'));
   await page.click('#btn-retirer-code');
   await page.waitForTimeout(300);
   await page.click('#dlg-confirm [data-dlg="oui"]');

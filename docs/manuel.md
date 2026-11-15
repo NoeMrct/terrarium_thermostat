@@ -98,7 +98,7 @@ Pour se connecter, deux cas :
 - **Un serveur Terrariums** : son adresse `https://…` suffit. Donne ton adresse e-mail, recopie le
   code à six chiffres reçu (valable dix minutes) : le compte s'ouvre, sans mot de passe. L'application
   propose ensuite une **clé d'accès** (passkey) : les fois suivantes, un geste suffit (empreinte,
-  visage ou code du téléphone), sans e-mail. **Mon compte** (bas de la liste des socles) liste les
+  visage ou code du téléphone), sans e-mail. **Ton compte** (en tête des **Réglages de l'application**) liste les
   clés, exporte les données du compte et le supprime.
 - **Un broker MQTT** : son adresse `wss://…:8884/mqtt`, l'identifiant et le mot de passe qu'il t'a
   donnés ; **Tester la connexion** dit tout de suite si c'est bon.
@@ -123,7 +123,15 @@ L'application peut s'installer comme une vraie application (bouton « Installer 
 Partager → Sur l'écran d'accueil sur iPhone). Elle fonctionne alors hors ligne pour sa partie
 interface, et se met à jour toute seule en proposant « Recharger ».
 
-**Code de verrouillage** (bas de la liste des socles) : avec un code, le mot de passe du broker et
+Sous la liste des socles, **Réglages de l'application** rassemble le compte, la langue, le thème
+(clair, sombre, ou celui du téléphone), la configuration de l'appli, le code de verrouillage, l'aide
+et le diagnostic. **Organiser mes socles** y range la liste : ordre (flèches), noms, **groupes**
+(« Maison », « Élevage »…, un socle descendu en fin de groupe passe dans le suivant), **vue
+compacte** (une ligne par socle et ses deux températures, pour qui en a beaucoup) et **actions
+groupées** : entretien de 30 minutes ou levée des défauts sur tous les socles cochés, avec le compte
+de ceux qui ont confirmé.
+
+**Code de verrouillage** (Réglages de l'application) : avec un code, le mot de passe du broker et
 les codes d'appairage sont chiffrés sur le téléphone, et l'application se verrouille après le délai
 choisi. Qui prend le téléphone ne peut plus chauffer un animal. Le code ne se retrouve pas : en cas
 d'oubli, « Tout effacer » et réappairer (les codes sont sur les socles).
@@ -252,7 +260,7 @@ Le socle garde ses derniers événements ; les plus anciens s'effacent d'eux-mê
 - **Alertes et surveillance** (rubrique Service) : l'adresse des alertes et celle du heartbeat se
   remplacent depuis l'application ; seul leur serveur s'affiche ensuite (`ntfy.sh`), jamais
   l'adresse entière. Le Wi-Fi, lui, ne se règle que sur l'interface locale.
-- **Exporter la configuration** (bas de la liste) : l'application entière — broker et socles — pour
+- **Exporter la configuration de l'appli** (Réglages de l'application) : l'application entière — broker et socles — pour
   changer de téléphone. Le fichier contient les codes d'appairage et le mot de passe du broker :
   garde-le pour toi.
 - **Redémarrer**, **Effacer l'historique** : rubrique Appareil. L'historique local de l'application est
@@ -307,7 +315,7 @@ L'arbre de décision complet est dans `docs/depannage.md`. Les trois cas les plu
 
 ## 15. Diagnostic et aide
 
-Le bouton **Diagnostic** (en bas de la liste des socles) assemble un rapport : version de
+**Diagnostic** (Réglages de l'application) assemble un rapport : version de
 l'application, navigateur, état du broker, pour chaque socle sa version, son signal Wi-Fi, sa
 mémoire, son dernier redémarrage, et les erreurs récentes. Il ne contient ni mot de passe ni code
 d'appairage. **Copier le rapport** et le joindre à une demande d'aide fait gagner un aller-retour ;

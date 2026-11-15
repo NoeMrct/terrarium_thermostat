@@ -35,6 +35,8 @@ const App = (() => {
   const PROTO_APP = 4;              // version du protocole que cette application comprend (4 : signées, à distance)
   const CLE_DERNIER = 'terrarium.dernier.v1';    // dernier état connu de chaque socle, daté (U26)
   const CLE_VERROU_MIN = 'terrarium.verrou.min';   // minutes d'inactivité avant verrouillage (0 = au lancement seulement)
+  const CLE_THEME = 'terrarium.theme';           // « clair » ou « sombre » ; absent : celui du téléphone
+  const CLE_COMPACTE = 'terrarium.compacte';     // « 1 » : la liste en une ligne par socle (U9)
   const PBKDF2_ITERATIONS = 300000; // dérivation du code de verrouillage (≈ 0,3 s sur un téléphone)
   const DELAI_COMMANDE = 8000;      // au-delà, on considère le socle injoignable
   const SILENCE_MS = 150000;        // en ligne mais muet depuis plus longtemps : « silencieux »
@@ -282,7 +284,29 @@ const App = (() => {
       instCourbe: 'Températures depuis le début de l\'installation : {zones}.', instCourbeVide: 'La courbe se dessine au fil des mesures.',
       ilYaMin: 'il y a {m} min', ilYaS: 'il y a {s} s', maintenant: 'maintenant', instAlertesActives: 'Alertes activées', instActiverAlertes: 'Activer les alertes',
       instPlusTard: 'Le socle reste dans ta liste : il s\'y montrera en ligne dès qu\'il aura rejoint le Wi-Fi.',
-      instHorsLigne: 'Le socle ne répond pas : réglages non envoyés. Réessaie quand il est en ligne.'
+      instHorsLigne: 'Le socle ne répond pas : réglages non envoyés. Réessaie quand il est en ligne.',
+      // réglages de l'application
+      reglagesApp: 'Réglages de l\'application', reglagesTitre: 'Réglages', tonCompte: 'Ton compte',
+      rgSocles: 'Socles', rgAffichage: 'Affichage', rgDonnees: 'Données', rgConnexion: 'Connexion', rgSecurite: 'Sécurité', rgAide: 'Aide',
+      organiserSocles: 'Organiser mes socles', theme: 'Thème', themeClair: 'Clair', themeSombre: 'Sombre', themeAuto: 'Auto',
+      lienTransfert: 'Importer, exporter, copier des réglages', lienExports: 'Carnet PDF et mesures en CSV',
+      exporterConfigLib: 'Exporter la configuration de l\'appli', importerConfigLib: 'Importer une configuration',
+      serveurLib: 'Serveur', changerServeur: 'Changer',
+      codeVerrou: 'Code de verrouillage', codeActifLib: 'Actif : il est demandé à l\'ouverture', codeInactifLib: 'Aucun',
+      definirCodeLib: 'Définir', retirerCodeLib: 'Retirer', verrouillerApres: 'Verrouiller après', verrouillerMaintenant: 'Verrouiller maintenant',
+      aideNotice: 'Aide et notice', installerAppli: 'Installer l\'application', conditionsLib: 'Conditions et confidentialité', mentionsLib: 'Mentions légales',
+      toutEffacerTel: 'Tout effacer sur ce téléphone', toutEffacerAide: 'Socles enregistrés, historique local et réglages de l\'appli. Tes socles continuent de chauffer.',
+      resumeSocles1: '1 socle', resumeSoclesN: '{n} socles',
+      // organiser (U9)
+      orgTitre: 'Organiser', orgOrdreNoms: 'Ordre et noms', orgGroupe: 'Groupe « {g} » · ordre et noms', orgSansGroupe: 'Sans groupe · ordre et noms',
+      orgNomSocle: 'Nom de {n}', orgMonter: 'Monter {n}', orgDescendre: 'Descendre {n}', orgNouveauGroupe: 'Nouveau groupe',
+      orgNomGroupe: 'Nom du groupe', orgGroupeN: 'Groupe {n}', orgSupprimerGroupe: 'Supprimer le groupe {g}', orgGroupeVide: 'Groupe vide : monte ou descends un socle pour l\'y mettre.',
+      orgVueCompacte: 'Vue compacte', orgVueCompacteAide: 'Une ligne par socle, pour les éleveurs', orgApercu: 'Aperçu de la vue compacte',
+      orgActions: 'Actions groupées', orgEntretien: 'Entretien 30 min', orgLever: 'Lever les défauts',
+      orgCocher: 'Coche au moins un socle en ligne.', orgEnvoi: 'Envoi à {n} socle(s)…',
+      orgConfirme1: 'Envoyé au socle, confirmé.', orgConfirmeN: 'Envoyé aux {n} socles, confirmé par les {n}.',
+      orgPartiel: 'Confirmé par {k} sur {n}. Sans réponse : {noms}.', orgHorsLigne: '{n} · hors ligne',
+      verrouJamais: 'jamais (au lancement)', orgGroupeExiste: 'Un groupe porte déjà ce nom.', langueLib: 'Langue'
     }
   };
 
@@ -323,6 +347,10 @@ const App = (() => {
       const v = (TEXTES[langue].page || {})[cle];
       if (v !== undefined) el.textContent = v;
     });
+    document.querySelectorAll('[data-i18n-aria]').forEach(el => {
+      const v = (TEXTES[langue].page || {})[el.getAttribute('data-i18n-aria') || ''];
+      if (v !== undefined) el.setAttribute('aria-label', v);
+    });
     document.querySelectorAll('[data-i18n-ph]').forEach(el => {
       const v = (TEXTES[langue].page || {})[el.getAttribute('data-i18n-ph') || ''];
       if (v !== undefined) el.setAttribute('placeholder', v);
@@ -339,6 +367,9 @@ const App = (() => {
   let config = { broker: null, socles: [] };
   let client = null;
   let vueCourante = 'broker';
+  let demarre = false;              // demarrer() a déjà tout branché
+  let pageReglages = 'menu';        // Réglages de l'application : menu, ou une de PAGES_REGLAGES
+  const PAGES_REGLAGES = ['organiser'];
   let socleOuvert = null;
   let panneauActif = 'etat';        // etat (accueil) ou la feuille ouverte : zone, reglages, programme…
   let etapeAccueil = 'bienvenue';   // écran sans broker : bienvenue, connexion, compte ou chezMoi
@@ -1266,7 +1297,7 @@ const App = (() => {
     if (verrouille) vue = 'verrou';    // rien d'autre ne s'affiche tant que le code n'est pas donné
     vueCourante = vue;
     if (vue !== 'installation') { clearInterval(minuteurSonde); minuteurSonde = null; }
-    ['broker', 'liste', 'socle', 'verrou', 'installation'].forEach(v => {
+    ['broker', 'liste', 'socle', 'verrou', 'installation', 'reglages'].forEach(v => {
       const el = $('#vue-' + v);
       if (el) el.style.display = (v === vue) ? 'block' : 'none';
     });
@@ -1292,6 +1323,7 @@ const App = (() => {
   const EMPILER = !/AppleWebKit\/(?!537\.36)/.test(navigator.userAgent || '');
   function adresseCourante() {
     if (vueCourante === 'liste') return '#/';
+    if (vueCourante === 'reglages') return pageReglages === 'menu' ? '#/reglages' : '#/reglages/' + pageReglages;
     if (vueCourante !== 'socle' || !socleOuvert) return null;   // verrou, installation, broker : l'adresse ne bouge pas
     const base = '#/' + encodeURIComponent(socleOuvert);
     if (panneauActif === 'zone') return `${base}/zone/${zoneOuverte + 1}`;
@@ -1320,6 +1352,7 @@ const App = (() => {
       try { history.back(); return; } catch (e) { /* repli ci-dessous */ }
     }
     if (vueCourante === 'socle' && panneauActif !== 'etat') api.panneau('etat');
+    else if (vueCourante === 'reglages' && pageReglages !== 'menu') api.reglagesApp('menu');
     else montrer('liste');
   }
   // Retour du téléphone, ou arrivée d'un retour lancé par remonter().
@@ -1331,6 +1364,8 @@ const App = (() => {
     if (!m) return null;
     let id;
     try { id = m[1] ? decodeURIComponent(m[1]) : null; } catch (e) { return null; }
+    // #/reglages[/page] : les réglages de l'application (un socle de ce nom, s'il existait, passerait avant).
+    if (id === 'reglages' && !m[2] && !socle(id)) return { id: null, reglages: m[3] && PAGES_REGLAGES.includes(m[3]) ? m[3] : 'menu' };
     return { id, zone: m[2] ? Number(m[2]) - 1 : null, panneau: m[3] && PANNEAUX.includes(m[3]) ? m[3] : null };
   }
   // Applique l'adresse. Au démarrage, une adresse profonde (rechargement,
@@ -1341,8 +1376,10 @@ const App = (() => {
     const ouvrable = !!(r && r.id && socle(r.id));
     routeEnCours = true;
     try {
-      if (!ouvrable) {
-        if (vueCourante === 'socle') montrer('liste');
+      if (r && r.reglages) {
+        if (vueCourante !== 'reglages' || pageReglages !== r.reglages) api.reglagesApp(r.reglages);
+      } else if (!ouvrable) {
+        if (vueCourante === 'socle' || vueCourante === 'reglages') montrer('liste');
       } else {
         if (vueCourante !== 'socle' || socleOuvert !== r.id) api.ouvrir(r.id);
         const nbZones = (etats[r.id] && etats[r.id].zones && etats[r.id].zones.length) || 2;
@@ -1352,12 +1389,12 @@ const App = (() => {
       }
     } finally { routeEnCours = false; }
     // Une entrée déjà à nous (rechargement) a déjà ses parents dans l'historique.
-    if (!EMPILER || !demarrage || !r || !r.id || (history.state && history.state.terrarium)) return;
+    if (!EMPILER || !demarrage || !r || !(r.id || r.reglages) || (history.state && history.state.terrarium)) return;
     try {
       const ici = adresseCourante() || '#/';
       history.replaceState({ terrarium: true, avant: null }, '', '#/');
       if (ici === '#/') return;
-      const base = '#/' + encodeURIComponent(socleOuvert);
+      const base = '#/' + ici.replace(/^#\//, '').split('/')[0];
       history.pushState({ terrarium: true, avant: '#/' }, '', base);
       if (ici !== base) history.pushState({ terrarium: true, avant: base }, '', ici);
     } catch (e) { /* file:// d'un vieux navigateur */ }
@@ -1378,6 +1415,7 @@ const App = (() => {
     if (vueCourante === 'liste') dessinerListe();
     else if (vueCourante === 'socle') dessinerSocle();
     else if (vueCourante === 'installation') dessinerInstallation();
+    else if (vueCourante === 'reglages') dessinerReglages();
     else if (vueCourante === 'broker') dessinerAccueil();
     peindreVersion();
   }
@@ -1560,14 +1598,7 @@ const App = (() => {
 
   function dessinerListe() {
     const conteneur = $('#socles');
-    const hote = $('#broker-hote');
-    if (hote && config.broker) {
-      let h = config.broker.url;
-      try { h = new URL(config.broker.url).host; } catch (e) { /* adresse brute */ }
-      texte(hote, config.broker.compte ? t('compteSans', { e: config.broker.user, h }) : t('brokerAffiche', { h }));
-    }
-    const bc = $('#btn-mon-compte');
-    if (bc) bc.hidden = !serveur.actif();
+    texte($('#reglages-resume'), resumeConnexion());
 
     if (!config.socles.length) {
       cartes.forEach(c => c.remove()); cartes.clear();
@@ -1587,8 +1618,24 @@ const App = (() => {
     }).length;
     peindre($('#bandeau-liste'), n ? `<p class="bandeau-attention" role="status">${icone('i-alerte')}${t(n > 1 ? 'attentionN' : 'attention1', { n })}</p>` : '');
 
+    // Vue compacte (une ligne par socle) et groupes (U9) : les titres de
+    // groupe sont des éléments de la liste comme les cartes, clés « g:<nom> ».
+    const compacte = vueCompacte();
+    conteneur.classList.toggle('compacte', compacte);
     const vus = new Set();
-    config.socles.forEach((s, i) => {
+    let rang = 0, numero = 0;
+    const placer = el => { if (conteneur.children[rang] !== el) conteneur.insertBefore(el, conteneur.children[rang] || null); rang++; };
+    ordreAffichage(false).forEach(it => {
+      if (it.type === 'groupe') {
+        const cle = 'g:' + it.nom;
+        vus.add(cle);
+        let titre = cartes.get(cle);
+        if (!titre) { titre = doc.createElement('h3'); titre.className = 'titre-groupe'; cartes.set(cle, titre); }
+        texte(titre, it.nom);
+        placer(titre);
+        return;
+      }
+      const s = it.socle, i = numero++;
       vus.add(s.id);
       let carte = cartes.get(s.id);
       if (!carte) {
@@ -1603,12 +1650,219 @@ const App = (() => {
       const e = etats[s.id] || { enLigne: false, zones: [] };
       const zones = e.zones || [];
       carte.classList.toggle('alerte', zones.some(z => z && z.defaut));
-      peindre(carte, `<div class="socle-tete">${illustration(e, 'l' + i, true)}
+      carte.classList.toggle('compacte', compacte);
+      peindre(carte, compacte ? ligneCompacte(s, e) : `<div class="socle-tete">${illustration(e, 'l' + i, true)}
           <div class="socle-titre"><h2>${esc(s.nom || s.id)}</h2>${ligneEtat(e)}</div>${icone('i-suite')}</div>
         <div class="socle-zones">${[0, 1].map(k => zoneListe(zones[k], k)).join('')}</div>`);
-      if (conteneur.children[i] !== carte) conteneur.insertBefore(carte, conteneur.children[i] || null);
+      placer(carte);
     });
-    cartes.forEach((carte, id) => { if (!vus.has(id)) { carte.remove(); cartes.delete(id); } });
+    cartes.forEach((el, cle) => { if (!vus.has(cle)) { el.remove(); cartes.delete(cle); } });
+  }
+
+  // --- Groupes et ordre des socles (U9). Les groupes sont des noms
+  // (config.groupes, dans l'ordre) ; un socle en porte un ou aucun. À
+  // l'affichage, les socles sans groupe viennent d'abord, puis chaque groupe
+  // et ses socles, dans l'ordre de config.socles.
+  const groupesConfig = () => (Array.isArray(config.groupes) ? config.groupes.filter(g => typeof g === 'string' && g) : []);
+  const groupeDe = s => (s.groupe && groupesConfig().includes(s.groupe) ? s.groupe : null);
+  /** @param {boolean} avecVides */
+  function ordreAffichage(avecVides) {
+    /** @type {Array<{type: string, socle?: any, nom?: string}>} */
+    const items = config.socles.filter(s => !groupeDe(s)).map(s => ({ type: 'socle', socle: s }));
+    groupesConfig().forEach(g => {
+      const membres = config.socles.filter(s => groupeDe(s) === g);
+      if (!membres.length && !avecVides) return;
+      items.push({ type: 'groupe', nom: g });
+      membres.forEach(s => items.push({ type: 'socle', socle: s }));
+    });
+    return items;
+  }
+  function vueCompacte() {
+    try { return localStorage.getItem(CLE_COMPACTE) === '1'; } catch (e) { return false; }
+  }
+  // Une ligne : pastille d'état, nom, et la température de chaque zone (un
+  // point de couleur la désigne ; le chiffre reste dans la couleur du texte).
+  function ligneCompacte(s, e) {
+    const zs = e.zones || [];
+    const k = zs.findIndex(z => z && z.defaut);
+    const etat = !e.enLigne ? ['eteint', t('horsLigne')] : k >= 0 ? ['ko', t('defautDans', { d: esc(zs[k].defaut), z: nomZone(zs[k], k) })]
+      : silencieux(e) ? ['warn', t('silencieux', { m: minutesSilence(e) })] : ['ok', t('toutVaBien')];
+    const temp = (z, i) => `<span class="t-compacte${z && z.defaut ? ' ko' : ''}"><i class="point-zone z${i}" aria-hidden="true"></i>${!z || z.defaut ? '—' : deg(z.temp) + '°'}</span>`;
+    return `<span class="pastille-etat ${etat[0]}" aria-hidden="true"></span><span class="nom-compact">${esc(s.nom || s.id)}<span class="sr-only"> · ${etat[1]}</span></span>${temp(zs[0], 0)}${temp(zs[1], 1)}`;
+  }
+  function resumeConnexion() {
+    if (!config.broker) return '';
+    let h = config.broker.url;
+    try { h = new URL(config.broker.url).host; } catch (e) { /* adresse brute */ }
+    return config.broker.compte ? t('compteSans', { e: config.broker.user, h }) : t('brokerAffiche', { h });
+  }
+
+  // ------------------------------------------------- réglages de l'application
+  // Une page d'entrée (#/reglages) et ses sous-pages (#/reglages/<page>).
+  function themeChoisi() {
+    try { const v = localStorage.getItem(CLE_THEME); return v === 'clair' || v === 'sombre' ? v : 'auto'; } catch (e) { return 'auto'; }
+  }
+  // Le thème choisi l'emporte sur celui du téléphone ; la barre du navigateur suit.
+  function appliquerTheme() {
+    const th = themeChoisi(), racine = doc.documentElement;
+    if (th === 'auto') delete racine.dataset.theme; else racine.dataset.theme = th;
+    doc.querySelectorAll('meta[name="theme-color"]').forEach(m => {
+      const sombre = th === 'auto' ? /dark/.test(m.getAttribute('media') || '') : th === 'sombre';
+      m.setAttribute('content', sombre ? '#0d0e10' : '#ffffff');
+    });
+  }
+  const pageStatique = nom => nom + (langue === 'en' ? '.en.html' : '.html');
+  const ligneRg = (attributs, lib, droite = '') => `<button type="button" class="ligne-reglage" ${attributs}><span class="lib">${lib}</span>${droite}${icone('i-suite')}</button>`;
+  const lienRg = (href, lib) => `<a class="ligne-reglage" href="${href}"><span class="lib">${lib}</span>${icone('i-suite')}</a>`;
+  const sectionRg = (id, titre, interieur) => `<section class="groupe-reglages" aria-labelledby="${id}"><h3 class="titre-section" id="${id}">${titre}</h3>${interieur}</section>`;
+
+  function structureMenuReglages() {
+    const theme = themeChoisi();
+    const seg = (v, cle) => `<button type="button" data-action="theme" data-theme="${v}" aria-pressed="${theme === v}">${t(cle)}</button>`;
+    const minutes = [[0, t('verrouJamais')], [1, '1 min'], [5, '5 min'], [15, '15 min'], [60, '1 h']]
+      .map(([v, lib]) => `<option value="${v}">${lib}</option>`).join('');
+    return `<button type="button" class="carte-compte" id="btn-mon-compte" data-action="monCompte" hidden><span class="avatar" data-r="initiales" aria-hidden="true"></span>
+        <span class="lib"><strong>${t('tonCompte')}</strong><small data-r="email"></small></span>${icone('i-suite')}</button>
+      ${sectionRg('rg-socles', t('rgSocles'), ligneRg('data-action="reglagesApp" data-page="organiser"', t('organiserSocles'), '<span class="valeur" data-r="nb"></span>'))}
+      ${sectionRg('rg-affichage', t('rgAffichage'), `<label class="ligne-reglage" for="langue-liste"><span class="lib">${t('langueLib')}</span>
+          <select id="langue-liste"><option value="fr">Français</option><option value="en">English</option></select></label>
+        <div class="ligne-reglage"><span class="lib" id="lib-theme">${t('theme')}</span>
+          <div class="segment trois" role="group" aria-labelledby="lib-theme">${seg('clair', 'themeClair')}${seg('sombre', 'themeSombre')}${seg('auto', 'themeAuto')}</div></div>`)}
+      ${sectionRg('rg-donnees', t('rgDonnees'), ligneRg('data-action="exporterConfig"', t('exporterConfigLib')) + ligneRg('data-action="importerConfig"', t('importerConfigLib')))}
+      ${sectionRg('rg-connexion', t('rgConnexion'), `<div class="ligne-reglage"><span class="lib">${t('serveurLib')}<small id="broker-hote"></small></span>
+          <button type="button" class="btn btn-secondaire btn-petit" data-action="oublierBroker">${t('changerServeur')}</button></div>`)}
+      ${sectionRg('rg-securite', t('rgSecurite'), `<div class="ligne-reglage"><span class="lib">${t('codeVerrou')}<small data-r="code"></small></span>
+          <button type="button" class="btn btn-secondaire btn-petit" id="btn-definir-code" data-action="definirCode" hidden>${t('definirCodeLib')}</button>
+          <button type="button" class="btn btn-secondaire btn-petit" id="btn-retirer-code" data-action="retirerCode" hidden>${t('retirerCodeLib')}</button></div>
+        <label class="ligne-reglage" for="verrou-min" hidden><span class="lib">${t('verrouillerApres')}</span><select id="verrou-min" hidden>${minutes}</select></label>
+        <button type="button" class="ligne-reglage" id="btn-verrouiller" data-action="verrouiller" hidden><span class="lib">${t('verrouillerMaintenant')}</span>${icone('i-cadenas')}</button>`)}
+      ${sectionRg('rg-aide', t('rgAide'), lienRg(pageStatique('aide'), t('aideNotice'))
+        + ligneRg('data-action="diagnostic"', t('diagnostic'))
+        + `<button type="button" class="ligne-reglage" data-action="installer"${evenementInstall ? '' : ' hidden'}><span class="lib">${t('installerAppli')}</span>${icone('i-telecharger')}</button>`
+        + lienRg(pageStatique('confidentialite'), t('conditionsLib')) + lienRg(pageStatique('mentions-legales'), t('mentionsLib')))}
+      <div class="zone-effacer"><button type="button" class="btn btn-fantome btn-danger" data-action="effacerTout">${t('toutEffacerTel')}</button>
+        <p class="aide centre">${t('toutEffacerAide')}</p></div>`;
+  }
+  function patcherMenuReglages() {
+    const r = k => $(`#reglages [data-r="${k}"]`);
+    texte(r('nb'), String(config.socles.length));
+    const bc = $('#btn-mon-compte');
+    if (bc) bc.hidden = !serveur.actif();
+    const qui = (config.broker && config.broker.user) || '';
+    texte(r('email'), qui);
+    texte(r('initiales'), (qui.replace(/@.*/, '').split(/[^A-Za-zÀ-ÿ0-9]+/).filter(Boolean).slice(0, 2).map(x => x[0]).join('') || '?').toUpperCase());
+    texte($('#broker-hote'), resumeConnexion());
+    texte(r('code'), codeVerrouActif() ? t('codeActifLib') : t('codeInactifLib'));
+    peindreVerrou();
+    const l = /** @type {any} */ ($('#langue-liste'));
+    if (l && l.value !== langue) l.value = langue;
+  }
+
+  // --- Organiser (U9) : ordre, noms et groupes ; vue compacte ; actions sur
+  // plusieurs socles à la fois.
+  const orgSelection = new Set();     // socles cochés pour les actions groupées
+  let orgSelectionVue = false;        // la sélection a été initialisée (tous les socles en ligne)
+  let orgResultat = '';
+  function structureOrganiser() {
+    return `<section class="groupe-reglages" data-r="ordre"></section>
+      <div class="groupe-reglages"><button type="button" class="btn btn-pointille" data-action="orgNouveauGroupe">${icone('i-plus')}${t('orgNouveauGroupe')}</button></div>
+      ${sectionRg('org-aff', t('rgAffichage'), `<label class="ligne-reglage interrupteur" for="org-compacte"><span class="lib">${t('orgVueCompacte')}<small>${t('orgVueCompacteAide')}</small></span>
+          <input type="checkbox" id="org-compacte" role="switch"></label><div data-r="apercu"></div>`)}
+      ${sectionRg('org-grp', t('orgActions'), `<div data-r="cases"></div>
+        <div class="boutons deux"><button type="button" class="btn btn-secondaire" data-action="orgGroupe" data-cmd="entretien">${t('orgEntretien')}</button>
+          <button type="button" class="btn btn-secondaire" data-action="orgGroupe" data-cmd="reset">${t('orgLever')}</button></div>
+        <p class="aide" role="status" aria-live="polite" data-r="resultat"></p>`)}`;
+  }
+  function vivantOrdre() {
+    const items = ordreAffichage(true);
+    let h = groupesConfig().length ? (items[0] && items[0].type === 'socle' ? `<h3 class="titre-section">${t('orgSansGroupe')}</h3>` : '')
+      : `<h3 class="titre-section">${t('orgOrdreNoms')}</h3>`;
+    let n = 0;
+    items.forEach((it, k) => {
+      if (it.type === 'groupe') {
+        const vide = !(items[k + 1] && items[k + 1].type === 'socle');
+        h += `<div class="ligne-groupe"><label class="titre-section" for="grp-${k}">${t('orgGroupe', { g: esc(it.nom) })}</label>
+          <div class="ligne-groupe-champ"><input id="grp-${k}" class="champ-groupe" data-groupe="${attr(it.nom)}" value="${attr(it.nom)}" maxlength="40" aria-label="${attr(t('orgNomGroupe'))}">
+          ${vide ? `<button type="button" class="rond rond-petit" data-action="orgSupprimerGroupe" data-groupe="${attr(it.nom)}" aria-label="${attr(t('orgSupprimerGroupe', { g: it.nom }))}">${icone('i-corbeille')}</button>` : ''}</div>
+          ${vide ? `<p class="aide">${t('orgGroupeVide')}</p>` : ''}</div>`;
+        n = 0;
+        return;
+      }
+      const s = it.socle, nom = s.nom || s.id;
+      n++;
+      h += `<div class="ligne-ordre"><span class="rang" aria-hidden="true">${n}</span>
+        <input class="champ-nom" data-id="${attr(s.id)}" value="${attr(nom)}" maxlength="40" aria-label="${attr(t('orgNomSocle', { n: nom }))}">
+        <button type="button" class="rond rond-petit" data-action="orgMonter" data-id="${attr(s.id)}" aria-label="${attr(t('orgMonter', { n: nom }))}"${k === 0 ? ' disabled' : ''}>${icone('i-haut')}</button>
+        <button type="button" class="rond rond-petit" data-action="orgDescendre" data-id="${attr(s.id)}" aria-label="${attr(t('orgDescendre', { n: nom }))}"${k === items.length - 1 ? ' disabled' : ''}>${icone('i-bas')}</button></div>`;
+    });
+    return h;
+  }
+  function patcherOrganiser() {
+    const r = k => $(`#reglages [data-r="${k}"]`);
+    // Pas de repeinture pendant une saisie : le champ garderait sa valeur, mais perdrait le curseur.
+    const actif = /** @type {any} */ (doc.activeElement);
+    if (!(actif && actif.matches && actif.matches('#reglages .champ-nom, #reglages .champ-groupe'))) peindre(r('ordre'), vivantOrdre());
+    const compacte = vueCompacte();
+    const c = /** @type {any} */ ($('#org-compacte'));
+    if (c && c.checked !== compacte) c.checked = compacte;
+    peindre(r('apercu'), compacte && config.socles.length ? `<div class="apercu-compact" role="img" aria-label="${attr(t('orgApercu'))}">${ordreAffichage(false)
+      .filter(it => it.type === 'socle').slice(0, 3).map(it => `<div class="ligne-apercu">${ligneCompacte(it.socle, etats[it.socle.id] || { enLigne: false, zones: [] })}</div>`).join('')}</div>` : '');
+    if (!orgSelectionVue) { config.socles.forEach(s => { if (etats[s.id] && etats[s.id].enLigne) orgSelection.add(s.id); }); orgSelectionVue = config.socles.some(s => etats[s.id]); }
+    peindre(r('cases'), ordreAffichage(false).filter(it => it.type === 'socle').map(it => {
+      const s = it.socle, e = etats[s.id], en = !!(e && e.enLigne), nom = esc(s.nom || s.id);
+      return `<label class="ligne-case"><input type="checkbox" data-org-case="${attr(s.id)}"${orgSelection.has(s.id) && en ? ' checked' : ''}${en ? '' : ' disabled'}>${en ? nom : t('orgHorsLigne', { n: nom })}</label>`;
+    }).join(''));
+    texte(r('resultat'), orgResultat);
+  }
+  function deplacerSocle(id, sens) {
+    const items = ordreAffichage(true);
+    const k = items.findIndex(it => it.type === 'socle' && it.socle.id === id);
+    const voisin = items[k + sens];
+    if (k < 0 || !voisin) return;
+    const s = items[k].socle;
+    if (voisin.type === 'socle') {
+      const i = config.socles.indexOf(s), j = config.socles.indexOf(voisin.socle);
+      config.socles[i] = voisin.socle; config.socles[j] = s;
+    } else if (sens < 0) {
+      // En tête de son groupe : il passe à la fin du groupe d'avant (ou sans groupe).
+      const gs = groupesConfig(), gi = gs.indexOf(voisin.nom);
+      placerDansGroupe(s, gi > 0 ? gs[gi - 1] : null, 'fin');
+    } else {
+      placerDansGroupe(s, voisin.nom, 'debut');    // en fin de groupe : en tête du suivant
+    }
+    sauver();
+  }
+  function placerDansGroupe(s, g, ou) {
+    config.socles.splice(config.socles.indexOf(s), 1);
+    if (g) s.groupe = g; else delete s.groupe;
+    const membres = config.socles.filter(x => groupeDe(x) === g);
+    const pos = !membres.length ? config.socles.length
+      : ou === 'fin' ? config.socles.indexOf(membres[membres.length - 1]) + 1 : config.socles.indexOf(membres[0]);
+    config.socles.splice(pos, 0, s);
+  }
+  async function actionGroupee(cmd) {
+    const ids = config.socles.filter(s => orgSelection.has(s.id) && etats[s.id] && etats[s.id].enLigne).map(s => s.id);
+    if (!ids.length) { orgResultat = t('orgCocher'); invalider(); return; }
+    orgResultat = t('orgEnvoi', { n: ids.length }); invalider();
+    const params = cmd === 'entretien' ? { minutes: 30 } : undefined;
+    const r = await Promise.all(ids.map(id => commander(id, cmd, params).then(() => true, () => false)));
+    const ko = ids.filter((_, i) => !r[i]).map(id => (socle(id) && socle(id).nom) || id);
+    orgResultat = !ko.length ? (ids.length === 1 ? t('orgConfirme1') : t('orgConfirmeN', { n: ids.length }))
+      : t('orgPartiel', { k: ids.length - ko.length, n: ids.length, noms: ko.join(', ') });
+    ids.forEach(id => commander(id, 'etat').catch(() => {}));
+    invalider();
+  }
+
+  function dessinerReglages() {
+    const racine = $('#reglages');
+    if (!racine) return;
+    const cle = pageReglages + '|' + langue;
+    if (racine.dataset.page !== cle) {
+      racine.dataset.page = cle;
+      texte($('#titre-reglages'), t(pageReglages === 'organiser' ? 'orgTitre' : 'reglagesTitre'));
+      html(racine, pageReglages === 'organiser' ? structureOrganiser() : structureMenuReglages());
+    }
+    if (pageReglages === 'organiser') patcherOrganiser(); else patcherMenuReglages();
   }
 
   // ------------------------------------------------------------------ détail
@@ -2667,6 +2921,13 @@ const App = (() => {
         case 'ouvrir':            api.ouvrir(d.id); break;
         case 'montrer':           if (d.vue === 'liste' && vueCourante === 'socle' && panneauActif === 'etat') remonter(); else montrer(d.vue); break;
         case 'remonter':          remonter(); break;
+        case 'reglagesApp':       api.reglagesApp(d.page || 'menu'); break;
+        case 'theme':             api.theme(d.theme); break;
+        case 'orgMonter':         api.deplacerSocle(d.id, -1); break;
+        case 'orgDescendre':      api.deplacerSocle(d.id, 1); break;
+        case 'orgNouveauGroupe':  api.nouveauGroupe(); break;
+        case 'orgSupprimerGroupe': api.supprimerGroupe(d.groupe); break;
+        case 'orgGroupe':         actionGroupee(d.cmd); break;
         case 'panneau':           if (el.getAttribute('aria-disabled') === 'true') message(t('reglableAuRetour')); else api.panneau(d.nom); break;
         case 'reessayerSocle':    api.reessayerSocle(); break;
         case 'filtreJournal':     filtreJournal = d.filtre || 'tout'; invalider(); break;
@@ -2720,7 +2981,7 @@ const App = (() => {
     });
     // Les cartes de socle sont des boutons : clavier compris.
     doc.addEventListener('keydown', ev => {
-      if (ev.key === 'Escape' && vueCourante === 'socle' && panneauActif !== 'etat' && !doc.querySelector('dialog[open]')) {
+      if (ev.key === 'Escape' && ((vueCourante === 'socle' && panneauActif !== 'etat') || vueCourante === 'reglages') && !doc.querySelector('dialog[open]')) {
         remonter(); return;
       }
       if (ev.key !== 'Enter' && ev.key !== ' ') return;
@@ -2749,7 +3010,12 @@ const App = (() => {
     });
     doc.addEventListener('change', ev => {
       const el = /** @type {any} */ (ev.target);
-      if (!el || !el.id) return;
+      if (!el) return;
+      if (el.classList && el.classList.contains('champ-nom')) { api.renommerSocle(el.dataset.id, el.value); return; }
+      if (el.classList && el.classList.contains('champ-groupe')) { api.renommerGroupe(el.dataset.groupe, el.value); return; }
+      if (el.dataset && el.dataset.orgCase) { if (el.checked) orgSelection.add(el.dataset.orgCase); else orgSelection.delete(el.dataset.orgCase); return; }
+      if (!el.id) return;
+      if (el.id === 'org-compacte') { api.vueCompacte(el.checked); return; }
       if (el.id === 'fichier-config' && el.files && el.files[0]) { api.importerConfig(el.files[0]); el.value = ''; }
       if (el.id === 'verrou-min') api.changerVerrouMin(el.value);
       if (el.id === 'co-prix') api.prixKwh();
@@ -3235,6 +3501,8 @@ const App = (() => {
     verifierSupport() { return verifierDemandesSupport(); },
 
     demarrer() {
+      if (demarre) return;              // un second « load » (jsdom en envoie deux) ne rebranche rien
+      appliquerTheme();
       // Étiquette scannée par l'appareil photo : l'identifiant et le code sont
       // gardés en mémoire et retirés de l'adresse aussitôt (historique, favoris,
       // capture d'écran partagée).
@@ -3245,6 +3513,7 @@ const App = (() => {
       }
       choisirLangue();
       if (!TEXTES[langue]) { chargerTextes(langue).then(() => api.demarrer()); return; }
+      demarre = true;
       traduirePage();
       charger();
       brancher();
@@ -3549,8 +3818,12 @@ const App = (() => {
         echecsCode = 0;
         champ.value = '';
         texte(err, '');
-        if (client && client.connected) montrer(socleOuvert ? 'socle' : 'liste');
-        else api.lancerSession();
+        if (client && client.connected) {
+          // L'écran d'où l'on a verrouillé : l'adresse, elle, n'a pas bougé.
+          routeEnCours = true;
+          try { montrer('liste'); } finally { routeEnCours = false; }
+          suivreAdresse(false);
+        } else api.lancerSession();
       } catch (e) {
         echecsCode++;
         // Après trois erreurs, chaque essai attend un peu plus : 2, 4, 8… s,
@@ -3588,6 +3861,72 @@ const App = (() => {
     },
 
     verrouillerMaintenant() { verrouiller(); },
+
+    // ---- réglages de l'application -------------------------------------------
+    reglagesApp(page) {
+      const p = PAGES_REGLAGES.includes(page) ? page : 'menu';
+      const avant = vueCourante === 'reglages' ? pageReglages : null;
+      pageReglages = p;
+      montrer('reglages');
+      // Retour au menu : le focus revient sur la ligne d'où l'on venait.
+      const ligne = avant && avant !== 'menu' && p === 'menu' ? $(`#reglages [data-page="${avant}"]`) : null;
+      const cible = ligne || (avant !== p ? $('#titre-reglages') : null);
+      if (cible) cible.focus();
+    },
+    theme(v) {
+      try { if (v === 'clair' || v === 'sombre') localStorage.setItem(CLE_THEME, v); else localStorage.removeItem(CLE_THEME); } catch (e) { /* stockage indisponible */ }
+      appliquerTheme();
+      doc.querySelectorAll('#reglages [data-action="theme"]').forEach(b => b.setAttribute('aria-pressed', String(b.getAttribute('data-theme') === themeChoisi())));
+      dessiner();
+    },
+    vueCompacte(oui) {
+      try { if (oui) localStorage.setItem(CLE_COMPACTE, '1'); else localStorage.removeItem(CLE_COMPACTE); } catch (e) { /* stockage indisponible */ }
+      dessiner();
+    },
+    renommerSocle(id, nom) {
+      const s = socle(id);
+      if (!s) return;
+      const v = String(nom || '').trim().slice(0, 40);
+      if (v && v !== s.nom) { s.nom = v; sauver(); }
+      dessiner();
+    },
+    deplacerSocle(id, sens) {
+      deplacerSocle(id, sens);
+      dessiner();
+      // Le focus suit le socle déplacé ; au bout de la liste, il passe sur l'autre flèche.
+      const b = $(`#reglages [data-action="${sens < 0 ? 'orgMonter' : 'orgDescendre'}"][data-id="${id}"]`);
+      const repli = $(`#reglages [data-action="${sens < 0 ? 'orgDescendre' : 'orgMonter'}"][data-id="${id}"]`);
+      const cible = b && !b.disabled ? b : repli;
+      if (cible) cible.focus();
+    },
+    nouveauGroupe() {
+      const gs = groupesConfig();
+      let n = gs.length + 1;
+      while (gs.includes(t('orgGroupeN', { n }))) n++;
+      config.groupes = [...gs, t('orgGroupeN', { n })];
+      sauver();
+      dessiner();
+      const champs = doc.querySelectorAll('#reglages .champ-groupe');
+      const c = /** @type {any} */ (champs[champs.length - 1]);
+      if (c) { c.focus(); c.select(); }
+    },
+    renommerGroupe(ancien, nom) {
+      const gs = groupesConfig(), i = gs.indexOf(ancien);
+      const v = String(nom || '').trim().slice(0, 40);
+      if (i < 0 || !v || v === ancien) { dessiner(); return; }
+      if (gs.includes(v)) { message(t('orgGroupeExiste'), true); dessiner(); return; }
+      gs[i] = v;
+      config.groupes = gs;
+      config.socles.forEach(s => { if (s.groupe === ancien) s.groupe = v; });
+      sauver();
+      dessiner();
+    },
+    supprimerGroupe(g) {
+      if (config.socles.some(s => groupeDe(s) === g)) return;
+      config.groupes = groupesConfig().filter(x => x !== g);
+      sauver();
+      dessiner();
+    },
 
     changerVerrouMin(v) {
       try { localStorage.setItem(CLE_VERROU_MIN, String(parseInt(v, 10) || 0)); } catch (e) { /* stockage indisponible */ }

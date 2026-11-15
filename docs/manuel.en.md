@@ -99,7 +99,7 @@ To connect, two cases:
 - **A Terrariums server**: its `https://…` address is enough. Enter your e-mail address, type the
   six-digit code you receive (valid ten minutes): the account opens, with no password. The app then
   offers a **passkey**: next time, one gesture is enough (fingerprint, face or phone PIN), no e-mail.
-  **My account** (bottom of the base list) lists the passkeys, exports the account data and deletes
+  **Your account** (at the top of the **App settings**) lists the passkeys, exports the account data and deletes
   the account.
 - **An MQTT broker**: its `wss://…:8884/mqtt` address, the username and password it gave you;
   **Test the connection** tells you right away whether it works.
@@ -123,7 +123,14 @@ The app can be installed like a real application ("Install the app" button, or S
 Home Screen on iPhone). It then works offline for its interface part, and updates itself by
 offering "Reload".
 
-**Lock code** (bottom of the base list): with a code, the broker password and the pairing codes
+Below the base list, **App settings** gathers the account, the language, the theme (light, dark,
+or the phone's), the app configuration, the lock code, help and diagnostics. **Organise my bases**
+tidies the list: order (arrows), names, **groups** ("Home", "Breeding"…; a base moved down past the
+end of a group joins the next one), **compact view** (one line per base with its two temperatures,
+for those who have many) and **group actions**: 30-minute maintenance or clearing faults on every
+ticked base, with the count of those that confirmed.
+
+**Lock code** (App settings): with a code, the broker password and the pairing codes
 are encrypted on the phone, and the app locks itself after the chosen delay. Whoever takes the
 phone can no longer heat an animal. The code cannot be recovered: if forgotten, "Erase
 everything" and pair again (the codes are on the bases).
@@ -250,7 +257,7 @@ erased on their own.
 - **Alerts and monitoring** (Service section): the alert and heartbeat addresses can be replaced from
   the app; only their server shows afterwards (`ntfy.sh`), never the whole address. Wi-Fi is set
   on the local interface only.
-- **Export configuration** (bottom of the list): the whole app — broker and bases — to change
+- **Export the app configuration** (App settings): the whole app — broker and bases — to change
   phones. The file contains the pairing codes and the broker password: keep it to yourself.
 - **Restart**, **Erase history**: Device section. The app's local history is erased at the same time.
 
@@ -303,7 +310,7 @@ The full decision tree is in `docs/depannage.md`. The three most frequent cases:
 
 ## 15. Diagnostics and help
 
-The **Diagnostics** button (at the bottom of the base list) assembles a report: app version,
+**Diagnostics** (App settings) assembles a report: app version,
 browser, broker state, and for each base its version, its Wi-Fi signal, its memory, its last
 restart, and the recent errors. It contains no password and no pairing code. **Copy the report**
 and attach it to a support request saves a round trip; with the Terrariums server, **Send to

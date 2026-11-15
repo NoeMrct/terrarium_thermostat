@@ -20,6 +20,17 @@ jour.
   notification touchée ouvre son socle (application ouverte ou non ;
   verrouillée, l'écran attend le code). Remonter avec le bouton de
   l'application revient dans l'historique au lieu d'y empiler un écran.
+- **Réglages de l'application** (`#/reglages`), sous la liste des socles : le
+  compte, la langue, le **thème** (clair, sombre ou celui du téléphone), la
+  configuration de l'appli, la connexion, le code de verrouillage, l'aide, le
+  diagnostic et « Tout effacer ». Le pied de la liste, où tout s'empilait,
+  disparaît.
+- **Organiser mes socles** (U9) : ordre (flèches, le focus suit le socle),
+  noms modifiables sur place, **groupes** nommés (un socle monté ou descendu
+  au bord d'un groupe passe dans le voisin ; un groupe vide se supprime),
+  **vue compacte** de la liste (une ligne par socle : état, nom, deux
+  températures) et **actions groupées** (entretien 30 min, lever les défauts)
+  sur les socles cochés, avec le compte de ceux qui ont confirmé.
 - **Socle hors ligne, sans écran vide** (U26) : l'application garde sur
   l'appareil le dernier état connu de chaque socle, daté (« relevé à 14:12 »,
   « hors ligne depuis hier 22:05 ») ; il s'affiche dès l'ouverture, avant même
@@ -334,6 +345,9 @@ jour.
 
 ### Corrigé
 
+- Application : déverrouillée après « Verrouiller », elle revient sur l'écran
+  d'où l'on avait verrouillé (rubrique ou réglages), plus seulement sur la
+  liste ou l'accueil du socle.
 - Application : sous WebKit (Safari, et tout navigateur sur iPhone), recharger
   la page après être remonté d'un écran pouvait la faire planter (bug WebKit
   300402 sur l'historique empilé). Là, l'adresse suit désormais l'écran sans

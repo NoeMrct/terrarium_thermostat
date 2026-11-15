@@ -422,6 +422,74 @@ function creerApp(adressePage, avantChargement) {
     r.w.close();
   }
 
+  titre('13 ter. Réglages de l\'application et Organiser (U9)');
+  {
+    App.montrer('liste');
+    $('#vue-liste [data-action="reglagesApp"]').click();
+    verifier('les réglages s\'ouvrent à leur adresse, compte et connexion compris',
+             $('#vue-reglages').style.display !== 'none' && w.location.hash === '#/reglages' && /Broker/.test(texte('#broker-hote')), w.location.hash);
+    $('#reglages [data-action="theme"][data-theme="sombre"]').click();
+    verifier('le thème choisi s\'applique et se garde', w.document.documentElement.dataset.theme === 'sombre'
+             && w.localStorage.getItem('terrarium.theme') === 'sombre' && $('#reglages [data-theme="sombre"]').getAttribute('aria-pressed') === 'true');
+    $('#reglages [data-action="theme"][data-theme="auto"]').click();
+    verifier('…« Auto » rend la main au téléphone', !w.document.documentElement.dataset.theme && !w.localStorage.getItem('terrarium.theme'));
+    $('#reglages [data-page="organiser"]').click();
+    verifier('Organiser a sa propre adresse', w.location.hash === '#/reglages/organiser' && /Organiser/.test(texte('#titre-reglages')), w.location.hash);
+    const noms = () => Array.from(w.document.querySelectorAll('#reglages .champ-nom')).map(i => i.value);
+    const avant = noms();
+    $(`#reglages [data-action="orgDescendre"][data-id="${ID}"]`).click();
+    verifier('un socle descend d\'un rang, et la liste suit', noms()[1] === avant[0] && JSON.parse(w.localStorage.getItem('terrarium.config.v1')).socles[1].id === ID,
+             noms().join(' / '));
+    verifier('…le focus reste sur le socle déplacé', w.document.activeElement && w.document.activeElement.dataset.id === ID);
+    $(`#reglages [data-action="orgMonter"][data-id="${ID}"]`).click();
+    const champ = $(`#reglages .champ-nom[data-id="${ID}"]`);
+    champ.value = 'Terrarium renommé';
+    champ.dispatchEvent(new w.Event('change', { bubbles: true }));
+    verifier('un socle se renomme sur place', JSON.parse(w.localStorage.getItem('terrarium.config.v1')).socles[0].nom === 'Terrarium renommé');
+    $('#reglages [data-action="orgNouveauGroupe"]').click();
+    const g = $('#reglages .champ-groupe');
+    verifier('« Nouveau groupe » ajoute un groupe vide, à nommer', !!g && w.document.activeElement === g && $('#reglages [data-action="orgSupprimerGroupe"]'));
+    g.value = 'Maison';
+    g.dispatchEvent(new w.Event('change', { bubbles: true }));
+    $(`#reglages [data-action="orgDescendre"][data-id="terraFANTOME"]`).click();
+    const cfgG = JSON.parse(w.localStorage.getItem('terrarium.config.v1'));
+    verifier('descendre le dernier socle le fait entrer dans le groupe',
+             JSON.stringify(cfgG.groupes) === '["Maison"]' && cfgG.socles.find(x => x.id === 'terraFANTOME').groupe === 'Maison', JSON.stringify(cfgG.groupes));
+    App.montrer('liste');
+    verifier('la liste montre le groupe et son socle, après les autres',
+             (texte('#socles').match(/Terrarium renommé[\s\S]*Maison[\s\S]*Socle absent/) || []).length === 1, texte('#socles').replace(/\s+/g, ' ').slice(0, 80));
+    App.reglagesApp('organiser');
+    const compacte = $('#org-compacte');
+    compacte.checked = true;
+    compacte.dispatchEvent(new w.Event('change', { bubbles: true }));
+    App.montrer('liste');
+    verifier('vue compacte : une ligne par socle, la température de chaque zone',
+             $('#socles').classList.contains('compacte') && $('#socles .socle.compacte .nom-compact') && /\d+,\d°/.test(texte('#socles .socle.compacte')));
+    App.reglagesApp('organiser');
+    compacte.checked = false;
+    $('#org-compacte').checked = false;
+    $('#org-compacte').dispatchEvent(new w.Event('change', { bubbles: true }));
+    const cases = Array.from(w.document.querySelectorAll('#reglages [data-org-case]'));
+    verifier('actions groupées : le socle hors ligne n\'est pas proposé', cases.length === 2 && cases.find(c => c.dataset.orgCase === 'terraFANTOME').disabled
+             && cases.find(c => c.dataset.orgCase === ID).checked);
+    $('#reglages [data-action="orgGroupe"][data-cmd="entretien"]').click();
+    verifier('« Entretien 30 min » part vers les socles cochés, et le dit',
+             await jusqua(() => /confirmé/.test(texte('#reglages [data-r="resultat"]')), 10000), texte('#reglages [data-r="resultat"]'));
+    await App.action('entretien', { minutes: 0 });
+    App.reglagesApp('menu');
+    verifier('retour au menu : le focus revient sur « Organiser »', w.document.activeElement && w.document.activeElement.dataset.page === 'organiser');
+    // Le groupe vidé se supprime ; le nom d'origine revient.
+    App.reglagesApp('organiser');
+    $(`#reglages [data-action="orgMonter"][data-id="terraFANTOME"]`).click();
+    $('#reglages [data-action="orgSupprimerGroupe"]').click();
+    const champ2 = $(`#reglages .champ-nom[data-id="${ID}"]`);
+    champ2.value = 'Terrarium de test';
+    champ2.dispatchEvent(new w.Event('change', { bubbles: true }));
+    const cfgFin = JSON.parse(w.localStorage.getItem('terrarium.config.v1'));
+    verifier('un groupe vide se supprime', !(cfgFin.groupes || []).length && !cfgFin.socles.some(x => x.groupe), JSON.stringify(cfgFin.groupes));
+    App.montrer('liste');
+  }
+
   titre('14. Retrait d\'un socle');
   App.ouvrir('terraFANTOME');
   App.retirerSocle();

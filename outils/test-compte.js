@@ -76,7 +76,7 @@ const EMAIL = 'noe@exemple.fr';
     v('le bon code connecte : liste des socles, broker joint', await connecte() && await visible('#vue-liste'));
     const c1 = await config();
     v('le broker reçoit l\'e-mail et le jeton de session, pas de mot de passe', c1.broker && c1.broker.user === EMAIL && c1.broker.compte === 'email' && c1.broker.pass === c1.serveur.jeton);
-    v('le pied de liste nomme le compte', (await page.textContent('#broker-hote')).includes(EMAIL) && await visible('#btn-mon-compte'));
+    v('la liste nomme le compte, sous « Réglages de l\'application »', (await page.textContent('#reglages-resume')).includes(EMAIL));
 
     titre('Clé d\'accès créée depuis la proposition');
     await page.waitForSelector('#message.visible button', { timeout: 5000 }).catch(() => {});
@@ -88,6 +88,9 @@ const EMAIL = 'noe@exemple.fr';
     v('…et enregistrée par le serveur', (s.comptes.utilisateur(EMAIL).cles || []).length === 1);
 
     titre('Mon compte : clés, export');
+    await page.click('#vue-liste [data-action="reglagesApp"]');
+    v('les réglages ouvrent sur la carte du compte', await visible('#btn-mon-compte') && (await page.textContent('#btn-mon-compte')).includes(EMAIL)
+      && (await page.textContent('#broker-hote')).includes(EMAIL));
     await page.click('#btn-mon-compte');
     await page.waitForSelector('#dlg-compte[open]', { timeout: 5000 }).catch(() => {});
     v('« Mon compte » liste la clé avec son appareil', (await page.textContent('#dlg-compte')).includes('Clé d\'accès — Linux'));
@@ -119,6 +122,7 @@ const EMAIL = 'noe@exemple.fr';
     v('reconnecté d\'un geste par la clé', await connecte());
 
     titre('Suppression du compte');
+    await page.click('#vue-liste [data-action="reglagesApp"]');
     await page.click('#btn-mon-compte');
     await page.waitForSelector('#dlg-compte[open]', { timeout: 5000 }).catch(() => {});
     await page.fill('#compte-confirmation', 'autre@exemple.fr');

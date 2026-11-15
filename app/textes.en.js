@@ -231,6 +231,27 @@ export default {
     ilYaMin: '{m} min ago', ilYaS: '{s} s ago', maintenant: 'now', instAlertesActives: 'Alerts enabled', instActiverAlertes: 'Enable alerts',
     instPlusTard: 'The base stays in your list: it will show up online as soon as it has joined the Wi-Fi.',
     instHorsLigne: 'The base is not answering: settings not sent. Try again once it is online.',
+    // app settings
+    reglagesApp: 'App settings', reglagesTitre: 'Settings', tonCompte: 'Your account',
+    rgSocles: 'Bases', rgAffichage: 'Display', rgDonnees: 'Data', rgConnexion: 'Connection', rgSecurite: 'Security', rgAide: 'Help',
+    organiserSocles: 'Organise my bases', theme: 'Theme', themeClair: 'Light', themeSombre: 'Dark', themeAuto: 'Auto',
+    lienTransfert: 'Import, export, copy settings', lienExports: 'PDF logbook and CSV readings',
+    exporterConfigLib: 'Export the app configuration', importerConfigLib: 'Import a configuration',
+    serveurLib: 'Server', changerServeur: 'Change',
+    codeVerrou: 'Lock code', codeActifLib: 'On: asked when the app opens', codeInactifLib: 'None',
+    definirCodeLib: 'Set', retirerCodeLib: 'Remove', verrouillerApres: 'Lock after', verrouillerMaintenant: 'Lock now',
+    aideNotice: 'Help and manual', installerAppli: 'Install the app', conditionsLib: 'Terms and privacy', mentionsLib: 'Legal notice',
+    toutEffacerTel: 'Erase everything on this phone', toutEffacerAide: 'Registered bases, local history and app settings. Your bases keep heating.',
+    resumeSocles1: '1 base', resumeSoclesN: '{n} bases',
+    orgTitre: 'Organise', orgOrdreNoms: 'Order and names', orgGroupe: 'Group “{g}” · order and names', orgSansGroupe: 'No group · order and names',
+    orgNomSocle: 'Name of {n}', orgMonter: 'Move {n} up', orgDescendre: 'Move {n} down', orgNouveauGroupe: 'New group',
+    orgNomGroupe: 'Group name', orgGroupeN: 'Group {n}', orgSupprimerGroupe: 'Delete group {g}', orgGroupeVide: 'Empty group: move a base up or down to put it here.',
+    orgVueCompacte: 'Compact view', orgVueCompacteAide: 'One line per base, for breeders', orgApercu: 'Compact view preview',
+    orgActions: 'Group actions', orgEntretien: 'Maintenance 30 min', orgLever: 'Clear faults',
+    orgCocher: 'Tick at least one online base.', orgEnvoi: 'Sending to {n} base(s)…',
+    orgConfirme1: 'Sent to the base, confirmed.', orgConfirmeN: 'Sent to {n} bases, confirmed by all {n}.',
+    orgPartiel: 'Confirmed by {k} of {n}. No answer: {noms}.', orgHorsLigne: '{n} · offline',
+    verrouJamais: 'never (at launch)', orgGroupeExiste: 'A group already has this name.', langueLib: 'Language',
   page: {
     'connexion-titre': 'Connection',
     'connexion-aide': 'These details come from your MQTT provider. They stay on this device and are sent to nobody but the broker.',
@@ -287,6 +308,7 @@ export default {
     'latitude': 'Latitude', 'longitude': 'Longitude',
     'inst-fin-titre': 'All set', 'inst-fin-texte': 'Your terrarium is heating. Here are its first minutes.',
     'inst-prevenu': 'Be alerted', 'inst-prevenu-texte': 'Faulty probe, heat spike, base no longer answering: an alert on this phone.',
-    'inst-activer-alertes': 'Enable alerts', 'inst-voir': 'See my terrarium', 'inst-autre': 'Add another base'
+    'inst-activer-alertes': 'Enable alerts', 'inst-voir': 'See my terrarium', 'inst-autre': 'Add another base',
+    'reglages-app': 'App settings', 'application': 'App'
   }
 };

@@ -14,7 +14,7 @@
      node construire-demo.js && node test-accessibilite.js
    ============================================================================= */
 
-/* global App, Atelier, axe, localStorage, document */
+/* global App, Atelier, axe, localStorage, document, Event */
 const path = require('path');
 const fs = require('fs');
 const { servirApp } = require('./servir-app');
@@ -43,7 +43,10 @@ const ECRANS = [
     App.ajouterSocle();
     App.ouvrir('terraFANTOME');
   }],
-  ['appareil', () => { App.ouvrir('terraDEMO002'); App.panneau('general'); }],
+  ['réglages de l\'application', () => App.reglagesApp('menu')],
+  ['organiser', () => { App.reglagesApp('organiser'); const c = document.querySelector('#org-compacte'); c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); }],
+  ['liste compacte', () => App.montrer('liste')],
+  ['appareil', () => { App.reglagesApp('organiser'); const c = document.querySelector('#org-compacte'); c.checked = false; c.dispatchEvent(new Event('change', { bubbles: true })); App.ouvrir('terraDEMO002'); App.panneau('general'); }],
   ['service', () => App.panneau('service')],
   ['mises à jour', async () => { App.panneau('maj'); await new Promise(r => setTimeout(r, 1500)); }],
   ['diagnostic', () => App.diagnostic()],
@@ -105,6 +108,11 @@ let violationsGraves = 0, total = 0;
 (async () => {
   const navigateur = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {});
   const analyser = async (page, nom) => {
+    // Un message qui apparaît (fondu en cours) aurait un contraste faussé :
+    // on attend la fin de sa transition.
+    await page.waitForFunction(() => !(document.getAnimations ? document.getAnimations() : [])
+      .some(a => a.playState === 'running' && a.effect && /** @type {any} */ (a.effect).target && /** @type {any} */ (a.effect).target.id === 'message'),
+    null, { timeout: 2000 }).catch(() => {});
     const r = await page.evaluate(async () => {
       const res = await axe.run(document, { runOnly: ['wcag2a', 'wcag2aa', 'wcag21aa', 'best-practice'] });
       return res.violations.map(v => ({ id: v.id, impact: v.impact, aide: v.help, nb: v.nodes.length,

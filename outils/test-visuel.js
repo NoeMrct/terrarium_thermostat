@@ -45,6 +45,8 @@ const ECRANS = [
   ['reglages', () => App.panneau('reglages')],
   ['courbes',  () => App.panneau('courbes')],
   ['appareil', () => App.panneau('general')],
+  ['reglages-app', () => App.reglagesApp('menu')],
+  ['organiser', () => App.reglagesApp('organiser')],
   ['verrou',   () => App.montrer('verrou')],
   // L'assistant d'installation, étiquette déjà lue ; le socle de démonstration
   // neuf arrive en ligne au bout de six secondes (troisième terme : horloge

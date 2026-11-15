@@ -22,6 +22,9 @@
 <body>
 
 <svg hidden aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-haut" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6.5 10.5L12 5l5.5 5.5"/></symbol>
+  <symbol id="i-bas" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6.5 13.5L12 19l5.5-5.5"/></symbol>
+  <symbol id="i-curseurs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5h9M17 7.5h3M4 16.5h3M11 16.5h9"/><circle cx="15" cy="7.5" r="2"/><circle cx="9" cy="16.5" r="2"/></symbol>
   <symbol id="i-retour" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></symbol>
   <symbol id="i-cadenas" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
   <symbol id="i-maj" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10M8 10l4 4 4-4M5 19h14"/></symbol>
@@ -168,28 +171,18 @@
     <button type="button" class="rond" data-action="ajoutSocle"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg><span class="sr-only" data-i18n="ajouter-titre">Ajouter un socle</span></button></div>
   <div id="bandeau-liste"></div>
   <div id="socles"></div>
-  <footer class="pied colonne">
-    <div class="pied-ligne">
-      <span class="discret" id="broker-hote"></span>
-      <button class="btn btn-fantome btn-petit" type="button" data-action="monCompte" id="btn-mon-compte" hidden data-i18n="mon-compte">Mon compte</button>
-      <button class="btn btn-fantome btn-petit" type="button" data-action="oublierBroker" data-i18n="changer-broker">Changer de broker</button>
-    </div>
-    <div class="pied-ligne">
-      <button class="btn btn-fantome btn-petit" type="button" data-action="installer" hidden><svg class="ico" aria-hidden="true"><use href="#i-telecharger"/></svg><span data-i18n="installer">Installer l'application</span></button>
-      <button class="btn btn-fantome btn-petit" type="button" data-action="diagnostic"><svg class="ico" aria-hidden="true"><use href="#i-outil"/></svg><span data-i18n="diagnostic">Diagnostic</span></button>
-      <a class="btn btn-fantome btn-petit" href="aide.html"><svg class="ico" aria-hidden="true"><use href="#i-aide"/></svg><span data-i18n="aide">Aide</span></a>
-      <button class="btn btn-fantome btn-petit" type="button" data-action="exporterConfig" data-i18n="exporter-config">Exporter la configuration</button>
-      <button class="btn btn-fantome btn-petit" type="button" data-action="importerConfig" data-i18n="importer-config">Importer une configuration</button>
-      <input type="file" id="fichier-config" accept="application/json,.json" hidden>
-      <button class="btn btn-fantome btn-petit" type="button" id="btn-definir-code" data-action="definirCode" hidden><svg class="ico" aria-hidden="true"><use href="#i-cadenas"/></svg><span data-i18n="definir-code">Code de verrouillage</span></button>
-      <button class="btn btn-fantome btn-petit" type="button" id="btn-verrouiller" data-action="verrouiller" hidden><svg class="ico" aria-hidden="true"><use href="#i-cadenas"/></svg><span data-i18n="verrouiller">Verrouiller</span></button>
-      <button class="btn btn-fantome btn-petit" type="button" id="btn-retirer-code" data-action="retirerCode" hidden><span data-i18n="retirer-code">Retirer le code</span></button>
-      <label class="inline" for="verrou-min" hidden><span data-i18n="verrou-auto">Verrouiller après</span>
-        <select id="verrou-min" hidden><option value="0" data-i18n="verrou-jamais">jamais (au lancement)</option><option value="1">1 min</option><option value="5">5 min</option><option value="15">15 min</option><option value="60">1 h</option></select></label>
-      <label class="inline" for="langue-liste"><span data-i18n="langue">Langue</span>
-        <select id="langue-liste"><option value="fr">Français</option><option value="en">English</option></select></label>
-    </div>
-  </footer>
+  <nav class="rubriques rubriques-app" aria-label="Application" data-i18n-aria="application">
+    <button type="button" class="rubrique" data-action="reglagesApp"><svg class="ico" aria-hidden="true"><use href="#i-curseurs"/></svg><span><strong data-i18n="reglages-app">Réglages de l'application</strong><small id="reglages-resume"></small></span><svg class="ico" aria-hidden="true"><use href="#i-suite"/></svg></button>
+  </nav>
+</section>
+
+<section id="vue-reglages" class="vue" aria-labelledby="titre-reglages">
+  <header class="feuille-tete">
+    <button type="button" class="rond" data-action="remonter"><svg class="ico" aria-hidden="true"><use href="#i-retour"/></svg><span class="sr-only" data-i18n="retour">Retour</span></button>
+    <div><h2 id="titre-reglages" tabindex="-1">Réglages</h2></div><span></span>
+  </header>
+  <div id="reglages" class="reglages"></div>
+  <input type="file" id="fichier-config" accept="application/json,.json" hidden>
 </section>
 
 <section id="vue-installation" class="vue" aria-label="Installer un socle">
