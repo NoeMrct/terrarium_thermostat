@@ -19,6 +19,14 @@ const mqtt = require('mqtt');
 const EventEmitter = require('events');
 const crypto = require('crypto');
 
+const LECTURES = ['etat', 'stats', 'version', 'historique'];
+function lectureNonSignee(charge) {
+  try {
+    const d = JSON.parse(String(charge));
+    return !!d && typeof d === 'object' && LECTURES.includes(d.action) && d.c === undefined && d.sig === undefined && d.jeton === undefined;
+  } catch (e) { return false; }
+}
+
 class Broker extends EventEmitter {
   constructor(comptes, options = {}) {
     super();
@@ -99,8 +107,11 @@ class Broker extends EventEmitter {
     }
     if (client.role === 'utilisateur') {
       const u = this.comptes.utilisateur(client.login);
-      if (s && s.reste === 'cmd' && this.comptes.possede(u, s.id)) return cb(null);
-      return cb(new Error('socle non rattaché à ce compte'));
+      if (s && s.reste === 'cmd' && this.comptes.peutCommander(u, s.id)) return cb(null);
+      // Un invité en lecture seule (F12) : les lectures non signées seulement
+      // (état, statistiques, version, historique), comme le socle les accepte.
+      if (s && s.reste === 'cmd' && this.comptes.possede(u, s.id) && lectureNonSignee(packet.payload)) return cb(null);
+      return cb(new Error(this.comptes.possede(u, s && s.id) ? 'accès en lecture seule' : 'socle non rattaché à ce compte'));
     }
     cb(new Error('refusé'));
   }

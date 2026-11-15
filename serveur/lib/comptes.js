@@ -33,7 +33,13 @@ function memeEmpreinte(a, b) {
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 }
 
-const REGISTRES = ['utilisateurs', 'appareils', 'sessions', 'abonnementsPush'];
+const REGISTRES = ['utilisateurs', 'appareils', 'sessions', 'abonnementsPush', 'invitations'];
+// Partage d'un socle (F12) : lien à usage unique, valable 48 h ; droits
+// « lecture » (voir, être prévenu) ou « reglage » (changer consignes et
+// horaires) ; l'accès peut avoir une fin.
+const DROITS_PARTAGE = ['lecture', 'reglage'];
+const DUREE_INVITATION_MS = 48 * 3600000;
+const MAX_INVITATIONS_PAR_SOCLE = 10;
 
 class Comptes {
   constructor(dossier) {
@@ -135,6 +141,7 @@ class Comptes {
       sessions: [...this.donnees.sessions.values()].filter(s_ => s_.login === cle).map(s_ => ({ ouverte: s_.cree || null, expire: s_.expire, appareil: s_.agent || '' })),
       notificationsPush: (this.donnees.abonnementsPush.get(cle) || []).map(a => ({ appareil: a.agent, cree: a.cree })),
       nomsDesSocles: { ...(u.noms || {}) },
+      partagesRecus: Object.fromEntries(Object.entries(u.partages || {}).map(([id, p]) => [id, { droit: p.droit, jusqua: p.jusqua ? new Date(p.jusqua).toISOString() : null, depuis: p.depuis ? new Date(p.depuis).toISOString() : null }])),
       carnetMensuel: u.carnet ? { actif: !!u.carnet.actif, depuis: u.carnet.depuis || null, dernierMoisCouvert: u.carnet.dernier || null, nomsDesSocles: { ...(u.carnet.noms || {}) } } : null,
       exporte: new Date().toISOString()
     };
@@ -387,10 +394,109 @@ class Comptes {
     u.socles = u.socles.filter(s => s !== id);
     if (u.carnet && u.carnet.noms) delete u.carnet.noms[id];
     if (u.noms) delete u.noms[id];
+    if (u.partages) delete u.partages[id];
     this.sauver();
   }
 
-  possede(u, id) { return !!u && (u.admin || u.socles.includes(id)); }
+  possede(u, id) { return !!u && (u.admin || (u.socles.includes(id) && !this.partageEchu(u, id))); }
+
+  // --- partage (F12) -------------------------------------------------------------
+  partage(u, id) { return (u && u.partages && u.partages[id]) || null; }
+  partageEchu(u, id) { const p = this.partage(u, id); return !!(p && p.jusqua && p.jusqua <= Date.now()); }
+  // Le titulaire : le socle est à lui (rattaché par son code), pas partagé avec lui.
+  estProprietaire(u, id) { return !!u && (u.admin || (u.socles.includes(id) && !this.partage(u, id))); }
+  // Publier une commande : le titulaire, ou un invité qui peut régler.
+  peutCommander(u, id) {
+    if (!this.possede(u, id)) return false;
+    const p = this.partage(u, id);
+    return !p || u.admin || p.droit === 'reglage';
+  }
+
+  creerInvitation(login, id, { droit, jours } = {}) {
+    const u = this.utilisateur(login);
+    if (!this.estProprietaire(u, id)) throw new Error('seul le titulaire du socle peut le partager');
+    if (!DROITS_PARTAGE.includes(droit)) throw new Error('droit : lecture ou reglage');
+    const j = jours === undefined || jours === null ? 0 : Number(jours);
+    if (!Number.isInteger(j) || j < 0 || j > 366) throw new Error('durée : 0 (sans fin) à 366 jours');
+    this.purgerInvitations();
+    const enCours = [...this.donnees.invitations.values()].filter(i => i.socle === id).length;
+    if (enCours >= MAX_INVITATIONS_PAR_SOCLE) throw new Error('trop d\'invitations en attente pour ce socle');
+    const code = crypto.randomBytes(18).toString('base64url');
+    const maintenant = Date.now();
+    const inv = { socle: id, droit, jusqua: j ? maintenant + j * 86400000 : null, expire: maintenant + DUREE_INVITATION_MS, par: u.login, cree: maintenant };
+    this.donnees.invitations.set(cleSession(code), inv);
+    this.sauver();
+    return { code, ...inv };
+  }
+
+  accepterInvitation(login, code) {
+    const u = this.utilisateur(login);
+    if (!u) throw new Error('utilisateur inconnu');
+    const cle = cleSession(String(code || ''));
+    const inv = this.donnees.invitations.get(cle);
+    if (!inv || inv.expire <= Date.now()) {
+      if (inv) { this.donnees.invitations.delete(cle); this.sauver(); }
+      throw new Error('invitation inconnue, déjà utilisée ou expirée');
+    }
+    if (this.estProprietaire(u, inv.socle)) throw new Error('ce socle est déjà rattaché à ton compte');
+    this.donnees.invitations.delete(cle);
+    if (!u.socles.includes(inv.socle)) u.socles.push(inv.socle);
+    u.partages = Object.assign({}, u.partages, { [inv.socle]: { droit: inv.droit, jusqua: inv.jusqua, par: inv.par, depuis: Date.now() } });
+    this.sauver();
+    return { socle: inv.socle, droit: inv.droit, jusqua: inv.jusqua, par: inv.par };
+  }
+
+  // Qui a accès à un socle : les titulaires, puis les invités.
+  accesDe(id) {
+    return [...this.donnees.utilisateurs.values()].filter(u => u.socles.includes(id) && !this.partageEchu(u, id)).map(u => {
+      const p = this.partage(u, id);
+      return { login: u.login, email: u.email || null, droit: p ? p.droit : 'titulaire', jusqua: p ? p.jusqua : null, depuis: p ? p.depuis : null };
+    }).sort((a, b) => (a.droit === 'titulaire' ? 0 : 1) - (b.droit === 'titulaire' ? 0 : 1));
+  }
+
+  invitationsDe(id) {
+    this.purgerInvitations();
+    return [...this.donnees.invitations.entries()].filter(([, i]) => i.socle === id)
+      .map(([cle, i]) => ({ id: cle.slice(2, 14), droit: i.droit, jusqua: i.jusqua, expire: i.expire, par: i.par }));
+  }
+
+  annulerInvitation(id, idInvitation) {
+    for (const [cle, i] of this.donnees.invitations) {
+      if (i.socle === id && cle.slice(2, 14) === idInvitation) { this.donnees.invitations.delete(cle); this.sauver(); return true; }
+    }
+    return false;
+  }
+
+  // Retire l'accès d'un invité (pas d'un titulaire).
+  retirerPartage(id, loginInvite) {
+    const u = this.utilisateur(loginInvite);
+    if (!u || !this.partage(u, id)) return false;
+    u.socles = u.socles.filter(s => s !== id);
+    delete u.partages[id];
+    if (u.noms) delete u.noms[id];
+    this.sauver();
+    return true;
+  }
+
+  // Le dernier titulaire parti, les invités perdent l'accès.
+  sansTitulaire(id) {
+    if ([...this.donnees.utilisateurs.values()].some(u => this.estProprietaire(u, id) && !u.admin)) return 0;
+    let n = 0;
+    for (const u of this.donnees.utilisateurs.values()) if (this.partage(u, id) && this.retirerPartage(id, u.login)) n++;
+    return n;
+  }
+
+  purgerInvitations() {
+    const maintenant = Date.now();
+    let n = 0;
+    for (const [cle, i] of this.donnees.invitations) if (i.expire <= maintenant) { this.donnees.invitations.delete(cle); n++; }
+    // Les accès échus disparaissent aussi du compte des invités.
+    for (const u of this.donnees.utilisateurs.values()) {
+      for (const id of Object.keys(u.partages || {})) if (this.partageEchu(u, id)) { this.retirerPartage(id, u.login); n++; }
+    }
+    if (n) this.sauver();
+    return n;
+  }
 
   // Les noms que le titulaire donne à ses socles dans l'application : titres
   // des notifications et du carnet. Texte seul, 40 caractères, ses socles seuls.

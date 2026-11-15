@@ -1117,6 +1117,18 @@ div.ligne-reglage, label.ligne-reglage { cursor: default; }
 .etapes-ntfy { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; color: var(--texte-2); }
 .etapes-ntfy code { font-size: 14px; overflow-wrap: anywhere; color: var(--texte); }
 
+/* Partager un socle (F12, U4). */
+.pa-inviter > * + * { margin-top: 14px; }
+#reglages [data-r="pa-socles"]:empty { display: none; }
+.ligne-acces { cursor: default; }
+.ligne-acces .avatar { width: 40px; height: 40px; font-size: 14px; }
+.avatar.invite { background: var(--creux); color: var(--texte); }
+.avatar.invite .ico { width: 20px; height: 20px; }
+.lien-pret { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-radius: 16px; background: var(--carte); }
+.lien-pret small { font-size: 13px; color: var(--texte-2); }
+.attention-texte { color: var(--attention) !important; }
+.lien-invitation { font-size: 13px; color: var(--texte-2); }
+
 </style>
 <script>
 /* =============================================================================
@@ -2249,6 +2261,24 @@ window.TEXTES_EN = {
     alimTourDeRole: 'Two {w} W mats together draw {i} A: they take turns heating.',
     aideAlimAtelier: 'Set at the workshop from the block supplied. A changed block is declared in Service.',
     ensuitePlage: 'Next, at {h}: {r} min ramp to {v}°',
+    lectureSeuleErreur: 'Base shared read-only: only its owner can change it.', lectureSeuleCourt: 'Read-only',
+    lectureSeuleAlertes: 'Base shared read-only: its own alerts are set by its owner. Turn on the notifications above to be alerted.',
+    accesRetire: 'Access removed', partageReglage: 'Shared with you',
+    invitationReglage: 'Base added: you can follow and adjust it.', invitationLecture: 'Base added: you can follow it and get its alerts.',
+    invitationRefusee: 'Invitation refused: {m}', invitationAvantServeur: 'Invitation received: sign in to your Terrariums account (or create it) to follow the shared base.',
+    paLigne: 'Share a base', paTitre: 'Share', paSansServeur: 'Sharing goes through the Terrariums server: sign in to your account to invite someone.',
+    paAucunSocle: 'No base is linked to your account: link a base first to share it.', paQuelSocle: 'Base to share',
+    paAcces: 'Who has access', paInviter: 'Invite someone', paDroits: 'Rights of the invited person',
+    paLecture: 'Read-only', paLectureAide: 'Sees the temperatures, gets the alerts. Changes nothing. Ideal for a pet-sitter.',
+    paReglage: 'Can adjust', paReglageAide: 'Changes setpoints and times. Can neither share nor remove the base.',
+    paJusqua: 'Until', paDuree: 'Access duration', paSansFin: 'No end', paSansFinMin: 'no end',
+    paMesTelephones: 'Add one of my phones', paMesTelephonesAide: 'Sign in with your account, nothing to share',
+    paToi: 'You', paTitulaire: 'Owner', paJusquau: 'until {d}', paRetirer: 'Remove', paInvitationAttente: 'Pending invitation', paExpire: 'expires on {d}',
+    paLienPret: 'Link ready for “{n}”', paLienAide: 'Usable once, it expires in 48 h. The person creates their account by opening it.',
+    paLienCode: 'This link contains the base’s code: send it to this person only.', paLienLib: 'Invitation link',
+    paCopier: 'Copy', paEnvoyer: 'Send', paCreer: 'Create an invitation link', paTitreEnvoi: 'Terrariums invitation', paTexteEnvoi: 'I am sharing “{n}” with you:',
+    paCopie: 'Link copied.', paCopieImpossible: 'Cannot copy: select the link by hand.',
+    paRetirerTitre: 'Remove access?', paRetirerTexte: '{n} will no longer see this base nor get its alerts.', paRetire: 'Access removed.',
     ciblePlage: 'Setpoint of the “{p}” slot', ciblePlages: 'Setpoint of the time slots', modifierPlages: 'Edit the time slots',
     ciblePlagesMessage: 'The time slots set the setpoints: edit them in Schedule, Time slots and seasons.',
     progMaintenant: 'Now', progJour: 'Day', progNuit: 'Night', progEt: ' and ', progCibles: 'Targets {c} until {h}',
@@ -3066,6 +3096,24 @@ const App = (() => {
       cibleJour: 'Cible de jour · pas de 0,5°', cibleNuit: 'Cible de nuit · pas de 0,5°', jourDeg: 'Jour · {v}°', nuitDeg: 'Nuit · {v}°',
       ensuiteNuit: 'Ensuite : nuit à {h}, rampe de {r} min vers {v}°', ensuiteJour: 'Ensuite : jour à {h}, rampe de {r} min vers {v}°',
       ensuitePlage: 'Ensuite, à {h} : rampe de {r} min vers {v}°',
+      lectureSeuleErreur: 'Socle partagé en lecture seule : son titulaire seul peut le régler.', lectureSeuleCourt: 'Lecture seule',
+      lectureSeuleAlertes: 'Socle partagé en lecture seule : ses alertes à lui se règlent chez son titulaire. Active les notifications ci-dessus pour être prévenu.',
+      accesRetire: 'Accès retiré', partageReglage: 'Partagé avec toi',
+      invitationReglage: 'Socle ajouté : tu peux le suivre et le régler.', invitationLecture: 'Socle ajouté : tu peux le suivre et recevoir ses alertes.',
+      invitationRefusee: 'Invitation refusée : {m}', invitationAvantServeur: 'Invitation reçue : connecte-toi à ton compte Terrariums (ou crée-le) pour suivre le socle partagé.',
+      paLigne: 'Partager un socle', paTitre: 'Partager', paSansServeur: 'Le partage passe par le serveur Terrariums : connecte-toi à ton compte pour inviter quelqu\'un.',
+      paAucunSocle: 'Aucun socle rattaché à ton compte : rattache d\'abord un socle pour le partager.', paQuelSocle: 'Socle à partager',
+      paAcces: 'Qui y a accès', paInviter: 'Inviter quelqu\'un', paDroits: 'Droits de la personne invitée',
+      paLecture: 'Lecture seule', paLectureAide: 'Voit les températures, reçoit les alertes. Ne change rien. Idéal pour un pet-sitter.',
+      paReglage: 'Peut régler', paReglageAide: 'Change consignes et horaires. Ne peut ni partager ni retirer le socle.',
+      paJusqua: 'Jusqu\'au', paDuree: 'Durée de l\'accès', paSansFin: 'Sans fin', paSansFinMin: 'sans fin',
+      paMesTelephones: 'Ajouter un de mes téléphones', paMesTelephonesAide: 'Connecte-toi avec ton compte, rien à partager',
+      paToi: 'Toi', paTitulaire: 'Titulaire', paJusquau: 'jusqu\'au {d}', paRetirer: 'Retirer', paInvitationAttente: 'Invitation en attente', paExpire: 'expire le {d}',
+      paLienPret: 'Lien prêt pour « {n} »', paLienAide: 'Utilisable une fois, il expire dans 48 h. La personne crée son compte en l\'ouvrant.',
+      paLienCode: 'Ce lien contient le code du socle : envoie-le à cette personne seulement.', paLienLib: 'Lien d\'invitation',
+      paCopier: 'Copier', paEnvoyer: 'Envoyer', paCreer: 'Créer un lien d\'invitation', paTitreEnvoi: 'Invitation Terrariums', paTexteEnvoi: 'Je partage « {n} » avec toi :',
+      paCopie: 'Lien copié.', paCopieImpossible: 'Copie impossible : sélectionne le lien à la main.',
+      paRetirerTitre: 'Retirer l\'accès ?', paRetirerTexte: '{n} ne verra plus ce socle et ne recevra plus ses alertes.', paRetire: 'Accès retiré.',
       ciblePlage: 'Consigne de la plage « {p} »', ciblePlages: 'Consigne des plages horaires', modifierPlages: 'Modifier les plages',
       ciblePlagesMessage: 'Les plages horaires fixent les consignes : modifie-les dans Programmation, Plages et saisons.',
       actuellement: 'Actuellement {t} · {e}', courbe: 'Courbe', avances: 'Réglages avancés',
@@ -3412,12 +3460,13 @@ const App = (() => {
   let vueCourante = 'broker';
   let demarre = false;              // demarrer() a déjà tout branché
   let pageReglages = 'menu';        // Réglages de l'application : menu, ou une de PAGES_REGLAGES
-  const PAGES_REGLAGES = ['organiser', 'transfert', 'exports'];
+  const PAGES_REGLAGES = ['organiser', 'transfert', 'exports', 'partage'];
   let socleOuvert = null;
   let panneauActif = 'etat';        // etat (accueil) ou la feuille ouverte : zone, reglages, programme…
   let etapeAccueil = 'bienvenue';   // écran sans broker : bienvenue, connexion, compte ou chezMoi
   let installation = null;          // assistant d'installation en cours (voir plus bas)
   let etiquetteLue = null;          // { id, jeton } lus dans l'adresse (étiquette scannée par l'appareil photo)
+  let invitationLue = null;         // { code, jeton } : lien de partage d'un socle (F12), accepté une fois connecté
   let minuteurCible = null;
   let routeEnCours = false;         // une adresse est en train d'être appliquée : rien à empiler
   const etats = {};                 // id -> { enLigne, zones, uptime, entretienS, sante, … }
@@ -3624,7 +3673,9 @@ const App = (() => {
           if (!r.ok) return false;
           const d = await r.json();
           config.serveur = Object.assign(config.serveur || {}, { jeton: b.pass, login: d.login, socles: d.socles || [] });
+          noterPartages(d);
           sauver();
+          traiterInvitation();
           return true;
         } catch (e) { return false; }
       }
@@ -3634,6 +3685,8 @@ const App = (() => {
         const d = await r.json();
         config.serveur = Object.assign(config.serveur || {}, { jeton: d.jeton, login: d.login, socles: d.socles || [] });
         sauver();
+        serveur.appel('GET', '/api/moi').then(m => { noterPartages(m); sauver(); invalider(); }, () => {});
+        traiterInvitation();
         return true;
       } catch (e) { return false; }
     },
@@ -3662,6 +3715,38 @@ const App = (() => {
       try { await serveur.appel('POST', '/api/push/essai', {}); } catch (e) { noterErreur('push essai : ' + (e && e.message)); }
     }
   };
+
+  // Ce que le serveur dit des socles partagés avec moi (F12) : droits à jour ;
+  // un accès retiré par son titulaire se voit.
+  function noterPartages(d) {
+    if (!d || !Array.isArray(d.socles)) return;
+    const p = d.partages || {};
+    config.socles.forEach(s => {
+      if (p[s.id]) s.partage = { droit: p[s.id].droit, jusqua: p[s.id].jusqua || null };
+      else if (s.partage && !d.socles.includes(s.id)) s.partage = { droit: 'retire' };
+      else if (s.partage && d.socles.includes(s.id)) delete s.partage;
+    });
+  }
+  // Accepte l'invitation lue dans l'adresse : le socle rejoint la liste, avec
+  // son code s'il peut être réglé (le code n'est jamais passé par le serveur).
+  async function traiterInvitation() {
+    const inv = invitationLue;
+    if (!inv || !serveur.actif()) return;
+    invitationLue = null;
+    try {
+      const r = await serveur.appel('POST', '/api/invitations/accepter', { code: inv.code });
+      config.serveur.socles = r.socles || config.serveur.socles || [];
+      let s = socle(r.socle);
+      if (!s) { s = { id: r.socle, nom: r.socle, jeton: '' }; config.socles.push(s); }
+      s.partage = { droit: r.droit, jusqua: r.jusqua || null };
+      if (r.droit === 'reglage' && inv.jeton) s.jeton = inv.jeton;
+      sauver();
+      abonner(s);
+      commander(s.id, 'etat').catch(() => {});
+      message(t(r.droit === 'reglage' ? 'invitationReglage' : 'invitationLecture'));
+      api.ouvrir(s.id);
+    } catch (e) { message(t('invitationRefusee', { m: e.message }), true); }
+  }
 
   function optionsClient(b) {
     // Un champ vide veut dire « anonyme » : on n'envoie alors pas le drapeau,
@@ -3948,6 +4033,8 @@ const App = (() => {
       if (!client || !client.connected) { rejeter(new Error(t('pasDeConnexion'))); return; }
       const s = socle(id);
       if (!s) { rejeter(new Error(t('socleInconnu'))); return; }
+      // Socle partagé en lecture seule (F12) : seules les lectures partent.
+      if (lectureSeule(s) && !LECTURES.includes(action)) { rejeter(new Error(t('lectureSeuleErreur'))); return; }
       const req = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       attentes[req] = {
         action, resoudre, rejeter,
@@ -3974,6 +4061,10 @@ const App = (() => {
     });
   }
   const LECTURES = ['etat', 'stats', 'version', 'historique'];
+  // Partagé avec moi en lecture seule, ou accès retiré par son titulaire (F12).
+  const lectureSeule = s => !!(s && s.partage && s.partage.droit !== 'reglage');
+  const accesRetire = s => !!(s && s.partage && s.partage.droit === 'retire');
+  const LECTURE_BLOQUE = ['reglages', 'programme', 'securite', 'general', 'maj', 'journal', 'conso', 'service'];
 
   // --- Retours d'action (U10, U40, U11) : « Envoi au socle… » tout de suite,
   // le formulaire grisé pendant l'envoi (pas de double envoi), le message de
@@ -4807,7 +4898,8 @@ const App = (() => {
       .map(([v, lib]) => `<option value="${v}">${lib}</option>`).join('');
     return `<button type="button" class="carte-compte" id="btn-mon-compte" data-action="monCompte" hidden><span class="avatar" data-r="initiales" aria-hidden="true"></span>
         <span class="lib"><strong>${t('tonCompte')}</strong><small data-r="email"></small></span>${icone('i-suite')}</button>
-      ${sectionRg('rg-socles', t('rgSocles'), ligneRg('data-action="reglagesApp" data-page="organiser"', t('organiserSocles'), '<span class="valeur" data-r="nb"></span>'))}
+      ${sectionRg('rg-socles', t('rgSocles'), ligneRg('data-action="reglagesApp" data-page="organiser"', t('organiserSocles'), '<span class="valeur" data-r="nb"></span>')
+        + ligneRg('id="ligne-partage" data-action="reglagesApp" data-page="partage" hidden', t('paLigne')))}
       ${sectionRg('rg-affichage', t('rgAffichage'), `<label class="ligne-reglage" for="langue-liste"><span class="lib">${t('langueLib')}</span>
           <select id="langue-liste"><option value="fr">Français</option><option value="en">English</option></select></label>
         <div class="ligne-reglage"><span class="lib" id="lib-theme">${t('theme')}</span>
@@ -4834,6 +4926,8 @@ const App = (() => {
     texte(r('nb'), String(config.socles.length));
     const bc = $('#btn-mon-compte');
     if (bc) bc.hidden = !serveur.actif();
+    const lp = $('#ligne-partage');
+    if (lp) lp.hidden = !serveur.actif();
     const qui = (config.broker && config.broker.user) || '';
     texte(r('email'), qui);
     texte(r('initiales'), (qui.replace(/@.*/, '').split(/[^A-Za-zÀ-ÿ0-9]+/).filter(Boolean).slice(0, 2).map(x => x[0]).join('') || '?').toUpperCase());
@@ -4842,6 +4936,90 @@ const App = (() => {
     peindreVerrou();
     const l = /** @type {any} */ ($('#langue-liste'));
     if (l && l.value !== langue) l.value = langue;
+  }
+
+  // --- Partager un socle (F12, U4) : qui y a accès, inviter (lecture seule ou
+  // réglages, jusqu'à une date), retirer. Le lien est à usage unique (48 h) ;
+  // pour « peut régler », il porte aussi le code du socle, dans la partie de
+  // l'adresse qui ne quitte jamais le téléphone (#), jamais vers le serveur.
+  const pa = { socle: null, droit: 'lecture', jours: 14, acces: /** @type {Record<string, any>} */ ({}), lien: null, envoi: false };
+  const sociesTitulaire = () => config.socles.filter(s => !s.partage && ((config.serveur && config.serveur.socles) || []).includes(s.id));
+  function structurePartage() {
+    const seg = (j, lib) => `<button type="button" data-action="paDuree" data-j="${j}" aria-pressed="false">${lib}</button>`;
+    const dans = j => { const d = new Date(Date.now() + j * 86400000); return d.toLocaleDateString(langue === 'en' ? 'en-GB' : 'fr-FR', { day: '2-digit', month: '2-digit' }); };
+    return `<p class="aide" data-r="pa-absent" hidden>${t('paSansServeur')}</p>
+      <div class="segment" role="group" aria-label="${attr(t('paQuelSocle'))}" data-r="pa-socles"></div>
+      <section aria-labelledby="pa-acces" class="groupe-reglages"><h3 class="titre-section" id="pa-acces">${t('paAcces')}</h3><div data-r="pa-liste"></div></section>
+      <section aria-labelledby="pa-inv" class="pa-inviter"><h3 class="titre-section" id="pa-inv">${t('paInviter')}</h3>
+        <fieldset class="choix-radio"><legend class="sr-only">${t('paDroits')}</legend>
+          <label class="option-radio"><input type="radio" name="pa-droit" value="lecture" checked><span><strong>${t('paLecture')}</strong><small>${t('paLectureAide')}</small></span></label>
+          <label class="option-radio"><input type="radio" name="pa-droit" value="reglage"><span><strong>${t('paReglage')}</strong><small>${t('paReglageAide')}</small></span></label></fieldset>
+        <div class="ligne-jours"><span>${t('paJusqua')}</span><div class="segment trois" role="group" aria-label="${attr(t('paDuree'))}" data-r="pa-durees">${seg(7, dans(7))}${seg(14, dans(14))}${seg(0, t('paSansFin'))}</div></div>
+        <div aria-live="polite" data-r="pa-lien"></div>
+      </section>
+      <button type="button" class="carte-compte mt" data-action="monCompte">${icone('i-telephone')}<span class="lib"><strong>${t('paMesTelephones')}</strong><small>${t('paMesTelephonesAide')}</small></span>${icone('i-suite')}</button>`;
+  }
+  function chargerPartage(id) {
+    pa.acces[id] = { chargement: true };
+    serveur.appel('GET', `/api/socles/${encodeURIComponent(id)}/partages`).then(d => { pa.acces[id] = d; invalider(); },
+      e => { pa.acces[id] = { erreur: e.message }; invalider(); });
+  }
+  function patcherPartage() {
+    const r = k => $(`#reglages [data-r="${k}"]`);
+    const miens = sociesTitulaire();
+    const absent = r('pa-absent');
+    if (absent) absent.hidden = serveur.actif() && miens.length > 0;
+    if (absent && serveur.actif() && !miens.length) texte(absent, t('paAucunSocle'));
+    if (!serveur.actif() || !miens.length) { ['pa-socles', 'pa-liste', 'pa-lien'].forEach(k => peindre(r(k), '')); return; }
+    if (!miens.some(s => s.id === pa.socle)) { pa.socle = miens[0].id; pa.lien = null; }
+    const seg = r('pa-socles');
+    if (seg) { seg.hidden = miens.length < 2; seg.classList.toggle('trois', miens.length > 2); }
+    peindre(seg, miens.length < 2 ? '' : miens.map(s => `<button type="button" data-action="paSocle" data-id="${attr(s.id)}" aria-pressed="${s.id === pa.socle}">${esc(s.nom || s.id)}</button>`).join(''));
+    const d = pa.acces[pa.socle];
+    if (!d) chargerPartage(pa.socle);
+    const date = ms => new Date(ms).toLocaleDateString(langue === 'en' ? 'en-GB' : 'fr-FR', { day: '2-digit', month: '2-digit' });
+    const initiales = n => (String(n || '?').replace(/@.*/, '').split(/[^A-Za-zÀ-ÿ0-9]+/).filter(Boolean).slice(0, 2).map(x => x[0]).join('') || '?').toUpperCase();
+    peindre(r('pa-liste'), !d || d.chargement ? `<p class="aide" aria-busy="true">${t('chargementReglages')}</p>`
+      : d.erreur ? `<p class="aide">${esc(d.erreur)}</p>`
+      : (d.acces || []).map(a => `<div class="ligne-reglage ligne-acces"><span class="avatar${a.droit === 'titulaire' ? '' : ' invite'}" aria-hidden="true">${esc(initiales(a.email || a.login))}</span>
+          <span class="lib">${a.moi ? t('paToi') : esc(a.email || a.login)}<small>${a.droit === 'titulaire' ? t('paTitulaire')
+            : t(a.droit === 'reglage' ? 'paReglage' : 'paLecture') + ' · ' + (a.jusqua ? t('paJusquau', { d: date(a.jusqua) }) : t('paSansFinMin'))}</small></span>
+          ${a.droit === 'titulaire' ? '' : `<button type="button" class="btn btn-petit btn-danger" data-action="paRetirer" data-login="${attr(a.login)}">${t('paRetirer')}</button>`}</div>`).join('')
+        + (d.invitations || []).map(i => `<div class="ligne-reglage ligne-acces"><span class="avatar invite" aria-hidden="true">${icone('i-horloge')}</span>
+          <span class="lib">${t('paInvitationAttente')}<small>${t(i.droit === 'reglage' ? 'paReglage' : 'paLecture')} · ${t('paExpire', { d: date(i.expire) })}</small></span>
+          <button type="button" class="btn btn-petit btn-secondaire" data-action="paAnnuler" data-inv="${attr(i.id)}">${t('annuler')}</button></div>`).join(''));
+    const durees = r('pa-durees');
+    if (durees) durees.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(+(/** @type {any} */ (b).dataset.j) === pa.jours)));
+    doc.querySelectorAll('input[name="pa-droit"]').forEach((/** @type {any} */ el) => { el.checked = el.value === pa.droit; });
+    const s = socle(pa.socle);
+    peindre(r('pa-lien'), pa.lien ? `<div class="lien-pret"><strong>${t('paLienPret', { n: esc((s && s.nom) || pa.socle) })}</strong>
+        <small>${t('paLienAide')}</small>${pa.droit === 'reglage' ? `<small class="attention-texte">${t('paLienCode')}</small>` : ''}
+        <input class="lien-invitation" readonly value="${attr(pa.lien)}" aria-label="${attr(t('paLienLib'))}">
+        <div class="boutons deux"><button type="button" class="btn btn-secondaire" data-action="paCopier">${t('paCopier')}</button>
+          <button type="button" class="btn" data-action="paEnvoyer">${t('paEnvoyer')}</button></div></div>`
+      : `<button type="button" class="btn btn-plein" data-action="paCreer"${pa.envoi ? ' disabled' : ''}>${t('paCreer')}</button>`);
+  }
+  async function creerInvitation() {
+    const id = pa.socle, s = socle(id || '');
+    if (!id || !s || pa.envoi) return;
+    pa.envoi = true; invalider();
+    try {
+      const r = await serveur.appel('POST', `/api/socles/${encodeURIComponent(id)}/invitations`, { droit: pa.droit, jours: pa.jours });
+      const base = location.origin + location.pathname;
+      pa.lien = `${base}#i/${r.code}${pa.droit === 'reglage' && s.jeton ? '/' + s.jeton : ''}`;
+      chargerPartage(id);
+    } catch (e) { message(e.message, true); }
+    pa.envoi = false; invalider();
+  }
+  async function partagerLien(envoyer) {
+    if (!pa.lien) return;
+    const s = socle(pa.socle || '');
+    if (envoyer && navigator.share) {
+      try { await navigator.share({ title: t('paTitreEnvoi'), text: t('paTexteEnvoi', { n: (s && s.nom) || pa.socle }), url: pa.lien }); return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    try { await navigator.clipboard.writeText(pa.lien); message(t('paCopie')); }
+    catch (e) { message(t('paCopieImpossible'), true); }
   }
 
   // --- Organiser (U9) : ordre, noms et groupes ; vue compacte ; actions sur
@@ -5747,20 +5925,21 @@ const App = (() => {
     const cle = pageReglages + '|' + langue;
     if (racine.dataset.page !== cle) {
       racine.dataset.page = cle;
-      texte($('#titre-reglages'), t({ organiser: 'orgTitre', transfert: 'trTitre', exports: 'exTitre' }[pageReglages] || 'reglagesTitre'));
+      texte($('#titre-reglages'), t({ organiser: 'orgTitre', transfert: 'trTitre', exports: 'exTitre', partage: 'paTitre' }[pageReglages] || 'reglagesTitre'));
       html(racine, pageReglages === 'organiser' ? structureOrganiser() : pageReglages === 'transfert' ? structureTransfert()
-        : pageReglages === 'exports' ? structureExports() : structureMenuReglages());
+        : pageReglages === 'exports' ? structureExports() : pageReglages === 'partage' ? structurePartage() : structureMenuReglages());
     }
     if (pageReglages === 'organiser') patcherOrganiser();
     else if (pageReglages === 'transfert') patcherTransfert();
     else if (pageReglages === 'exports') patcherExports();
+    else if (pageReglages === 'partage') patcherPartage();
     else patcherMenuReglages();
   }
 
   // ------------------------------------------------------------------ détail
   function enteteSocle(s, e) {
     return `<h2 tabindex="-1">${esc(s.nom || s.id)}</h2>${ligneEtat(e)}
-      <div class="separe">${(e.zones || []).some(z => z && z.vacances) ? `<span class="badge ok">${t('vacBadge')}</span>` : ''}${e.alertesEnAttente ? `<span class="badge warn">${t('alertesAttente', { n: e.alertesEnAttente })}</span>` : ''}${badgeProto(e)}</div>`;
+      <div class="separe">${accesRetire(s) ? `<span class="badge warn">${t('accesRetire')}</span>` : lectureSeule(s) ? `<span class="badge neutre">${t('lectureSeuleCourt')}</span>` : s.partage ? `<span class="badge neutre">${t('partageReglage')}</span>` : ''}${(e.zones || []).some(z => z && z.vacances) ? `<span class="badge ok">${t('vacBadge')}</span>` : ''}${e.alertesEnAttente ? `<span class="badge warn">${t('alertesAttente', { n: e.alertesEnAttente })}</span>` : ''}${badgeProto(e)}</div>`;
   }
 
   // Sous-titre de chaque rubrique : l'essentiel, lisible sans l'ouvrir.
@@ -5803,7 +5982,7 @@ const App = (() => {
     const enCours = e.entretienS > 0;
     // Socle muet : les commandes qui lui parlent sont grisées (un appui dit
     // pourquoi) ; les alertes restent, elles vivent dans l'application.
-    const off = e.enLigne ? '' : ' aria-disabled="true"';
+    const off = e.enLigne && !lectureSeule(socle(socleOuvert)) ? '' : ' aria-disabled="true"';
     return rond(`data-action="cmd" data-cmd="entretien" data-params='{"minutes":${enCours ? 0 : 10}}'${off}`, enCours ? 'i-ok' : 'i-pause', t(enCours ? 'reprendreCourt' : 'entretienCourt'))
       + rond(`data-action="cmd" data-cmd="reset"${off}`, 'i-reprendre', t('leverDefauts'))
       + rond('data-action="panneau" data-nom="alertes"', 'i-cloche', t('rubAlertes'))
@@ -5853,11 +6032,13 @@ const App = (() => {
       peindre(detail.querySelector('[data-r="illus"]'), illustration(e, 'a'));
       peindre(detail.querySelector('[data-r="zones"]'), [0, 1].map(k => zoneAccueil((e.zones || [])[k], k, e)).join(''));
       peindre(detail.querySelector('[data-r="commandes"]'), vivantCommandes(e));
+      const lecture = lectureSeule(s);
       RUBRIQUES.forEach(([k]) => {
-        const bloque = !e.enLigne && SOCLE_REQUIS.includes(k);
+        const parLecture = lecture && LECTURE_BLOQUE.includes(k);
+        const bloque = (!e.enLigne && SOCLE_REQUIS.includes(k)) || parLecture;
         const b = detail.querySelector(`.rubrique[data-nom="${k}"]`);
         if (b) { b.classList.toggle('inactive', bloque); b.setAttribute('aria-disabled', String(bloque)); }
-        texte(detail.querySelector(`[data-r="s-${k}"]`), bloque ? t('reglableAuRetour') : sousTitre(k, s, e));
+        texte(detail.querySelector(`[data-r="s-${k}"]`), parLecture ? t('lectureSeuleCourt') : bloque ? t('reglableAuRetour') : sousTitre(k, s, e));
       });
       return;
     }
@@ -5918,7 +6099,7 @@ const App = (() => {
   const sujetNtfy = () => 'terra-' + Array.from(crypto.getRandomValues(new Uint8Array(20)), x => 'abcdefghijklmnopqrstuvwxyz234567'[x & 31]).join('');
   function chargerReseau(id) {
     const e = etats[id] || {};
-    if (!(e.proto >= 4) || !e.enLigne) return;
+    if (!(e.proto >= 4) || !e.enLigne || lectureSeule(socle(id))) return;
     commander(id, 'reseau').then(r => { reseaux[id] = r; invalider(); }, () => {});
   }
   function structureAlertes(s, e) {
@@ -5927,7 +6108,7 @@ const App = (() => {
       <section aria-labelledby="al-socle-titre">
         <h3 class="titre-section" id="al-socle-titre">${t('alertesSocleTitre')}</h3>
         <div class="groupe-reglages"><label class="ligne-reglage interrupteur" for="al-ntfy"><span class="lib">${t('alNtfy')}<small>${t('alNtfyAide')}</small></span>
-          <input type="checkbox" id="al-ntfy" role="switch"${e.proto >= 4 ? '' : ' disabled'}></label></div>
+          <input type="checkbox" id="al-ntfy" role="switch"${e.proto >= 4 && !lectureSeule(s) ? '' : ' disabled'}></label></div>
         <div class="al-ntfy-detail" data-r="al-ntfy"></div>
         <div class="boutons"><button type="button" class="btn btn-secondaire" data-action="panneau" data-nom="service">${icone('i-outil')}${t('alAutresAdresses')}</button></div>
       </section>`;
@@ -5946,7 +6127,8 @@ const App = (() => {
     const box = /** @type {any} */ ($('#al-ntfy'));
     if (box && res) box.checked = !!res.alertes;
     let d = '';
-    if (!(e.proto >= 4)) d = `<p class="aide">${t('alNtfyFirmware')}</p>`;
+    if (lectureSeule(s)) d = `<p class="aide">${t('lectureSeuleAlertes')}</p>`;
+    else if (!(e.proto >= 4)) d = `<p class="aide">${t('alNtfyFirmware')}</p>`;
     else if (!res) d = `<p class="aide" aria-busy="true">${t('chargementReglages')}</p>`;
     else if (res.alertes && conf.ntfy && res.alertes === 'ntfy.sh') {
       const lien = 'https://ntfy.sh/' + conf.ntfy;
@@ -6779,7 +6961,7 @@ const App = (() => {
     // Plages horaires actives : ce sont elles qui fixent la consigne ; la zone
     // montre celle du moment et renvoie vers les plages.
     const parPlages = plagesActives(socleOuvert);
-    c.querySelectorAll('[data-action="cible"]').forEach(b => b.setAttribute('aria-disabled', String(parPlages)));
+    c.querySelectorAll('[data-action="cible"]').forEach(b => b.setAttribute('aria-disabled', String(parPlages || lectureSeule(socle(socleOuvert || '')))));
     const seg = r('zseg');
     if (seg) seg.classList.toggle('un', parPlages);
     if (parPlages) {
@@ -7377,7 +7559,25 @@ const App = (() => {
         case 'orgSupprimerGroupe': api.supprimerGroupe(d.groupe); break;
         case 'orgGroupe':         actionGroupee(d.cmd); break;
         case 'orgVacances':       vacancesGroupees(); break;
-        case 'panneau':           if (el.getAttribute('aria-disabled') === 'true') message(t('reglableAuRetour')); else api.panneau(d.nom); break;
+        case 'paSocle':           if (pa.socle !== d.id) { pa.socle = d.id; pa.lien = null; invalider(); } break;
+        case 'paDuree':           pa.jours = +d.j; pa.lien = null; invalider(); break;
+        case 'paCreer':           creerInvitation(); break;
+        case 'paCopier':          partagerLien(false); break;
+        case 'paEnvoyer':         partagerLien(true); break;
+        case 'paRetirer': {
+          const id = pa.socle, login = d.login;
+          confirmer({ titre: t('paRetirerTitre'), texte: t('paRetirerTexte', { n: login }), ok: t('paRetirer'), danger: true }).then(ok => {
+            if (!ok || !id) return;
+            serveur.appel('DELETE', `/api/socles/${encodeURIComponent(id)}/partages/${encodeURIComponent(login)}`)
+              .then(() => { message(t('paRetire')); chargerPartage(id); }, e => message(e.message, true));
+          });
+          break;
+        }
+        case 'paAnnuler':
+          if (pa.socle) serveur.appel('DELETE', `/api/socles/${encodeURIComponent(pa.socle)}/invitations/${encodeURIComponent(d.inv)}`)
+            .then(() => chargerPartage(/** @type {string} */ (pa.socle)), e => message(e.message, true));
+          break;
+        case 'panneau':           if (el.getAttribute('aria-disabled') === 'true') message(t(lectureSeule(socle(socleOuvert || '')) ? 'lectureSeuleErreur' : 'reglableAuRetour')); else api.panneau(d.nom); break;
         case 'plEditer':          editerPlage(+d.k); break;
         case 'alEssai':           if (socleOuvert) alerteEssai(socleOuvert); break;
         case 'alCopierSujet': {
@@ -7396,7 +7596,7 @@ const App = (() => {
         case 'courbes':           api.courbes(+d.heures); break;
         case 'zoomReinit':        zooms[socleOuvert] = null; patcherCourbes(socleOuvert); break;
         case 'exporterCsv':       api.exporterCsv(); break;
-        case 'cmd':               if (el.getAttribute('aria-disabled') === 'true') message(t('reglableAuRetour')); else api.action(d.cmd, d.params ? JSON.parse(d.params) : undefined); break;
+        case 'cmd':               if (el.getAttribute('aria-disabled') === 'true') message(t(lectureSeule(socle(socleOuvert || '')) ? 'lectureSeuleErreur' : 'reglableAuRetour')); else api.action(d.cmd, d.params ? JSON.parse(d.params) : undefined); break;
         case 'mettreAJour':       api.mettreAJour(d.version); break;
         case 'majAutoOp':         api.majAutoOp(d.op, d.jours !== undefined ? +d.jours : undefined); break;
         case 'scanner':           api.scanner(); break;
@@ -7480,6 +7680,7 @@ const App = (() => {
         tr.message = ''; invalider(); return;
       }
       if (el.name === 'vac-mode') { invalider(); return; }
+      if (el.name === 'pa-droit') { pa.droit = el.value === 'reglage' ? 'reglage' : 'lecture'; pa.lien = null; invalider(); return; }
       if (!el.id) return;
       if (el.id === 'pl-actif') { api2.plActif(el.checked); return; }
       if (el.id === 'al-ntfy') { if (socleOuvert) alertesSocle(socleOuvert, el.checked); return; }
@@ -7964,7 +8165,11 @@ const App = (() => {
     doc.body.dataset.accueil = e;
     if (e === 'bienvenue') peindre($('#bienvenue-ill'), illustration({ enLigne: true, zones: [{ chauffe: true }, { chauffe: true }] }, 'b'));
     const lue = $('#bienvenue-etiquette');
-    if (lue) { lue.hidden = !etiquetteLue; if (etiquetteLue) texte(lue, t('etiquetteAvantServeur', { id: etiquetteLue.id })); }
+    if (lue) {
+      lue.hidden = !etiquetteLue && !invitationLue;
+      if (etiquetteLue) texte(lue, t('etiquetteAvantServeur', { id: etiquetteLue.id }));
+      else if (invitationLue) texte(lue, t('invitationAvantServeur'));
+    }
   }
 
   // ----------------------------------------------------------------- actions
@@ -7981,6 +8186,13 @@ const App = (() => {
       const lue = lireEtiquette(location.hash);
       if (lue) {
         etiquetteLue = lue;
+        try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* file:// */ }
+      }
+      // Lien de partage (F12) : gardé en mémoire, retiré de l'adresse, accepté
+      // dès qu'une session sur le serveur Terrariums est ouverte.
+      const inv = /^#i\/([A-Za-z0-9_-]{24})(?:\/([A-Z0-9]{24}))?$/.exec(location.hash);
+      if (inv) {
+        invitationLue = { code: inv[1], jeton: inv[2] || null };
         try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* file:// */ }
       }
       choisirLangue();
@@ -8339,6 +8551,7 @@ const App = (() => {
       const p = PAGES_REGLAGES.includes(page) ? page : 'menu';
       const avant = vueCourante === 'reglages' ? pageReglages : null;
       if (p === 'exports' && avant !== 'exports') { exMail.charge = false; exMail.erreur = ''; }
+      if (p === 'partage' && avant !== 'partage') { pa.acces = {}; pa.lien = null; }
       pageReglages = p;
       montrer('reglages');
       // Retour au menu : le focus revient sur la ligne d'où l'on venait.
@@ -8596,6 +8809,7 @@ const App = (() => {
     cible(pas) {
       const id = socleOuvert, e = etats[id] || {}, i = zoneOuverte, z = (e.zones || [])[i];
       if (!z) return;
+      if (lectureSeule(socle(id))) { message(t('lectureSeuleErreur')); return; }
       if (plagesActives(id)) { message(t('ciblePlagesMessage')); return; }
       const per = periodeAffichee(z, e);
       const champ = /** @type {any} */ ($('#' + (per === 'jour' ? 'j' : 'n') + i));
@@ -9024,6 +9238,7 @@ window.addEventListener('load', () => App.demarrer());
   <symbol id="i-soleil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
   <symbol id="i-lune" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M20 13.5A8 8 0 1 1 10.5 4a7 7 0 0 0 9.5 9.5z"/></symbol>
   <symbol id="i-flocon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5L12 6l2.5-1.5M9.5 19.5L12 18l2.5 1.5"/></symbol>
+  <symbol id="i-telephone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M11 18h2"/></symbol>
   <symbol id="i-valise" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M4 8h16v11H4zM9 8V5.5h6V8M9 12v3M15 12v3"/></symbol>
   <symbol id="i-alerte" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l9 16H3zM12 10v4.5M12 17.5v.5"/></symbol>
   <symbol id="i-fermer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></symbol>

@@ -226,6 +226,7 @@ async function demarrerServeur(surcharge = {}) {
     const m = audit.purger(); if (m) o.journal(`journal d'audit : ${m} mois purgé(s)`);
     evenements.purger();
     comptes.purgerSessions();
+    comptes.purgerInvitations();
   }, 6 * 3600000);
   purge.unref();
   // Accès support échus : la clé quitte le disque (le socle, lui, la refuse déjà).

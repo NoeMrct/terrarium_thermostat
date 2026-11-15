@@ -89,7 +89,15 @@ puis `POST /api/cles` (inscrire une clé d'accès), `GET /api/cles`,
 e-mail, voir plus bas), `POST /api/moi/noms {noms: {<socle>: <nom>}}` (les noms
 donnés aux socles dans l'application, 40 caractères, ses socles seuls : titres
 des notifications et du carnet ; l'application les envoie d'elle-même),
-`POST /api/socles/revendiquer {id, jeton}`, `DELETE /api/socles/:id`,
+`POST /api/socles/revendiquer {id, jeton}`, `DELETE /api/socles/:id` (le dernier titulaire
+parti, les invités perdent l'accès),
+partage d'un socle par son titulaire : `GET /api/socles/:id/partages` (qui a accès, invitations
+en attente, jamais leur code), `POST /api/socles/:id/invitations {droit: lecture|reglage, jours:
+0-366, 0 = sans fin}` → `{code}` (usage unique, valable 48 h), `DELETE
+/api/socles/:id/invitations/:id`, `DELETE /api/socles/:id/partages/:login` ; pour l'invité,
+`POST /api/invitations/accepter {code}`. Un invité en lecture seule ne publie sur le broker que des
+lectures non signées (`etat`, `stats`, `version`, `historique`) ; `GET /api/moi` donne ses
+`partages`,
 `GET /api/socles/:id/historique?depuis&jusqua&pas` (même format que le socle :
 `[epoch, t1, consigne1, t2, consigne2]` en centièmes), `POST|DELETE
 /api/push/abonnement`, `POST /api/push/essai`, `POST /api/rapports` (texte).

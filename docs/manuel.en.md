@@ -140,6 +140,16 @@ broker, each base is attached to your account by proving its pairing code, histo
 with the app closed, and the phone is warned by push notification. The app detects it by itself
 when connecting.
 
+**Share a base** (App settings, with the Terrariums server): for a pet-sitter or a relative. Choose
+"Read-only" (sees the temperatures and curves, gets the alerts, changes nothing) or "Can adjust"
+(setpoints and times, but can neither share nor remove the base), and until when (one week, two,
+or no end); "Create an invitation link" gives a single-use link, valid 48 hours, to copy or send.
+The person opens it, signs in or creates their account by e-mail, and the base appears on their
+side. The "Can adjust" link contains the base's code (in the part of the address that never leaves
+the phone): only send it to them. The same page shows who has access and pending invitations, and
+removes an access in one tap; on the chosen date, it stops by itself. For your own second phone,
+nothing to share: sign in with your account.
+
 ## 7. Settings
 
 A base's home shows its two zones in large type, four round buttons (Maintenance, Clear faults,

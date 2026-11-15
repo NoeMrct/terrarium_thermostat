@@ -84,6 +84,15 @@ jour.
 - **Délai de grâce hors ligne** (U34) : un socle qui quitte le broker n'est
   notifié qu'au bout de 5 minutes (`DELAI_HORS_LIGNE_MIN`) ; revenu avant,
   rien ne part ; notifié, son retour en ligne l'est aussi.
+- **Partager un socle** (F12, U4, serveur Terrariums) : dans les réglages de
+  l'application, un lien d'invitation à usage unique (48 h), en « Lecture
+  seule » (voir, être prévenu) ou « Peut régler » (consignes et horaires, le
+  code du socle voyageant dans la partie `#` du lien, jamais vers le
+  serveur), jusqu'à une date ou sans fin ; qui a accès, invitations en
+  attente, retrait d'un geste. L'invité ouvre le lien, se connecte ou crée
+  son compte, et le socle apparaît chez lui ; en lecture seule, les
+  rubriques de réglage sont grisées et le broker ne laisse passer que des
+  lectures. Le dernier titulaire parti, les invités perdent l'accès.
 - **Alertes du socle en un geste** (U31) et **alerte de test** (F18) : dans
   la rubrique Alertes, « Alerte envoyée par le socle » tire au sort un sujet
   ntfy privé, le donne au socle (format texte) et montre comment y abonner

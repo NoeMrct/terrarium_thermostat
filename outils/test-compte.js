@@ -14,7 +14,7 @@
      node test-compte.js
    ============================================================================= */
 
-/* global document, localStorage */
+/* global document, localStorage, App */
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -106,6 +106,83 @@ const EMAIL = 'noe@exemple.fr';
     await page.click('#vue-reglages [data-action="remonter"]');
     await page.click('#vue-reglages [data-action="remonter"]');
     await page.waitForSelector('#vue-liste', { state: 'visible', timeout: 5000 }).catch(() => {});
+
+    titre('Partager un socle (F12) : lien d\'invitation, droits, retrait');
+    {
+      const INVITE = 'lea@exemple.fr';
+      s.comptes.attribuerSocle(EMAIL, 'terraPAR001');
+      await page.evaluate(() => {
+        const c = JSON.parse(localStorage.getItem('terrarium.config.v1'));
+        c.socles.push({ id: 'terraPAR001', jeton: 'PARTAGEJETON000000000001', nom: 'Terrarium du salon' });
+        localStorage.setItem('terrarium.config.v1', JSON.stringify(c));
+      });
+      await page.reload();
+      await connecte();
+      await page.waitForFunction(() => (JSON.parse(localStorage.getItem('terrarium.config.v1')).serveur.socles || []).includes('terraPAR001'), null, { timeout: 8000 }).catch(() => {});
+      await page.click('#vue-liste [data-action="reglagesApp"]');
+      await page.waitForSelector('#ligne-partage:not([hidden])', { timeout: 5000 }).catch(() => {});
+      v('« Partager un socle » paraît avec un compte sur le serveur', await visible('#ligne-partage'));
+      await page.click('#ligne-partage');
+      await page.waitForFunction(() => /Titulaire/.test((document.querySelector('#reglages [data-r="pa-liste"]') || {}).textContent || ''), null, { timeout: 8000 }).catch(() => {});
+      v('qui y a accès : toi, titulaire', /Toi\s*Titulaire/.test(await page.textContent('#reglages [data-r="pa-liste"]')), (await page.textContent('#reglages [data-r="pa-liste"]')).replace(/\s+/g, ' ').slice(0, 50));
+      await page.check('input[name="pa-droit"][value="reglage"]');
+      await page.click('[data-action="paDuree"][data-j="7"]');
+      await page.click('[data-action="paCreer"]');
+      await page.waitForSelector('.lien-invitation', { timeout: 8000 }).catch(() => {});
+      const lien = await page.inputValue('.lien-invitation').catch(() => '');
+      v('lien d\'invitation : à usage unique, le code du socle seulement après #', /#i\/[A-Za-z0-9_-]{24}\/PARTAGEJETON000000000001$/.test(lien), lien.replace(/.*#/, '#').slice(0, 40));
+      v('…et l\'avertissement qui va avec', /code du socle/.test(await page.textContent('#reglages [data-r="pa-lien"]')));
+      // L'invitée : un autre téléphone, sans compte, ouvre le lien.
+      const ctx2 = await navigateur.newContext({ viewport: { width: 390, height: 844 }, locale: 'fr-FR' });
+      const p2 = await ctx2.newPage();
+      p2.on('pageerror', e => erreurs.push('invitée : ' + e.message));
+      await p2.goto(lien);
+      await p2.waitForTimeout(800);
+      v('l\'adresse oublie aussitôt le lien (code compris)', !p2.url().includes('#i/'), p2.url());
+      v('l\'accueil annonce l\'invitation', /Invitation reçue/.test(await p2.textContent('#bienvenue-etiquette').catch(() => '')));
+      await p2.click('[data-action="accueil"][data-etape="connexion"]');
+      await p2.fill('#b-url', base);
+      await p2.click('#form-broker [type="submit"]');
+      await p2.waitForSelector('#form-compte:not([hidden])', { timeout: 5000 }).catch(() => {});
+      await p2.fill('#c-email', INVITE);
+      await p2.click('[data-etape-compte="email"] [type="submit"]');
+      const codeInvite = () => { const m = boite.filter(x => x.a === INVITE && /code de connexion/.test(x.sujet)).pop(); return m ? /(\d{6})/.exec(m.sujet)[1] : ''; };
+      await p2.waitForSelector('[data-etape-compte="code"]:not([hidden])', { timeout: 5000 }).catch(() => {});
+      await p2.fill('#c-code', codeInvite());
+      await p2.click('[data-etape-compte="code"] [type="submit"]');
+      await p2.waitForFunction(() => /Partagé avec toi/.test((document.querySelector('#detail .separe') || {}).textContent || ''), null, { timeout: 12000 }).catch(() => {});
+      v('compte créé : l\'invitation est acceptée, le socle s\'ouvre', /Partagé avec toi/.test(await p2.textContent('#detail .separe').catch(() => '')));
+      const c2 = await p2.evaluate(() => JSON.parse(localStorage.getItem('terrarium.config.v1')));
+      const sp = (c2.socles || []).find(x => x.id === 'terraPAR001') || {};
+      v('…avec le code (il peut régler) et la fin de l\'accès', sp.jeton === 'PARTAGEJETON000000000001' && sp.partage && sp.partage.droit === 'reglage' && sp.partage.jusqua > Date.now(), JSON.stringify(sp.partage || {}));
+      v('le serveur le sait', (s.comptes.utilisateur(INVITE) || {}).socles.includes('terraPAR001'));
+      // Le titulaire voit l'invitée, puis la retire.
+      await page.evaluate(() => App.reglagesApp('menu'));
+      await page.evaluate(() => App.reglagesApp('partage'));
+      await page.waitForFunction(e => (document.querySelector('#reglages [data-r="pa-liste"]') || {}).textContent.includes(e), INVITE, { timeout: 8000 }).catch(() => {});
+      v('le titulaire voit l\'invitée et ses droits', /lea@exemple\.fr\s*Peut régler · jusqu'au/.test(await page.textContent('#reglages [data-r="pa-liste"]')));
+      await page.click(`[data-action="paRetirer"][data-login="${INVITE}"]`);
+      await page.waitForSelector('#dlg-confirm[open]', { timeout: 3000 }).catch(() => {});
+      await page.click('#dlg-confirm [data-dlg="oui"]');
+      await page.waitForFunction(() => /Accès retiré/.test(document.querySelector('#message').textContent), null, { timeout: 8000 }).catch(() => {});
+      v('« Retirer » : l\'invitée perd le socle sur le serveur', !(s.comptes.utilisateur(INVITE).socles || []).includes('terraPAR001'));
+      // Une invitation en lecture seule : sur le même téléphone, déjà connecté.
+      await page.check('input[name="pa-droit"][value="lecture"]');
+      await page.click('[data-action="paCreer"]');
+      await page.waitForSelector('.lien-invitation', { timeout: 8000 }).catch(() => {});
+      const lienLecture = await page.inputValue('.lien-invitation').catch(() => '');
+      v('lien en lecture seule : sans le code du socle', /#i\/[A-Za-z0-9_-]{24}$/.test(lienLecture), lienLecture.replace(/.*#/, '#'));
+      await p2.goto(lienLecture);
+      await p2.reload();
+      await p2.waitForFunction(() => /Lecture seule/.test((document.querySelector('#detail .separe') || {}).textContent || ''), null, { timeout: 12000 }).catch(() => {});
+      v('invitée en lecture seule : le badge le dit', /Lecture seule/.test(await p2.textContent('#detail .separe').catch(() => '')));
+      v('…et les réglages sont grisés', (await p2.getAttribute('#detail .rubrique[data-nom="reglages"]', 'aria-disabled').catch(() => '')) === 'true'
+        && /Lecture seule/.test(await p2.textContent('#detail .rubrique[data-nom="reglages"]').catch(() => '')));
+      await ctx2.close();
+      await page.click('#vue-reglages [data-action="remonter"]');
+      await page.click('#vue-reglages [data-action="remonter"]').catch(() => {});
+      await page.waitForSelector('#vue-liste', { state: 'visible', timeout: 5000 }).catch(() => {});
+    }
 
     titre('Mon compte : clés, export');
     await page.click('#vue-liste [data-action="reglagesApp"]');

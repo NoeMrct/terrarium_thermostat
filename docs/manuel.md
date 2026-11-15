@@ -141,6 +141,17 @@ socle est rattaché à ton compte par la preuve de son code d'appairage, l'histo
 application fermée, et le téléphone est prévenu par notification push. L'application le détecte
 toute seule à la connexion.
 
+**Partager un socle** (Réglages de l'application, avec le serveur Terrariums) : pour un pet-sitter
+ou un proche. Choisis « Lecture seule » (voit les températures et les courbes, reçoit les alertes,
+ne change rien) ou « Peut régler » (consignes et horaires, mais ni partager ni retirer le socle),
+et jusqu'à quand (une semaine, deux, ou sans fin) ; « Créer un lien d'invitation » donne un lien à
+usage unique, valable 48 heures, à copier ou envoyer. La personne l'ouvre, se connecte ou crée son
+compte par e-mail, et le socle apparaît chez elle. Le lien « Peut régler » contient le code du
+socle (dans la partie de l'adresse qui ne quitte pas le téléphone) : ne l'envoie qu'à elle. La même
+page montre qui a accès, les invitations en attente, et retire un accès d'un geste ; à la date
+choisie, il s'arrête tout seul. Pour ton propre deuxième téléphone, rien à partager : connecte-toi
+avec ton compte.
+
 ## 7. Régler
 
 L'accueil d'un socle montre ses deux zones en grand, quatre boutons ronds (Entretien, Lever les

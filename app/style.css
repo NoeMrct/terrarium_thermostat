@@ -1100,3 +1100,15 @@ div.ligne-reglage, label.ligne-reglage { cursor: default; }
 .al-ntfy-detail > * + * { margin-top: 10px; }
 .etapes-ntfy { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; color: var(--texte-2); }
 .etapes-ntfy code { font-size: 14px; overflow-wrap: anywhere; color: var(--texte); }
+
+/* Partager un socle (F12, U4). */
+.pa-inviter > * + * { margin-top: 14px; }
+#reglages [data-r="pa-socles"]:empty { display: none; }
+.ligne-acces { cursor: default; }
+.ligne-acces .avatar { width: 40px; height: 40px; font-size: 14px; }
+.avatar.invite { background: var(--creux); color: var(--texte); }
+.avatar.invite .ico { width: 20px; height: 20px; }
+.lien-pret { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-radius: 16px; background: var(--carte); }
+.lien-pret small { font-size: 13px; color: var(--texte-2); }
+.attention-texte { color: var(--attention) !important; }
+.lien-invitation { font-size: 13px; color: var(--texte-2); }

@@ -522,6 +522,7 @@
     'rapport.envoyer': 'Rapport de diagnostic envoyé', 'rapport.lire': 'Rapport lu', 'rapport.supprimer': 'Rapport supprimé',
     'audit.export': 'Journal exporté', 'audit.rupture': 'Fin du journal coupée (rupture notée)',
     'compte.support': 'Rôle support', 'compte.carnet': 'Carnet par e-mail',
+    'socle.partage.inviter': 'Invitation à partager un socle', 'socle.partage.accepter': 'Partage accepté', 'socle.partage.retirer': 'Partage retiré',
     'support.acces.ouvrir': 'Accès support ouvert par le propriétaire', 'support.acces.prolonger': 'Accès support prolongé',
     'support.acces.fermer': 'Accès support fermé', 'support.acces.echu': 'Accès support échu', 'support.acces.demander': 'Accès demandé au propriétaire',
     'support.acces.refuser': 'Accès refusé par le propriétaire', 'support.commande': 'Commande du support', 'support.copie': 'Copie des réglages',

@@ -357,7 +357,17 @@ class Api {
     const u = this.utilisateurDe(req);
     if (!u) return this.erreur(res, 401, 'session requise');
     if (methode === 'GET' && chemin === '/api/moi') {
-      return this.json(res, 200, { login: u.login, email: u.email || null, socles: u.socles, admin: !!u.admin, motDePasse: !!u.empreinte, clesAcces: (u.cles || []).length });
+      return this.json(res, 200, { login: u.login, email: u.email || null, socles: u.socles, admin: !!u.admin, motDePasse: !!u.empreinte, clesAcces: (u.cles || []).length,
+        partages: Object.fromEntries(Object.entries(u.partages || {}).map(([id, p]) => [id, { droit: p.droit, jusqua: p.jusqua || null }])) });
+    }
+    // Partage (F12) : accepter une invitation reçue.
+    if (methode === 'POST' && chemin === '/api/invitations/accepter') {
+      const d = await this.lireJson(req);
+      let r;
+      try { r = this.comptes.accepterInvitation(u.login, d.code); }
+      catch (e) { return this.erreur(res, 400, e.message); }
+      this.noterTitulaire('socle.partage.accepter', r.socle, { compte: refCompte(u.login), droit: r.droit, jusqua: r.jusqua ? new Date(r.jusqua).toISOString() : null });
+      return this.json(res, 200, { ok: true, socle: r.socle, droit: r.droit, jusqua: r.jusqua, socles: this.comptes.utilisateur(u.login).socles });
     }
     // Carnet du mois par e-mail : la préférence du titulaire, et les noms de
     // ses socles tels que l'application les montre.
@@ -461,13 +471,39 @@ class Api {
       this.noterTitulaire('socle.rattacher', d.id, { compte: refCompte(u.login) });
       return this.json(res, 200, { ok: true, socles: this.comptes.utilisateur(u.login).socles });
     }
+    // Partage (F12) : qui a accès, inviter, annuler, retirer — le titulaire seul.
+    const mPartage = /^\/api\/socles\/(terra[0-9A-Za-z]{6})\/(partages|invitations)(?:\/([A-Za-z0-9._@%+-]{1,120}))?$/.exec(chemin);
+    if (mPartage) {
+      const id = mPartage[1], quoi = mPartage[2], qui = mPartage[3] ? decodeURIComponent(mPartage[3]) : null;
+      if (!this.comptes.estProprietaire(u, id)) return this.erreur(res, 403, 'seul le titulaire du socle gère son partage');
+      if (methode === 'GET' && quoi === 'partages' && !qui) {
+        return this.json(res, 200, { acces: this.comptes.accesDe(id).map(a => ({ ...a, moi: a.login === u.login })), invitations: this.comptes.invitationsDe(id) });
+      }
+      if (methode === 'POST' && quoi === 'invitations' && !qui) {
+        const d = await this.lireJson(req);
+        let inv;
+        try { inv = this.comptes.creerInvitation(u.login, id, { droit: d.droit, jours: d.jours }); }
+        catch (e) { return this.erreur(res, 400, e.message); }
+        this.noterTitulaire('socle.partage.inviter', id, { compte: refCompte(u.login), droit: inv.droit, jusqua: inv.jusqua ? new Date(inv.jusqua).toISOString() : null });
+        return this.json(res, 201, { code: inv.code, droit: inv.droit, jusqua: inv.jusqua, expire: inv.expire });
+      }
+      if (methode === 'DELETE' && quoi === 'invitations' && qui) return this.json(res, 200, { annulee: this.comptes.annulerInvitation(id, qui) });
+      if (methode === 'DELETE' && quoi === 'partages' && qui) {
+        const retire = this.comptes.retirerPartage(id, qui);
+        if (retire) this.noterTitulaire('socle.partage.retirer', id, { compte: refCompte(u.login), invite: refCompte(qui) });
+        return this.json(res, 200, { retire });
+      }
+      return this.erreur(res, 405, 'méthode non prise en charge');
+    }
     const mSocle = /^\/api\/socles\/(terra[0-9A-Za-z]{6})(\/historique)?$/.exec(chemin);
     if (mSocle) {
       const id = mSocle[1];
       if (!this.comptes.possede(u, id)) return this.erreur(res, 403, 'socle non rattaché à ce compte');
       if (methode === 'DELETE' && !mSocle[2]) {
         this.comptes.retirerSocle(u.login, id);
-        this.noterTitulaire('socle.detacher', id, { compte: refCompte(u.login) });
+        // Le dernier titulaire parti, ceux avec qui il partageait le socle le perdent aussi.
+        const invites = this.comptes.sansTitulaire(id);
+        this.noterTitulaire('socle.detacher', id, { compte: refCompte(u.login), ...(invites ? { invitesRetires: invites } : {}) });
         return this.json(res, 200, { ok: true });
       }
       if (methode === 'GET' && mSocle[2]) return this.repondreHistorique(res, id, url);
