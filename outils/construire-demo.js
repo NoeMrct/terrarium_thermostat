@@ -372,9 +372,10 @@ const FAUX_MQTT = `
         const z = s.zones[d.z];
         if (!z) return rep(false, { erreur: 'zone invalide' });
         const copie = { ...z };
-        if (d.nom !== undefined) copie.nom = d.nom;
-        if (d.jour !== undefined) copie.consigneJour = d.jour;
-        if (d.nuit !== undefined) copie.consigneNuit = d.nuit;
+        const champs = { nom: 'nom', jour: 'consigneJour', nuit: 'consigneNuit', max: 'tempMax', bande: 'bande', offset: 'offset',
+          rampe: 'rampe', debutJour: 'debutJour', debutNuit: 'debutNuit', deriveSeuil: 'deriveSeuil', deriveMin: 'deriveMinutes',
+          inefficaceMin: 'inefficaceMinutes', inefficaceDelta: 'inefficaceDelta', chuteSeuil: 'chuteSeuil', chuteSecondes: 'chuteSecondes' };
+        Object.keys(champs).forEach(k => { if (d[k] !== undefined) copie[champs[k]] = d[k]; });
         try { valider(copie); } catch (e) { return rep(false, { erreur: e.message }); }
         Object.assign(z, copie);
         publierEtat(id);
@@ -493,7 +494,10 @@ const FAUX_MQTT = `
       case 'sauvegarde': {
         const f = f1(s);
         return rep(true, { sauvegarde: { format: 'terrarium-sauvegarde', version: '3.5.0-demo', appareil: id, date: new Date().toISOString(),
-          zones: s.zones.map(z => ({ nom: z.nom, consigneJour: z.consigneJour, consigneNuit: z.consigneNuit, tempMax: z.tempMax })),
+          zones: s.zones.map(z => ({ nom: z.nom, consigneJour: z.consigneJour, consigneNuit: z.consigneNuit, bande: z.bande, tempMax: z.tempMax,
+            offset: z.offset, debutJour: z.debutJour, debutNuit: z.debutNuit, rampeMinutes: z.rampe,
+            deriveSeuil: z.deriveSeuil || 3, deriveMinutes: z.deriveMinutes || 15, inefficaceMinutes: z.inefficaceMinutes || 20,
+            inefficaceDelta: z.inefficaceDelta || 0.3, chuteSeuil: z.chuteSeuil || 2, chuteSecondes: z.chuteSecondes || 300 })),
           globaux: Object.assign({ courantAlimA: s.alim }, f.g), sondes: f.liaisons.slice(),
           reseau: { formatAlertes: f.reseau.formatAlertes, heartbeatMinutes: f.reseau.heartbeatMinutes } } });
       }

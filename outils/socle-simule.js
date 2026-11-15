@@ -667,7 +667,11 @@ client.on('message', (sujet, charge) => {
       return repondre(d.req, true, {
         sauvegarde: {
           format: 'terrarium-sauvegarde', version: VERSION_SIM, appareil: ID, date: new Date().toISOString(),
-          zones: socle.zones.map(z => ({ nom: z.nom, consigneJour: z.consigneJour, consigneNuit: z.consigneNuit })),
+          // Mêmes clés que le firmware (sauvegarde.cpp).
+          zones: socle.zones.map(z => ({ nom: z.nom, consigneJour: z.consigneJour, consigneNuit: z.consigneNuit, bande: z.bande, ki: z.ki,
+            tempMax: z.tempMax, offset: z.offset, debutJour: z.debutJour, debutNuit: z.debutNuit, rampeMinutes: z.rampe,
+            inefficaceMinutes: z.inefficaceMinutes, inefficaceDelta: z.inefficaceDelta, deriveSeuil: z.deriveSeuil,
+            deriveMinutes: z.deriveMinutes, chuteSeuil: z.chuteSeuil, chuteSecondes: z.chuteSecondes })),
           globaux: { ...socle.globaux }, sondes: [...socle.liaisons],
           reseau: { formatAlertes: socle.reseau.formatAlertes, heartbeatMinutes: socle.reseau.heartbeatMinutes }
         }

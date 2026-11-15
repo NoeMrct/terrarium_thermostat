@@ -19,6 +19,7 @@
    ============================================================================= */
 
 /* global document, navigator, caches, window, localStorage, indexedDB, location, App, ServiceWorkerRegistration, Notification */
+const fs = require('fs');
 const { servirApp } = require('./servir-app');
 let playwright;
 try { playwright = require('playwright'); }
@@ -193,6 +194,38 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.click('.rubrique[data-nom=general]');
   await page.waitForTimeout(300);
+
+  console.log('\n== Fichier de réglages chiffré (U19)');
+  await page.evaluate(() => App.reglagesApp('transfert'));
+  await page.waitForSelector('#tr-de', { timeout: 5000 }).catch(() => {});
+  const [dlReg] = await Promise.all([page.waitForEvent('download', { timeout: 20000 }).catch(() => null), (async () => {
+    await page.click('[data-action="trExporter"]');
+    await page.waitForSelector('#dlg-mdp[open]', { timeout: 8000 });
+    await page.fill('#mdp-1', 'banc-essai');
+    await page.fill('#mdp-2', 'banc-essai');
+    await page.click('#dlg-mdp button[type=submit]');
+  })()]);
+  const fichierReg = dlReg ? await dlReg.path() : null;
+  const contenuReg = fichierReg ? fs.readFileSync(fichierReg, 'utf8') : '';
+  v('export : un fichier chiffré, aucun réglage lisible', /"chiffre": true/.test(contenuReg) && !/consigneJour/.test(contenuReg), dlReg ? dlReg.suggestedFilename() : 'aucun');
+  if (fichierReg) {
+    await page.setInputFiles('#fichier-reglages', fichierReg);
+    await page.waitForSelector('#dlg-mdp[open]', { timeout: 8000 });
+    await page.fill('#mdp-1', 'pas-le-bon');
+    await page.click('#dlg-mdp button[type=submit]');
+    await page.waitForFunction(() => /incorrect/.test(document.querySelector('#message').textContent), null, { timeout: 15000 }).catch(() => {});
+    v('import : un mauvais mot de passe est refusé', /incorrect/.test(await page.textContent('#message')));
+    await page.setInputFiles('#fichier-reglages', fichierReg);
+    await page.waitForSelector('#dlg-mdp[open]', { timeout: 8000 });
+    await page.fill('#mdp-1', 'banc-essai');
+    await page.click('#dlg-mdp button[type=submit]');
+    await page.waitForFunction(() => /Rien à changer/.test(document.querySelector('#reglages').textContent), null, { timeout: 15000 }).catch(() => {});
+    v('import : déchiffré et comparé au socle (le sien : rien à changer)', await page.inputValue('#tr-de') === 'fichier' && /Rien à changer/.test(await page.textContent('#reglages')));
+  }
+  await page.evaluate(() => App.ouvrir(document.querySelector('#tr-vers').value));
+  await page.waitForTimeout(400);
+  await page.click('.rubrique[data-nom=general]');
+  await page.waitForTimeout(400);
 
   console.log('\n== Dialogues');
   await page.click('[data-action="redemarrer"]');

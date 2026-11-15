@@ -257,6 +257,12 @@ erased on their own.
 - **Alerts and monitoring** (Service section): the alert and heartbeat addresses can be replaced from
   the app; only their server shows afterwards (`ntfy.sh`), never the whole address. Wi-Fi is set
   on the local interface only.
+- **Copy settings** (App settings, or the Backup card of the Device section): from one base to
+  another, or from a file, by family — targets (and cut-off), schedule and ramp, alerts and report.
+  The preview shows the before and after of what changes; a faulty zone on the target is left
+  untouched; "Cancel" puts everything back. **Export** writes a base's settings to a file encrypted
+  with a password (lost if forgotten); **Import** reads that file, an older export, or the backup of
+  the base's local page.
 - **Export the app configuration** (App settings): the whole app — broker and bases — to change
   phones. The file contains the pairing codes and the broker password: keep it to yourself.
 - **Restart**, **Erase history**: Device section. The app's local history is erased at the same time.

@@ -31,6 +31,15 @@ jour.
   **vue compacte** de la liste (une ligne par socle : état, nom, deux
   températures) et **actions groupées** (entretien 30 min, lever les défauts)
   sur les socles cochés, avec le compte de ceux qui ont confirmé.
+- **Copier des réglages** (U18, U19, `#/reglages/transfert`) : d'un socle à
+  l'autre, ou depuis un fichier, par familles (consignes et coupure,
+  horaires et rampe, alertes et rapport). Un aperçu avant/après ne montre que
+  ce qui change (une même modification des deux zones en une ligne) ; une
+  zone de la cible en défaut reste telle quelle ; « Annuler » remet les
+  valeurs d'avant. L'**export** est un fichier chiffré par un mot de passe
+  (AES-GCM, clé dérivée par PBKDF2) ; l'**import** accepte aussi les anciens
+  exports en clair et la sauvegarde de la page locale du socle. La carte
+  Sauvegarde de la rubrique Appareil y mène, ce socle en source.
 - **Socle hors ligne, sans écran vide** (U26) : l'application garde sur
   l'appareil le dernier état connu de chaque socle, daté (« relevé à 14:12 »,
   « hors ligne depuis hier 22:05 ») ; il s'affiche dès l'ouverture, avant même
@@ -345,6 +354,10 @@ jour.
 
 ### Corrigé
 
+- Application : remonter par la flèche après être arrivé d'une autre branche
+  (des réglages depuis un socle, par exemple) pouvait ramener à l'écran
+  quitté au lieu du parent ; l'entrée réécrite garde désormais la vraie
+  entrée précédente.
 - Application : déverrouillée après « Verrouiller », elle revient sur l'écran
   d'où l'on avait verrouillé (rubrique ou réglages), plus seulement sur la
   liste ou l'accueil du socle.

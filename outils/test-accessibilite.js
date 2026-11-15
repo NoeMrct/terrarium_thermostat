@@ -46,6 +46,7 @@ const ECRANS = [
   ['réglages de l\'application', () => App.reglagesApp('menu')],
   ['organiser', () => { App.reglagesApp('organiser'); const c = document.querySelector('#org-compacte'); c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); }],
   ['liste compacte', () => App.montrer('liste')],
+  ['copier des réglages', async () => { App.reglagesApp('transfert'); await new Promise(r => setTimeout(r, 1200)); }],
   ['appareil', () => { App.reglagesApp('organiser'); const c = document.querySelector('#org-compacte'); c.checked = false; c.dispatchEvent(new Event('change', { bubbles: true })); App.ouvrir('terraDEMO002'); App.panneau('general'); }],
   ['service', () => App.panneau('service')],
   ['mises à jour', async () => { App.panneau('maj'); await new Promise(r => setTimeout(r, 1500)); }],

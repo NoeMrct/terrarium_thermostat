@@ -963,3 +963,28 @@ div.ligne-reglage, label.ligne-reglage { cursor: default; }
 .groupe-reglages > .boutons, .groupe-reglages > .aide { margin-inline: 16px; }
 .groupe-reglages > .aide:empty { display: none; }
 
+/* Copier des réglages (U18, U19). */
+.de-vers { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; margin: 0 16px; }
+.choix-socle { margin: 0; padding: 10px 12px; border-radius: 14px; background: var(--carte); color: var(--texte-2); font-size: 12px; font-weight: 500; }
+.choix-socle select { margin-top: 4px; min-height: 40px; padding: 6px 8px; font-size: 15px; font-weight: 600; background: var(--fond); }
+.fleche-de-vers { display: flex; justify-content: center; color: var(--texte-2); transform: rotate(90deg); }
+@media (min-width: 560px) {
+  .de-vers { grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr); align-items: end; gap: 8px; }
+  .fleche-de-vers { transform: none; padding-bottom: 18px; color: var(--texte); }
+}
+.cases-transfert { margin: 12px 0 0; padding: 0; border: 0; }
+.cases-transfert .ligne-case { border-top: 1px solid var(--ligne); }
+.cases-transfert .ligne-case:last-child { border-bottom: 1px solid var(--ligne); }
+.apercu-transfert, .action-transfert { margin-inline: 16px; }
+.apercu-transfert > * + *, .action-transfert > * + * { margin-top: 10px; }
+.tableau-transfert { width: 100%; border-collapse: collapse; font-size: 15px; }
+.tableau-transfert th, .tableau-transfert td { padding: 10px 0; border-top: 1px solid var(--ligne); text-align: right; }
+.tableau-transfert thead th { border-top: 0; padding: 6px 0; font-size: 13px; font-weight: 500; color: var(--texte-2); }
+.tableau-transfert th[scope="row"], .tableau-transfert thead th:first-child { text-align: left; font-weight: 400; }
+.tableau-transfert tbody tr:last-child > * { border-bottom: 1px solid var(--ligne); }
+.tableau-transfert td.avant, .discret-cellule { color: var(--texte-2); }
+.tableau-transfert td.apres { font-weight: 600; padding-left: 12px; }
+.action-transfert { margin-top: 14px; }
+.bandeau-fait { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 0 8px 0 16px; border-radius: 28px; background: var(--accent-doux); color: var(--ok-texte); font-size: 14px; font-weight: 600; }
+.bandeau-fait > span { flex: 1; }
+.bandeau-fait .btn { background: var(--fond); color: var(--texte); }

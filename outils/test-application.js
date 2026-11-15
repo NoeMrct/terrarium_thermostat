@@ -490,6 +490,45 @@ function creerApp(adressePage, avantChargement) {
     App.montrer('liste');
   }
 
+  titre('13 quater. Copier des réglages depuis un fichier (U18, U19)');
+  {
+    App.reglagesApp('transfert');
+    verifier('« Copier des réglages » a son adresse', w.location.hash === '#/reglages/transfert' && /Copier des réglages/.test(texte('#titre-reglages')));
+    // Une sauvegarde de la page locale : la zone 1 à 30,5° jour et nuit.
+    const champ = $('#fichier-reglages');
+    const fichier = new w.File([JSON.stringify({ format: 'terrarium-sauvegarde', zones: [{ nom: 'Zone 1', consigneJour: 30.5, consigneNuit: 30.5 }], globaux: {} })],
+      'sauvegarde.json', { type: 'application/json' });
+    Object.defineProperty(champ, 'files', { value: [fichier], configurable: true });
+    champ.dispatchEvent(new w.Event('change', { bubbles: true }));
+    const vers = $('#tr-vers');
+    await jusqua(() => $('#tr-de') && $('#tr-de').value === 'fichier', 4000, 50);
+    vers.value = ID;
+    vers.dispatchEvent(new w.Event('change', { bubbles: true }));
+    const apercu = () => texte('#reglages [data-r="apercu"]');
+    verifier('le fichier devient la source ; l\'aperçu montre l\'avant et l\'après',
+             await jusqua(() => /jour33,5°30,5°/.test(apercu().replace(/\s+/g, '')), 8000), apercu().replace(/\s+/g, ' ').slice(0, 90));
+    $('#reglages [data-action="trAppliquer"]').click();
+    verifier('« Appliquer » envoie au socle, qui confirme',
+             await jusqua(() => /Appliqué à « Terrarium de test »/.test(texte('#reglages [data-r="action"]')), 8000), texte('#reglages [data-r="action"]').trim());
+    App.ouvrir(ID);
+    verifier('…la nouvelle consigne revient du socle', await jusqua(() => $('#detail').innerHTML.includes('Cible 30,5°'), 6000));
+    App.reglagesApp('transfert');
+    $('#reglages [data-action="trAnnuler"]').click();
+    verifier('« Annuler » remet les réglages d\'avant', await jusqua(() => /remis sur/.test(texte('#reglages [data-r="action"]')), 8000));
+    App.ouvrir(ID);
+    verifier('…et le socle les confirme', await jusqua(() => $('#detail').innerHTML.includes('Cible 33,5°'), 6000));
+    // Depuis la rubrique Appareil d'un socle : la page s'ouvre avec lui en
+    // source ; la flèche remonte ensuite les réglages, puis la liste.
+    App.panneau('general');
+    await jusqua(() => !!$('#detail [data-page="transfert"]'), 4000, 50);
+    $('#detail [data-page="transfert"]').click();
+    verifier('Appareil → « Copier, exporter ou importer… » : ce socle en source', w.location.hash === '#/reglages/transfert' && $('#tr-de').value === ID, w.location.hash);
+    $('#vue-reglages [data-action="remonter"]').click();
+    $('#vue-reglages [data-action="remonter"]').click();
+    verifier('…la flèche remonte aux réglages, puis à la liste (pas au socle d\'où l\'on vient)',
+             await jusqua(() => $('#vue-liste').style.display !== 'none' && w.location.hash === '#/', 2000, 30), w.location.hash);
+  }
+
   titre('14. Retrait d\'un socle');
   App.ouvrir('terraFANTOME');
   App.retirerSocle();

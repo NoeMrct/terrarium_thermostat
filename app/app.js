@@ -155,7 +155,6 @@ const App = (() => {
       aideEntretienAppareil: 'Les réglages réseau, le journal et la mise à jour du firmware restent sur l\'interface locale du socle, sur ton réseau domestique.',
       redemarrerSocle: 'Redémarrer le socle', effacerHistorique: 'Effacer l\'historique', retirerSocle: 'Retirer ce socle de l\'application',
       sauvegarde: 'Sauvegarde des réglages', aideSauvegarde: 'Un fichier avec les consignes, horaires et réglages de l\'appareil : pour un socle de rechange, ou avant une expérimentation.',
-      exporterReglages: 'Exporter les réglages', importerReglages: 'Importer des réglages',
       sur24h: 'Sur 24 heures', chargementStats: 'Chargement des statistiques…', minC: 'min °C', maxC: 'max °C', moyenneC: 'moyenne °C',
       horsPlage: 'du temps hors plage',
       pasAssezHist: 'Pas encore 24 h d\'historique.',
@@ -218,7 +217,7 @@ const App = (() => {
       installer: 'Installer l\'application', installIos: 'Sur iPhone et iPad : bouton Partager, puis « Sur l\'écran d\'accueil ».', installee: 'Application installée.',
       exportConfigQ: 'Exporter la configuration ?', exportConfigTexte: 'Le fichier contient les codes d\'appairage de tes socles et le mot de passe du broker : garde-le pour toi.',
       exporter: 'Exporter', importOk: '{n} socle(s) importé(s).', importRien: 'Rien de nouveau dans ce fichier.', importInvalide: 'Fichier non reconnu.',
-      telechargementIndispo: 'Téléchargement indisponible ici.', importReglagesOk: 'Réglages envoyés au socle.', importReglagesKo: 'Import interrompu : {m}',
+      telechargementIndispo: 'Téléchargement indisponible ici.',
       diagnostic: 'Diagnostic', copierRapport: 'Copier le rapport', rapportCopie: 'Rapport copié.', copieImpossible: 'Copie impossible — sélectionne le texte.',
       fermer: 'Fermer', application: 'Application', navigateur: 'Navigateur', aucuneErreur: 'Aucune erreur enregistrée.', erreursRecentes: 'Erreurs récentes',
       versionDev: 'version de développement', socles: 'Socles', aucun: 'aucun', installeeOui: 'installée', installeeNon: 'dans le navigateur',
@@ -306,7 +305,27 @@ const App = (() => {
       orgCocher: 'Coche au moins un socle en ligne.', orgEnvoi: 'Envoi à {n} socle(s)…',
       orgConfirme1: 'Envoyé au socle, confirmé.', orgConfirmeN: 'Envoyé aux {n} socles, confirmé par les {n}.',
       orgPartiel: 'Confirmé par {k} sur {n}. Sans réponse : {noms}.', orgHorsLigne: '{n} · hors ligne',
-      verrouJamais: 'jamais (au lancement)', orgGroupeExiste: 'Un groupe porte déjà ce nom.', langueLib: 'Langue'
+      verrouJamais: 'jamais (au lancement)', orgGroupeExiste: 'Un groupe porte déjà ce nom.', langueLib: 'Langue',
+      // copier, exporter, importer des réglages (U18, U19)
+      trTitre: 'Copier des réglages', trDe: 'De', trVers: 'Vers', trQuoi: 'Ce qui est copié',
+      trCat_consignes: 'Consignes', trCat_horaires: 'Horaires et rampe', trCat_alertes: 'Alertes',
+      trCeQuiChange: 'Ce qui change sur « {n} »', trReglage: 'Réglage', trAvant: 'Avant', trApres: 'Après',
+      trInchangeeDefaut: 'Inchangée, en défaut', trNoteDefaut: '« {n} » garde « {z} » telle quelle tant que sa sonde est en défaut.',
+      trAppliquer: 'Appliquer à « {n} »', trApplique: 'Appliqué à « {n} »', trAnnule: 'Réglages d\'avant remis sur « {n} ».',
+      trRien: 'Rien à changer : « {n} » a déjà ces réglages.', trMemeSocle: 'Choisis deux socles différents.',
+      trChargement: 'Lecture des réglages…', trMuet: '« {n} » ne répond pas : ses réglages ne peuvent pas être lus.',
+      trRienCoche: 'Coche au moins une famille de réglages.', trEchec: 'Arrêté : {m}', trEnvoi: 'Envoi à « {n} »…',
+      trFichier: 'Fichier de réglages', trExporter: 'Exporter', trExporterAide: 'Les réglages de « {n} », chiffrés par un mot de passe',
+      trImporter: 'Importer', trImporterAide: 'Aperçu avant/après, comme ci-dessus', trChoisir: 'Choisir', trFichierDe: 'Fichier « {f} »',
+      trExportTitre: 'Protéger le fichier', trExportTexte: 'Choisis un mot de passe : il sera demandé à l\'import. Personne ne peut le retrouver.',
+      trImportTitre: 'Fichier protégé', trImportTexte: 'Le mot de passe de « {f} ».', trMdp: 'Mot de passe', trMdpConfirme: 'Confirme-le',
+      trMdpCourt: 'Six caractères au moins.', trMdpDifferents: 'Les deux mots de passe diffèrent.', trMdpFaux: 'Mot de passe incorrect, ou fichier abîmé.',
+      trValider: 'Valider', trExporte: 'Fichier de réglages enregistré.', trCopierLien: 'Copier, exporter ou importer…',
+      trJour: 'jour', trNuit: 'nuit', trCoupure: 'coupure de sécurité', trDebutJour: 'début du jour', trDebutNuit: 'début de la nuit',
+      trRampe: 'rampe', trDeriveSeuil: 'alerte de dérive', trDeriveMin: 'dérive tolérée', trInefficaceMin: 'chauffe sans effet après',
+      trInefficaceDelta: 'chauffe sans effet, écart', trChuteSeuil: 'chute brutale', trChuteSecondes: 'chute brutale en',
+      trSoleil: 'au rythme du soleil', trSoleilDecalage: 'décalage sur le soleil', trRapport: 'rapport quotidien', trRapportHeure: 'heure du rapport',
+      trOui: 'oui', trNon: 'non'
     }
   };
 
@@ -369,7 +388,7 @@ const App = (() => {
   let vueCourante = 'broker';
   let demarre = false;              // demarrer() a déjà tout branché
   let pageReglages = 'menu';        // Réglages de l'application : menu, ou une de PAGES_REGLAGES
-  const PAGES_REGLAGES = ['organiser'];
+  const PAGES_REGLAGES = ['organiser', 'transfert'];
   let socleOuvert = null;
   let panneauActif = 'etat';        // etat (accueil) ou la feuille ouverte : zone, reglages, programme…
   let etapeAccueil = 'bienvenue';   // écran sans broker : bienvenue, connexion, compte ou chezMoi
@@ -1338,7 +1357,10 @@ const App = (() => {
     if (!a || a === h) return;
     try {
       if (!EMPILER) history.replaceState({ terrarium: true, avant: null }, '', a);
-      else if (profondeur(a) < profondeur(h)) history.replaceState({ terrarium: true, avant: parentDe(a) }, '', a);
+      // Remonter réécrit l'entrée courante : celle d'avant ne change pas, son
+      // adresse reste celle notée (pas forcément le parent : on peut venir
+      // d'ailleurs, des réglages par exemple).
+      else if (profondeur(a) < profondeur(h)) history.replaceState({ terrarium: true, avant: history.state && history.state.terrarium ? history.state.avant : null }, '', a);
       else history.pushState({ terrarium: true, avant: h }, '', a);
     } catch (e) { /* file:// d'un vieux navigateur : l'écran change, l'adresse non */ }
   }
@@ -1728,7 +1750,8 @@ const App = (() => {
           <select id="langue-liste"><option value="fr">Français</option><option value="en">English</option></select></label>
         <div class="ligne-reglage"><span class="lib" id="lib-theme">${t('theme')}</span>
           <div class="segment trois" role="group" aria-labelledby="lib-theme">${seg('clair', 'themeClair')}${seg('sombre', 'themeSombre')}${seg('auto', 'themeAuto')}</div></div>`)}
-      ${sectionRg('rg-donnees', t('rgDonnees'), ligneRg('data-action="exporterConfig"', t('exporterConfigLib')) + ligneRg('data-action="importerConfig"', t('importerConfigLib')))}
+      ${sectionRg('rg-donnees', t('rgDonnees'), ligneRg('data-action="reglagesApp" data-page="transfert"', t('lienTransfert'))
+        + ligneRg('data-action="exporterConfig"', t('exporterConfigLib')) + ligneRg('data-action="importerConfig"', t('importerConfigLib')))}
       ${sectionRg('rg-connexion', t('rgConnexion'), `<div class="ligne-reglage"><span class="lib">${t('serveurLib')}<small id="broker-hote"></small></span>
           <button type="button" class="btn btn-secondaire btn-petit" data-action="oublierBroker">${t('changerServeur')}</button></div>`)}
       ${sectionRg('rg-securite', t('rgSecurite'), `<div class="ligne-reglage"><span class="lib">${t('codeVerrou')}<small data-r="code"></small></span>
@@ -1853,16 +1876,285 @@ const App = (() => {
     invalider();
   }
 
+  // --- Copier des réglages d'un socle à l'autre, ou depuis un fichier (U18,
+  // U19). La source et la cible sont lues par « sauvegarde » (la
+  // configuration complète, aux clés du firmware) ; l'aperçu avant/après ne
+  // garde que les familles cochées et ce qui change. Une zone de la cible en
+  // défaut reste telle quelle. « Annuler » remet les valeurs d'avant.
+  const CHAMPS_TR = [
+    { cat: 'consignes', zone: true, cle: 'consigneJour', cmd: 'jour', lib: 'trJour', f: 'deg' },
+    { cat: 'consignes', zone: true, cle: 'consigneNuit', cmd: 'nuit', lib: 'trNuit', f: 'deg' },
+    { cat: 'consignes', zone: true, cle: 'tempMax', cmd: 'max', lib: 'trCoupure', f: 'deg' },
+    { cat: 'horaires', zone: true, cle: 'debutJour', cmd: 'debutJour', lib: 'trDebutJour', f: 'heure' },
+    { cat: 'horaires', zone: true, cle: 'debutNuit', cmd: 'debutNuit', lib: 'trDebutNuit', f: 'heure' },
+    { cat: 'horaires', zone: true, cle: 'rampeMinutes', cmd: 'rampe', lib: 'trRampe', f: 'min' },
+    { cat: 'horaires', zone: false, cle: 'soleilActif', cmd: 'soleilActif', lib: 'trSoleil', f: 'oui' },
+    { cat: 'horaires', zone: false, cle: 'soleilDecalageMin', cmd: 'soleilDecalageMin', lib: 'trSoleilDecalage', f: 'minSigne' },
+    { cat: 'alertes', zone: true, cle: 'deriveSeuil', cmd: 'deriveSeuil', lib: 'trDeriveSeuil', f: 'deg' },
+    { cat: 'alertes', zone: true, cle: 'deriveMinutes', cmd: 'deriveMin', lib: 'trDeriveMin', f: 'min' },
+    { cat: 'alertes', zone: true, cle: 'inefficaceMinutes', cmd: 'inefficaceMin', lib: 'trInefficaceMin', f: 'min' },
+    { cat: 'alertes', zone: true, cle: 'inefficaceDelta', cmd: 'inefficaceDelta', lib: 'trInefficaceDelta', f: 'deg' },
+    { cat: 'alertes', zone: true, cle: 'chuteSeuil', cmd: 'chuteSeuil', lib: 'trChuteSeuil', f: 'deg' },
+    { cat: 'alertes', zone: true, cle: 'chuteSecondes', cmd: 'chuteSecondes', lib: 'trChuteSecondes', f: 's' },
+    { cat: 'alertes', zone: false, cle: 'rapportActif', cmd: 'rapportActif', lib: 'trRapport', f: 'oui' },
+    { cat: 'alertes', zone: false, cle: 'rapportMinutes', cmd: 'rapportMinutes', lib: 'trRapportHeure', f: 'heure' }
+  ];
+  const CATS_TR = ['consignes', 'horaires', 'alertes'];
+  /** @type {{de: string|null, vers: string|null, cats: Record<string, boolean>, sauvegardes: Record<string, any>, chargement: Record<string, boolean>, erreurs: Record<string, string>, fichier: any, applique: any, envoi: boolean, message: string}} */
+  const tr = { de: null, vers: null, cats: { consignes: true, horaires: true, alertes: false }, sauvegardes: {}, chargement: {}, erreurs: {},
+    fichier: null, applique: null, envoi: false, message: '' };
+  const majuscule = x => x.charAt(0).toUpperCase() + x.slice(1);
+  function formatTr(f, v) {
+    if (v === undefined || v === null) return '—';
+    switch (f) {
+      case 'deg': return deg(v) + '°';
+      case 'heure': return enHHMM(v);
+      case 'min': return v + ' min';
+      case 's': return v + ' s';
+      case 'oui': return t(v ? 'trOui' : 'trNon');
+      case 'minSigne': return (v > 0 ? '+' : '') + v + ' min';
+      default: return String(v);
+    }
+  }
+  const egalTr = (a, b) => (typeof a === 'number' && typeof b === 'number' ? Math.abs(a - b) < 1e-6 : a === b);
+  const nomSocleTr = id => (id === 'fichier' && tr.fichier ? t('trFichierDe', { f: tr.fichier.nom }) : ((socle(id) || {}).nom || id || ''));
+  const sauvegardeTr = id => (id === 'fichier' ? (tr.fichier && tr.fichier.sauvegarde) : tr.sauvegardes[id]);
+  function chargerSauvegardeTr(id) {
+    if (!id || id === 'fichier' || tr.sauvegardes[id] || tr.chargement[id]) return;
+    tr.chargement[id] = true;
+    delete tr.erreurs[id];
+    commander(id, 'sauvegarde')
+      .then(r => { if (r && r.sauvegarde && Array.isArray(r.sauvegarde.zones)) tr.sauvegardes[id] = r.sauvegarde; else tr.erreurs[id] = t('importInvalide'); },
+            e => { tr.erreurs[id] = e.message; })
+      .then(() => { delete tr.chargement[id]; invalider(); });
+  }
+  // Ce que la copie change : les lignes de l'aperçu, et les commandes (avec
+  // de quoi revenir en arrière).
+  function calculerTransfert() {
+    const src = sauvegardeTr(tr.de), dst = sauvegardeTr(tr.vers);
+    if (!src || !dst) return null;
+    const ed = etats[tr.vers] || { zones: [] };
+    /** @type {Array<{cle: string, lib: string, libSeul?: string, avant?: string, apres?: string, defaut?: boolean}>} */
+    const lignes = [];
+    const zones = [], notes = [];
+    const nz = Math.min((src.zones || []).length, (dst.zones || []).length, 2);
+    for (let z = 0; z < nz; z++) {
+      const a = dst.zones[z] || {}, b = src.zones[z] || {};
+      const nomZ = a.nom || t('zoneN', { n: z + 1 });
+      const params = {}, avant = {};
+      const changes = CHAMPS_TR.filter(c => c.zone && tr.cats[c.cat] && b[c.cle] !== undefined && b[c.cle] !== null && !egalTr(a[c.cle], b[c.cle]));
+      if (!changes.length) continue;
+      if (ed.zones && ed.zones[z] && ed.zones[z].defaut) {
+        lignes.push({ cle: 'defaut' + z, lib: nomZ, defaut: true });
+        notes.push(t('trNoteDefaut', { n: nomSocleTr(tr.vers), z: nomZ }));
+        continue;
+      }
+      changes.forEach(c => {
+        params[c.cmd] = b[c.cle]; avant[c.cmd] = a[c.cle];
+        lignes.push({ cle: c.cle + '|' + formatTr(c.f, a[c.cle]) + '|' + formatTr(c.f, b[c.cle]), lib: `${nomZ}, ${t(c.lib)}`, libSeul: majuscule(t(c.lib)),
+          avant: formatTr(c.f, a[c.cle]), apres: formatTr(c.f, b[c.cle]) });
+      });
+      zones.push({ z, params, avant });
+    }
+    // Une même modification sur les deux zones (des horaires, souvent) tient en une ligne.
+    const fusion = [];
+    lignes.forEach(l => {
+      const double = lignes.filter(x => x.cle === l.cle).length === 2;
+      if (double) { if (!fusion.some(x => x.cle === l.cle)) fusion.push(Object.assign({}, l, { lib: l.libSeul })); }
+      else fusion.push(l);
+    });
+    const gs = src.globaux || {}, gd = dst.globaux || {};
+    const params = {}, avant = {};
+    CHAMPS_TR.filter(c => !c.zone && tr.cats[c.cat] && gs[c.cle] !== undefined && gs[c.cle] !== null && !egalTr(gd[c.cle], gs[c.cle])).forEach(c => {
+      // Le soleil sans position connue de la cible serait refusé : la position suit.
+      params[c.cmd] = gs[c.cle]; avant[c.cmd] = gd[c.cle];
+      fusion.push({ cle: c.cle, lib: majuscule(t(c.lib)), avant: formatTr(c.f, gd[c.cle]), apres: formatTr(c.f, gs[c.cle]) });
+    });
+    if (params.soleilActif && !gd.latitude && !gd.longitude && (gs.latitude || gs.longitude)) {
+      params.latitude = gs.latitude; params.longitude = gs.longitude; avant.latitude = gd.latitude; avant.longitude = gd.longitude;
+    }
+    return { lignes: fusion, zones, globaux: Object.keys(params).length ? { params, avant } : null, notes };
+  }
+  function structureTransfert() {
+    return `<section class="groupe-reglages">
+        <div class="de-vers">
+          <label class="choix-socle" for="tr-de"><span>${t('trDe')}</span><select id="tr-de"></select></label>
+          <span class="fleche-de-vers" aria-hidden="true">${icone('i-suite')}</span>
+          <label class="choix-socle" for="tr-vers"><span>${t('trVers')}</span><select id="tr-vers"></select></label>
+        </div>
+        <fieldset class="cases-transfert"><legend class="sr-only">${t('trQuoi')}</legend>
+          ${CATS_TR.map(c => `<label class="ligne-case"><input type="checkbox" data-tr-cat="${c}"${tr.cats[c] ? ' checked' : ''}>${t('trCat_' + c)}</label>`).join('')}
+        </fieldset>
+      </section>
+      <section class="groupe-reglages" aria-labelledby="tr-titre-apercu"><h3 class="titre-section" id="tr-titre-apercu" data-r="titre-apercu"></h3>
+        <div class="apercu-transfert" data-r="apercu"></div>
+        <div class="action-transfert" aria-live="polite" data-r="action"></div>
+      </section>
+      ${sectionRg('tr-fichier', t('trFichier'), `<div class="ligne-reglage"><span class="lib">${t('trExporter')}<small data-r="exporter-aide"></small></span>
+          <button type="button" class="btn btn-secondaire btn-petit" data-action="trExporter">${t('exporter')}</button></div>
+        <div class="ligne-reglage"><span class="lib">${t('trImporter')}<small>${t('trImporterAide')}</small></span>
+          <button type="button" class="btn btn-secondaire btn-petit" data-action="trImporter">${t('trChoisir')}</button></div>
+        <input type="file" id="fichier-reglages" accept="application/json,.json" hidden>`)}`;
+  }
+  function patcherTransfert() {
+    const r = k => $(`#reglages [data-r="${k}"]`);
+    const ids = config.socles.map(s => s.id);
+    if (!tr.de || (tr.de !== 'fichier' && !ids.includes(tr.de)) || (tr.de === 'fichier' && !tr.fichier)) tr.de = ids[0] || null;
+    if (!tr.vers || !ids.includes(tr.vers)) tr.vers = ids.find(id => id !== tr.de) || ids[0] || null;
+    const options = (choisi, avecFichier) => (avecFichier && tr.fichier ? `<option value="fichier"${choisi === 'fichier' ? ' selected' : ''}>${esc(nomSocleTr('fichier'))}</option>` : '')
+      + config.socles.map(s => `<option value="${attr(s.id)}"${s.id === choisi ? ' selected' : ''}>${esc(s.nom || s.id)}</option>`).join('');
+    peindre($('#tr-de'), options(tr.de, true));
+    peindre($('#tr-vers'), options(tr.vers, false));
+    texte(r('exporter-aide'), tr.de && tr.de !== 'fichier' ? t('trExporterAide', { n: nomSocleTr(tr.de) }) : '');
+    texte(r('titre-apercu'), tr.vers ? t('trCeQuiChange', { n: nomSocleTr(tr.vers) }) : '');
+    chargerSauvegardeTr(tr.de);
+    chargerSauvegardeTr(tr.vers);
+    let apercu = '', action = '';
+    const muet = [tr.de, tr.vers].find(id => id && tr.erreurs[id]);
+    if (!tr.de || !tr.vers || tr.de === tr.vers) apercu = `<p class="aide">${t('trMemeSocle')}</p>`;
+    else if (!CATS_TR.some(c => tr.cats[c])) apercu = `<p class="aide">${t('trRienCoche')}</p>`;
+    else if (muet) apercu = `<p class="aide">${t('trMuet', { n: esc(nomSocleTr(muet)) })}</p>`;
+    else if (!sauvegardeTr(tr.de) || !sauvegardeTr(tr.vers)) apercu = `<p class="aide" aria-busy="true">${t('trChargement')}</p>`;
+    else {
+      const d = calculerTransfert();
+      const applique = tr.applique && tr.applique.vers === tr.vers;
+      if (d && d.lignes.length) {
+        apercu = `<table class="tableau-transfert"><thead><tr><th scope="col">${t('trReglage')}</th><th scope="col">${t('trAvant')}</th><th scope="col">${t('trApres')}</th></tr></thead><tbody>${d.lignes.map(l => l.defaut
+          ? `<tr><th scope="row">${esc(l.lib)}</th><td colspan="2" class="discret-cellule">${t('trInchangeeDefaut')}</td></tr>`
+          : `<tr><th scope="row">${esc(l.lib)}</th><td class="avant">${l.avant}</td><td class="apres">${l.apres}</td></tr>`).join('')}</tbody></table>`
+          + d.notes.map(n => `<p class="aide">${esc(n)}</p>`).join('');
+      } else if (!applique) apercu = `<p class="aide">${t('trRien', { n: esc(nomSocleTr(tr.vers)) })}</p>`;
+      const peutAppliquer = !!(d && (d.zones.length || d.globaux));
+      if (applique) action = `<div class="bandeau-fait">${icone('i-ok')}<span>${t('trApplique', { n: esc(nomSocleTr(tr.vers)) })}</span>
+          <button type="button" class="btn btn-petit" data-action="trAnnuler"${tr.envoi ? ' disabled' : ''}>${t('annuler')}</button></div>`;
+      else if (peutAppliquer) action = `<button type="button" class="btn btn-grand btn-plein" data-action="trAppliquer"${tr.envoi ? ' disabled' : ''}>${tr.envoi ? t('trEnvoi', { n: esc(nomSocleTr(tr.vers)) }) : t('trAppliquer', { n: esc(nomSocleTr(tr.vers)) })}</button>`;
+    }
+    if (tr.message) action += `<p class="aide">${esc(tr.message)}</p>`;
+    peindre(r('apercu'), apercu);
+    peindre(r('action'), action);
+  }
+  async function appliquerTransfert() {
+    const d = calculerTransfert();
+    const vers = tr.vers;
+    if (!d || tr.envoi || !vers) return;
+    tr.envoi = true; tr.message = ''; invalider();
+    const retour = [];
+    try {
+      for (const zc of d.zones) {
+        await commander(vers, 'zone', Object.assign({ z: zc.z }, zc.params));
+        retour.push({ action: 'zone', params: Object.assign({ z: zc.z }, zc.avant) });
+      }
+      if (d.globaux) {
+        await commander(vers, 'globaux', d.globaux.params);
+        retour.push({ action: 'globaux', params: d.globaux.avant });
+      }
+      tr.applique = { vers, retour };
+    } catch (e) {
+      tr.message = t('trEchec', { m: e.message });
+      if (retour.length) tr.applique = { vers, retour };
+    }
+    tr.envoi = false;
+    delete tr.sauvegardes[vers];
+    commander(vers, 'etat').catch(() => {});
+    invalider();
+  }
+  async function annulerTransfert() {
+    const a = tr.applique;
+    if (!a || tr.envoi) return;
+    tr.envoi = true; invalider();
+    try {
+      for (const x of a.retour.slice().reverse()) await commander(a.vers, x.action, x.params);
+      tr.applique = null;
+      tr.message = t('trAnnule', { n: nomSocleTr(a.vers) });
+    } catch (e) { tr.message = t('trEchec', { m: e.message }); }
+    tr.envoi = false;
+    delete tr.sauvegardes[a.vers];
+    commander(a.vers, 'etat').catch(() => {});
+    invalider();
+  }
+  // Mot de passe d'un fichier de réglages : deux fois à l'export, une à l'import.
+  function demanderMotDePasse(titre, texteAide, double) {
+    return new Promise(resoudre => {
+      let dlg = /** @type {any} */ ($('#dlg-mdp'));
+      if (!dlg) { dlg = doc.createElement('dialog'); dlg.id = 'dlg-mdp'; dlg.className = 'feuille'; dlg.setAttribute('aria-labelledby', 'mdp-titre'); doc.body.appendChild(dlg); }
+      html(dlg, `<form novalidate><h2 id="mdp-titre">${esc(titre)}</h2><p class="aide">${esc(texteAide)}</p>
+        <label for="mdp-1">${t('trMdp')}</label><input id="mdp-1" type="password" autocomplete="${double ? 'new-password' : 'current-password'}">
+        ${double ? `<label for="mdp-2">${t('trMdpConfirme')}</label><input id="mdp-2" type="password" autocomplete="new-password">` : ''}
+        <p class="erreur" id="mdp-erreur" role="alert"></p>
+        <div class="boutons fin"><button type="button" class="btn btn-secondaire" data-mdp="annuler">${t('annuler')}</button><button type="submit" class="btn">${t('trValider')}</button></div></form>`);
+      let fini = false;
+      const fin = v => { if (fini) return; fini = true; fermerDialogue(dlg); resoudre(v); };
+      dlg.querySelector('[data-mdp="annuler"]').addEventListener('click', () => fin(null));
+      dlg.addEventListener('close', () => fin(null), { once: true });
+      dlg.querySelector('form').addEventListener('submit', ev => {
+        ev.preventDefault(); ev.stopPropagation();
+        const a = dlg.querySelector('#mdp-1').value, b = double ? dlg.querySelector('#mdp-2').value : a;
+        if (a.length < 6) { texte($('#mdp-erreur'), t('trMdpCourt')); return; }
+        if (a !== b) { texte($('#mdp-erreur'), t('trMdpDifferents')); return; }
+        fin(a);
+      });
+      ouvrirDialogue(dlg);
+      setTimeout(() => { try { dlg.querySelector('#mdp-1').focus(); } catch (e) { /* hors écran */ } }, 30);
+    });
+  }
+  async function chiffrerTexte(mdp, clair) {
+    const sel = aleatoire(16), iv = aleatoire(12);
+    const cle = await deriverCle(mdp, sel);
+    const donnees = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cle, new TextEncoder().encode(clair));
+    return { sel: b64(sel), iv: b64(iv), iterations: PBKDF2_ITERATIONS, donnees: b64(donnees) };
+  }
+  async function dechiffrerTexte(mdp, env) {
+    const cle = await deriverCle(mdp, deB64(env.sel));
+    return new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: deB64(env.iv) }, cle, deB64(env.donnees)));
+  }
+  async function exporterReglagesFichier() {
+    const id = tr.de;
+    if (!id || id === 'fichier') return;
+    if (!cryptoDispo()) { message(t('cryptoIndispo'), true); return; }
+    let sauv = tr.sauvegardes[id];
+    if (!sauv) { try { sauv = (await commander(id, 'sauvegarde')).sauvegarde; } catch (e) { message(t('trMuet', { n: nomSocleTr(id) }), true); return; } }
+    const mdp = await demanderMotDePasse(t('trExportTitre'), t('trExportTexte'), true);
+    if (!mdp) return;
+    const env = await chiffrerTexte(mdp, JSON.stringify(sauv));
+    const nom = String(nomSocleTr(id)).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || id;
+    telecharger(`reglages-${nom}-${new Date().toISOString().slice(0, 10)}.json`,
+      JSON.stringify(Object.assign({ format: 'terrariums-reglages', version: 2, chiffre: true, socle: id, date: new Date().toISOString() }, env), null, 2) + '\n',
+      'application/json');
+    message(t('trExporte'));
+  }
+  async function importerReglagesFichier(fichier) {
+    let d;
+    try { d = JSON.parse(await lireFichier(fichier)); } catch (e) { message(t('importInvalide'), true); return; }
+    let sauv = null;
+    if (d && d.format === 'terrariums-reglages' && d.chiffre) {
+      if (!cryptoDispo()) { message(t('cryptoIndispo'), true); return; }
+      const mdp = await demanderMotDePasse(t('trImportTitre'), t('trImportTexte', { f: fichier.name }), false);
+      if (!mdp) return;
+      try { sauv = JSON.parse(await dechiffrerTexte(mdp, d)); } catch (e) { message(t('trMdpFaux'), true); return; }
+    } else if (d && d.format === 'terrariums-reglages' && Array.isArray(d.zones)) {
+      // Ancien export en clair (version 1) : clés des commandes.
+      sauv = { zones: d.zones.map(z => z && { nom: z.nom, consigneJour: z.jour, consigneNuit: z.nuit, bande: z.bande, tempMax: z.max, offset: z.offset,
+        rampeMinutes: z.rampe, debutJour: z.debutJour, debutNuit: z.debutNuit }), globaux: {} };
+    } else if (d && d.format === 'terrarium-sauvegarde') sauv = d;     // sauvegarde de la page locale du socle
+    if (!sauv || !Array.isArray(sauv.zones) || !sauv.zones.length) { message(t('importInvalide'), true); return; }
+    tr.fichier = { nom: fichier.name, sauvegarde: sauv };
+    tr.de = 'fichier';
+    tr.applique = null; tr.message = '';
+    invalider();
+  }
+
   function dessinerReglages() {
     const racine = $('#reglages');
     if (!racine) return;
     const cle = pageReglages + '|' + langue;
     if (racine.dataset.page !== cle) {
       racine.dataset.page = cle;
-      texte($('#titre-reglages'), t(pageReglages === 'organiser' ? 'orgTitre' : 'reglagesTitre'));
-      html(racine, pageReglages === 'organiser' ? structureOrganiser() : structureMenuReglages());
+      texte($('#titre-reglages'), t({ organiser: 'orgTitre', transfert: 'trTitre' }[pageReglages] || 'reglagesTitre'));
+      html(racine, pageReglages === 'organiser' ? structureOrganiser() : pageReglages === 'transfert' ? structureTransfert() : structureMenuReglages());
     }
-    if (pageReglages === 'organiser') patcherOrganiser(); else patcherMenuReglages();
+    if (pageReglages === 'organiser') patcherOrganiser();
+    else if (pageReglages === 'transfert') patcherTransfert();
+    else patcherMenuReglages();
   }
 
   // ------------------------------------------------------------------ détail
@@ -2504,9 +2796,7 @@ const App = (() => {
         <h2>${t('sauvegarde')}</h2>
         <p class="aide">${t('aideSauvegarde')}</p>
         <div class="boutons">
-          <button type="button" class="btn btn-secondaire" data-action="exporterReglages">${t('exporterReglages')}</button>
-          <button type="button" class="btn btn-secondaire" data-action="importerReglages">${t('importerReglages')}</button>
-          <input type="file" id="fichier-reglages" accept="application/json,.json" hidden>
+          <button type="button" class="btn btn-secondaire" data-action="reglagesApp" data-page="transfert" data-de="${attr(socleOuvert)}">${t('trCopierLien')}</button>
         </div>
       </section>
       <section class="carte">
@@ -2921,7 +3211,11 @@ const App = (() => {
         case 'ouvrir':            api.ouvrir(d.id); break;
         case 'montrer':           if (d.vue === 'liste' && vueCourante === 'socle' && panneauActif === 'etat') remonter(); else montrer(d.vue); break;
         case 'remonter':          remonter(); break;
-        case 'reglagesApp':       api.reglagesApp(d.page || 'menu'); break;
+        case 'reglagesApp':       if (d.de && socle(d.de)) { tr.de = d.de; tr.vers = null; tr.applique = null; tr.message = ''; } api.reglagesApp(d.page || 'menu'); break;
+        case 'trAppliquer':       appliquerTransfert(); break;
+        case 'trAnnuler':         annulerTransfert(); break;
+        case 'trExporter':        exporterReglagesFichier(); break;
+        case 'trImporter':        { const f = $('#fichier-reglages'); if (f) f.click(); break; }
         case 'theme':             api.theme(d.theme); break;
         case 'orgMonter':         api.deplacerSocle(d.id, -1); break;
         case 'orgDescendre':      api.deplacerSocle(d.id, 1); break;
@@ -2958,8 +3252,6 @@ const App = (() => {
         case 'redemarrer':        api.redemarrer(); break;
         case 'exporterConfig':    api.exporterConfig(); break;
         case 'importerConfig':    { const f = $('#fichier-config'); if (f) f.click(); break; }
-        case 'exporterReglages':  api.exporterReglages(); break;
-        case 'importerReglages':  { const f = $('#fichier-reglages'); if (f) f.click(); break; }
         case 'installer':         api.installer(); break;
         case 'diagnostic':        api.diagnostic(); break;
         case 'fermerDiag':        fermerDialogue($('#diag')); break;
@@ -3014,12 +3306,17 @@ const App = (() => {
       if (el.classList && el.classList.contains('champ-nom')) { api.renommerSocle(el.dataset.id, el.value); return; }
       if (el.classList && el.classList.contains('champ-groupe')) { api.renommerGroupe(el.dataset.groupe, el.value); return; }
       if (el.dataset && el.dataset.orgCase) { if (el.checked) orgSelection.add(el.dataset.orgCase); else orgSelection.delete(el.dataset.orgCase); return; }
+      if (el.dataset && el.dataset.trCat) { tr.cats[el.dataset.trCat] = el.checked; tr.message = ''; invalider(); return; }
+      if (el.id === 'tr-de' || el.id === 'tr-vers') {
+        if (el.id === 'tr-de') tr.de = el.value; else { tr.vers = el.value; tr.applique = null; }
+        tr.message = ''; invalider(); return;
+      }
       if (!el.id) return;
       if (el.id === 'org-compacte') { api.vueCompacte(el.checked); return; }
       if (el.id === 'fichier-config' && el.files && el.files[0]) { api.importerConfig(el.files[0]); el.value = ''; }
       if (el.id === 'verrou-min') api.changerVerrouMin(el.value);
       if (el.id === 'co-prix') api.prixKwh();
-      if (el.id === 'fichier-reglages' && el.files && el.files[0]) { api.importerReglages(el.files[0]); el.value = ''; }
+      if (el.id === 'fichier-reglages' && el.files && el.files[0]) { importerReglagesFichier(el.files[0]); el.value = ''; }
       if (el.id === 'sv-fichier' && el.files && el.files[0] && serviceMod) { serviceMod.fichier(el.files[0]); el.value = ''; }
       if (el.id === 'langue' || el.id === 'langue-liste') api.changerLangue(el.value);
     });
@@ -4412,43 +4709,6 @@ const App = (() => {
       if (config.broker && !client) { connecter(); montrer('liste'); }
       config.socles.forEach(s => commander(s.id, 'etat').catch(() => {}));
       dessiner();
-    },
-
-    exporterReglages() {
-      const id = socleOuvert;
-      const e = etats[id];
-      if (!id || !e || !e.zones) return;
-      const zones = e.zones.map(z => z ? { nom: z.nom, jour: z.jour, nuit: z.nuit, bande: z.bande, max: z.max, offset: z.offset,
-        rampe: z.rampe, debutJour: z.debutJour, debutNuit: z.debutNuit } : null);
-      const g = generaux[id];
-      const generauxExport = g ? { amperes: g.amperes, watts: g.watts, volts: g.volts, entretienMin: g.entretienMin, ecranVeilleMin: g.ecranVeilleMin,
-        saisonActive: g.saisonActive, saisonDelta: g.saisonDelta, saisonDescenteJ: g.saisonDescenteJ, saisonPlateauJ: g.saisonPlateauJ, saisonRemonteeJ: g.saisonRemonteeJ } : undefined;
-      telecharger(`reglages-${id}.json`,
-        JSON.stringify({ format: 'terrariums-reglages', version: 1, socle: id, date: new Date().toISOString(), zones, generaux: generauxExport }, null, 2) + '\n',
-        'application/json');
-    },
-
-    async importerReglages(fichier) {
-      const id = socleOuvert;
-      let d;
-      try { d = JSON.parse(await lireFichier(fichier)); } catch (e) { message(t('importInvalide'), true); return; }
-      if (!id || !d || d.format !== 'terrariums-reglages' || !Array.isArray(d.zones)) { message(t('importInvalide'), true); return; }
-      try {
-        for (let i = 0; i < d.zones.length && i < 2; i++) {
-          const z = d.zones[i];
-          if (!z) continue;
-          const params = { z: i };
-          ['nom', 'jour', 'nuit', 'bande', 'max', 'offset', 'rampe', 'debutJour', 'debutNuit'].forEach(k => { if (z[k] !== undefined && z[k] !== null) params[k] = z[k]; });
-          await commander(id, 'zone', params);
-        }
-        if (d.generaux && typeof d.generaux === 'object') {
-          const r = await commander(id, 'globaux', d.generaux);
-          generaux[id] = r;
-        }
-        message(t('importReglagesOk'));
-        commander(id, 'etat').catch(() => {});
-        dessiner();
-      } catch (e) { message(t('importReglagesKo', { m: e.message }), true); }
     },
 
     // ---- installation et diagnostic ----------------------------------------

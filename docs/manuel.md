@@ -260,6 +260,12 @@ Le socle garde ses derniers événements ; les plus anciens s'effacent d'eux-mê
 - **Alertes et surveillance** (rubrique Service) : l'adresse des alertes et celle du heartbeat se
   remplacent depuis l'application ; seul leur serveur s'affiche ensuite (`ntfy.sh`), jamais
   l'adresse entière. Le Wi-Fi, lui, ne se règle que sur l'interface locale.
+- **Copier des réglages** (Réglages de l'application, ou carte Sauvegarde de la rubrique Appareil) :
+  d'un socle à l'autre, ou depuis un fichier, par familles — consignes (et coupure), horaires et
+  rampe, alertes et rapport. L'aperçu montre l'avant et l'après de ce qui change ; une zone en défaut
+  sur la cible n'est pas touchée ; « Annuler » remet tout comme avant. **Exporter** écrit les
+  réglages d'un socle dans un fichier chiffré par un mot de passe (introuvable si on l'oublie) ;
+  **Importer** relit ce fichier, un ancien export, ou la sauvegarde de la page locale du socle.
 - **Exporter la configuration de l'appli** (Réglages de l'application) : l'application entière — broker et socles — pour
   changer de téléphone. Le fichier contient les codes d'appairage et le mot de passe du broker :
   garde-le pour toi.
