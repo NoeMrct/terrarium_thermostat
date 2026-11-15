@@ -260,6 +260,11 @@ Le socle garde ses derniers événements ; les plus anciens s'effacent d'eux-mê
 - **Alertes et surveillance** (rubrique Service) : l'adresse des alertes et celle du heartbeat se
   remplacent depuis l'application ; seul leur serveur s'affiche ensuite (`ntfy.sh`), jamais
   l'adresse entière. Le Wi-Fi, lui, ne se règle que sur l'interface locale.
+- **Exports** (Réglages de l'application, ou les Courbes d'un socle) : le **carnet du mois** en PDF —
+  le mois en cours ou le précédent : résumé par zone, courbes jour par jour, consommation, alertes
+  du journal et tableau — à partager ou garder ; et **toutes les mesures** en CSV pour un tableur :
+  30 jours, une ligne toutes les 5 minutes ; un an, à 5 minutes avec le serveur Terrariums, sinon une
+  ligne par jour (le socle garde 14 jours de mesures fines et un an de résumés).
 - **Copier des réglages** (Réglages de l'application, ou carte Sauvegarde de la rubrique Appareil) :
   d'un socle à l'autre, ou depuis un fichier, par familles — consignes (et coupure), horaires et
   rampe, alertes et rapport. L'aperçu montre l'avant et l'après de ce qui change ; une zone en défaut

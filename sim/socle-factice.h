@@ -50,8 +50,9 @@ struct SocleFactice : public Protocole::Socle {
              zones[0].nom, zones[1].nom);
   }
   void corpsStats(char *out, size_t taille) override { snprintf(out, taille, "\"zones\":[]"); }
-  void corpsHistorique(uint32_t heures, uint16_t maxi, char *out, size_t taille) override {
-    snprintf(out, taille, "\"heures\":%u,\"n\":%u,\"points\":[]", (unsigned)heures, (unsigned)maxi);
+  void corpsHistorique(uint32_t heures, uint16_t maxi, uint32_t decalage, char *out, size_t taille) override {
+    snprintf(out, taille, "\"heures\":%u,\"n\":%u,\"decalage\":%u,\"points\":[]", (unsigned)heures,
+             (unsigned)maxi, (unsigned)decalage);
   }
   void corpsGlobaux(char *out, size_t taille) override {
     snprintf(out, taille,
@@ -158,8 +159,8 @@ struct SocleFactice : public Protocole::Socle {
     snprintf(out, taille, "\"texte\":\"Rapport \\\"du jour\\\"\"");
   }
   void envoyerRapport() override { actions.push_back("envoyerRapport"); }
-  void corpsJours(uint16_t n, char *out, size_t taille) override {
-    snprintf(out, taille, "\"jours\":{\"n\":%u,\"jours\":[]}", (unsigned)n);
+  void corpsJours(uint16_t n, uint16_t depuis, char *out, size_t taille) override {
+    snprintf(out, taille, "\"jours\":{\"n\":%u,\"depuis\":%u,\"jours\":[]}", (unsigned)n, (unsigned)depuis);
   }
   void corpsJournal(char *out, size_t taille) override {
     snprintf(out, taille, "\"texte\":\"Demarrage\\n\"");

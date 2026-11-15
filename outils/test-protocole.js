@@ -188,6 +188,9 @@ client.on('connect', async () => {
     verifier('le format des points est décrit',
              Array.isArray(hi.format) && hi.format[0] === 'epoch', (hi.format || []).join(','));
     verifier('l\'unité est annoncée', /centiemes/.test(hi.unite || ''), hi.unite || '');
+    const vieux = await commander('historique', { heures: 15, max: 180, decalage: 30 }, false);
+    verifier('3.5 : une fenêtre plus ancienne (decalage) est rappelée dans la réponse',
+             vieux.ok === true && vieux.decalage === 30 && Array.isArray(vieux.points) && hi.decalage === 0, `decalage ${vieux.decalage}`);
     verifier('les points sont des tableaux compacts',
              Array.isArray(hi.points) && (hi.points.length === 0 ||
                (Array.isArray(hi.points[0]) && hi.points[0].length === hi.format.length)),
@@ -357,6 +360,13 @@ client.on('connect', async () => {
       verifier('jours : résumés journaliers, bornés à un message',
                jours.ok === true && jours.jours && Array.isArray(jours.jours.jours) && jours.jours.jours.length <= 31,
                jours.jours ? `${jours.jours.jours.length} jour(s)` : '');
+      // 3.5 : par pages — la suivante commence où la première s'arrête.
+      const n1 = jours.jours.jours.length;
+      const suite = await commander('jours', { n: 30, depuis: n1 });
+      verifier('jours : page suivante (depuis), sans la journée en cours',
+               suite.ok === true && suite.jours.depuis === n1 && typeof suite.jours.total === 'number' && !suite.jours.aujourdhui &&
+               (!suite.jours.jours.length || suite.jours.jours[0].date < jours.jours.jours[n1 - 1].date),
+               `total ${suite.jours.total}, ${suite.jours.jours.length} jour(s) de plus`);
       const jrn = await commander('journal');
       verifier('journal : la fin du journal', jrn.ok === true && typeof jrn.texte === 'string' && jrn.texte.length > 0);
       const sauv = await commander('sauvegarde');

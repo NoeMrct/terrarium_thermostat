@@ -53,7 +53,9 @@ public:
   virtual void corpsVersion(char *out, size_t taille) = 0;
   virtual void corpsEtat(char *out, size_t taille) = 0;
   virtual void corpsStats(char *out, size_t taille) = 0;
-  virtual void corpsHistorique(uint32_t heures, uint16_t maxi, char *out, size_t taille) = 0;
+  // decalage : heures sautées au plus récent (fenêtre plus ancienne, par pages).
+  virtual void corpsHistorique(uint32_t heures, uint16_t maxi, uint32_t decalage, char *out,
+                               size_t taille) = 0;
   virtual void corpsGlobaux(char *out, size_t taille) = 0;
   // Réglages.
   virtual ReglagesZone &zone(uint8_t z) = 0;
@@ -99,9 +101,9 @@ public:
   virtual bool calibrer(char *message, size_t taille) = 0;
   virtual void corpsRapport(char *out, size_t taille) = 0;  // "texte":"…"
   virtual void envoyerRapport() = 0;
-  virtual void corpsJours(uint16_t n, char *out, size_t taille) = 0;  // "jours":{…}
-  virtual void corpsJournal(char *out, size_t taille) = 0;            // "texte":"…" (la fin)
-  virtual void corpsSauvegarde(char *out, size_t taille) = 0;         // "sauvegarde":{…}
+  virtual void corpsJours(uint16_t n, uint16_t depuis, char *out, size_t taille) = 0;  // "jours":{…}
+  virtual void corpsJournal(char *out, size_t taille) = 0;     // "texte":"…" (la fin)
+  virtual void corpsSauvegarde(char *out, size_t taille) = 0;  // "sauvegarde":{…}
   virtual bool restaurer(const char *json, size_t n, char *message, size_t taille) = 0;
   virtual ReglagesReseau &reseau() = 0;
   virtual void sauverReseau() = 0;

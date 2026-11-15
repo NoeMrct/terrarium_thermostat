@@ -603,6 +603,12 @@
         "heures": {
           "type": "integer"
         },
+        "decalage": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 400,
+          "description": "historique : heures sautées au plus récent (fenêtre plus ancienne)."
+        },
         "n": {
           "type": "integer",
           "minimum": 0
@@ -740,6 +746,16 @@
           "properties": {
             "prixKwh": {
               "type": "number"
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Résumés gardés par le socle (un an au plus)."
+            },
+            "depuis": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Résumés plus récents sautés : la page commence là."
             },
             "jours": {
               "type": "array",

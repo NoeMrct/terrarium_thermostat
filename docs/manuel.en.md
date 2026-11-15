@@ -257,6 +257,11 @@ erased on their own.
 - **Alerts and monitoring** (Service section): the alert and heartbeat addresses can be replaced from
   the app; only their server shows afterwards (`ntfy.sh`), never the whole address. Wi-Fi is set
   on the local interface only.
+- **Exports** (App settings, or a base's Curves): the **monthly logbook** as a PDF — the current
+  month or the previous one: summary per zone, day-by-day curves, consumption, log alerts and a
+  table — to share or keep; and **all readings** as CSV for a spreadsheet: 30 days, one line every
+  5 minutes; one year, every 5 minutes with the Terrariums server, otherwise one line per day (the
+  base keeps 14 days of fine readings and a year of summaries).
 - **Copy settings** (App settings, or the Backup card of the Device section): from one base to
   another, or from a file, by family — targets (and cut-off), schedule and ramp, alerts and report.
   The preview shows the before and after of what changes; a faulty zone on the target is left

@@ -1005,6 +1005,16 @@ div.ligne-reglage, label.ligne-reglage { cursor: default; }
 .bandeau-fait > span { flex: 1; }
 .bandeau-fait .btn { background: var(--fond); color: var(--texte); }
 
+/* Exports : carnet PDF et mesures CSV (F16, F17). */
+.choix-export { width: calc(100% + 32px); margin-inline: -16px; border-bottom: 1px solid var(--ligne); }
+.carte-export { display: flex; flex-direction: column; gap: 12px; }
+.tete-export { display: flex; align-items: center; gap: 12px; }
+.tete-export > span:last-child { display: flex; flex-direction: column; gap: 2px; }
+.tete-export h3 { font-size: 17px; font-weight: 600; color: var(--texte); }
+.tete-export small { font-size: 13px; color: var(--texte-2); }
+.pastille-export { width: 44px; height: 44px; flex: none; border-radius: 12px; background: var(--creux); display: flex; align-items: center; justify-content: center; }
+.carte-export .segment button { min-height: 40px; font-size: 14px; }
+
 </style>
 <script>
 /* =============================================================================
@@ -1268,12 +1278,14 @@ div.ligne-reglage, label.ligne-reglage { cursor: default; }
       case 'historique': {
         const heures = (d.heures >= 1 && d.heures <= 400) ? d.heures : 24;
         const maxi   = (d.max >= 1 && d.max <= 200) ? d.max : 120;
-        const depuis = Math.floor(Date.now() / 1000) - heures * 3600;
-        const dans   = s.historique.filter(p => p[0] >= depuis);
+        const decalage = (d.decalage >= 0 && d.decalage <= 400) ? Math.floor(d.decalage) : 0;
+        const fin    = Math.floor(Date.now() / 1000) - decalage * 3600;
+        const depuis = fin - heures * 3600;
+        const dans   = s.historique.filter(p => p[0] >= depuis && p[0] < fin);
         const pasEch = dans.length > maxi ? Math.ceil(dans.length / maxi) : 1;
         return rep(true, {
           format: ['epoch', 't1', 'consigne1', 't2', 'consigne2'],
-          unite: 'centiemes de degre', pas: pasEch, heures,
+          unite: 'centiemes de degre', pas: pasEch, heures, decalage,
           points: dans.filter((_, i) => i % pasEch === 0).slice(0, maxi)
         });
       }
@@ -1460,8 +1472,10 @@ div.ligne-reglage, label.ligne-reglage { cursor: default; }
           s.zones.map(z => z.nom + ' : ' + z.temp.toFixed(1) + ' C (consigne ' + consigne(z).toFixed(1) + ' C), ' + (z.defaut ? 'defaut ' + z.defaut : 'sans defaut')).join('\n') });
       case 'jours': {
         const n = Math.max(1, Math.min(30, d.n || 7));
+        const depuis = Math.max(0, Math.min(400, d.depuis || 0));
+        const TOTAL = 75;
         const jours = [];
-        for (let i = 0; i < n; i++) {
+        for (let i = depuis; i < Math.min(depuis + n, TOTAL); i++) {
           const date = new Date(Date.now() - (i + 1) * 86400000).toISOString().slice(0, 10);
           jours.push({ date, zones: s.zones.map((z, k) => {
             const h = 4.5 + ((i * 7 + k * 3) % 10) / 4;
@@ -1475,7 +1489,7 @@ div.ligne-reglage, label.ligne-reglage { cursor: default; }
           const h = (4.5 + k * 0.75) * fraction;
           return { heures: +h.toFixed(2), kWh: +(h * 0.02).toFixed(3), euros: +(h * 0.02 * f1(s).g.prixKwh).toFixed(3) };
         });
-        return rep(true, { jours: { prixKwh: f1(s).g.prixKwh, jours, aujourdhui } });
+        return rep(true, { jours: Object.assign({ prixKwh: f1(s).g.prixKwh, total: TOTAL, depuis, jours }, depuis ? {} : { aujourdhui }) });
       }
       case 'journal':
         return rep(true, { texte: f1(s).journal.join('\n') });
@@ -1858,6 +1872,22 @@ window.TEXTES_EN = {
     trInefficaceDelta: 'heating without effect, gap', trChuteSeuil: 'sudden drop', trChuteSecondes: 'sudden drop within',
     trSoleil: 'follow the sun', trSoleilDecalage: 'offset from the sun', trRapport: 'daily report', trRapportHeure: 'report time',
     trOui: 'yes', trNon: 'no',
+    exTitre: 'Exports', exCarnet: 'Monthly logbook', exCarnetAide: 'PDF · curves, alerts, consumption', exMoisCourant: '{m}, in progress',
+    exCreerPdf: 'Create the PDF', exCreation: 'Creating the logbook…', exPdfPret: '{m} logbook ready · {n} pages', exPartager: 'Share', exEnregistrer: 'Save',
+    exMesures: 'All readings', exMesuresFines: 'CSV · one line every 5 min', exMesuresJour: 'CSV · one line per day (base summaries)',
+    ex30: '30 days', exAn: 'One year', exExporterCsv: 'Export the CSV', exLecture: 'Reading the readings… {p} %', exCsvPret: '{n} lines ready',
+    exSocle: 'Base', exLienCourbes: 'PDF logbook and exports', exAucunSocle: 'No base registered.', exErreur: 'Export interrupted: {m}',
+    exMuet: '“{n}” is not answering: its readings cannot be read.', exSansMesure: 'No reading over this period.',
+    cnTitre: '{m} logbook', cnPeriode: '{n} · {m} 1–{j}{c}', cnEnCours: ' (in progress)', cnCree: 'Created on {d}',
+    cnTemperatures: 'Temperatures: min {a} · average {b} · max {c}', cnConsignes: 'Current targets: day {j} · night {n} · cut-off {m}',
+    cnChauffe: 'Heating: {h} h · {k} kWh', cnChauffeEuros: 'Heating: {h} h · {k} kWh · {e}', cnDefauts: 'Days with a fault: {n}',
+    cnTotal: 'Consumption this month: {k} kWh', cnTotalEuros: 'Consumption this month: {k} kWh · {e}', cnJoursReleves: 'Days summarised: {n} of {t}',
+    cnAucunResume: 'No summary for this month: the base keeps them for a year, from the day it was put into service.',
+    cnCourbes: 'Temperatures, day by day', cnCourbesAide: 'Band: from the day\'s minimum to its maximum; line: the average; dotted: the current targets.',
+    cnConso: 'Consumption, day by day', cnConsoAide: 'Energy of the mats, in kWh; the current day is shown lighter.', cnKwh: 'kWh',
+    cnJournal: 'Alerts and events', cnJournalVide: 'No alert this month in the base\'s log.',
+    cnJournalDepuis: 'The base\'s log goes back to {d}: anything earlier is no longer in it.', cnTableau: 'Day by day',
+    cnDate: 'Date', cnMin: 'min', cnMoy: 'avg', cnMax: 'max', cnHeures: 'Heating', cnDefautsCourt: 'Faults', cnPied: 'Terrariums · {n} · {m}', cnPage: 'page {p} / {t}',
   page: {
     'connexion-titre': 'Connection',
     'connexion-aide': 'These details come from your MQTT provider. They stay on this device and are sent to nobody but the broker.',
@@ -2799,7 +2829,25 @@ const App = (() => {
       trRampe: 'rampe', trDeriveSeuil: 'alerte de dérive', trDeriveMin: 'dérive tolérée', trInefficaceMin: 'chauffe sans effet après',
       trInefficaceDelta: 'chauffe sans effet, écart', trChuteSeuil: 'chute brutale', trChuteSecondes: 'chute brutale en',
       trSoleil: 'au rythme du soleil', trSoleilDecalage: 'décalage sur le soleil', trRapport: 'rapport quotidien', trRapportHeure: 'heure du rapport',
-      trOui: 'oui', trNon: 'non'
+      trOui: 'oui', trNon: 'non',
+      // carnet PDF et mesures CSV (F16, F17)
+      exTitre: 'Exports', exCarnet: 'Carnet du mois', exCarnetAide: 'PDF · courbes, alertes, consommation', exMoisCourant: '{m}, en cours',
+      exCreerPdf: 'Créer le PDF', exCreation: 'Création du carnet…', exPdfPret: 'Carnet {m} prêt · {n} pages', exPartager: 'Partager', exEnregistrer: 'Enregistrer',
+      exMesures: 'Toutes les mesures', exMesuresFines: 'CSV · une ligne toutes les 5 min', exMesuresJour: 'CSV · une ligne par jour (résumés du socle)',
+      ex30: '30 jours', exAn: 'Un an', exExporterCsv: 'Exporter le CSV', exLecture: 'Lecture des mesures… {p} %', exCsvPret: '{n} lignes prêtes',
+      exSocle: 'Socle', exLienCourbes: 'Carnet PDF et exports', exAucunSocle: 'Aucun socle enregistré.', exErreur: 'Export interrompu : {m}',
+      exMuet: '« {n} » ne répond pas : ses mesures ne peuvent pas être lues.', exSansMesure: 'Aucune mesure sur cette période.',
+      // contenu du carnet
+      cnTitre: 'Carnet {m}', cnPeriode: '{n} · du 1er au {j} {m}{c}', cnEnCours: ' (en cours)', cnCree: 'Créé le {d}',
+      cnTemperatures: 'Températures : min {a} · moyenne {b} · max {c}', cnConsignes: 'Consignes actuelles : jour {j} · nuit {n} · coupure {m}',
+      cnChauffe: 'Chauffe : {h} h · {k} kWh', cnChauffeEuros: 'Chauffe : {h} h · {k} kWh · {e}', cnDefauts: 'Jours avec un défaut : {n}',
+      cnTotal: 'Consommation du mois : {k} kWh', cnTotalEuros: 'Consommation du mois : {k} kWh · {e}', cnJoursReleves: 'Jours résumés : {n} sur {t}',
+      cnAucunResume: 'Aucun résumé pour ce mois : le socle les garde un an, à partir de sa mise en service.',
+      cnCourbes: 'Températures, jour par jour', cnCourbesAide: 'Bande : du minimum au maximum de la journée ; trait : la moyenne ; pointillés : les consignes actuelles.',
+      cnConso: 'Consommation, jour par jour', cnConsoAide: 'Énergie des tapis, en kWh ; la journée en cours est en clair.', cnKwh: 'kWh',
+      cnJournal: 'Alertes et événements', cnJournalVide: 'Aucune alerte ce mois-ci dans le journal du socle.',
+      cnJournalDepuis: 'Le journal du socle remonte au {d} : ce qui précède n\'y est plus.', cnTableau: 'Jour par jour',
+      cnDate: 'Date', cnMin: 'min', cnMoy: 'moy.', cnMax: 'max', cnHeures: 'Chauffe', cnDefautsCourt: 'Défauts', cnPied: 'Terrariums · {n} · {m}', cnPage: 'page {p} / {t}'
     }
   };
 
@@ -2862,7 +2910,7 @@ const App = (() => {
   let vueCourante = 'broker';
   let demarre = false;              // demarrer() a déjà tout branché
   let pageReglages = 'menu';        // Réglages de l'application : menu, ou une de PAGES_REGLAGES
-  const PAGES_REGLAGES = ['organiser', 'transfert'];
+  const PAGES_REGLAGES = ['organiser', 'transfert', 'exports'];
   let socleOuvert = null;
   let panneauActif = 'etat';        // etat (accueil) ou la feuille ouverte : zone, reglages, programme…
   let etapeAccueil = 'bienvenue';   // écran sans broker : bienvenue, connexion, compte ou chezMoi
@@ -4225,6 +4273,7 @@ const App = (() => {
         <div class="ligne-reglage"><span class="lib" id="lib-theme">${t('theme')}</span>
           <div class="segment trois" role="group" aria-labelledby="lib-theme">${seg('clair', 'themeClair')}${seg('sombre', 'themeSombre')}${seg('auto', 'themeAuto')}</div></div>`)}
       ${sectionRg('rg-donnees', t('rgDonnees'), ligneRg('data-action="reglagesApp" data-page="transfert"', t('lienTransfert'))
+        + ligneRg('data-action="reglagesApp" data-page="exports"', t('lienExports'))
         + ligneRg('data-action="exporterConfig"', t('exporterConfigLib')) + ligneRg('data-action="importerConfig"', t('importerConfigLib')))}
       ${sectionRg('rg-connexion', t('rgConnexion'), `<div class="ligne-reglage"><span class="lib">${t('serveurLib')}<small id="broker-hote"></small></span>
           <button type="button" class="btn btn-secondaire btn-petit" data-action="oublierBroker">${t('changerServeur')}</button></div>`)}
@@ -4617,17 +4666,449 @@ const App = (() => {
     invalider();
   }
 
+  // --- Lecture par pages (firmware 3.5) ------------------------------------
+  // Résumés journaliers, du plus récent au plus ancien, jusqu'à la date voulue
+  // (AAAA-MM-JJ). Un socle plus ancien ne connaît pas « depuis » : une page.
+  async function lireJours(id, jusquAu) {
+    const jours = [];
+    let depuis = 0, prixKwh = 0, aujourdhui = null;
+    for (let page = 0; page < 20; page++) {
+      const r = await commander(id, 'jours', { n: 30, depuis });
+      const j = (r && r.jours) || {};
+      if (!page) { prixKwh = j.prixKwh || 0; aujourdhui = j.aujourdhui || null; }
+      const lot = Array.isArray(j.jours) ? j.jours : [];
+      jours.push(...lot);
+      if (!lot.length || j.depuis === undefined) break;
+      depuis += lot.length;
+      if ((j.total !== undefined && depuis >= j.total) || lot[lot.length - 1].date <= jusquAu) break;
+    }
+    return { jours, prixKwh, aujourdhui };
+  }
+  // Mesures fines (un point toutes les 5 min) sur « jours » jours : le serveur
+  // Terrariums s'il est là (un an d'historique), sinon le socle (quatorze jours
+  // de points à la minute, lus par fenêtres de 15 h) complété par
+  // l'historique noté par l'application.
+  async function lireMesures(id, jours, progres) {
+    const jusqua = Math.floor(Date.now() / 1000), depuis = jusqua - jours * 86400;
+    const parCase = new Map();
+    const noter = pts => (pts || []).forEach(q => { if (q && q[0] >= depuis) { const k = Math.floor(q[0] / 300); if (!parCase.has(k)) parCase.set(k, q); } });
+    if (serveur.actif()) {
+      const pas = 300, lot = 5000 * pas;
+      for (let debut = depuis; debut < jusqua; debut += lot) {
+        noter(await serveur.historique(id, debut, Math.min(jusqua, debut + lot), pas));
+        progres((debut + lot - depuis) / (jusqua - depuis));
+      }
+    } else {
+      const heures = Math.min(jours, 14) * 24;
+      for (let decalage = 0; decalage < heures; decalage += 15) {
+        const r = await commander(id, 'historique', { heures: 15, max: 180, decalage });
+        noter(r && r.points);
+        progres((decalage + 15) / heures);
+        if (!r || r.decalage === undefined || !(r.points || []).length) break;
+      }
+      if (hist.disponible()) noter(await hist.lire(id, depuis));
+    }
+    return [...parCase.values()].sort((a, b) => a[0] - b[0]);
+  }
+
+  // --- Un écrivain PDF minimal : polices de base (Helvetica, codage WinAnsi),
+  // textes, traits et rectangles ; coordonnées en points depuis le haut à
+  // gauche d'une page A4 (595 × 842). Aucune bibliothèque.
+  const LARGEURS_PDF = ['278 278 355 556 556 889 667 191 333 333 389 584 278 333 278 278 556 556 556 556 556 556 556 556 556 556 278 278 584 584 584 556 1015 667 667 722 722 667 611 778 722 278 500 667 556 833 722 778 667 778 722 667 611 722 667 944 667 667 611 278 278 278 469 556 333 556 556 500 556 556 278 556 556 222 222 500 222 833 556 556 556 556 333 500 278 556 500 722 500 500 500 334 260 334 584',
+    '278 333 474 556 556 889 722 238 333 333 389 584 278 333 278 278 556 556 556 556 556 556 556 556 556 556 333 333 584 584 584 611 975 722 722 722 722 667 611 778 722 278 556 722 611 833 722 778 667 778 722 667 611 722 667 944 667 667 611 333 278 333 584 556 333 556 611 556 611 556 333 611 611 278 278 556 278 889 611 611 611 611 389 556 333 611 556 778 556 556 500 389 280 389 584']
+    .map(x => x.split(' ').map(Number));
+  const WINANSI = { '€': 0x80, '‚': 0x82, '„': 0x84, '…': 0x85, 'Œ': 0x8c, '‘': 0x91, '’': 0x92, '“': 0x93, '”': 0x94, '•': 0x95, '–': 0x96, '—': 0x97,
+    '™': 0x99, 'œ': 0x9c, 'Ÿ': 0x9f, '\u202f': 0xa0 };
+  const SPECIAUX_PDF = { '°': [400, 400], '€': [556, 556], '«': [556, 556], '»': [556, 556], '’': [222, 278], '‘': [222, 278], '“': [333, 500],
+    '”': [333, 500], '…': [1000, 1000], '–': [556, 556], '—': [1000, 1000], '•': [350, 350], '\u00a0': [278, 278], '\u202f': [278, 278],
+    '×': [584, 584], '±': [584, 584], 'œ': [944, 944], 'Œ': [1000, 1000], 'æ': [889, 889], 'ß': [611, 611], '·': [278, 278] };
+  function largeurPdf(chaine, taille, gras) {
+    let l = 0;
+    for (const c of String(chaine)) {
+      const code = c.charCodeAt(0);
+      if (code >= 32 && code <= 126) l += LARGEURS_PDF[gras ? 1 : 0][code - 32];
+      else if (SPECIAUX_PDF[c]) l += SPECIAUX_PDF[c][gras ? 1 : 0];
+      else { const b = c.normalize('NFD')[0]; const cb = b.charCodeAt(0); l += cb >= 32 && cb <= 126 ? LARGEURS_PDF[gras ? 1 : 0][cb - 32] : 556; }
+    }
+    return l * taille / 1000;
+  }
+  function chainePdf(chaine) {
+    let r = '';
+    for (const c of String(chaine)) {
+      const code = c.codePointAt(0);
+      const o = code < 128 || (code >= 0xa0 && code <= 0xff) ? code : WINANSI[c];
+      if (o === undefined) { r += '?'; continue; }
+      const x = String.fromCharCode(o);
+      r += x === '(' || x === ')' || x === '\\' ? '\\' + x : (o < 32 ? ' ' : x);
+    }
+    return r;
+  }
+  function ecrivainPdf() {
+    const pages = [];
+    let ops = null;
+    const n = v => String(Math.round(v * 100) / 100);
+    const y_ = y => 842 - y;
+    const rvb = c => c.map(v => n(v / 255)).join(' ');
+    return {
+      page() { ops = []; pages.push(ops); },
+      nombrePages: () => pages.length,
+      surPage(i) { ops = pages[i]; },
+      texte(x, y, chaine, o = {}) {
+        const taille = o.taille || 10, gras = !!o.gras;
+        const l = largeurPdf(chaine, taille, gras);
+        const xx = o.align === 'droite' ? x - l : o.align === 'centre' ? x - l / 2 : x;
+        ops.push(`BT /${gras ? 'F2' : 'F1'} ${n(taille)} Tf ${rvb(o.couleur || [18, 19, 21])} rg ${n(xx)} ${n(y_(y))} Td (${chainePdf(chaine)}) Tj ET`);
+      },
+      // Un paragraphe coupé aux espaces ; rend la hauteur occupée.
+      paragraphe(x, y, chaine, largeur, o = {}) {
+        const taille = o.taille || 10, gras = !!o.gras, interligne = taille * 1.35;
+        let ligne = '', yy = y;
+        String(chaine).split(' ').forEach(mot => {
+          const essai = ligne ? ligne + ' ' + mot : mot;
+          if (ligne && largeurPdf(essai, taille, gras) > largeur) { this.texte(x, yy, ligne, o); yy += interligne; ligne = mot; } else ligne = essai;
+        });
+        if (ligne) { this.texte(x, yy, ligne, o); yy += interligne; }
+        return yy - y;
+      },
+      trait(points, o = {}) {
+        ops.push(`${n(o.epaisseur || 1)} w ${rvb(o.couleur || [18, 19, 21])} RG ${o.tirets ? `[${o.tirets.join(' ')}] 0 d` : '[] 0 d'} `
+          + points.map((p, i) => `${n(p[0])} ${n(y_(p[1]))} ${i ? 'l' : 'm'}`).join(' ') + ' S');
+      },
+      rect(x, y, l, h, couleur) { ops.push(`${rvb(couleur)} rg ${n(x)} ${n(y_(y + h))} ${n(l)} ${n(h)} re f`); },
+      fin(titre) {
+        const objets = [null, null, null, null, null];
+        const kids = [];
+        pages.forEach(o => {
+          const flux = '1 J 1 j\n' + o.join('\n');
+          objets.push(`<< /Length ${flux.length} >>\nstream\n${flux}\nendstream`);
+          objets.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${objets.length} 0 R >>`);
+          kids.push(objets.length);
+        });
+        const d = new Date(), z = v => String(v).padStart(2, '0');
+        objets[0] = '<< /Type /Catalog /Pages 2 0 R >>';
+        objets[1] = `<< /Type /Pages /Kids [${kids.map(k => k + ' 0 R').join(' ')}] /Count ${kids.length} >>`;
+        objets[2] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+        objets[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
+        objets[4] = `<< /Title (${chainePdf(titre)}) /Producer (Terrariums) /CreationDate (D:${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}) >>`;
+        let sortie = '%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n';
+        const positions = objets.map((o, i) => { const p = sortie.length; sortie += `${i + 1} 0 obj\n${o}\nendobj\n`; return p; });
+        const xref = sortie.length;
+        sortie += `xref\n0 ${objets.length + 1}\n0000000000 65535 f \n` + positions.map(p => String(p).padStart(10, '0') + ' 00000 n \n').join('')
+          + `trailer\n<< /Size ${objets.length + 1} /Root 1 0 R /Info 5 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+        const octets = new Uint8Array(sortie.length);
+        for (let i = 0; i < sortie.length; i++) octets[i] = sortie.charCodeAt(i) & 0xff;
+        return octets;
+      }
+    };
+  }
+
+  // --- Le carnet du mois (F16) : résumé, températures jour par jour,
+  // consommation, alertes du journal, tableau. Tiré des résumés journaliers
+  // du socle (un an), du journal et des réglages du moment.
+  const COULEURS_CN = { texte: [18, 19, 21], gris: [95, 99, 104], clair: [230, 230, 227], z: [[224, 102, 28], [47, 111, 219]], zDoux: [[248, 214, 191], [205, 220, 246]] };
+  const moisDe = (decalage) => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - decalage); return d; };
+  const cleMois = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const nomMois = (d, annee) => d.toLocaleDateString(langue === 'en' ? 'en-GB' : 'fr-FR', annee ? { month: 'long', year: 'numeric' } : { month: 'long' });
+  // « de novembre 2026 », « d'octobre » ; en anglais, le nom seul.
+  function deMois(d, annee) {
+    const nom = nomMois(d, annee);
+    if (langue === 'en') return nom.charAt(0).toUpperCase() + nom.slice(1);
+    return (/^[aeiouyàâéèêîôû]/i.test(nom) ? 'd\u2019' : 'de ') + nom;
+  }
+  const nombreFr = (v, dec) => (langue === 'en' ? Number(v).toFixed(dec) : Number(v).toFixed(dec).replace('.', ','));
+  async function construireCarnet(id, decalageMois) {
+    const s = socle(id) || { nom: id }, e = etats[id] || { zones: [] };
+    const debutMois = moisDe(decalageMois), cle = cleMois(debutMois);
+    const enCours = decalageMois === 0;
+    const dernierJour = enCours ? new Date().getDate() : new Date(debutMois.getFullYear(), debutMois.getMonth() + 1, 0).getDate();
+    const { jours, prixKwh, aujourdhui } = await lireJours(id, cle + '-01');
+    const duMois = jours.filter(j => j && typeof j.date === 'string' && j.date.startsWith(cle)).sort((a, b) => (a.date < b.date ? -1 : 1));
+    let journal = [];
+    try { journal = lireJournal((await commander(id, 'journal')).texte || '', e.zones || []); } catch (err) { /* journal illisible : la page le dit */ }
+    const zonesNoms = [0, 1].map(k => (e.zones && e.zones[k] && e.zones[k].nom) || t('zoneN', { n: k + 1 }));
+    const pdf = ecrivainPdf(), C = COULEURS_CN, G = 48, D = 547;
+    const titreDoc = t('cnTitre', { m: deMois(debutMois, true) });
+    const euro = v => (langue === 'en' ? '€' + nombreFr(v, 2) : nombreFr(v, 2) + ' €');
+    const deg1 = v => (v === null || v === undefined || isNaN(v) ? '—' : nombreFr(v, 1) + '°');
+    const parJour = {};
+    duMois.forEach(j => { parJour[+j.date.slice(8, 10)] = j; });
+    const somme = (k, cleV) => duMois.reduce((a, j) => a + ((j.zones[k] && +j.zones[k][cleV]) || 0), 0);
+    const auj = enCours && Array.isArray(aujourdhui) ? aujourdhui : null;
+
+    // Page 1 : le résumé.
+    pdf.page();
+    pdf.texte(G, 72, titreDoc.charAt(0).toUpperCase() + titreDoc.slice(1), { taille: 24, gras: true });
+    pdf.texte(G, 98, t('cnPeriode', { n: s.nom || id, j: dernierJour, m: nomMois(debutMois, false), c: enCours ? t('cnEnCours') : '' }), { taille: 12, couleur: C.gris });
+    pdf.texte(G, 116, t('cnCree', { d: new Date().toLocaleString(langue === 'en' ? 'en-GB' : 'fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }), { taille: 9, couleur: C.gris });
+    let y = 156;
+    if (!duMois.length) { y += pdf.paragraphe(G, y, t('cnAucunResume'), D - G, { taille: 11, couleur: C.gris }) + 10; }
+    let kwhTotal = 0, eurosTotal = 0;
+    [0, 1].forEach(k => {
+      const z = (e.zones || [])[k] || {};
+      const mins = duMois.map(j => j.zones[k] && j.zones[k].min).filter(v => typeof v === 'number');
+      const maxs = duMois.map(j => j.zones[k] && j.zones[k].max).filter(v => typeof v === 'number');
+      const moys = duMois.map(j => j.zones[k] && j.zones[k].moyenne).filter(v => typeof v === 'number');
+      const h = somme(k, 'heures') + (auj && auj[k] ? +auj[k].heures || 0 : 0);
+      const kwh = somme(k, 'kWh') + (auj && auj[k] ? +auj[k].kWh || 0 : 0);
+      const eu = somme(k, 'euros') + (auj && auj[k] ? +auj[k].euros || 0 : 0);
+      kwhTotal += kwh; eurosTotal += eu;
+      pdf.rect(G, y - 9, 8, 8, C.z[k]);
+      pdf.texte(G + 16, y, zonesNoms[k], { taille: 14, gras: true });
+      y += 22;
+      pdf.texte(G + 16, y, t('cnTemperatures', { a: mins.length ? deg1(Math.min(...mins)) : '—', b: moys.length ? deg1(moys.reduce((a, v) => a + v, 0) / moys.length) : '—',
+        c: maxs.length ? deg1(Math.max(...maxs)) : '—' }), { taille: 11 });
+      y += 17;
+      pdf.texte(G + 16, y, t('cnConsignes', { j: deg1(z.jour), n: deg1(z.nuit), m: deg1(z.max) }), { taille: 11 });
+      y += 17;
+      pdf.texte(G + 16, y, prixKwh > 0 ? t('cnChauffeEuros', { h: nombreFr(h, 0), k: nombreFr(kwh, 2), e: euro(eu) }) : t('cnChauffe', { h: nombreFr(h, 0), k: nombreFr(kwh, 2) }), { taille: 11 });
+      y += 17;
+      pdf.texte(G + 16, y, t('cnDefauts', { n: duMois.filter(j => j.zones[k] && j.zones[k].defauts > 0).length }), { taille: 11 });
+      y += 34;
+    });
+    pdf.trait([[G, y - 14], [D, y - 14]], { couleur: C.clair });
+    pdf.texte(G, y + 4, prixKwh > 0 ? t('cnTotalEuros', { k: nombreFr(kwhTotal, 2), e: euro(eurosTotal) }) : t('cnTotal', { k: nombreFr(kwhTotal, 2) }), { taille: 12, gras: true });
+    pdf.texte(G, y + 24, t('cnJoursReleves', { n: duMois.length, t: enCours ? Math.max(0, dernierJour - 1) : dernierJour }), { taille: 11, couleur: C.gris });
+
+    // Page 2 : les températures, une courbe par zone.
+    pdf.page();
+    pdf.texte(G, 72, t('cnCourbes'), { taille: 18, gras: true });
+    pdf.paragraphe(G, 94, t('cnCourbesAide'), D - G, { taille: 9, couleur: C.gris });
+    [0, 1].forEach(k => {
+      const haut = 140 + k * 330, bas = haut + 250, gauche = G + 34;
+      const z = (e.zones || [])[k] || {};
+      const valeurs = duMois.flatMap(j => j.zones[k] ? [j.zones[k].min, j.zones[k].max] : []).concat([z.jour, z.nuit]).filter(v => typeof v === 'number');
+      let mini = valeurs.length ? Math.floor(Math.min(...valeurs) - 1) : 15, maxi = valeurs.length ? Math.ceil(Math.max(...valeurs) + 1) : 35;
+      if (maxi - mini < 4) { maxi += 2; mini -= 2; }
+      const yv = v => bas - (v - mini) / (maxi - mini) * (bas - haut);
+      const largeurJour = (D - gauche) / dernierJour, xj = j => gauche + (j - 0.5) * largeurJour;
+      pdf.rect(G - 2, haut - 24, 8, 8, C.z[k]);
+      pdf.texte(G + 12, haut - 16, zonesNoms[k], { taille: 12, gras: true });
+      const pasY = maxi - mini > 12 ? 4 : 2;
+      for (let v = Math.ceil(mini / pasY) * pasY; v <= maxi; v += pasY) {
+        pdf.trait([[gauche, yv(v)], [D, yv(v)]], { couleur: C.clair, epaisseur: 0.5 });
+        pdf.texte(gauche - 6, yv(v) + 3, nombreFr(v, 0) + '°', { taille: 8, couleur: C.gris, align: 'droite' });
+      }
+      for (let j = 1; j <= dernierJour; j++) {
+        if (j === 1 || j % 5 === 0) pdf.texte(xj(j), bas + 14, String(j), { taille: 8, couleur: C.gris, align: 'centre' });
+        const r = parJour[j] && parJour[j].zones[k];
+        if (r && typeof r.min === 'number' && typeof r.max === 'number') pdf.rect(xj(j) - largeurJour * 0.3, yv(r.max), largeurJour * 0.6, Math.max(1, yv(r.min) - yv(r.max)), C.zDoux[k]);
+      }
+      const moyennes = [];
+      for (let j = 1; j <= dernierJour; j++) { const r = parJour[j] && parJour[j].zones[k]; if (r && typeof r.moyenne === 'number') moyennes.push([xj(j), yv(r.moyenne)]); }
+      if (moyennes.length > 1) pdf.trait(moyennes, { couleur: C.z[k], epaisseur: 1.6 });
+      moyennes.forEach(p => pdf.rect(p[0] - 1.5, p[1] - 1.5, 3, 3, C.z[k]));
+      [z.jour, z.nuit].forEach((c, i) => {
+        if (typeof c !== 'number') return;
+        pdf.trait([[gauche, yv(c)], [D, yv(c)]], { couleur: C.gris, epaisseur: 0.6, tirets: [3, 3] });
+        pdf.texte(D, yv(c) - 3, (i ? t('trNuit') : t('trJour')) + ' ' + deg1(c), { taille: 7, couleur: C.gris, align: 'droite' });
+      });
+      pdf.trait([[gauche, bas], [D, bas]], { couleur: C.gris, epaisseur: 0.6 });
+    });
+
+    // Page 3 : la consommation.
+    pdf.page();
+    pdf.texte(G, 72, t('cnConso'), { taille: 18, gras: true });
+    pdf.paragraphe(G, 94, t('cnConsoAide'), D - G, { taille: 9, couleur: C.gris });
+    {
+      const haut = 140, bas = 470, gauche = G + 34;
+      const kwhJour = j => { const r = parJour[j]; return r ? r.zones.map(z => (z && +z.kWh) || 0) : null; };
+      const valeurs = [];
+      for (let j = 1; j <= dernierJour; j++) { const v = kwhJour(j); if (v) valeurs.push(v[0] + v[1]); }
+      const aujK = auj ? auj.map(z => (z && +z.kWh) || 0) : null;
+      if (aujK) valeurs.push(aujK[0] + aujK[1]);
+      const maxi = Math.max(0.05, ...valeurs) * 1.15;
+      const yv = v => bas - v / maxi * (bas - haut);
+      const largeurJour = (D - gauche) / dernierJour;
+      const pasY = maxi > 2 ? 0.5 : maxi > 0.6 ? 0.2 : 0.05;
+      for (let v = 0; v <= maxi; v += pasY) {
+        pdf.trait([[gauche, yv(v)], [D, yv(v)]], { couleur: C.clair, epaisseur: 0.5 });
+        pdf.texte(gauche - 6, yv(v) + 3, nombreFr(v, pasY < 0.1 ? 2 : 1), { taille: 8, couleur: C.gris, align: 'droite' });
+      }
+      pdf.texte(gauche - 6, haut - 12, t('cnKwh'), { taille: 8, couleur: C.gris, align: 'droite' });
+      for (let j = 1; j <= dernierJour; j++) {
+        const v = enCours && j === dernierJour ? aujK : kwhJour(j);
+        const x = gauche + (j - 1) * largeurJour + largeurJour * 0.18, l = largeurJour * 0.64;
+        if (v) {
+          const doux = enCours && j === dernierJour;
+          pdf.rect(x, yv(v[0]), l, bas - yv(v[0]), doux ? C.zDoux[0] : C.z[0]);
+          pdf.rect(x, yv(v[0] + v[1]), l, yv(v[0]) - yv(v[0] + v[1]), doux ? C.zDoux[1] : C.z[1]);
+        }
+        if (j === 1 || j % 5 === 0) pdf.texte(gauche + (j - 0.5) * largeurJour, bas + 14, String(j), { taille: 8, couleur: C.gris, align: 'centre' });
+      }
+      pdf.trait([[gauche, bas], [D, bas]], { couleur: C.gris, epaisseur: 0.6 });
+      [0, 1].forEach(k => { pdf.rect(G + k * 180, bas + 36, 8, 8, C.z[k]); pdf.texte(G + 14 + k * 180, bas + 44, zonesNoms[k], { taille: 10 }); });
+      pdf.texte(G, bas + 74, prixKwh > 0 ? t('cnTotalEuros', { k: nombreFr(kwhTotal, 2), e: euro(eurosTotal) }) : t('cnTotal', { k: nombreFr(kwhTotal, 2) }), { taille: 12, gras: true });
+    }
+
+    // Page 4 : les alertes du journal, sur une ou plusieurs pages.
+    const alertes = journal.filter(x => x.jour && x.jour.startsWith(cle) && (x.cat === 'alertes' || x.ton === 'urgent'));
+    const plusAncien = journal.filter(x => x.jour).map(x => x.jour).sort()[0];
+    pdf.page();
+    pdf.texte(G, 72, t('cnJournal'), { taille: 18, gras: true });
+    y = 100;
+    if (plusAncien && plusAncien > cle + '-01') {
+      const [pa, pm, pj] = plusAncien.split('-').map(Number);
+      const quand = new Date(pa, pm - 1, pj).toLocaleDateString(langue === 'en' ? 'en-GB' : 'fr-FR', { day: 'numeric', month: 'long' });
+      y += pdf.paragraphe(G, y, t('cnJournalDepuis', { d: quand }), D - G, { taille: 9, couleur: C.gris }) + 6;
+    }
+    if (!alertes.length) pdf.texte(G, y + 10, t('cnJournalVide'), { taille: 11, couleur: C.gris });
+    alertes.slice().reverse().forEach(a => {
+      if (y > 780) { pdf.page(); pdf.texte(G, 72, t('cnJournal'), { taille: 18, gras: true }); y = 100; }
+      const [aa, mo, jj] = a.jour.split('-').map(Number);
+      pdf.texte(G, y + 10, new Date(aa, mo - 1, jj).toLocaleDateString(langue === 'en' ? 'en-GB' : 'fr-FR', { day: 'numeric', month: 'short' }) + ' ' + a.heure, { taille: 9, couleur: C.gris });
+      pdf.rect(G + 86, y + 3, 6, 6, a.ton === 'urgent' ? [180, 35, 24] : a.ton === 'bon' ? [30, 127, 79] : [154, 74, 7]);
+      pdf.texte(G + 100, y + 10, a.titre, { taille: 10, gras: true });
+      y += 16;
+      if (a.detail) y += pdf.paragraphe(G + 100, y + 10, a.detail, D - G - 100, { taille: 9, couleur: C.gris });
+      y += 8;
+    });
+
+    // Dernière page : le tableau jour par jour.
+    pdf.page();
+    pdf.texte(G, 72, t('cnTableau'), { taille: 18, gras: true });
+    {
+      const cols = [G, G + 92, G + 132, G + 172, G + 222, G + 262, G + 302, G + 372, G + 432];
+      y = 104;
+      pdf.texte(cols[1], y - 14, zonesNoms[0], { taille: 8, gras: true, couleur: C.z[0] });
+      pdf.texte(cols[4], y - 14, zonesNoms[1], { taille: 8, gras: true, couleur: C.z[1] });
+      [t('cnDate'), t('cnMin'), t('cnMoy'), t('cnMax'), t('cnMin'), t('cnMoy'), t('cnMax'), t('cnHeures'), t('cnKwh')].forEach((x, i) => pdf.texte(cols[i], y, x, { taille: 8, gras: true, couleur: C.gris }));
+      pdf.texte(D, y, t('cnDefautsCourt'), { taille: 8, gras: true, couleur: C.gris, align: 'droite' });
+      y += 8;
+      for (let j = 1; j <= dernierJour; j++) {
+        y += 20;
+        pdf.trait([[G, y - 14], [D, y - 14]], { couleur: C.clair, epaisseur: 0.5 });
+        const r = parJour[j];
+        pdf.texte(cols[0], y, new Date(debutMois.getFullYear(), debutMois.getMonth(), j).toLocaleDateString(langue === 'en' ? 'en-GB' : 'fr-FR', { weekday: 'short', day: 'numeric' }), { taille: 9 });
+        if (!r) { pdf.texte(cols[1], y, '—', { taille: 9, couleur: C.gris }); continue; }
+        const z0 = r.zones[0] || {}, z1 = r.zones[1] || {};
+        [z0.min, z0.moyenne, z0.max, z1.min, z1.moyenne, z1.max].forEach((v, i) => pdf.texte(cols[i + 1], y, deg1(v), { taille: 9 }));
+        const h = (+z0.heures || 0) + (+z1.heures || 0), k = (+z0.kWh || 0) + (+z1.kWh || 0), dfs = (+z0.defauts || 0) + (+z1.defauts || 0);
+        pdf.texte(cols[7], y, nombreFr(h, 1) + ' h', { taille: 9 });
+        pdf.texte(cols[8], y, nombreFr(k, 2), { taille: 9 });
+        pdf.texte(D, y, String(dfs), { taille: 9, align: 'droite', gras: dfs > 0, couleur: dfs > 0 ? [180, 35, 24] : C.texte });
+      }
+    }
+
+    // Pied de chaque page.
+    const total = pdf.nombrePages();
+    for (let i = 0; i < total; i++) {
+      pdf.surPage(i);
+      pdf.trait([[G, 800], [D, 800]], { couleur: C.clair, epaisseur: 0.5 });
+      pdf.texte(G, 814, t('cnPied', { n: s.nom || id, m: nomMois(debutMois, true) }), { taille: 8, couleur: C.gris });
+      pdf.texte(D, 814, t('cnPage', { p: i + 1, t: total }), { taille: 8, couleur: C.gris, align: 'droite' });
+    }
+    const nomFichier = `carnet-${String(s.nom || id).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || id}-${cle}.pdf`;
+    return { octets: pdf.fin(titreDoc), pages: total, nom: nomFichier, mois: deMois(debutMois, false) };
+  }
+
+  // --- La page Exports (F16, F17) ------------------------------------------
+  /** @type {{id: string|null, mois: string, periode: number, pdf: any, csv: any, travail: string|null, progres: number, erreur: string}} */
+  const ex = { id: null, mois: '0', periode: 30, pdf: null, csv: null, travail: null, progres: 0, erreur: '' };
+  const partagePossible = () => typeof navigator !== 'undefined' && typeof navigator.canShare === 'function' && typeof File === 'function';
+  function structureExports() {
+    const seg = (action, attribut, valeur, lib) => `<button type="button" data-action="${action}" data-${attribut}="${valeur}" aria-pressed="false">${lib}</button>`;
+    return `<label class="ligne-reglage choix-export" for="ex-socle"><span class="lib">${t('exSocle')}</span><select id="ex-socle"></select></label>
+      <section class="carte carte-export" aria-labelledby="ex-titre-pdf">
+        <div class="tete-export"><span class="pastille-export" aria-hidden="true">${icone('i-journal')}</span><span><h3 id="ex-titre-pdf">${t('exCarnet')}</h3><small>${t('exCarnetAide')}</small></span></div>
+        <div class="segment" role="group" aria-label="${attr(t('exCarnet'))}">${seg('exMois', 'mois', '0', esc(t('exMoisCourant', { m: majuscule(nomMois(moisDe(0), false)) })))}${seg('exMois', 'mois', '1', esc(majuscule(nomMois(moisDe(1), false))))}</div>
+        <div aria-live="polite" data-r="pdf"></div>
+      </section>
+      <section class="carte carte-export" aria-labelledby="ex-titre-csv">
+        <div class="tete-export"><span class="pastille-export" aria-hidden="true">${icone('i-courbes')}</span><span><h3 id="ex-titre-csv">${t('exMesures')}</h3><small data-r="aide-csv"></small></span></div>
+        <div class="segment" role="group" aria-label="${attr(t('exMesures'))}">${seg('exPeriode', 'periode', '30', t('ex30'))}${seg('exPeriode', 'periode', '365', t('exAn'))}</div>
+        <div aria-live="polite" data-r="csv"></div>
+      </section>`;
+  }
+  function patcherExports() {
+    const r = k => $(`#reglages [data-r="${k}"]`);
+    const ids = config.socles.map(x => x.id);
+    if (!ex.id || !ids.includes(ex.id)) ex.id = ids[0] || null;
+    peindre($('#ex-socle'), config.socles.map(x => `<option value="${attr(x.id)}"${x.id === ex.id ? ' selected' : ''}>${esc(x.nom || x.id)}</option>`).join(''));
+    const choix = $('#reglages .choix-export');
+    if (choix) choix.hidden = config.socles.length < 2;
+    doc.querySelectorAll('#reglages [data-action="exMois"]').forEach(b => b.setAttribute('aria-pressed', String(b.getAttribute('data-mois') === ex.mois)));
+    doc.querySelectorAll('#reglages [data-action="exPeriode"]').forEach(b => b.setAttribute('aria-pressed', String(+b.getAttribute('data-periode') === ex.periode)));
+    texte(r('aide-csv'), serveur.actif() || ex.periode === 30 ? t('exMesuresFines') : t('exMesuresJour'));
+    const pret = (quoi, lib) => `<div class="bandeau-fait"><span>${esc(lib)}</span><button type="button" class="btn btn-petit" data-action="exPartager" data-quoi="${quoi}">${partagePossible() ? t('exPartager') : t('exEnregistrer')}</button></div>`;
+    const bouton = (action, lib, principal) => `<button type="button" class="btn btn-plein${principal ? '' : ' btn-secondaire'}" data-action="${action}"${ex.travail || !ex.id ? ' disabled' : ''}>${lib}</button>`;
+    const erreur = ex.erreur ? `<p class="aide">${esc(ex.erreur)}</p>` : '';
+    peindre(r('pdf'), !ex.id ? `<p class="aide">${t('exAucunSocle')}</p>`
+      : ex.pdf ? pret('pdf', t('exPdfPret', { m: ex.pdf.mois, n: ex.pdf.pages }))
+      : ex.travail === 'pdf' ? `<button type="button" class="btn btn-plein" disabled>${t('exCreation')}</button>` : bouton('exPdf', t('exCreerPdf'), true) + (ex.travail ? '' : erreur));
+    peindre(r('csv'), !ex.id ? ''
+      : ex.csv ? pret('csv', t('exCsvPret', { n: ex.csv.lignes.toLocaleString(langue === 'en' ? 'en-GB' : 'fr-FR') }))
+      : ex.travail === 'csv' ? `<button type="button" class="btn btn-plein btn-secondaire" disabled>${t('exLecture', { p: Math.round(ex.progres * 100) })}</button>` : bouton('exCsv', t('exExporterCsv'), false));
+  }
+  async function creerCarnetPdf() {
+    const id = ex.id;
+    if (!id || ex.travail) return;
+    ex.travail = 'pdf'; ex.erreur = ''; invalider();
+    try { ex.pdf = await construireCarnet(id, +ex.mois); }
+    catch (e) { ex.erreur = e && e.delai ? t('exMuet', { n: (socle(id) || {}).nom || id }) : t('exErreur', { m: e.message }); }
+    ex.travail = null;
+    invalider();
+  }
+  async function exporterMesuresCsv() {
+    const id = ex.id;
+    if (!id || ex.travail) return;
+    ex.travail = 'csv'; ex.progres = 0; ex.erreur = ''; invalider();
+    const s = socle(id) || { nom: id };
+    const nom = String(s.nom || id).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || id;
+    try {
+      const f = v => (v === null || v === undefined) ? '' : (v / 100).toFixed(2);
+      const g = v => (v === null || v === undefined || isNaN(v)) ? '' : String(v);
+      const date = q => { const d = new Date(q * 1000), z = v => String(v).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`; };
+      let lignes;
+      if (ex.periode === 30 || serveur.actif()) {
+        const points = await lireMesures(id, ex.periode, p => { ex.progres = Math.min(1, p); invalider(); });
+        if (!points.length) throw new Error(t('exSansMesure'));
+        lignes = ['epoch,date,zone1_temp,zone1_consigne,zone2_temp,zone2_consigne'].concat(points.map(q => [q[0], date(q[0]), f(q[1]), f(q[2]), f(q[3]), f(q[4])].join(',')));
+      } else {
+        // Un an sans serveur : les résumés journaliers du socle.
+        const depuis = new Date(Date.now() - 365 * 86400000);
+        const { jours } = await lireJours(id, depuis.toISOString().slice(0, 10));
+        if (!jours.length) throw new Error(t('exSansMesure'));
+        lignes = ['date,zone1_min,zone1_moyenne,zone1_max,zone1_heures,zone1_kwh,zone1_defauts,zone2_min,zone2_moyenne,zone2_max,zone2_heures,zone2_kwh,zone2_defauts,euros']
+          .concat(jours.slice().sort((a, b) => (a.date < b.date ? -1 : 1)).map(j => {
+            const z = k => j.zones[k] || {};
+            return [j.date, g(z(0).min), g(z(0).moyenne), g(z(0).max), g(z(0).heures), g(z(0).kWh), g(z(0).defauts),
+              g(z(1).min), g(z(1).moyenne), g(z(1).max), g(z(1).heures), g(z(1).kWh), g(z(1).defauts), g(Math.round(((+z(0).euros || 0) + (+z(1).euros || 0)) * 1000) / 1000)].join(',');
+          }));
+      }
+      ex.csv = { nom: `mesures-${nom}-${ex.periode === 30 ? '30j' : '1an'}.csv`, octets: new TextEncoder().encode(lignes.join('\n') + '\n'), lignes: lignes.length - 1 };
+    } catch (e) { ex.erreur = e && e.delai ? t('exMuet', { n: s.nom || id }) : t('exErreur', { m: e.message }); }
+    ex.travail = null;
+    invalider();
+  }
+  // Partager (feuille du téléphone) quand le navigateur sait passer un
+  // fichier ; sinon l'enregistrer. Le partage exige un geste : d'où ce bouton.
+  async function partagerExport(quoi) {
+    const f = quoi === 'pdf' ? ex.pdf : ex.csv;
+    if (!f) return;
+    const type = quoi === 'pdf' ? 'application/pdf' : 'text/csv';
+    if (partagePossible()) {
+      const fichier = new File([f.octets], f.nom, { type });
+      if (navigator.canShare({ files: [fichier] })) {
+        try { await navigator.share({ files: [fichier], title: f.nom }); return; }
+        catch (e) { if (e && e.name === 'AbortError') return; }
+      }
+    }
+    telecharger(f.nom, f.octets, type);
+  }
+
   function dessinerReglages() {
     const racine = $('#reglages');
     if (!racine) return;
     const cle = pageReglages + '|' + langue;
     if (racine.dataset.page !== cle) {
       racine.dataset.page = cle;
-      texte($('#titre-reglages'), t({ organiser: 'orgTitre', transfert: 'trTitre' }[pageReglages] || 'reglagesTitre'));
-      html(racine, pageReglages === 'organiser' ? structureOrganiser() : pageReglages === 'transfert' ? structureTransfert() : structureMenuReglages());
+      texte($('#titre-reglages'), t({ organiser: 'orgTitre', transfert: 'trTitre', exports: 'exTitre' }[pageReglages] || 'reglagesTitre'));
+      html(racine, pageReglages === 'organiser' ? structureOrganiser() : pageReglages === 'transfert' ? structureTransfert()
+        : pageReglages === 'exports' ? structureExports() : structureMenuReglages());
     }
     if (pageReglages === 'organiser') patcherOrganiser();
     else if (pageReglages === 'transfert') patcherTransfert();
+    else if (pageReglages === 'exports') patcherExports();
     else patcherMenuReglages();
   }
 
@@ -5176,7 +5657,8 @@ const App = (() => {
         `<span><i data-zone="${i}"></i>${esc((zones[i] && zones[i].nom) || t('zoneN', { n: i + 1 }))}</span>`).join('')}</div>
       <div class="aide" id="legendeCourbe"></div>
       <div data-r="minmax"></div>
-      <div class="boutons"><button type="button" class="btn btn-secondaire btn-petit" data-action="exporterCsv">${t('exporterCsv')}</button></div>
+      <div class="boutons"><button type="button" class="btn btn-secondaire btn-petit" data-action="exporterCsv">${t('exporterCsv')}</button>
+        <button type="button" class="btn btn-secondaire btn-petit" data-action="reglagesApp" data-page="exports" data-socle="${attr(socleOuvert)}">${t('exLienCourbes')}</button></div>
       <p class="aide">${hist.disponible() ? t('aideHistorique') : t('aideHistoriqueCourt')} ${t('zoomAide')}</p>
     </section>`;
   }
@@ -5685,7 +6167,14 @@ const App = (() => {
         case 'ouvrir':            api.ouvrir(d.id); break;
         case 'montrer':           if (d.vue === 'liste' && vueCourante === 'socle' && panneauActif === 'etat') remonter(); else montrer(d.vue); break;
         case 'remonter':          remonter(); break;
-        case 'reglagesApp':       if (d.de && socle(d.de)) { tr.de = d.de; tr.vers = null; tr.applique = null; tr.message = ''; } api.reglagesApp(d.page || 'menu'); break;
+        case 'reglagesApp':       if (d.de && socle(d.de)) { tr.de = d.de; tr.vers = null; tr.applique = null; tr.message = ''; }
+                                  if (d.socle && socle(d.socle) && ex.id !== d.socle) { ex.id = d.socle; ex.pdf = null; ex.csv = null; ex.erreur = ''; }
+                                  api.reglagesApp(d.page || 'menu'); break;
+        case 'exMois':            if (ex.mois !== d.mois) { ex.mois = d.mois; ex.pdf = null; ex.erreur = ''; invalider(); } break;
+        case 'exPeriode':         if (ex.periode !== +d.periode) { ex.periode = +d.periode; ex.csv = null; ex.erreur = ''; invalider(); } break;
+        case 'exPdf':             creerCarnetPdf(); break;
+        case 'exCsv':             exporterMesuresCsv(); break;
+        case 'exPartager':        partagerExport(d.quoi); break;
         case 'trAppliquer':       appliquerTransfert(); break;
         case 'trAnnuler':         annulerTransfert(); break;
         case 'trExporter':        exporterReglagesFichier(); break;
@@ -5781,6 +6270,7 @@ const App = (() => {
       if (el.classList && el.classList.contains('champ-groupe')) { api.renommerGroupe(el.dataset.groupe, el.value); return; }
       if (el.dataset && el.dataset.orgCase) { if (el.checked) orgSelection.add(el.dataset.orgCase); else orgSelection.delete(el.dataset.orgCase); return; }
       if (el.dataset && el.dataset.trCat) { tr.cats[el.dataset.trCat] = el.checked; tr.message = ''; invalider(); return; }
+      if (el.id === 'ex-socle') { ex.id = el.value; ex.pdf = null; ex.csv = null; ex.erreur = ''; invalider(); return; }
       if (el.id === 'tr-de' || el.id === 'tr-vers') {
         if (el.id === 'tr-de') tr.de = el.value; else { tr.vers = el.value; tr.applique = null; }
         tr.message = ''; invalider(); return;

@@ -65,8 +65,13 @@ int main() {
   VERIFIE(contient(s.derniere(), "\"heures\":48") && contient(s.derniere(), "\"n\":50"),
           "historique transmet heures et max");
   cmd(s, "{\"req\":\"5\",\"action\":\"historique\",\"heures\":-3,\"max\":100000}");
-  VERIFIE(contient(s.derniere(), "\"heures\":24") && contient(s.derniere(), "\"n\":120"),
+  VERIFIE(contient(s.derniere(), "\"heures\":24") && contient(s.derniere(), "\"n\":120") &&
+              contient(s.derniere(), "\"decalage\":0"),
           "historique : bornes absurdes ramenées aux valeurs par défaut");
+  cmd(s, "{\"req\":\"5b\",\"action\":\"historique\",\"heures\":15,\"max\":180,\"decalage\":30}");
+  VERIFIE(contient(s.derniere(), "\"decalage\":30"), "historique : fenêtre plus ancienne (decalage)");
+  cmd(s, "{\"req\":\"5c\",\"action\":\"historique\",\"decalage\":9999}");
+  VERIFIE(contient(s.derniere(), "\"decalage\":0"), "historique : decalage absurde ramené à 0");
 
   // --- jeton --------------------------------------------------------------
   s.vider();
@@ -395,7 +400,10 @@ int main() {
     c("\"req\":\"f12\",\"action\":\"rapport\",\"envoyer\":true");
     VERIFIE(s.actions.back() == "envoyerRapport", "rapport : envoi immédiat");
     c("\"req\":\"f13\",\"action\":\"jours\",\"n\":5000");
-    VERIFIE(contient(s.derniere(), "\"n\":400"), "jours : nombre borné");
+    VERIFIE(contient(s.derniere(), "\"n\":400") && contient(s.derniere(), "\"depuis\":0"),
+            "jours : nombre borné");
+    c("\"req\":\"f13b\",\"action\":\"jours\",\"n\":30,\"depuis\":30");
+    VERIFIE(contient(s.derniere(), "\"depuis\":30"), "jours : page suivante (depuis)");
     c("\"req\":\"f14\",\"action\":\"journal\"");
     VERIFIE(contient(s.derniere(), "Demarrage"), "journal : la fin du journal");
     c("\"req\":\"f15\",\"action\":\"sauvegarde\"");

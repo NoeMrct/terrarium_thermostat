@@ -280,12 +280,14 @@ const FAUX_MQTT = `
       case 'historique': {
         const heures = (d.heures >= 1 && d.heures <= 400) ? d.heures : 24;
         const maxi   = (d.max >= 1 && d.max <= 200) ? d.max : 120;
-        const depuis = Math.floor(Date.now() / 1000) - heures * 3600;
-        const dans   = s.historique.filter(p => p[0] >= depuis);
+        const decalage = (d.decalage >= 0 && d.decalage <= 400) ? Math.floor(d.decalage) : 0;
+        const fin    = Math.floor(Date.now() / 1000) - decalage * 3600;
+        const depuis = fin - heures * 3600;
+        const dans   = s.historique.filter(p => p[0] >= depuis && p[0] < fin);
         const pasEch = dans.length > maxi ? Math.ceil(dans.length / maxi) : 1;
         return rep(true, {
           format: ['epoch', 't1', 'consigne1', 't2', 'consigne2'],
-          unite: 'centiemes de degre', pas: pasEch, heures,
+          unite: 'centiemes de degre', pas: pasEch, heures, decalage,
           points: dans.filter((_, i) => i % pasEch === 0).slice(0, maxi)
         });
       }
@@ -472,8 +474,10 @@ const FAUX_MQTT = `
           s.zones.map(z => z.nom + ' : ' + z.temp.toFixed(1) + ' C (consigne ' + consigne(z).toFixed(1) + ' C), ' + (z.defaut ? 'defaut ' + z.defaut : 'sans defaut')).join('\\n') });
       case 'jours': {
         const n = Math.max(1, Math.min(30, d.n || 7));
+        const depuis = Math.max(0, Math.min(400, d.depuis || 0));
+        const TOTAL = 75;
         const jours = [];
-        for (let i = 0; i < n; i++) {
+        for (let i = depuis; i < Math.min(depuis + n, TOTAL); i++) {
           const date = new Date(Date.now() - (i + 1) * 86400000).toISOString().slice(0, 10);
           jours.push({ date, zones: s.zones.map((z, k) => {
             const h = 4.5 + ((i * 7 + k * 3) % 10) / 4;
@@ -487,7 +491,7 @@ const FAUX_MQTT = `
           const h = (4.5 + k * 0.75) * fraction;
           return { heures: +h.toFixed(2), kWh: +(h * 0.02).toFixed(3), euros: +(h * 0.02 * f1(s).g.prixKwh).toFixed(3) };
         });
-        return rep(true, { jours: { prixKwh: f1(s).g.prixKwh, jours, aujourdhui } });
+        return rep(true, { jours: Object.assign({ prixKwh: f1(s).g.prixKwh, total: TOTAL, depuis, jours }, depuis ? {} : { aujourdhui }) });
       }
       case 'journal':
         return rep(true, { texte: f1(s).journal.join('\\n') });

@@ -47,6 +47,11 @@ const ECRANS = [
   ['organiser', () => { App.reglagesApp('organiser'); const c = document.querySelector('#org-compacte'); c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); }],
   ['liste compacte', () => App.montrer('liste')],
   ['copier des réglages', async () => { App.reglagesApp('transfert'); await new Promise(r => setTimeout(r, 1200)); }],
+  ['exports', async () => {
+    App.reglagesApp('exports');
+    document.querySelector('[data-action="exPdf"]').click();
+    for (let i = 0; i < 60 && !document.querySelector('[data-action="exPartager"]'); i++) await new Promise(r => setTimeout(r, 100));
+  }],
   ['appareil', () => { App.reglagesApp('organiser'); const c = document.querySelector('#org-compacte'); c.checked = false; c.dispatchEvent(new Event('change', { bubbles: true })); App.ouvrir('terraDEMO002'); App.panneau('general'); }],
   ['service', () => App.panneau('service')],
   ['mises à jour', async () => { App.panneau('maj'); await new Promise(r => setTimeout(r, 1500)); }],

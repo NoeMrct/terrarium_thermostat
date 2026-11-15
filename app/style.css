@@ -988,3 +988,13 @@ div.ligne-reglage, label.ligne-reglage { cursor: default; }
 .bandeau-fait { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 0 8px 0 16px; border-radius: 28px; background: var(--accent-doux); color: var(--ok-texte); font-size: 14px; font-weight: 600; }
 .bandeau-fait > span { flex: 1; }
 .bandeau-fait .btn { background: var(--fond); color: var(--texte); }
+
+/* Exports : carnet PDF et mesures CSV (F16, F17). */
+.choix-export { width: calc(100% + 32px); margin-inline: -16px; border-bottom: 1px solid var(--ligne); }
+.carte-export { display: flex; flex-direction: column; gap: 12px; }
+.tete-export { display: flex; align-items: center; gap: 12px; }
+.tete-export > span:last-child { display: flex; flex-direction: column; gap: 2px; }
+.tete-export h3 { font-size: 17px; font-weight: 600; color: var(--texte); }
+.tete-export small { font-size: 13px; color: var(--texte-2); }
+.pastille-export { width: 44px; height: 44px; flex: none; border-radius: 12px; background: var(--creux); display: flex; align-items: center; justify-content: center; }
+.carte-export .segment button { min-height: 40px; font-size: 14px; }

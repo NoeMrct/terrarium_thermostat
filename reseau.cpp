@@ -2150,22 +2150,28 @@ public:
 
   void corpsStats(char *out, size_t taille) override { copier(out, taille, ::corpsStats()); }
 
-  void corpsHistorique(uint32_t heures, uint16_t maxi, char *out, size_t taille) override {
+  void corpsHistorique(uint32_t heures, uint16_t maxi, uint32_t decalage, char *out, size_t taille) override {
+    // Un point par minute : la fenêtre [fin - heures, fin[, fin reculée de
+    // « decalage » heures depuis le plus récent.
     const uint32_t total = Stockage::histNombre();
+    const uint32_t recul = decalage * 60;
+    const uint32_t fin = (total > recul) ? total - recul : 0;
     const uint32_t voulus = heures * 60;
-    const uint32_t debut = (total > voulus) ? total - voulus : 0;
-    const uint32_t dispo = total - debut;
+    const uint32_t debut = (fin > voulus) ? fin - voulus : 0;
+    const uint32_t dispo = fin - debut;
     const uint32_t pas = (dispo > maxi) ? (dispo / maxi) : 1;
     CtxHistMqtt c;
     c.n = 0;
-    c.maxi = maxi;
+    // Jamais au-delà de la fenêtre : au plus dispo / pas points depuis son début.
+    const uint32_t dansFenetre = (dispo + pas - 1) / pas;
+    c.maxi = (uint16_t)(dansFenetre < maxi ? dansFenetre : maxi);
     // Marge sous la taille du tampon MQTT pour l'enveloppe de la réponse.
     c.limite = 6500;
     c.bloc.reserve(1600);
     Stockage::histParcourir(debut, pas, visiteHistMqtt, &c);
     String d = "\"format\":[\"epoch\",\"t1\",\"consigne1\",\"t2\",\"consigne2\"]";
     d += ",\"unite\":\"centiemes de degre\"";
-    d += ",\"pas\":" + String(pas) + ",\"heures\":" + String(heures);
+    d += ",\"pas\":" + String(pas) + ",\"heures\":" + String(heures) + ",\"decalage\":" + String(decalage);
     d += ",\"n\":" + String(c.n);
     d += ",\"points\":[" + c.bloc + "]";
     copier(out, taille, d);
@@ -2305,11 +2311,11 @@ public:
   bool calibrer(char *message, size_t taille) override { return Essai::calibrer(message, taille); }
   void corpsRapport(char *out, size_t taille) override { texte("texte", Taches::rapport(), out, taille); }
   void envoyerRapport() override { Taches::envoyerRapport(); }
-  void corpsJours(uint16_t n, char *out, size_t taille) override {
+  void corpsJours(uint16_t n, uint16_t depuis, char *out, size_t taille) override {
     const size_t cle = 9;  // "jours":
     copier(out, taille,
-           "\"jours\":" +
-               Taches::joursJson(n > Stockage::JOURS_MAX ? Stockage::JOURS_MAX : n, taille - cle - 1));
+           "\"jours\":" + Taches::joursJson(n > Stockage::JOURS_MAX ? Stockage::JOURS_MAX : n,
+                                            taille - cle - 1, depuis));
   }
   // La fin du journal seulement : la réponse doit tenir dans un message MQTT.
   void corpsJournal(char *out, size_t taille) override {

@@ -9,7 +9,7 @@ const js = require('./outils/node_modules/@eslint/js');
 const navigateur = {
   window: 'readonly', document: 'readonly', navigator: 'readonly', location: 'readonly', history: 'readonly',
   localStorage: 'readonly', sessionStorage: 'readonly', indexedDB: 'readonly', IDBKeyRange: 'readonly',
-  fetch: 'readonly', Blob: 'readonly', URL: 'readonly', FileReader: 'readonly', WebSocket: 'readonly',
+  fetch: 'readonly', Blob: 'readonly', File: 'readonly', URL: 'readonly', FileReader: 'readonly', WebSocket: 'readonly',
   TextEncoder: 'readonly', TextDecoder: 'readonly', Notification: 'readonly', ResizeObserver: 'readonly',
   requestAnimationFrame: 'readonly', getComputedStyle: 'readonly', setTimeout: 'readonly', clearTimeout: 'readonly',
   setInterval: 'readonly', clearInterval: 'readonly', console: 'readonly', caches: 'readonly', self: 'readonly',

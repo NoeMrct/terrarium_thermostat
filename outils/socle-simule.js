@@ -406,13 +406,15 @@ client.on('message', (sujet, charge) => {
     case 'historique': {
       const heures = (d.heures >= 1 && d.heures <= 400) ? d.heures : 24;
       const maxi   = (d.max >= 1 && d.max <= 200) ? d.max : 120;
-      const depuis = Math.floor(Date.now() / 1000) - heures * 3600;
-      const dans   = socle.historique.filter(p => p[0] >= depuis);
+      const decalage = (d.decalage >= 0 && d.decalage <= 400) ? Math.floor(d.decalage) : 0;   // 3.5 : fenêtre plus ancienne
+      const fin    = Math.floor(Date.now() / 1000) - decalage * 3600;
+      const depuis = fin - heures * 3600;
+      const dans   = socle.historique.filter(p => p[0] >= depuis && p[0] < fin);
       const pasEch = dans.length > maxi ? Math.ceil(dans.length / maxi) : 1;
       const points = dans.filter((_, i) => i % pasEch === 0).slice(0, maxi);
       return repondre(d.req, true, {
         format: ['epoch', 't1', 'consigne1', 't2', 'consigne2'],
-        unite: 'centiemes de degre', pas: pasEch, heures, n: points.length, points
+        unite: 'centiemes de degre', pas: pasEch, heures, decalage, n: points.length, points
       });
     }
 
@@ -651,15 +653,21 @@ client.on('message', (sujet, charge) => {
       });
     case 'jours': {
       const n = Math.max(1, Math.min(400, Number.isInteger(d.n) ? d.n : 7));
+      const depuis = Math.max(0, Math.min(400, Number.isInteger(d.depuis) ? d.depuis : 0));   // 3.5 : par pages
+      const TOTAL = 75;                       // deux mois et demi de résumés
       const jours = [];
-      for (let i = 0; i < Math.min(n, 30); i++) {
+      // Un message en tient une trentaine, comme sur le socle.
+      for (let i = depuis; i < Math.min(depuis + Math.min(n, 30), TOTAL); i++) {
         const date = new Date(Date.now() - (i + 1) * 86400000).toISOString().slice(0, 10);
-        jours.push({ date, zones: socle.zones.map(z => ({ min: z.temp - 1, max: z.temp + 1, moyenne: z.temp, heures: 5.2, kWh: 0.104, euros: 0.026, defauts: 0 })) });
+        const v = ((i * 37) % 11) / 10;       // un peu de relief, reproductible
+        jours.push({ date, zones: socle.zones.map((z, k) => ({ min: +(z.consigneNuit - 1.2 - v).toFixed(2), max: +(z.consigneJour + 0.4 + v / 2).toFixed(2),
+          moyenne: +((z.consigneJour + z.consigneNuit) / 2 + v / 3).toFixed(2), heures: +(5.2 + v - k).toFixed(2), kWh: +(0.104 + v / 50).toFixed(3),
+          euros: +((0.104 + v / 50) * (socle.globaux.prixKwh || 0)).toFixed(3), defauts: i === 9 && k === 1 ? 1 : 0 })) });
       }
       // La journée en cours, depuis minuit, comme le firmware.
       const fraction = (Date.now() - new Date().setHours(0, 0, 0, 0)) / 86400000;
       const aujourdhui = socle.zones.map(() => ({ heures: +(5.2 * fraction).toFixed(2), kWh: +(0.104 * fraction).toFixed(3), euros: +(0.026 * fraction).toFixed(3) }));
-      return repondre(d.req, true, { jours: { prixKwh: socle.globaux.prixKwh, jours, aujourdhui } });
+      return repondre(d.req, true, { jours: Object.assign({ prixKwh: socle.globaux.prixKwh, total: TOTAL, depuis, jours }, depuis ? {} : { aujourdhui }) });
     }
     case 'journal':
       return repondre(d.req, true, { texte: socle.journal.join('\n').slice(-5000) });

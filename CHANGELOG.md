@@ -31,6 +31,19 @@ jour.
   **vue compacte** de la liste (une ligne par socle : état, nom, deux
   températures) et **actions groupées** (entretien 30 min, lever les défauts)
   sur les socles cochés, avec le compte de ceux qui ont confirmé.
+- **Exports** (F16, F17, `#/reglages/exports`, aussi depuis les Courbes) :
+  le **carnet du mois** en PDF (en cours ou le précédent) — résumé par zone
+  (températures, consignes, chauffe, coût, jours en défaut), courbes jour par
+  jour (min-max, moyenne, consignes), consommation, alertes du journal et
+  tableau jour par jour —, écrit dans la page par un générateur PDF sans
+  bibliothèque ; et **toutes les mesures** en CSV : 30 jours à 5 minutes, ou
+  un an (à 5 minutes avec le serveur Terrariums, sinon un résumé par jour).
+  Partage par la feuille du téléphone quand le navigateur sait passer un
+  fichier, sinon enregistrement.
+- Firmware : `jours` se lit par pages (`depuis`, la réponse donne `total`) et
+  `historique` par fenêtres plus anciennes (`decalage`, en heures) : un mois
+  de résumés ou quatorze jours de mesures fines passent le broker message par
+  message.
 - **Copier des réglages** (U18, U19, `#/reglages/transfert`) : d'un socle à
   l'autre, ou depuis un fichier, par familles (consignes et coupure,
   horaires et rampe, alertes et rapport). Un aperçu avant/après ne montre que

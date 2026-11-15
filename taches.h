@@ -26,9 +26,10 @@ void boucle(uint32_t maintenant);
 String rapport();       // texte du rapport quotidien, à la demande
 void envoyerRapport();  // tout de suite, vers les alertes et le sujet MQTT « rapport »
 
-// Résumés journaliers, du plus récent au plus ancien ; maxOctets (0 : sans
-// limite) borne le JSON, en jours entiers.
-String joursJson(uint16_t n, size_t maxOctets = 0);
+// Résumés journaliers, du plus récent au plus ancien, les « depuis » plus
+// récents sautés ; maxOctets (0 : sans limite) borne le JSON, en jours
+// entiers. « total » dit combien il en existe, pour lire par pages.
+String joursJson(uint16_t n, size_t maxOctets = 0, uint16_t depuis = 0);
 String joursTexte(uint16_t n);  // idem, pour la console
 
 float kwh(uint32_t secondes);    // énergie des tapis pour ce temps de chauffe

@@ -253,12 +253,14 @@ void envoyerRapport() {
   g_baseDepuisRapport = true;
 }
 
-String joursJson(uint16_t n, size_t maxOctets) {
+String joursJson(uint16_t n, size_t maxOctets, uint16_t depuis) {
   const uint16_t total = Stockage::joursNombre();
-  if (n > total) n = total;
-  String j = "{\"prixKwh\":" + String(Stockage::globaux().prixKwh, 4) + ",\"jours\":[";
+  if (depuis > total) depuis = total;
+  if (n > total - depuis) n = total - depuis;
+  String j = "{\"prixKwh\":" + String(Stockage::globaux().prixKwh, 4) + ",\"total\":" + String(total) +
+             ",\"depuis\":" + String(depuis) + ",\"jours\":[";
   ResumeJour r, avant;
-  for (uint16_t i = 0; i < n; i++) {
+  for (uint16_t i = depuis; i < depuis + n; i++) {
     if (!Stockage::joursLire(i, r)) break;
     const bool precedent = Stockage::joursLire(i + 1, avant);
     // Le résumé est écrit juste après minuit : la journée résumée est la veille.
@@ -287,13 +289,14 @@ String joursJson(uint16_t n, size_t maxOctets) {
     // sur le socle (la page locale, elle, n'a pas de limite). La journée en
     // cours, ajoutée après, a sa place réservée.
     if (maxOctets && j.length() + jour.length() + 3 + 180 > maxOctets) break;
-    if (i) j += ",";
+    if (i > depuis) j += ",";
     j += jour;
   }
   j += "]";
   // La journée en cours : la chauffe depuis le dernier résumé (minuit),
-  // quand il existe et que le cumul n'a pas été remis à zéro depuis.
-  if (Stockage::joursLire(0, r)) {
+  // quand il existe et que le cumul n'a pas été remis à zéro depuis. Sur la
+  // première page seulement.
+  if (depuis == 0 && Stockage::joursLire(0, r)) {
     j += ",\"aujourdhui\":[";
     for (uint8_t z = 0; z < NB_ZONES; z++) {
       if (z) j += ",";

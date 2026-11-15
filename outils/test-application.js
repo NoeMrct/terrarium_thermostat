@@ -529,6 +529,52 @@ function creerApp(adressePage, avantChargement) {
              await jusqua(() => $('#vue-liste').style.display !== 'none' && w.location.hash === '#/', 2000, 30), w.location.hash);
   }
 
+  titre('13 quinquies. Exports : carnet PDF et mesures CSV (F16, F17)');
+  {
+    // Les fichiers produits sont interceptés au lieu d'être téléchargés.
+    const produits = [];
+    w.URL.createObjectURL = blob => { produits.push(blob); return 'blob:essai'; };
+    w.URL.revokeObjectURL = () => {};
+    const clicLien = w.HTMLAnchorElement.prototype.click;
+    w.HTMLAnchorElement.prototype.click = function () { if (!/^blob:/.test(this.href)) clicLien.call(this); };
+    const lireBlob = b => new Promise(res => { const r = new w.FileReader(); r.onload = () => res(String(r.result)); r.readAsBinaryString(b); });
+    App.ouvrir(ID);
+    App.panneau('courbes');
+    await jusqua(() => !!$('#detail [data-page="exports"]'), 4000, 50);
+    $('#detail [data-page="exports"]').click();
+    verifier('Courbes → « Carnet PDF et exports » : la page, ce socle choisi', w.location.hash === '#/reglages/exports' && $('#ex-socle').value === ID, w.location.hash);
+    $('#reglages [data-action="exPdf"]').click();
+    verifier('le carnet du mois se crée', await jusqua(() => /prêt · \d+ pages/.test(texte('#reglages [data-r="pdf"]')), 20000), texte('#reglages [data-r="pdf"]').trim());
+    $('#reglages [data-action="exPartager"][data-quoi="pdf"]').click();
+    const pdf = produits.length ? await lireBlob(produits[produits.length - 1]) : '';
+    // Chaque objet est à la position que la table xref annonce.
+    const xref = /startxref\n(\d+)\n%%EOF\n$/.exec(pdf);
+    let structure = !!xref;
+    if (xref) {
+      const table = pdf.slice(+xref[1]).split('\n');
+      const n = +table[1].split(' ')[1];
+      for (let i = 1; i < n; i++) if (!pdf.startsWith(`${i} 0 obj`, +table[2 + i].slice(0, 10))) structure = false;
+    }
+    const pages = (pdf.match(/\/Type \/Page /g) || []).length;
+    verifier('…un PDF valide : en-tête, objets aux positions de la table, fin', pdf.startsWith('%PDF-1.4') && structure && pages >= 5, `${pdf.length} octets, ${pages} pages`);
+    verifier('…au nom du socle, avec son mois', /Terrarium de test/.test(pdf) && /Carnet d/.test(pdf));
+    $('#reglages [data-action="exCsv"]').click();
+    verifier('les mesures de 30 jours s\'exportent', await jusqua(() => /lignes prêtes/.test(texte('#reglages [data-r="csv"]')), 20000), texte('#reglages [data-r="csv"]').trim());
+    $('#reglages [data-action="exPartager"][data-quoi="csv"]').click();
+    const csv = produits.length ? await lireBlob(produits[produits.length - 1]) : '';
+    const lignes = csv.trim().split('\n').slice(1);
+    const cases = new Set(lignes.map(l => Math.floor(+l.split(',')[0] / 300)));
+    verifier('…en CSV, une ligne par tranche de 5 min', csv.startsWith('epoch,date,zone1_temp,zone1_consigne') && lignes.length > 0 && cases.size === lignes.length,
+             `${lignes.length} ligne(s)`);
+    $('#reglages [data-action="exPeriode"][data-periode="365"]').click();
+    await jusqua(() => !!$('#reglages [data-action="exCsv"]'), 2000, 30);
+    $('#reglages [data-action="exCsv"]').click();
+    verifier('un an : les résumés journaliers du socle, lus par pages', await jusqua(() => /75 lignes prêtes/.test(texte('#reglages [data-r="csv"]')), 20000),
+             texte('#reglages [data-r="csv"]').trim());
+    w.HTMLAnchorElement.prototype.click = clicLien;
+    App.montrer('liste');
+  }
+
   titre('14. Retrait d\'un socle');
   App.ouvrir('terraFANTOME');
   App.retirerSocle();

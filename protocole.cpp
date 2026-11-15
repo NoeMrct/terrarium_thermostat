@@ -329,7 +329,10 @@ bool traiterDistant(Socle &socle, JsonDocument &doc, const char *req, const char
   }
   if (strcmp(action, "jours") == 0) {
     const long n = doc["n"] | 7L;  // autant que le message en tient (une trentaine)
-    socle.corpsJours((uint16_t)(n < 1 ? 1 : (n > 400 ? 400 : n)), g_corps, sizeof g_corps);
+    // Résumés plus anciens : les « depuis » plus récents sont sautés.
+    long depuis = doc["depuis"].is<long>() ? doc["depuis"].as<long>() : 0L;
+    if (depuis < 0 || depuis > 400) depuis = 0;
+    socle.corpsJours((uint16_t)(n < 1 ? 1 : (n > 400 ? 400 : n)), (uint16_t)depuis, g_corps, sizeof g_corps);
     repondre(socle, req, true, g_corps);
     return true;
   }
@@ -599,7 +602,10 @@ void traiterCommande(Socle &socle, const char *charge, size_t taille) {
     if (heures <= 0 || heures > 400) heures = 24;
     long maxi = doc["max"] | 120L;
     if (maxi <= 0 || maxi > 200) maxi = 120;
-    socle.corpsHistorique((uint32_t)heures, (uint16_t)maxi, g_corps, sizeof g_corps);
+    // Fenêtre plus ancienne, pour lire quatorze jours par pages.
+    long decalage = doc["decalage"].is<long>() ? doc["decalage"].as<long>() : 0L;
+    if (decalage < 0 || decalage > 400) decalage = 0;
+    socle.corpsHistorique((uint32_t)heures, (uint16_t)maxi, (uint32_t)decalage, g_corps, sizeof g_corps);
     repondre(socle, req, true, g_corps);
     return;
   }
