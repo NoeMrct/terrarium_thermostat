@@ -172,6 +172,9 @@ Safety, the rest in Device); in the local interface, it is
 - **online**: the base is publishing. **silent**: it is announced online but has published
   nothing for more than two minutes — check its Wi-Fi. **offline**: the broker no longer sees
   it. In every case, the base keeps regulating on its own.
+- When offline, the app shows the last temperatures received with their time ("Read at
+  14:12") and what to check; "Retry" asks the base, "Local page" opens its page on the home
+  network. Settings wait for its return; a message tells you when it is back.
 - **heating**: this zone's mat is powered right now. **demand**: what the regulation is asking
   for, from 0 to 100 %.
 - **drift**: the temperature has been moving away from the setpoint for a while without a fault

@@ -174,6 +174,9 @@ l'interface locale, c'est **Réglages → Réglages généraux** :
 - **en ligne** : le socle publie. **silencieux** : il est annoncé en ligne mais n'a rien publié
   depuis plus de deux minutes — vérifie son Wi-Fi. **hors ligne** : le broker ne le voit plus. Dans
   tous les cas, le socle continue de réguler tout seul.
+- Hors ligne, l'application montre les dernières températures reçues avec leur heure (« relevé à
+  14:12 ») et ce qu'il faut vérifier ; « Réessayer » interroge le socle, « Page locale » ouvre sa
+  page sur le réseau de la maison. Les réglages attendent son retour ; un message le signale.
 - **chauffe** : le tapis de cette zone est alimenté en ce moment. **demande** : ce que la régulation
   réclame, de 0 à 100 %.
 - **dérive** : la température s'éloigne de la consigne depuis un moment sans qu'un défaut soit

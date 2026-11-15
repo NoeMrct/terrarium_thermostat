@@ -34,7 +34,16 @@ const ECRANS = [
   ['courbes', () => App.panneau('courbes')],
   ['consommation', () => App.panneau('conso')],
   ['journal', () => App.panneau('journal')],
-  ['appareil', () => App.panneau('general')],
+  // Un socle qui ne répondra jamais : carte « hors ligne », rubriques grisées.
+  ['hors ligne', () => {
+    App.montrer('liste');
+    document.querySelector('#a-id').value = 'terraFANTOME';
+    document.querySelector('#a-jeton').value = 'FANTOME00000000000000001';
+    document.querySelector('#a-nom').value = 'Socle absent';
+    App.ajouterSocle();
+    App.ouvrir('terraFANTOME');
+  }],
+  ['appareil', () => { App.ouvrir('terraDEMO002'); App.panneau('general'); }],
   ['service', () => App.panneau('service')],
   ['mises à jour', async () => { App.panneau('maj'); await new Promise(r => setTimeout(r, 1500)); }],
   ['diagnostic', () => App.diagnostic()],

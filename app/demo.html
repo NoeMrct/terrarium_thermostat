@@ -259,6 +259,7 @@ p.aide { margin-top: 10px; }
 .ligne-etat span { display: inline-block; }
 .ligne-etat span::first-letter { text-transform: uppercase; }
 .ligne-etat.centre { justify-content: center; margin: 0; }
+.ligne-etat.eteint::before { background: var(--texte-3); }
 
 /* ----------------------------------------------------------------- accueil d'un socle */
 .accueil > * + * { margin-top: 18px; }
@@ -266,6 +267,18 @@ p.aide { margin-top: 10px; }
 .accueil-tete .separe { margin-top: 8px; }
 .hors-ligne { background: var(--attention-doux); color: var(--attention); }
 .hors-ligne .aide { color: inherit; }
+/* Socle muet : la carte dit quoi faire, le reste passe au gris. */
+.hors-ligne h2 { font-size: 17px; font-weight: 600; line-height: 1.3; margin-bottom: 6px; }
+.etapes-hl { padding-left: 22px; margin: 12px 0 0; font-size: 14px; line-height: 1.5; }
+.etapes-hl li + li { margin-top: 6px; }
+.etapes-hl + .aide { margin-top: 12px; }
+.boutons.deux { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.boutons.deux .btn { justify-content: center; text-align: center; text-decoration: none; }
+.accueil.eteint .illustration { filter: grayscale(1); opacity: .55; }
+.zone-accueil.eteinte .grand, .zone-accueil.eteinte .sous { color: var(--texte-3); }
+.rubrique.inactive strong, .rubrique.inactive > .ico { color: var(--texte-3); }
+.rubrique.inactive:hover { background: none; }
+.rond-lib[aria-disabled="true"] { opacity: .5; }
 .illustration { display: flex; justify-content: center; }
 .illustration .ill { width: 100%; max-width: 342px; height: auto; }
 .zone-accueil {
@@ -449,6 +462,13 @@ button { font: inherit; }
 #message.visible { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
 #message .btn { background: var(--fond); color: var(--texte); min-height: 34px; padding: 6px 14px; font-size: 13.5px; margin-left: auto; }
 #message.erreur { background: var(--danger); color: var(--danger-texte); }
+/* Envoi en cours : un anneau qui tourne avant le texte (immobile si le
+   mouvement est réduit, le texte suffit). */
+#message.envoi::before {
+  content: ""; width: 16px; height: 16px; flex: none; box-sizing: border-box;
+  border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: tourne .9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { #message.envoi::before { animation: none; } }
 
 /* ----------------------------------------------------------------- scanner */
 dialog.scan {
@@ -1484,6 +1504,16 @@ window.TEXTES_EN = {
     jnlSondeAbsente: 'Probe unplugged', jnlSondeMuette: 'Probe silent: {z}', jnlSondeRevenue: 'Probe back: {z}',
     jnlRedemarrages: 'Repeated restarts', jnlCommandeRefusee: 'Command refused', jnlTentatives: 'Too many attempts on the local page',
     jnlEssai: 'Heating test', jnlIdentification: 'Probe identification',
+    hlTitre: 'The base is not answering', hlTexteMax: 'It keeps regulating on its own: schedule, targets and the safety cut-off at {m} stay active.',
+    hlTexte: 'It keeps regulating on its own: schedule, targets and the safety cut-off stay active.', hlDate: 'What you see dates from {h}.',
+    hlEtape1: 'Is the base\'s display on?', hlEtape2: 'Does the home Wi-Fi work on your phone?',
+    hlEtape3: 'Unplug the base for 10 seconds, then plug it back in.', hlPrevenu: 'You will be told as soon as it is back.',
+    hlRecherche: 'Looking for the base…', hlRechercheBouton: 'Looking…', hlToujoursRien: 'Still nothing at {h}. The base keeps heating; you will be told as soon as it is back.',
+    hlPageLocale: 'Local page', horsLigneDepuis: 'offline since {h}', releveA: 'Read at {h}', hierA: 'yesterday {h}',
+    reglableAuRetour: 'Adjustable once the base is back', socleRevenu: '{nom} is answering again.',
+    envoiEnCours: 'Sending to the base…', envoiEnAttente: 'No network · waiting to send', envoiAnnule: 'Sending cancelled.',
+    envoiReparti: 'Network is back: sending what was waiting.', socleMuet: 'The base did not answer',
+    quitterEntretien: 'Leave maintenance',
     defSonde: 'Probe', defSurchauffe: 'Overheating', defFigee: 'Frozen probe', defInefficace: 'Heating has no effect',
     coDepuis: 'Since {d}', coProjection: 'About {m} for the month, {a} for a year.', coProjectionKwh: 'About {m} kWh for the month, {a} kWh for a year.',
     coBarres: '{mois}, kWh per day', coAujourdhuiGris: 'Grey: today, in progress', coBarresLabel: 'About {k} kWh per day. Today {a} kWh at {h}.',
@@ -2299,6 +2329,7 @@ const App = (() => {
   const CLE_CONFIG = 'terrarium.config.v1';
   const CLE_LANGUE = 'terrarium.langue';
   const PROTO_APP = 4;              // version du protocole que cette application comprend (4 : signées, à distance)
+  const CLE_DERNIER = 'terrarium.dernier.v1';    // dernier état connu de chaque socle, daté (U26)
   const CLE_VERROU_MIN = 'terrarium.verrou.min';   // minutes d'inactivité avant verrouillage (0 = au lancement seulement)
   const PBKDF2_ITERATIONS = 300000; // dérivation du code de verrouillage (≈ 0,3 s sur un téléphone)
   const DELAI_COMMANDE = 8000;      // au-delà, on considère le socle injoignable
@@ -2465,6 +2496,16 @@ const App = (() => {
       effacer: 'Effacer', histEfface: 'Historique effacé.', reglagesEnregistres: 'Réglages enregistrés.',
       horaireInvalide: 'Horaire invalide : « {v} », attendu HH:MM.', enregistreZones: 'Enregistré : {n} zone(s) simultanée(s).',
       commandeAcceptee: 'Commande acceptée.',
+      hlTitre: 'Le socle ne répond plus', hlTexteMax: 'Il continue de réguler seul : programmation, consignes et coupure de sécurité à {m} restent actives.',
+      hlTexte: 'Il continue de réguler seul : programmation, consignes et coupure de sécurité restent actives.', hlDate: 'Ce que tu vois date de {h}.',
+      hlEtape1: 'L\'écran du socle est-il allumé ?', hlEtape2: 'Le Wi-Fi de la maison marche-t-il sur ton téléphone ?',
+      hlEtape3: 'Débranche le socle 10 secondes, puis rebranche-le.', hlPrevenu: 'On te prévient dès qu\'il revient.',
+      hlRecherche: 'Recherche du socle…', hlRechercheBouton: 'Recherche…', hlToujoursRien: 'Toujours rien à {h}. Le socle chauffe quand même ; on te prévient dès qu\'il revient.',
+      hlPageLocale: 'Page locale', horsLigneDepuis: 'hors ligne depuis {h}', releveA: 'Relevé à {h}', hierA: 'hier {h}',
+      reglableAuRetour: 'Réglable au retour du socle', socleRevenu: '{nom} répond de nouveau.',
+      envoiEnCours: 'Envoi au socle…', envoiEnAttente: 'Pas de réseau · envoi en attente', envoiAnnule: 'Envoi annulé.',
+      envoiReparti: 'Réseau revenu : envoi de ce qui attendait.', socleMuet: 'Le socle n\'a pas répondu',
+      quitterEntretien: 'Quitter l\'entretien',
       qrIndispo: 'Lecture de QR indisponible sur ce navigateur.', viserQr: 'Vise le QR code collé sous le socle, ou celui affiché sur son écran.',
       aucunQr: 'Aucun QR détecté.', qrNonReconnu: 'QR non reconnu.', codeLu: 'Étiquette lue.', cameraIndispo: 'Caméra indisponible : {m}',
       nouvelleVersion: 'Nouvelle version de l\'application disponible.', recharger: 'Recharger',
@@ -2684,6 +2725,7 @@ const App = (() => {
   }
 
   function sauver() {
+    if (enveloppe) { try { localStorage.removeItem(CLE_DERNIER); } catch (e) { /* stockage indisponible */ } }
     if (enveloppe && cleVerrou) {
       chiffrerConfig().then(env => { enveloppe = env; localStorage.setItem(CLE_CONFIG, JSON.stringify(env)); })
         .catch(() => message(t('sauverImpossible'), true));
@@ -2694,6 +2736,38 @@ const App = (() => {
   }
 
   const socle = id => config.socles.find(s => s.id === id);
+
+  // --- Dernier état connu (U26) : gardé sur l'appareil et daté, pour montrer
+  // un socle hors ligne (ou avant la connexion au broker) tel qu'on l'a vu en
+  // dernier. Jamais quand la configuration est chiffrée : rien de lisible ne
+  // reste en clair derrière le code.
+  const sauvesA = {};               // id -> instant de la dernière écriture
+  function garderDernierEtat(id, e) {
+    if (codeVerrouActif() || !socle(id) || !(e.zones || []).some(Boolean)) return;
+    if (sauvesA[id] && Date.now() - sauvesA[id] < 60000) return;
+    sauvesA[id] = Date.now();
+    try {
+      const tout = JSON.parse(localStorage.getItem(CLE_DERNIER) || '{}');
+      tout[id] = { t: e.derniereMaj || Date.now(), zones: e.zones };
+      localStorage.setItem(CLE_DERNIER, JSON.stringify(tout));
+    } catch (err) { /* stockage plein ou refusé */ }
+  }
+  function lireDerniersEtats() {
+    if (codeVerrouActif()) return;
+    let tout;
+    try { tout = JSON.parse(localStorage.getItem(CLE_DERNIER) || '{}'); } catch (e) { return; }
+    for (const s of config.socles) {
+      const d = tout && tout[s.id];
+      if (!d || !Array.isArray(d.zones) || typeof d.t !== 'number' || etats[s.id]) continue;
+      etats[s.id] = { enLigne: false, zones: d.zones, derniereMaj: d.t, horsLigneDepuis: d.t };
+    }
+  }
+  function oublierDernierEtat(id) {
+    try {
+      const tout = JSON.parse(localStorage.getItem(CLE_DERNIER) || '{}');
+      if (tout && tout[id]) { delete tout[id]; localStorage.setItem(CLE_DERNIER, JSON.stringify(tout)); }
+    } catch (e) { /* stockage indisponible */ }
+  }
 
   // --------------------------------------------------------- journal d'erreurs
   function noterErreur(texte) {
@@ -2906,6 +2980,7 @@ const App = (() => {
       // Un socle déjà en ligne ne republiera son état que plus tard : on le
       // demande tout de suite pour ne pas afficher une page vide.
       config.socles.forEach(s => commander(s.id, 'etat').catch(() => {}));
+      viderAttente();
     });
     client.on('reconnect', () => lien(t('reconnexion'), 'attente'));
     client.on('offline',   () => lien(t('horsLigne'), 'ko'));
@@ -2986,8 +3061,17 @@ const App = (() => {
     const e = etats[id];
 
     if (sujet.endsWith('/statut')) {
+      const enDirect = !(paquet && paquet.retain), avant = e.enLigne;
       e.enLigne = (texte === 'en ligne');
       e.statutRecu = true;
+      if (!e.enLigne) {
+        // Vu en direct : maintenant ; retenu : au mieux, la dernière mesure reçue.
+        if (enDirect && avant) { e.horsLigneDepuis = Date.now(); e.departVu = true; }
+        else if (!e.horsLigneDepuis) e.horsLigneDepuis = e.derniereMaj || null;
+      } else {
+        if (e.departVu && enDirect) message(t('socleRevenu', { nom: (socle(id) || {}).nom || id }));
+        delete e.horsLigneDepuis; delete e.departVu;
+      }
     } else if (sujet.endsWith('/sante')) {
       try { noterSante(e, JSON.parse(texte)); } catch (err) { return; }
     } else if (sujet.endsWith('/maj')) {
@@ -3008,7 +3092,9 @@ const App = (() => {
       if (!(paquet && paquet.retain)) {
         e.enLigne = true;
         e.derniereMaj = Date.now();
+        delete e.horsLigneDepuis;
         hist.noter(id, e);
+        garderDernierEtat(id, e);
       }
     } else if (sujet.endsWith('/reponse')) {
       let r; try { r = JSON.parse(texte); } catch (err) { return; }
@@ -3028,6 +3114,8 @@ const App = (() => {
         e.zones = r.zones.map((z, i) => normaliser(z, e.zones[i]));
         e.uptime = r.uptime; e.entretienS = r.entretienS; e.enLigne = true;
         e.derniereMaj = Date.now();
+        delete e.horsLigneDepuis;
+        garderDernierEtat(id, e);
         ['heure', 'zonesSimultanees', 'saison', 'alertesEnAttente']
           .forEach(k => { if (r[k] !== undefined) e[k] = r[k]; });
         if (r.sante) noterSante(e, r.sante);
@@ -3085,6 +3173,52 @@ const App = (() => {
   }
   const LECTURES = ['etat', 'stats', 'version', 'historique'];
 
+  // --- Retours d'action (U10, U40, U11) : « Envoi au socle… » tout de suite,
+  // le formulaire grisé pendant l'envoi (pas de double envoi), le message de
+  // réussite quand le socle a confirmé — pas avant —, et sinon une suite
+  // proposée : réessayer (la modification est gardée), quitter l'entretien…
+  // Sans broker, la commande attend son retour, annulable.
+  const enAttente = [];
+  async function envoyer(id, action, params, opts = {}) {
+    const f = opts.formulaire || null;
+    if (f && f.dataset.envoi) return null;              // déjà en route
+    if (!client || !client.connected) {
+      const entree = { id, action, params, opts: Object.assign({}, opts, { formulaire: null }) };
+      enAttente.push(entree);
+      message(t('envoiEnAttente'), false, {
+        libelle: t('annuler'),
+        faire: () => { const i = enAttente.indexOf(entree); if (i >= 0) enAttente.splice(i, 1); message(t('envoiAnnule')); }
+      }, 60000);
+      return null;
+    }
+    const boutons = f ? Array.from(f.querySelectorAll('button')) : [];
+    if (f) { f.dataset.envoi = '1'; boutons.forEach(b => { b.disabled = true; }); }
+    message(t('envoiEnCours'), false, undefined, DELAI_COMMANDE + 2000, 'envoi');
+    try {
+      const r = await commander(id, action, params);
+      message(opts.succes ? opts.succes(r) : t('reglagesEnregistres'));
+      return r;
+    } catch (e) {
+      if (e.delai) message(t('socleMuet'), true, { libelle: t('reessayer'), faire: () => envoyer(id, action, params, opts) }, 20000);
+      else {
+        // Le message vient du socle lui-même : il connaît ses propres limites.
+        const suite = /entretien|maintenance/i.test(e.message) && action !== 'entretien'
+          ? { libelle: t('quitterEntretien'), faire: () => envoyer(id, 'entretien', { minutes: 0 }, { succes: () => t('commandeAcceptee') }) } : undefined;
+        message(e.message, true, suite, suite ? 20000 : undefined);
+      }
+      return null;
+    } finally {
+      if (f) { delete f.dataset.envoi; boutons.forEach(b => { b.disabled = false; }); }
+    }
+  }
+  const formulaireDe = (nom, z) => /** @type {HTMLFormElement|null} */ (doc.querySelector(`form[data-form="${nom}"]${z === undefined ? '' : `[data-z="${z}"]`}`));
+  function viderAttente() {
+    if (!enAttente.length) return;
+    const lot = enAttente.splice(0);
+    message(t('envoiReparti'));
+    lot.reduce((p, x) => p.then(() => envoyer(x.id, x.action, x.params, x.opts)), Promise.resolve());
+  }
+
   // Clé HMAC dérivée du code d'appairage, importée une fois par socle.
   const clesHmac = {};
   /** @param {string} jeton @param {string} texte */
@@ -3128,6 +3262,7 @@ const App = (() => {
   function oublierSocle(id) {
     if (client && client.connected) { try { client.unsubscribe(sujets(id)); } catch (e) { /* déjà parti */ } }
     [etats, courbes, stats, generaux, alertesVues].forEach(o => { delete o[id]; });
+    oublierDernierEtat(id);
     if (serviceMod) serviceMod.oublier(id);
     config.socles = config.socles.filter(x => x.id !== id);
     sauver();
@@ -3327,10 +3462,10 @@ const App = (() => {
   // Un message passager en bas de l'écran. Avec une action (bouton), il reste
   // affiché jusqu'à ce qu'on clique — ou jusqu'à `duree` si elle est donnée,
   // ce qui sert à proposer d'annuler un geste pendant quelques secondes.
-  function message(t_, erreur = false, action, duree) {
+  function message(t_, erreur = false, action, duree, classe) {
     const el = $('#message');
     el.textContent = t_;
-    el.className = 'visible' + (erreur ? ' erreur' : '');
+    el.className = 'visible' + (erreur ? ' erreur' : '') + (classe ? ' ' + classe : '');
     clearTimeout(message.minuteur);
     if (action) {
       const b = doc.createElement('button');
@@ -3575,7 +3710,7 @@ const App = (() => {
     const zs = e.zones || [];
     const k = zs.findIndex(z => z && z.defaut);
     let c = 'ok', txt = t('toutVaBien');
-    if (!e.enLigne) { c = 'ko'; txt = t('horsLigne'); }
+    if (!e.enLigne) { c = 'eteint'; txt = e.horsLigneDepuis ? t('horsLigneDepuis', { h: heureOuJour(e.horsLigneDepuis) }) : t('horsLigne'); }
     else if (silencieux(e)) { c = 'warn'; txt = t('silencieux', { m: minutesSilence(e) }); }
     else if (k >= 0) { c = 'ko'; txt = t('defautDans', { d: esc(zs[k].defaut), z: nomZone(zs[k], k) }); }
     else if (e.entretienS > 0) { c = 'warn'; txt = t('entretienMin', { m: Math.ceil(e.entretienS / 60) }); }
@@ -3649,7 +3784,15 @@ const App = (() => {
 
   // Une zone sur l'accueil du socle : grand chiffre, cible, jauge ; un appui
   // ouvre son écran.
-  function zoneAccueil(z, i) {
+  function zoneAccueil(z, i, e) {
+    if (z && e && !e.enLigne) {
+      return `<button type="button" class="zone-accueil eteinte" data-action="zone" data-z="${i}">
+        <span class="nom" data-zone="${i}">${nomZone(z, i)}</span>
+        <span class="grand">${z.defaut ? '—' : deg(z.temp) + '°'}</span>
+        <span class="sous">${t('cibleDeg', { v: deg(z.consigne) })}</span>
+        <span class="etat-zone calme">${e.derniereMaj ? t('releveA', { h: heureOuJour(e.derniereMaj) }) : t('horsLigne')}</span>
+      </button>`;
+    }
     if (!z) return `<div class="zone-accueil squelette" aria-busy="true"><span class="sr-only">${t('attenteDonnees')}</span><span class="os os-1"></span><span class="os os-2"></span><span class="os os-3"></span></div>`;
     const panne = !!z.defaut;
     return `<button type="button" class="zone-accueil" data-action="zone" data-z="${i}">
@@ -3660,6 +3803,34 @@ const App = (() => {
       <span class="etat-zone${panne ? ' ko' : z.chauffe ? '' : ' calme'}">${panne ? t('defautLib', { d: esc(z.defaut) }) : etatZone(z)}</span>${conseil(z)}
       ${z.derive ? `<span class="badge warn">${t('derive')}</span>` : ''}${z.tropChaud ? `<span class="badge warn">${t('tropChaud')}</span>` : ''}
     </button>`;
+  }
+
+  // Les rubriques qui ne vivent que de réponses du socle : grisées tant qu'il
+  // ne répond pas. Courbes (historique local), alertes et service restent.
+  const SOCLE_REQUIS = ['reglages', 'programme', 'securite', 'general', 'maj', 'journal', 'conso'];
+  const essaisSocle = {};           // id -> { enCours, dernier } : « Réessayer » de la carte hors ligne
+  // 14:12 aujourd'hui, « hier 14:12 » ou la date au-delà.
+  function heureOuJour(ms) {
+    const d = new Date(ms), maintenant = new Date(), hh = d.toTimeString().slice(0, 5);
+    if (d.toDateString() === maintenant.toDateString()) return hh;
+    if (d.toDateString() === new Date(maintenant.getTime() - 86400000).toDateString()) return t('hierA', { h: hh });
+    return d.toLocaleString(langue === 'en' ? 'en-GB' : 'fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+  function carteHorsLigne(s, e) {
+    const zs = (e.zones || []).filter(Boolean);
+    const max = zs.length && zs.every(z => z.max !== undefined) ? deg(Math.min(...zs.map(z => +z.max))) + '°' : null;
+    const essai = essaisSocle[s.id] || {};
+    const etat = essai.enCours ? t('hlRecherche')
+      : essai.dernier ? t('hlToujoursRien', { h: heureOuJour(essai.dernier) }) : t('hlPrevenu');
+    const sante = e.sante || {};
+    const hote = String(sante.hote || s.id).toLowerCase().replace(/\.local$/, '');
+    const adresse = /^[\d.]+$/.test(String(sante.ip || '')) ? `http://${sante.ip}/` : `http://${hote}.local/`;
+    return `<h2>${t('hlTitre')}</h2>
+      <p class="aide">${max ? t('hlTexteMax', { m: max }) : t('hlTexte')}${e.derniereMaj ? ' ' + t('hlDate', { h: heureOuJour(e.derniereMaj) }) : ''}</p>
+      <ol class="etapes-hl"><li>${t('hlEtape1')}</li><li>${t('hlEtape2')}</li><li>${t('hlEtape3')}</li></ol>
+      <p class="aide" role="status" aria-live="polite">${etat}</p>
+      <div class="boutons deux"><button type="button" class="btn" data-action="reessayerSocle"${essai.enCours ? ' disabled' : ''}>${essai.enCours ? t('hlRechercheBouton') : t('reessayer')}</button>
+        <a class="btn btn-secondaire" href="${esc(adresse)}" target="_blank" rel="noopener noreferrer">${t('hlPageLocale')}</a></div>`;
   }
 
   const minutesSilence = e => (e.enLigne && e.derniereMaj) ? Math.floor((Date.now() - e.derniereMaj) / 60000) : 0;
@@ -3771,10 +3942,13 @@ const App = (() => {
 
   function vivantCommandes(e) {
     const enCours = e.entretienS > 0;
-    return rond(`data-action="cmd" data-cmd="entretien" data-params='{"minutes":${enCours ? 0 : 10}}'`, enCours ? 'i-ok' : 'i-pause', t(enCours ? 'reprendreCourt' : 'entretienCourt'))
-      + rond('data-action="cmd" data-cmd="reset"', 'i-reprendre', t('leverDefauts'))
+    // Socle muet : les commandes qui lui parlent sont grisées (un appui dit
+    // pourquoi) ; les alertes restent, elles vivent dans l'application.
+    const off = e.enLigne ? '' : ' aria-disabled="true"';
+    return rond(`data-action="cmd" data-cmd="entretien" data-params='{"minutes":${enCours ? 0 : 10}}'${off}`, enCours ? 'i-ok' : 'i-pause', t(enCours ? 'reprendreCourt' : 'entretienCourt'))
+      + rond(`data-action="cmd" data-cmd="reset"${off}`, 'i-reprendre', t('leverDefauts'))
       + rond('data-action="panneau" data-nom="alertes"', 'i-cloche', t('rubAlertes'))
-      + rond('data-action="panneau" data-nom="maj"', 'i-maj', t('rubMaj'));
+      + rond(`data-action="panneau" data-nom="maj"${off}`, 'i-maj', t('rubMaj'));
   }
   const rond = (a, ic, lib) => `<button type="button" class="rond-lib" ${a}><span class="rond">${icone(ic)}</span>${lib}</button>`;
 
@@ -3815,11 +3989,17 @@ const App = (() => {
       hl.hidden = !!e.enLigne && !muet;
       peindre(hl, e.enLigne
         ? (muet ? `<div class="aide">${t('socleSilencieux', { m: minutesSilence(e) })}</div>` : '')
-        : `<div class="aide">${t('socleNeRepondPas')}</div>`);
+        : carteHorsLigne(s, e));
+      detail.querySelector('[data-r="accueil"]').classList.toggle('eteint', !e.enLigne);
       peindre(detail.querySelector('[data-r="illus"]'), illustration(e, 'a'));
-      peindre(detail.querySelector('[data-r="zones"]'), [0, 1].map(k => zoneAccueil((e.zones || [])[k], k)).join(''));
+      peindre(detail.querySelector('[data-r="zones"]'), [0, 1].map(k => zoneAccueil((e.zones || [])[k], k, e)).join(''));
       peindre(detail.querySelector('[data-r="commandes"]'), vivantCommandes(e));
-      RUBRIQUES.forEach(([k]) => texte(detail.querySelector(`[data-r="s-${k}"]`), sousTitre(k, s, e)));
+      RUBRIQUES.forEach(([k]) => {
+        const bloque = !e.enLigne && SOCLE_REQUIS.includes(k);
+        const b = detail.querySelector(`.rubrique[data-nom="${k}"]`);
+        if (b) { b.classList.toggle('inactive', bloque); b.setAttribute('aria-disabled', String(bloque)); }
+        texte(detail.querySelector(`[data-r="s-${k}"]`), bloque ? t('reglableAuRetour') : sousTitre(k, s, e));
+      });
       return;
     }
 
@@ -4776,13 +4956,14 @@ const App = (() => {
         case 'ouvrir':            api.ouvrir(d.id); break;
         case 'montrer':           if (d.vue === 'liste' && vueCourante === 'socle' && panneauActif === 'etat') remonter(); else montrer(d.vue); break;
         case 'remonter':          remonter(); break;
-        case 'panneau':           api.panneau(d.nom); break;
+        case 'panneau':           if (el.getAttribute('aria-disabled') === 'true') message(t('reglableAuRetour')); else api.panneau(d.nom); break;
+        case 'reessayerSocle':    api.reessayerSocle(); break;
         case 'filtreJournal':     filtreJournal = d.filtre || 'tout'; invalider(); break;
         case 'actualiserJournal': if (socleOuvert) chargerJournal(socleOuvert); break;
         case 'courbes':           api.courbes(+d.heures); break;
         case 'zoomReinit':        zooms[socleOuvert] = null; patcherCourbes(socleOuvert); break;
         case 'exporterCsv':       api.exporterCsv(); break;
-        case 'cmd':               api.action(d.cmd, d.params ? JSON.parse(d.params) : undefined); break;
+        case 'cmd':               if (el.getAttribute('aria-disabled') === 'true') message(t('reglableAuRetour')); else api.action(d.cmd, d.params ? JSON.parse(d.params) : undefined); break;
         case 'mettreAJour':       api.mettreAJour(d.version); break;
         case 'majAutoOp':         api.majAutoOp(d.op, d.jours !== undefined ? +d.jours : undefined); break;
         case 'scanner':           api.scanner(); break;
@@ -5379,6 +5560,7 @@ const App = (() => {
         $('#b-url').value = config.broker.compte ? (origineServeur(config.broker.url) || config.broker.url) : config.broker.url;
         $('#b-user').value = config.broker.compte ? '' : (config.broker.user || '');
         $('#b-prefixe').value = config.broker.prefixe || 'terrarium';
+        lireDerniersEtats();
         if (!client) connecter();
         routeEnCours = true;            // l'adresse de la page est lue juste après
         try { montrer('liste'); } finally { routeEnCours = false; }
@@ -5704,7 +5886,7 @@ const App = (() => {
     // On repart de zéro ; les codes d'appairage sont sur les socles.
     async effacerTout() {
       if (!await confirmer({ titre: t('effacerToutQ'), texte: t('effacerToutTexte'), ok: t('effacerTout'), danger: true })) return;
-      try { localStorage.removeItem(CLE_CONFIG); localStorage.removeItem(CLE_INSTALLATION); } catch (e) { /* stockage indisponible */ }
+      try { [CLE_CONFIG, CLE_INSTALLATION, CLE_DERNIER].forEach(k => localStorage.removeItem(k)); } catch (e) { /* stockage indisponible */ }
       await hist.toutEffacer();
       location.reload();
     },
@@ -5853,6 +6035,19 @@ const App = (() => {
     },
     periode(p) { periodeChoisie = p; dessiner(); },
 
+    // « Réessayer » de la carte hors ligne : une demande d'état, et la
+    // carte dit ce qu'il en est (le socle revenu, elle disparaît d'elle-même).
+    async reessayerSocle() {
+      const id = socleOuvert;
+      if (!id || (essaisSocle[id] && essaisSocle[id].enCours)) return;
+      /** @type {{enCours: boolean, dernier?: number}} */
+      const essai = essaisSocle[id] = { enCours: true };
+      invalider();
+      try { await commander(id, 'etat'); } catch (e) { /* toujours muet */ }
+      essai.enCours = false; essai.dernier = Date.now();
+      invalider();
+    },
+
     // Prix du kWh, depuis l'écran Consommation : enregistré sur le socle, qui
     // calcule les coûts de ses résumés.
     async prixKwh() {
@@ -5862,13 +6057,12 @@ const App = (() => {
       if (v === null || isNaN(v) || v < 0 || v > 2) { message(t('coPrixInvalide'), true); return; }
       const actuel = consos[id] && consos[id].jours ? consos[id].jours.prixKwh || 0 : null;
       if (actuel !== null && Math.abs(actuel - v) < 0.00005) return;
-      try {
-        const r = await commander(id, 'globaux', { prixKwh: v });
+      const r = await envoyer(id, 'globaux', { prixKwh: v }, { formulaire: el.closest('form'), succes: () => t('coPrixEnregistre') });
+      if (r) {
         generaux[id] = r;
         if (consos[id] && consos[id].jours) consos[id].jours.prixKwh = v;
-        message(t('coPrixEnregistre'));
         invalider();
-      } catch (e) { message(e.message, true); }
+      }
     },
 
     // Chevrons ‹ › : 0,5 °C par appui, envoyé une seconde après le dernier.
@@ -6097,11 +6291,8 @@ const App = (() => {
         if (m === null) { message(t('horaireInvalide', { v: el.value }), true); return; }
         params[cle] = m;
       }
-      try {
-        await commander(socleOuvert, 'zone', params);
-        message(t('reglagesEnregistres'));
-        commander(socleOuvert, 'etat').catch(() => {});
-      } catch (e) { message(e.message, true); }
+      const id = socleOuvert;
+      if (await envoyer(id, 'zone', params, { formulaire: formulaireDe('zone-complet', i) })) commander(id, 'etat').catch(() => {});
     },
 
     async reglerGeneraux() {
@@ -6128,12 +6319,9 @@ const App = (() => {
       if (heure !== null) params.rapportMinutes = heure;
       for (const [id, cle] of [['gEN', 'ecranNuit'], ['gZP', 'zonePrioritaire']]) if (el(id)) params[cle] = +el(id).value;
       for (const [id, cle] of [['gLE', 'ledEteinte'], ['gRA', 'rapportActif'], ['gSO', 'soleilActif']]) if (el(id)) params[cle] = !!el(id).checked;
-      try {
-        const r = await commander(socleOuvert, 'globaux', params);
-        generaux[socleOuvert] = r;
-        message(t('enregistreZones', { n: r.zonesSimultanees }));
-        dessiner();
-      } catch (e) { message(e.message, true); }
+      const id = socleOuvert;
+      const r = await envoyer(id, 'globaux', params, { formulaire: formulaireDe('generaux'), succes: x => t('enregistreZones', { n: x.zonesSimultanees }) });
+      if (r) { generaux[id] = r; dessiner(); }
     },
 
     async reglerZone(i) {
@@ -6141,23 +6329,13 @@ const App = (() => {
       const jour = champNombre('j' + i), nuit = champNombre('n' + i);
       if (jour !== undefined) params.jour = jour;
       if (nuit !== undefined) params.nuit = nuit;
-      try {
-        await commander(socleOuvert, 'zone', params);
-        message(t('reglagesEnregistres'));
-      } catch (e) {
-        // Le message vient du socle lui-même : il connaît ses propres limites.
-        message(e.message, true);
-      }
+      await envoyer(socleOuvert, 'zone', params, { formulaire: formulaireDe('zone', i) });
     },
 
     async action(nom, params) {
-      try {
-        const r = await commander(socleOuvert, nom, params);
-        message(r.zonesSimultanees ? t('enregistreZones', { n: r.zonesSimultanees }) : t('commandeAcceptee'));
-        setTimeout(() => commander(socleOuvert, 'etat').catch(() => {}), 800);
-      } catch (e) {
-        message(e.message, true);
-      }
+      const id = socleOuvert;
+      const r = await envoyer(id, nom, params, { succes: x => (x.zonesSimultanees ? t('enregistreZones', { n: x.zonesSimultanees }) : t('commandeAcceptee')) });
+      if (r) setTimeout(() => commander(id, 'etat').catch(() => {}), 800);
     },
 
     // ---- sauvegardes ---------------------------------------------------------

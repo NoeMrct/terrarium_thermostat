@@ -252,6 +252,33 @@ function creerApp(adressePage, avantChargement) {
            $('#detail').innerHTML.includes('hors ligne'));
   verifier('l\'application rappelle qu\'il régule quand même tout seul',
            $('#detail').innerHTML.includes('continue de réguler'));
+  {
+    // La carte « hors ligne » (U26) : quoi vérifier, réessayer, la page locale.
+    const carte = $('#detail [data-r="horsligne"]');
+    verifier('la carte hors ligne dit quoi vérifier, en trois étapes',
+             !carte.hidden && carte.textContent.includes('Le socle ne répond plus') && carte.querySelectorAll('.etapes-hl li').length === 3);
+    verifier('…avec un lien vers la page locale du socle',
+             /^http:\/\/terrafantome\.local\/$/.test((carte.querySelector('a.btn') || {}).href || ''), (carte.querySelector('a.btn') || {}).href);
+    const reglages = $('#detail .rubrique[data-nom="reglages"]');
+    verifier('les rubriques qui parlent au socle sont grisées',
+             reglages.getAttribute('aria-disabled') === 'true' && reglages.classList.contains('inactive') &&
+             reglages.textContent.includes('Réglable au retour du socle'));
+    verifier('…pas les courbes ni les alertes, qui vivent dans l\'application',
+             $('#detail .rubrique[data-nom="courbes"]').getAttribute('aria-disabled') === 'false' &&
+             $('#detail .rubrique[data-nom="alertes"]').getAttribute('aria-disabled') === 'false');
+    reglages.click();
+    verifier('…un appui dit pourquoi, sans ouvrir de feuille vide',
+             texte('#message').includes('Réglable au retour') && $('#detail [data-r="feuille"]').hidden, texte('#message'));
+    verifier('les commandes rapides vers le socle aussi',
+             $('#detail [data-cmd="reset"]').getAttribute('aria-disabled') === 'true');
+    carte.querySelector('[data-action="reessayerSocle"]').click();
+    verifier('« Réessayer » montre la recherche en cours',
+             await jusqua(() => /Recherche du socle/.test($('#detail [data-r="horsligne"]').textContent), 2000) &&
+             $('#detail [data-action="reessayerSocle"]').disabled);
+    verifier('…puis dit que rien n\'a répondu, et à quelle heure',
+             await jusqua(() => /Toujours rien à \d\d:\d\d/.test($('#detail [data-r="horsligne"]').textContent), 12000),
+             ($('#detail [data-r="horsligne"] [role="status"]') || {}).textContent);
+  }
 
   titre('10. Panneau des réglages complets');
   // On revient sur le socle réel : le précédent test a laissé ouvert le socle
@@ -350,6 +377,35 @@ function creerApp(adressePage, avantChargement) {
   verifier('le broker est enregistré', config.broker && config.broker.url === BROKER);
   verifier('le code d\'appairage est conservé pour les commandes futures',
            config.socles[0].jeton === JETON);
+
+  titre('13 bis. Dernier état connu, envois sans réseau (U26, U10, U40)');
+  {
+    const gardes = JSON.parse(w.localStorage.getItem('terrarium.dernier.v1') || '{}');
+    verifier('le dernier état de chaque socle est gardé, daté',
+             gardes[ID] && typeof gardes[ID].t === 'number' && (gardes[ID].zones || []).length === 2 && !gardes.terraFANTOME,
+             Object.keys(gardes).join(','));
+    // Une copie sans broker joignable : la liste montre le socle tel qu'on l'a
+    // vu en dernier, sans tirets ni squelettes.
+    const cfg = JSON.parse(w.localStorage.getItem('terrarium.config.v1'));
+    cfg.broker = Object.assign({}, cfg.broker, { url: 'ws://localhost:9/mqtt' });
+    const r = creerApp('http://localhost:8080/', x => {
+      x.localStorage.setItem('terrarium.config.v1', JSON.stringify(cfg));
+      x.localStorage.setItem('terrarium.dernier.v1', JSON.stringify(gardes));
+    });
+    const liste = () => r.texte('#socles');
+    verifier('sans réseau, la liste montre le dernier état connu',
+             await jusqua(() => (liste().match(/\d+,\d°/g) || []).length >= 2 && /hors ligne depuis/.test(liste()), 4000), liste().slice(0, 90));
+    r.App.ouvrir(ID);
+    verifier('…l\'accueil du socle aussi, zones grisées et datées',
+             await jusqua(() => r.$('#detail .zone-accueil.eteinte') && /Relevé à/.test(r.texte('#detail')), 3000) &&
+             r.$('#detail [data-r="accueil"]').classList.contains('eteint'));
+    await r.App.action('reset');
+    verifier('une commande sans réseau attend, annulable',
+             r.texte('#message').includes('envoi en attente') && !!r.$('#message button'), r.texte('#message'));
+    r.$('#message button').click();
+    verifier('…et s\'annule', r.texte('#message').includes('Envoi annulé'), r.texte('#message'));
+    r.w.close();
+  }
 
   titre('14. Retrait d\'un socle');
   App.ouvrir('terraFANTOME');

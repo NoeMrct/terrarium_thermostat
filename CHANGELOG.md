@@ -20,6 +20,20 @@ jour.
   notification touchée ouvre son socle (application ouverte ou non ;
   verrouillée, l'écran attend le code). Remonter avec le bouton de
   l'application revient dans l'historique au lieu d'y empiler un écran.
+- **Socle hors ligne, sans écran vide** (U26) : l'application garde sur
+  l'appareil le dernier état connu de chaque socle, daté (« relevé à 14:12 »,
+  « hors ligne depuis hier 22:05 ») ; il s'affiche dès l'ouverture, avant même
+  la connexion au broker. Jamais quand la configuration est verrouillée par un
+  code. L'accueil d'un socle muet le dit en clair : il continue de réguler seul
+  (coupure de sécurité comprise), trois vérifications à faire, « Réessayer »
+  qui dit ce qu'il en est, la page locale du socle ; ses rubriques et
+  commandes qui exigent une réponse sont grisées (« Réglable au retour du
+  socle ») et un message signale son retour.
+- **Retours d'envoi** (U10, U40, U11) : « Envoi au socle… » dès l'appui,
+  formulaire grisé pendant l'envoi (pas de double envoi), confirmation quand
+  le socle a répondu — pas avant. Sans réponse : « Réessayer », la saisie est
+  gardée ; refusé pour cause d'entretien : « Quitter l'entretien ». Sans
+  réseau, l'envoi attend le retour de la connexion, annulable.
 - **Journal du socle** (F4), nouvelle rubrique : ce qui s'est passé, jour par
   jour, en phrases — alertes et retours à la normale, réglages modifiés
   (depuis l'application ou la page locale), passages en jour et en nuit (les
