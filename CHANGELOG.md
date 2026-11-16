@@ -7,7 +7,26 @@ affiche le commit dont elle est issue.
 
 ## [Non publié]
 
+## [3.5.1] — 2026-11-16
+
+Résumé : préparation à l'expédition sans câble, à l'atelier ; rien ne change à l'usage.
+
+Firmware 3.5.1 (`FW_VERSION`), protocole 4 inchangé : une action de plus,
+réservée au propriétaire, et deux champs facultatifs dans la santé. Pour les
+socles déjà chez leur propriétaire, rien ne change.
+
 ### Ajouté
+- **Fin d'atelier par le réseau** : action `expedier` (signée par le code
+  d'appairage, refusée au support, identifiant du socle redit dans la
+  commande). Le socle resté sur le banc oublie le Wi-Fi du banc et le réseau de
+  secours, vide son historique, oublie le broker de l'atelier sur demande
+  (`"broker":false`), puis affiche « Pret a expedier » et sa référence jusqu'à
+  son débranchement ; sa LED fait un triple éclair. Rien ne s'applique avant le
+  prochain démarrage : la réponse part, le socle reste joignable le temps de
+  coller l'étiquette. L'atelier s'en sert à l'étape 5 (« Préparer et imprimer,
+  sans USB ») ; l'USB reste possible, et seul possible avant la 3.5.1.
+- **Santé** : `ecran` (un écran est branché) et `expedition` (prêt à
+  expédier).
 - **Rôle « atelier »** pour les membres de l'équipe qui montent des socles :
   connexion à la page Atelier, création du compte d'appareil d'un socle sans
   propriétaire (jamais celui d'un client), pilotage sur le broker des seuls

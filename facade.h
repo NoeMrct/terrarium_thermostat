@@ -8,6 +8,7 @@
      appui de 10 s      point d'accès de configuration (changer de box sans USB)
    LED (GPIO2), de la plus importante à la plus banale :
      clignotement rapide         une zone en défaut
+     triple éclair (2 s)         prêt à expédier (fin d'atelier), jusqu'au débranchement
      allumée fixe                identification de sonde ou essai de chauffe
      clignotement lent (1 s)     point d'accès de configuration ouvert
      éclair chaque seconde       Wi-Fi absent

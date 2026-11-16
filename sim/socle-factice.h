@@ -25,6 +25,8 @@ struct SocleFactice : public Protocole::Socle {
   int servicesSauves = 0;
   bool enLigne = true;
   bool autotuneRefuse = false;
+  std::string id = "terraA1B2C3";
+  bool ecran = true;
   int zonesSauvees = 0, globauxSauves = 0;
 
   SocleFactice() {
@@ -188,6 +190,11 @@ struct SocleFactice : public Protocole::Socle {
   void sauverService() override {
     servicesSauves++;
     actions.push_back(session.cle[0] ? "sauverService ouverte" : "sauverService fermee");
+  }
+  const char *identifiant() override { return id.c_str(); }
+  bool montrerExpedition() override {
+    actions.push_back("montrerExpedition");
+    return ecran;
   }
 };
 

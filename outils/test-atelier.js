@@ -184,7 +184,9 @@ class Client extends EventEmitter {
 // Le socle sur le banc : il répond à « cmd » et refuse une signature fausse.
 class SocleBanc {
   constructor(b, o) {
-    Object.assign(this, { prefixe: 'terrarium', uptime: 600, roms: ['28FF0000000000A1', '28FF0000000000B2'], echecIdent: new Set(), echecEssai: new Set() }, o);
+    Object.assign(this, { prefixe: 'terrarium', uptime: 600, roms: ['28FF0000000000A1', '28FF0000000000B2'], echecIdent: new Set(), echecEssai: new Set(),
+      version: null, connaitExpedier: true }, o);
+    this.expedition = null;
     this.b = b; this.ident = null; this.identResultat = ''; this.essai = { zone: 0, resultat: '' };
     this.refus = 0; this.liaisons = [null, null]; this.zones = [{ temp: 24.1, consigne: 32, defaut: '0', defaut_libelle: 'OK' }, { temp: 22.0, consigne: 28, defaut: '0', defaut_libelle: 'OK' }];
     this.base = `${this.prefixe}/${this.id}`;
@@ -193,7 +195,7 @@ class SocleBanc {
   }
   enLigne() {
     this.b.publier(`${this.base}/statut`, 'en ligne', true);
-    this.b.publier(`${this.base}/sante`, JSON.stringify({ proto: 4, uptime: this.uptime, reset: 'mise sous tension' }), true);
+    this.b.publier(`${this.base}/sante`, JSON.stringify({ proto: 4, uptime: this.uptime, reset: 'mise sous tension', ...(this.version ? { version: this.version } : {}) }), true);
     this.zones.forEach((z, i) => this.b.publier(`${this.base}/zone${i + 1}/etat`, JSON.stringify(z), true));
   }
   repondre(req, ok, corps) { this.b.publier(`${this.base}/reponse`, JSON.stringify({ req, ok, ...corps }), false); }
@@ -233,6 +235,12 @@ class SocleBanc {
             : `zone ${z + 1} OK : sa sonde a pris +0.6 C en 1 min 05 s, l'autre rien. Tapis, MOSFET et sonde de cette zone sont bien associes.` };
         }, 200);
         return this.repondre(d.req, true, { message: `Zone ${z + 1} : chauffe seule a pleine puissance` });
+      // Firmware 3.5.1 : fin d'atelier par le réseau (comme protocole.cpp).
+      case 'expedier':
+        if (!this.connaitExpedier) return this.repondre(d.req, false, { erreur: 'action inconnue' });
+        if (d.id !== this.id) return this.repondre(d.req, false, { erreur: 'expedier : identifiant de ce socle attendu (id)' });
+        this.expedition = { broker: d.broker === false };
+        return this.repondre(d.req, true, { expedition: { wifiOublie: true, brokerOublie: d.broker === false, ecran: true } });
       default: return this.repondre(d.req, false, { erreur: 'action inconnue' });
     }
   }
@@ -877,6 +885,51 @@ async function connecter(a, email) {
   await connecter(pc, 'noe@exemple.fr');
   verifier('registre d\'avant le partage : ses socles et son lot vont au serveur, sans secret', await jusqua(() => srv.d.socles.terraC1C2C3 && srv.d.lots['lot-ancien'])
     && !('code' in srv.d.socles.terraC1C2C3) && pc.A.registre().socles.terraC1C2C3.code === 'ZZZZZZYYYYYYXXXXXXWWWWWW');
+
+  titre('18. Étiquette sans USB (firmware 3.5.1)');
+  const brokerR = new Broker();
+  const xa = creerAtelier({ broker: brokerR });
+  await regler(xa, REGLAGES);
+  const c30 = new ConsoleSocle({ id: 'terraD1D2D3', code: 'CCCCCCDDDDDDEEEEEEFFFFFF', firmware: '3.5.1' });
+  xa.brancher(c30);
+  await xa.cliquer('[data-action="nouveau"]');
+  const r30 = () => xa.A.registre().socles[c30.id];
+  verifier('étape 1 (firmware 3.5.1)', await jusqua(() => r30() && r30().etape === 2, 8000));
+  xa.etat.port.debrancher();
+  const banc30 = new SocleBanc(brokerR, { id: c30.id, code: c30.code, version: '3.5.1' });
+  banc30.enLigne();
+  Object.assign(r30(), { etape: 5, etat: 'pret', rodage: { debut: Date.now() - 2, fin: Date.now() - 1, incidents: [], verdict: { ok: true, texte: 'essai', t: Date.now() } } });
+  xa.A.choisir(c30.id);
+  verifier('resté sur le banc : « Préparer et imprimer, sans USB » est proposé (l\'USB aussi)', await jusqua(() => xa.A.vif(c30.id).enLigne && !!xa.$('#fiche [data-action="preparer-reseau"]'), 4000)
+    && !!xa.$('#fiche [data-action="preparer"]'));
+  const impr30 = xa.etat.impressions;
+  await xa.cliquer('#fiche [data-action="preparer-reseau"]');
+  verifier('commande signée « expedier » (identifiant redit, broker de l\'atelier à oublier)', await jusqua(() => banc30.expedition, 4000) && banc30.expedition.broker === true && banc30.refus === 0);
+  verifier('prêt sans USB : étiquette imprimée d\'office, la fiche dit où la coller', await jusqua(() => r30().expedition && r30().expedition.parReseau) && xa.etat.impressions === impr30 + 1
+    && /Pret a expedier/.test(xa.texte('#fiche')) && !c30.recu.includes('wifi off'));
+  await xa.cliquer('#fiche [data-action="expedier"]');
+  verifier('expédié : code et mot de passe effacés', r30().etat === 'expedie' && !r30().code && !r30().web);
+  const c31 = new ConsoleSocle({ id: 'terraD2D3D4', code: 'GGGGGGHHHHHHJJJJJJKKKKKK', firmware: '3.5.0' });
+  xa.brancher(c31);
+  await xa.cliquer('[data-action="nouveau"]');
+  await jusqua(() => xa.A.registre().socles[c31.id] && xa.A.registre().socles[c31.id].etape === 2, 8000);
+  xa.etat.port.debrancher();
+  const banc31 = new SocleBanc(brokerR, { id: c31.id, code: c31.code, version: '3.5.0', connaitExpedier: false });
+  banc31.enLigne();
+  Object.assign(xa.A.registre().socles[c31.id], { etape: 5, etat: 'pret', rodage: { debut: 1, fin: 2, incidents: [], verdict: { ok: true, texte: 'essai', t: Date.now() } } });
+  xa.A.choisir(c31.id);
+  await jusqua(() => xa.A.vif(c31.id).enLigne, 3000);
+  await attendre(80);
+  verifier('firmware 3.5.0 : l\'USB seulement', !xa.$('#fiche [data-action="preparer-reseau"]') && !!xa.$('#fiche [data-action="preparer"]'));
+  // Un firmware qui se dit 3.5.1 sans connaître l'action : l'atelier renvoie vers l'USB.
+  banc31.version = '3.5.1';
+  banc31.enLigne();
+  await attendre(80);
+  xa.A.choisir(c31.id);
+  await jusqua(() => !!xa.$('#fiche [data-action="preparer-reseau"]'), 3000);
+  await xa.cliquer('#fiche [data-action="preparer-reseau"]');
+  verifier('action inconnue : le message renvoie vers l\'USB, les deux chemins restent', await jusqua(() => xa.A.registre().socles[c31.id].echec && /USB/.test(xa.A.registre().socles[c31.id].echec.texte), 4000)
+    && await jusqua(() => !!xa.$('#fiche [data-action="preparer"]')));
 
   console.log(`\n=== ATELIER (${reussites} reussite(s), ${echecs} echec(s)) ===`);
   process.exit(echecs ? 1 : 0);

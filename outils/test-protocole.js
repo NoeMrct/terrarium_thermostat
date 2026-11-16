@@ -271,6 +271,14 @@ client.on('connect', async () => {
     const vide = await commander('historique', {}, false);
     verifier('...et l\'historique est bien vide ensuite', (vide.points || []).length === 0,
              `${(vide.points || []).length} point(s)`);
+    // Fin d'atelier (3.5.1) : identifiant redit, signé ; la santé dit le socle prêt.
+    const autreSocle = await commander('expedier', { id: 'terraZZZZZZ' });
+    verifier('expedier : un autre identifiant est refusé', autreSocle.ok === false && /identifiant/.test(autreSocle.erreur || ''), autreSocle.erreur || '');
+    const exp = await commander('expedier', { id: ID });
+    verifier('expedier : Wi-Fi du banc oublié, historique vidé', exp.ok === true && exp.expedition && exp.expedition.wifiOublie === true && exp.expedition.brokerOublie === false,
+             JSON.stringify(exp.expedition || exp.erreur));
+    const sansJetonExp = await commander('expedier', { id: ID }, false);
+    verifier('expedier exige le jeton', sansJetonExp.ok === false);
     const sansJeton = await commander('globaux', { amperes: 4 }, false);
     verifier('les réglages généraux exigent le jeton', sansJeton.ok === false, sansJeton.erreur || '');
     const inconnue = await commander('nimportequoi');

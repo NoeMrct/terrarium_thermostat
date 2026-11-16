@@ -645,6 +645,65 @@ int main() {
     VERIFIE(contient(s.derniere(), "op :"), "service : opération inconnue refusée");
   }
 
+  // --- Fin d'atelier (3.5.1) : « expedier », sans rebrancher l'USB.
+  {
+    Protocole::oublierReponses();
+    SocleFactice s;
+    snprintf(s.res.ssid, sizeof s.res.ssid, "AtelierBanc");
+    snprintf(s.res.motDePasse, sizeof s.res.motDePasse, "motdepasse8");
+    snprintf(s.res.ssid2, sizeof s.res.ssid2, "Secours");
+    snprintf(s.res.motDePasse2, sizeof s.res.motDePasse2, "secours99");
+    snprintf(s.res.mqttHote, sizeof s.res.mqttHote, "exotic.exemple.fr");
+    snprintf(s.res.mqttUtilisateur, sizeof s.res.mqttUtilisateur, "terraA1B2C3");
+    s.res.mqttActif = true;
+    s.res.mqttPort = 8883;
+    s.res.mqttTls = true;
+    cmd(s, "{\"req\":\"x1\",\"action\":\"expedier\",\"id\":\"terraA1B2C3\"}");
+    VERIFIE(contient(s.derniere(), "jeton invalide") && s.res.ssid[0], "expedier : sans signature, refusé");
+    cmd(s,
+        signe("{\"req\":\"x2\",\"action\":\"expedier\",\"id\":\"terraFFFFFF\",\"ts\":1760000000}").c_str());
+    VERIFIE(contient(s.derniere(), "identifiant de ce socle") && s.res.ssid[0],
+            "expedier : partie vers un autre socle, ne fait rien");
+    cmd(s, signe("{\"req\":\"x3\",\"action\":\"expedier\",\"ts\":1760000000}").c_str());
+    VERIFIE(contient(s.derniere(), "identifiant de ce socle") && s.res.ssid[0],
+            "expedier : l'identifiant est exigé");
+    s.vider();
+    cmd(s,
+        signe("{\"req\":\"x4\",\"action\":\"expedier\",\"id\":\"terraA1B2C3\",\"ts\":1760000000}").c_str());
+    bool hist = false, montre = false, sauve = false;
+    for (const std::string &a : s.actions) {
+      if (a == "effacerHistorique") hist = true;
+      if (a == "montrerExpedition") montre = true;
+      if (a == "sauverReseau") sauve = true;
+    }
+    VERIFIE(contient(s.derniere(), "\"ok\":true") && contient(s.derniere(), "\"wifiOublie\":true") &&
+                contient(s.derniere(), "\"brokerOublie\":false") && contient(s.derniere(), "\"ecran\":true"),
+            "expedier : réponse (Wi-Fi oublié, broker gardé, écran)");
+    VERIFIE(!s.res.ssid[0] && !s.res.motDePasse[0] && !s.res.ssid2[0] && !s.res.motDePasse2[0] && sauve,
+            "expedier : Wi-Fi du banc et réseau de secours oubliés, en mémoire");
+    VERIFIE(strcmp(s.res.mqttHote, "exotic.exemple.fr") == 0 && s.res.mqttActif && s.res.mqttTls,
+            "expedier : le serveur reste (le socle le garde chez l'acheteur)");
+    VERIFIE(hist && montre, "expedier : historique vidé, socle prêt montré (écran, LED)");
+    s.ecran = false;
+    cmd(s, signe("{\"req\":\"x5\",\"action\":\"expedier\",\"id\":\"terraA1B2C3\",\"broker\":false,\"ts\":"
+                 "1760000000}")
+               .c_str());
+    VERIFIE(contient(s.derniere(), "\"brokerOublie\":true") && contient(s.derniere(), "\"ecran\":false") &&
+                !s.res.mqttHote[0] && !s.res.mqttUtilisateur[0] && !s.res.mqttActif &&
+                s.res.mqttPort == 1883 && !s.res.mqttTls,
+            "expedier : broker de l'atelier oublié sur demande, identifiants compris");
+    // Le support, même avec un accès ouvert, ne la demande pas.
+    const char *CLE = "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210";
+    cmd(s, signe(std::string("{\"req\":\"x6\",\"action\":\"service\",\"op\":\"ouvrir\",\"cle\":\"") + CLE +
+                 "\",\"heures\":24,\"ts\":1760000000}")
+               .c_str());
+    snprintf(s.res.ssid, sizeof s.res.ssid, "BoxClient");
+    cmd(s, signe("{\"req\":\"x7\",\"action\":\"expedier\",\"id\":\"terraA1B2C3\",\"ts\":1760000000}", CLE)
+               .c_str());
+    VERIFIE(contient(s.derniere(), "reserve au proprietaire") && strcmp(s.res.ssid, "BoxClient") == 0,
+            "expedier : refusé au support, rien n'est oublié");
+  }
+
   printf("\n=== %s : %d/%d ===\n", g_echecs ? "ECHEC" : "CANAL DE COMMANDE OK", g_total - g_echecs, g_total);
   return g_echecs ? 1 : 0;
 }

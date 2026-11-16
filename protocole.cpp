@@ -488,6 +488,46 @@ bool traiterDistant(Socle &socle, JsonDocument &doc, const char *req, const char
   return false;
 }
 
+// Fin d'atelier (3.5.1) : ce que la console USB faisait à l'étape 5, sans
+// rebrancher l'USB. {"action":"expedier","id":"terraXXXXXX","broker":false}
+// Le socle oublie le Wi-Fi du banc (et un réseau de secours), vide son
+// historique, oublie aussi le broker de l'atelier avec "broker":false, puis le
+// montre (écran, LED) jusqu'à son débranchement. Rien n'est appliqué avant le
+// prochain démarrage : la réponse part, et le socle reste joignable le temps
+// de coller l'étiquette. La commande redit l'identifiant du socle : partie
+// vers un autre, elle ne fait rien.
+void traiterExpedier(Socle &socle, JsonDocument &doc, const char *req) {
+  const char *id = doc["id"] | "";
+  if (strcmp(id, socle.identifiant()) != 0) {
+    erreur(socle, req, "expedier : identifiant de ce socle attendu (id)");
+    return;
+  }
+  const bool oublierBroker = doc["broker"].is<bool>() && !doc["broker"].as<bool>();
+  ReglagesReseau n = socle.reseau();
+  n.ssid[0] = '\0';
+  n.motDePasse[0] = '\0';
+  n.ssid2[0] = '\0';
+  n.motDePasse2[0] = '\0';
+  if (oublierBroker) {
+    n.mqttHote[0] = '\0';
+    n.mqttUtilisateur[0] = '\0';
+    n.mqttMotDePasse[0] = '\0';
+    n.mqttPort = 1883;
+    n.mqttTls = false;
+    n.mqttActif = false;
+  }
+  socle.reseau() = n;
+  socle.sauverReseau();
+  socle.effacerHistorique();
+  socle.journal(oublierBroker
+                    ? "Pret a expedier : Wi-Fi du banc et broker de l'atelier oublies, historique vide"
+                    : "Pret a expedier : Wi-Fi du banc oublie, historique vide");
+  const bool ecran = socle.montrerExpedition();
+  snprintf(g_corps, sizeof g_corps, "\"expedition\":{\"wifiOublie\":true,\"brokerOublie\":%s,\"ecran\":%s}",
+           oublierBroker ? "true" : "false", ecran ? "true" : "false");
+  repondre(socle, req, true, g_corps);
+}
+
 // Une clé de session : exactement 64 caractères hexadécimaux minuscules.
 bool cleServiceValide(const char *c) {
   if (strlen(c) != 64) return false;
@@ -926,6 +966,17 @@ void traiterCommande(Socle &socle, const char *charge, size_t taille) {
     }
     socle.corpsMajAuto(g_corps, sizeof g_corps);
     repondre(socle, req, true, g_corps);
+    return;
+  }
+
+  // Fin d'atelier : le support, même avec un accès ouvert, ne la demande pas
+  // (elle couperait le socle de son réseau au prochain démarrage).
+  if (strcmp(action, "expedier") == 0) {
+    if (parSupport) {
+      erreur(socle, req, "expedier : reserve au proprietaire");
+      return;
+    }
+    traiterExpedier(socle, doc, req);
     return;
   }
 

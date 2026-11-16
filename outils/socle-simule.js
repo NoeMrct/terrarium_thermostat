@@ -262,7 +262,8 @@ const sante = () => ({
   hote: `${ID}.local`, ip: '192.168.1.42',
   ...(socle.maj ? { maj: socle.maj } : {}),
   ...(serviceActif() ? { service: { actif: true, jusqua: socle.service.jusqua } } : {}),
-  majAuto: (({ actif, attente, disponible }) => ({ actif, attente, ...(disponible ? { disponible } : {}) }))(majAuto())
+  majAuto: (({ actif, attente, disponible }) => ({ actif, attente, ...(disponible ? { disponible } : {}) }))(majAuto()),
+  ecran: true, ...(socle.expedition ? { expedition: true } : {})
 });
 
 function publier() {
@@ -535,6 +536,20 @@ client.on('message', (sujet, charge) => {
     case 'effacer-historique':
       socle.historique.length = 0;
       return repondre(d.req, true, {});
+
+    // Fin d'atelier (3.5.1) : Wi-Fi du banc oublié, historique vidé, broker
+    // de l'atelier oublié avec "broker":false ; refusé au support.
+    case 'expedier': {
+      if (parSupport) return repondre(d.req, false, { erreur: 'expedier : reserve au proprietaire' });
+      if (d.id !== ID) return repondre(d.req, false, { erreur: 'expedier : identifiant de ce socle attendu (id)' });
+      const broker = d.broker === false;
+      socle.reseau = { ...socle.reseau, ssid: '', ssid2: '' };
+      socle.historique.length = 0;
+      socle.expedition = true;
+      journal(broker ? 'Pret a expedier : Wi-Fi du banc et broker de l\'atelier oublies, historique vide' : 'Pret a expedier : Wi-Fi du banc oublie, historique vide');
+      client.publish(`${base}/sante`, JSON.stringify(sante()), { retain: true });
+      return repondre(d.req, true, { expedition: { wifiOublie: true, brokerOublie: broker, ecran: true } });
+    }
 
     case 'reset':
       socle.zones.forEach(z => { z.defaut = null; });

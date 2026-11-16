@@ -14,13 +14,16 @@
      3. Chauffe : essai de chaque tapis, verdict du socle (« essai »).
      4. Rodage : le socle tourne seul ; l'atelier note redémarrages, défauts et
         coupures, et conclut sur sa durée de fonctionnement sans interruption.
-     5. Étiquette (USB de nouveau) : relit l'identité (l'étiquette va au bon
-        socle), fait oublier le Wi-Fi du banc, vide l'historique, imprime
-        l'étiquette ; à l'expédition, le code et le mot de passe sont effacés
-        de ce navigateur — ils ne sont plus que sur l'étiquette.
+     5. Étiquette : un socle en firmware 3.5.1 resté sur le banc s'y prépare
+        par le réseau (action « expedier » : Wi-Fi du banc oublié, historique
+        vidé ; il affiche « Pret a expedier » et sa référence jusqu'à son
+        débranchement, l'étiquette va sur celui qui l'affiche) ; sinon par
+        l'USB, qui relit l'identité. L'étiquette s'imprime ; à l'expédition,
+        le code et le mot de passe sont effacés de ce navigateur — ils ne
+        sont plus que sur l'étiquette.
 
    USB et 12 V ne sont jamais branchés ensemble : la console ne sert qu'aux
-   étapes 1 et 5, le banc (MQTT) aux étapes 2 à 4. Sans liaison, les étapes 2
+   étapes 1 et 5, le banc (MQTT) aux étapes 2 à 4 (et 5 depuis la 3.5.1). Sans liaison, les étapes 2
    à 4 se font sur la page locale du socle et l'opérateur les valide ici.
 
    Le serveur Terrariums est celui du déploiement (balise terrarium-serveur).
@@ -1179,6 +1182,50 @@
     invalider();
   }
 
+  // Étape 5 sans USB (firmware 3.5.1) : le socle, resté sur le banc, oublie
+  // le Wi-Fi du banc et vide son historique sur commande signée, puis affiche
+  // « Pret a expedier » et sa référence jusqu'à son débranchement (et sa LED
+  // fait un triple éclair) : l'étiquette va sur celui qui l'affiche.
+  const VERSION_EXPEDIER = '3.5.1';
+  function versionDuSocle(rec) { const v = vivant(rec.id); return (v.sante && v.sante.version) || rec.firmware || ''; }
+  function expedierParReseau(rec) {
+    const v = vivant(rec.id);
+    return rec.etat === 'pret' && !!rec.code && !!rec.web && rec.liaison !== 'aucune' && v.enLigne && !!client && client.connected
+      && comparerVersions(versionDuSocle(rec), VERSION_EXPEDIER) >= 0;
+  }
+  async function preparerParReseau(rec) {
+    const v = vivant(rec.id);
+    if (v.tache || procedure) return;
+    v.tache = { type: 'expedier' };
+    procedure = { id: rec.id, etape: 5, coches: [] };
+    try {
+      coche('expedier', 'Oubli du Wi-Fi du banc et de l\'historique, par le réseau');
+      const broker = rec.liaison === 'broker' && reg.reglages.broker.oublier;
+      const r = await commander(rec, 'expedier', { id: rec.id, ...(broker ? { broker: false } : {}) });
+      if (!r.ok) {
+        throw new Error(/action inconnue/.test(r.erreur || '') ? 'Firmware sans « expedier » (avant la 3.5.1) : « Par la console (USB) ».'
+          : `Le socle refuse : ${r.erreur || 'raison inconnue'}.`);
+      }
+      const e = r.expedition || {};
+      rec.expedition = { verifie: Date.now(), parReseau: true, wifiOublie: e.wifiOublie !== false, brokerOublie: !!e.brokerOublie, ecran: !!e.ecran };
+      coche('expedier', `Wi-Fi du banc oublié${rec.expedition.brokerOublie ? ', broker de l\'atelier oublié' : ''}, historique vidé`, 'fait');
+      rec.echec = null;
+      noter(rec, `Prêt à expédier, par le réseau : Wi-Fi du banc oublié${rec.expedition.brokerOublie ? ', broker de l\'atelier oublié' : ''}, historique vidé`);
+      sauver();
+      procedure = null;
+      message(rec.expedition.ecran ? `${rec.id} : son écran affiche « Pret a expedier » et sa référence (LED en triple éclair). Colle l'étiquette sur celui-là, puis débranche le 12 V.`
+        : `${rec.id} : sa LED fait un triple éclair. Colle l'étiquette sur celui-là, puis débranche le 12 V.`);
+      imprimerEtiquette(rec);
+    } catch (e) {
+      // L'échec s'affiche en tête de la fiche ; les deux chemins restent offerts.
+      procedure = null;
+      echouer(rec, 5, e.message);
+      message(e.message, true);
+    }
+    v.tache = null;
+    invalider();
+  }
+
   async function motDePasseWeb(rec) {
     if (!rec.web) rec.web = { utilisateur: 'admin', motDePasse: motDePasse() };
     sauver();
@@ -1484,10 +1531,21 @@
     if (rec.etat === 'expedie') return null;
     const pret = rec.expedition && rec.expedition.verifie && !(rec.echec && rec.echec.etape === 5) && !(procedure && procedure.id === rec.id);
     const corps = [...corpsConsole(rec, 5)];
+    // Resté sur le banc, en 3.5.1 : tout se fait par le réseau, l'USB reste possible.
+    const enCours = procedure && procedure.id === rec.id && procedure.etape === 5;
+    if (!pret && !enCours && expedierParReseau(rec)) {
+      corps.splice(0, corps.length,
+        h('p', { class: 'aide' }, 'Le socle est en ligne sur le banc : il oublie le Wi-Fi du banc et vide son historique par le réseau, puis affiche « Pret a expedier » et sa référence (LED en triple éclair) jusqu\'à son débranchement. L\'étiquette s\'imprime aussitôt : colle-la sur celui qui l\'affiche.'),
+        h('div', { class: 'boutons' }, bouton('Préparer et imprimer, sans USB', 'preparer-reseau', { 'data-id': rec.id }, 'btn'),
+          bouton('Par la console (USB)', 'preparer', { 'data-id': rec.id }, 'btn btn-secondaire')));
+    }
     if (pret && rec.code) {
+      const comment = rec.expedition.parReseau
+        ? `Préparé par le réseau : Wi-Fi du banc oublié${rec.expedition.brokerOublie ? ', broker de l\'atelier oublié' : ''}. ${rec.expedition.ecran ? 'Son écran affiche « Pret a expedier » et sa référence' : 'Sa LED fait un triple éclair'} jusqu'au débranchement.`
+        : `Identité vérifiée sur la console${rec.expedition.wifiOublie ? ', Wi-Fi du banc oublié' : ' (Wi-Fi du banc gardé : firmware trop ancien)'}.`;
       corps.splice(0, corps.length,
         h('div', { class: 'etiquette-apercu' }, etiquetteSvg(rec),
-          h('div', {}, h('p', { class: 'aide' }, `Identité vérifiée sur la console${rec.expedition.wifiOublie ? ', Wi-Fi du banc oublié' : ' (Wi-Fi du banc gardé : firmware trop ancien)'}. L'étiquette porte le lien d'installation (le téléphone l'ouvre sans application), le code et le mot de passe de la page locale.`),
+          h('div', {}, h('p', { class: 'aide' }, `${comment} L'étiquette porte le lien d'installation (le téléphone l'ouvre sans application), le code et le mot de passe de la page locale.`),
             h('div', { class: 'boutons' }, bouton(rec.etiquetteImprimee ? 'Réimprimer l\'étiquette' : 'Imprimer l\'étiquette', 'imprimer', { 'data-id': rec.id }, rec.etiquetteImprimee ? 'btn btn-secondaire' : 'btn'),
               bouton('SVG', 'svg', { 'data-id': rec.id }, 'btn btn-secondaire btn-petit')),
             h('div', { class: 'boutons' }, bouton('Étiquette collée : marquer comme expédié', 'expedier', { 'data-id': rec.id }, 'btn')),
@@ -1811,6 +1869,7 @@
       case 'manuel-rodage-ok': if (rec) conclureRodage(rec, 'ok'); break;
       case 'manuel-rodage-ko': if (rec) conclureRodage(rec, 'ko'); break;
       case 'preparer': if (rec) preparerExpedition(rec); break;
+      case 'preparer-reseau': if (rec) preparerParReseau(rec); break;
       case 'reprendre-ici': if (rec) reprendreIci(rec); break;
       case 'wifi-reseau':
         $('#cw-ssid').value = b.dataset.ssid;

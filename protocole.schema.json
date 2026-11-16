@@ -190,6 +190,14 @@
           "type": "boolean",
           "description": "L'interface locale demande un mot de passe (firmware 3.5, facultatif)."
         },
+        "ecran": {
+          "type": "boolean",
+          "description": "Un écran est branché (firmware 3.5.1, facultatif)."
+        },
+        "expedition": {
+          "type": "boolean",
+          "description": "Prêt à expédier : l'action « expedier » a été faite, jusqu'au débranchement (firmware 3.5.1, facultatif)."
+        },
         "service": {
           "type": "object",
           "required": [
@@ -418,9 +426,10 @@
             "reseau",
             "service",
             "majauto",
-            "programme"
+            "programme",
+            "expedier"
           ],
-          "description": "Les actions du protocole 4 qui suivent « maj » (sondes … reseau) font à distance ce que la page locale faisait seule. « service » ouvre, prolonge ou ferme l'accès support (V11). « majauto » lit l'état des mises à jour automatiques, demande une vérification ou les reporte (F15). « programme » lit ou écrit les plages horaires (F5)."
+          "description": "Les actions du protocole 4 qui suivent « maj » (sondes … reseau) font à distance ce que la page locale faisait seule. « service » ouvre, prolonge ou ferme l'accès support (V11). « majauto » lit l'état des mises à jour automatiques, demande une vérification ou les reporte (F15). « programme » lit ou écrit les plages horaires (F5). « expedier » (firmware 3.5.1) : fin d'atelier sans USB — Wi-Fi du banc oublié, historique vidé, socle montré prêt (écran, LED)."
         },
         "op": {
           "enum": [
@@ -523,6 +532,15 @@
         "envoyer": {
           "type": "boolean",
           "description": "Pour « rapport » : l'envoyer tout de suite vers l'adresse des alertes au lieu de le rendre."
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^terra[0-9A-Za-z]{6}$",
+          "description": "Pour « expedier » : l'identifiant du socle visé, redit dans la commande (partie vers un autre socle, elle ne fait rien)."
+        },
+        "broker": {
+          "type": "boolean",
+          "description": "Pour « expedier » : false fait aussi oublier le broker (celui de l'atelier), identifiants compris ; absent ou true, il est gardé (serveur Terrariums)."
         },
         "n": {
           "type": "integer",

@@ -116,6 +116,12 @@ public:
   // la persiste et met l'écran à jour (« Support connecté »).
   virtual SessionService &service() = 0;
   virtual void sauverService() = 0;
+
+  // Fin d'atelier (3.5.1, action « expedier ») : l'identifiant du socle, que
+  // la commande doit redire, et ce qu'il montre une fois prêt à partir (écran,
+  // LED) jusqu'à son débranchement. Vrai si un écran l'affiche.
+  virtual const char *identifiant() = 0;
+  virtual bool montrerExpedition() = 0;
 };
 
 // Une session d'accès support est ouverte et n'a pas expiré (heure fiable).

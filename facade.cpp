@@ -26,6 +26,11 @@ void led(bool allumee) {
 bool motif(uint32_t t) {
   for (uint8_t z = 0; z < NB_ZONES; z++)
     if (ctrl.zone[z].defaut != DEF_AUCUN) return (t / 125) % 2 == 0;  // 4 Hz
+  // Prêt à expédier (fin d'atelier) : triple éclair.
+  if (Affichage::expeditionEnCours()) {
+    const uint32_t p = t % 2000;
+    return p < 100 || (p >= 250 && p < 350) || (p >= 500 && p < 600);
+  }
   if (Sondes::zoneEnIdentification() >= 0 || Essai::zoneEnCours() >= 0) return true;
   if (Reseau::modePointAcces()) return (t / 1000) % 2 == 0;
   if (!Reseau::connecte()) return t % 1000 < 150;

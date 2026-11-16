@@ -36,6 +36,10 @@ const uint32_t PAGE_RETOUR_MS = 30000;
 char g_avis1[24] = "", g_avis2[24] = "";
 uint32_t g_avisFin = 0;
 
+// Fin d'atelier : la référence, jusqu'au débranchement.
+bool g_expedition = false;
+char g_idExpedition[16] = { 0 };
+
 // Courbes des 6 dernières heures : un point toutes les 3 min, relu dans
 // l'historique en flash au plus une fois par minute, et seulement quand la
 // page est affichée.
@@ -355,6 +359,16 @@ void appairage(const char *identifiant, const char *jeton, uint32_t secondes) {
 
 bool appairageEnCours() { return g_appairageFin != 0; }
 
+void expedition(const char *identifiant) {
+  snprintf(g_idExpedition, sizeof g_idExpedition, "%s", identifiant ? identifiant : "");
+  g_expedition = true;
+  g_avisFin = 0;
+  reveiller();
+  rafraichir();
+}
+
+bool expeditionEnCours() { return g_expedition; }
+
 // Mire du test usine : tout allumé, puis un damier — un pixel mort ou une
 // colonne absente se voit à l'œil nu. Bloquant le temps indiqué.
 bool mire(uint32_t ms) {
@@ -413,6 +427,28 @@ void rafraichir() {
       ecran.display();
       return;
     }
+  }
+
+  // Fin d'atelier : la référence en grand, l'écran toujours allumé (quelques
+  // minutes, le temps de coller l'étiquette et de débrancher).
+  if (g_expedition) {
+    reveiller();
+    ecran.clearDisplay();
+    ecran.setTextColor(SSD1306_WHITE);
+    ecran.setTextSize(1);
+    ecran.setCursor(0, 0);
+    ecran.print(F("Pret a expedier"));
+    const size_t n = strlen(g_idExpedition);
+    ecran.setCursor(0, 16);
+    ecran.print(n > 6 ? String(g_idExpedition).substring(0, n - 6) : String(""));
+    ecran.setTextSize(2);
+    ecran.setCursor(0, 28);
+    ecran.print(n > 6 ? g_idExpedition + (n - 6) : g_idExpedition);
+    ecran.setTextSize(1);
+    ecran.setCursor(0, 54);
+    ecran.print(F("Etiquette, puis 12V"));
+    ecran.display();
+    return;
   }
 
   // Un défaut rallume toujours l'écran : c'est le moment où l'on veut le lire.

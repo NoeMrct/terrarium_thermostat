@@ -23,6 +23,11 @@ bool mire(uint32_t ms);
 void pageSuivante();
 // Avis de quelques secondes, par-dessus les pages (bouton tenu, action faite).
 void avis(const String &ligne1, const String &ligne2, uint32_t ms);
+// Fin d'atelier (action « expedier ») : « Pret a expedier » et la référence du
+// socle, jusqu'au débranchement — l'étiquette va sur celui qui l'affiche. La
+// LED le dit aussi (triple éclair), écran ou pas.
+void expedition(const char *identifiant);
+bool expeditionEnCours();
 }  // namespace Affichage
 
 #endif  // AFFICHAGE_H

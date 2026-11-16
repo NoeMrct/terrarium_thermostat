@@ -454,6 +454,9 @@ String corpsSante() {
   // et page locale sans mot de passe : deux choses à corriger d'un coup d'œil.
   j += ",\"mqtt\":\"" + echapperJson(Reseau::etatMqtt().c_str()) + "\"";
   j += ",\"webProtege\":" + String(Stockage::reseau().webUtilisateur[0] ? "true" : "false");
+  // 3.5.1 : écran présent ; socle prêt à expédier (fin d'atelier, jusqu'au débranchement).
+  j += ",\"ecran\":" + String(Affichage::present() ? "true" : "false");
+  if (Affichage::expeditionEnCours()) j += ",\"expedition\":true";
   const EtatMaj &m = Stockage::etatMaj();
   if (m.etape != MAJ_AUCUNE) {
     j += ",\"maj\":{\"etape\":\"" + String(nomEtapeMaj(m.etape)) + "\",\"version\":\"" +
@@ -2396,6 +2399,12 @@ public:
     Stockage::sauverService();
     g_santeAPublier = true;
     Affichage::reveiller();
+  }
+  const char *identifiant() override { return g_id.c_str(); }
+  bool montrerExpedition() override {
+    Affichage::expedition(g_id.c_str());
+    g_santeAPublier = true;  // « expedition » dans la santé, tout de suite
+    return Affichage::present();
   }
 };
 SocleReel g_socle;

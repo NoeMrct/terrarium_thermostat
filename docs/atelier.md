@@ -10,8 +10,8 @@ Elle s'ouvre dans **Chrome ou Edge, sur un ordinateur** : il faut le port série
 (Web Serial), qui n'existe qu'en HTTPS ou sur `localhost`.
 
 > Règle d'or : **USB et 12 V ne sont jamais branchés en même temps.** La console USB ne sert
-> qu'aux étapes 1 et 5, 12 V débranché. Les étapes 2 à 4 se font sur le banc, en 12 V, par le
-> broker.
+> qu'à l'étape 1 (et à l'étape 5 avant le firmware 3.5.1), 12 V débranché. Les étapes 2 à 4 — et
+> 5 depuis la 3.5.1 — se font sur le banc, en 12 V, par le broker.
 
 ## Avant la première séance : les réglages
 
@@ -110,11 +110,19 @@ conclut à la fin de la même façon. Avec un redémarrage ou un défaut, le rod
 le recommencer, l'accepter malgré tout (c'est noté au journal du socle) ou mettre le socle de
 côté.
 
-### 5. Étiquette et expédition (USB de nouveau, 12 V débranché)
+### 5. Étiquette et expédition
 
-Branchez le socle prêt en USB : l'étape démarre seule (sinon « Vérifier et préparer »). Elle
-relit l'identité sur la console. Ainsi, l'étiquette ne peut pas partir sur un autre socle.
-L'atelier envoie ensuite :
+**Sans USB (firmware 3.5.1 et plus, socle resté sur le banc)** : « Préparer et imprimer, sans
+USB ». Par une commande signée (`expedier`), le socle oublie le Wi-Fi du banc (et le broker de
+l'atelier si le réglage est coché), vide son historique, puis **affiche « Pret a expedier » et
+sa référence** jusqu'à son débranchement ; sa LED fait un triple éclair. L'étiquette part à
+l'imprimante aussitôt : collez-la sur le socle qui l'affiche, puis débranchez le 12 V. Rien ne
+s'applique avant le prochain démarrage : le socle reste joignable jusque-là. Un firmware plus
+ancien ne connaît pas cette commande : l'atelier le dit et l'USB prend le relais.
+
+**Par l'USB (12 V débranché)** : branchez le socle prêt en USB ; l'étape démarre seule (sinon
+« Par la console (USB) » / « Vérifier et préparer »). Elle relit l'identité sur la console.
+Ainsi, l'étiquette ne peut pas partir sur un autre socle. L'atelier envoie ensuite :
 
 - `wifi off` : le socle oublie le Wi-Fi du banc et ouvrira son point d'accès de configuration
   dès le premier démarrage chez l'acheteur ;

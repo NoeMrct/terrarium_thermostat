@@ -8,7 +8,7 @@
 
 // Version du firmware. Affichée partout : après quelques mises à jour sans fil,
 // c'est le seul moyen de savoir ce qui tourne réellement sur la carte.
-#define FW_VERSION "3.5.0"
+#define FW_VERSION "3.5.1"
 // Identifiant de compilation. La CI passe le commit (-DFW_COMMIT="abc1234") et
 // fige la date par SOURCE_DATE_EPOCH : deux compilations du même commit donnent
 // alors le même binaire, octet pour octet, ce qui prouve qu'une release
