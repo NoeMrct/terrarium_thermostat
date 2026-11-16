@@ -10,10 +10,14 @@
 <link rel="icon" href="icone.svg">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0d0e10" media="(prefers-color-scheme: dark)">
-<!-- Même politique que l'application : broker en wss:, serveur Terrariums en https: (ws et http
-     en local, pour un banc de développement), aucun style ni script en ligne. Le DOM ne s'écrit
-     qu'élément par élément : aucune politique Trusted Types n'est permise, innerHTML est refusé. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' wss: https: ws://localhost:* ws://127.0.0.1:* http://localhost:* http://127.0.0.1:*; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; base-uri 'self'; form-action 'self'; require-trusted-types-for 'script'; trusted-types 'none'">
+<!-- Adresse du serveur Terrariums, écrite au déploiement (TERRARIUM_SERVEUR, voir
+     outils/adresse-serveur.js) : vide dans le dépôt. -->
+<meta name="terrarium-serveur" content="">
+<!-- Broker en wss:, serveur Terrariums en https: (ws et http en local, pour un banc de
+     développement), aucun script en ligne. L'atelier écrit son DOM élément par élément ; la seule
+     politique Trusted Types permise est « lit-html », celle de la fenêtre d'installation du
+     firmware (ESP Web Tools, servi par le site), qui pose aussi ses styles en ligne. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' wss: https: ws://localhost:* ws://127.0.0.1:* http://localhost:* http://127.0.0.1:*; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; base-uri 'self'; form-action 'self'; require-trusted-types-for 'script'; trusted-types lit-html">
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="atelier.css">
 <script src="mqtt.js" defer></script>
@@ -38,8 +42,9 @@
 
 <section id="reglages" class="carte" aria-labelledby="t-reglages" hidden>
   <h2 id="t-reglages">Réglages de l'atelier</h2>
-  <p class="aide">Gardés dans ce navigateur. Les mots de passe et le jeton d'administration ne le sont que
-    jusqu'à la fermeture de l'onglet : ils sont redemandés à chaque séance.</p>
+  <p class="aide">Gardés dans ce navigateur. La connexion au compte dure tant que l'atelier sert au moins une fois
+    par mois. Les autres mots de passe ne sont gardés que jusqu'à la fermeture de l'onglet, sauf le Wi-Fi du banc
+    si vous le faites retenir.</p>
   <form id="form-reglages" novalidate>
     <h3 class="mt">Étiquette</h3>
     <label for="r-url">Adresse de l'application (lien du QR code)</label>
@@ -54,6 +59,8 @@
       <div><label for="r-wifi-mdp">Mot de passe</label>
         <input id="r-wifi-mdp" type="password" autocomplete="off"></div>
     </div>
+    <label class="interrupteur mt" for="r-wifi-retenir">Retenir le mot de passe du Wi-Fi sur cet ordinateur
+      <input id="r-wifi-retenir" type="checkbox" checked></label>
 
     <h3 class="mt">Liaison des socles</h3>
     <div class="segment trois" role="group" aria-label="Liaison des socles">
@@ -64,20 +71,42 @@
 
     <div data-pour="serveur" hidden>
       <p class="aide">Chaque socle reçoit son compte d'appareil sur le serveur (il le garde chez l'acheteur).
-        L'atelier suit le banc avec l'utilisateur MQTT « admin ». Le serveur doit accepter cette page
-        (variable ORIGINES).</p>
+        L'atelier suit le banc avec votre compte administrateur.</p>
       <label for="r-serveur">Adresse du serveur</label>
       <input id="r-serveur" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://terrariums.exemple.fr">
-      <label for="r-admin">Jeton d'administration</label>
-      <input id="r-admin" type="password" autocomplete="off">
-      <div class="rangee">
-        <div><label for="r-s-hote">Hôte MQTT des socles</label>
-          <input id="r-s-hote" autocomplete="off" spellcheck="false" placeholder="celui du serveur"></div>
-        <div><label for="r-s-port">Port</label>
-          <input id="r-s-port" type="number" min="1" max="65535" inputmode="numeric" placeholder="8883"></div>
-        <div><label for="r-s-ws">Broker de cette page (wss)</label>
-          <input id="r-s-ws" type="url" autocomplete="off" spellcheck="false" placeholder="wss://…/mqtt"></div>
+
+      <div id="compte-connecte" class="compte-atelier mt" hidden>
+        <p>Connecté : <b id="compte-login"></b></p>
+        <button type="button" class="btn btn-fantome btn-petit" data-action="deconnecter">Se déconnecter</button>
       </div>
+      <div id="compte-connexion" class="mt">
+        <label for="r-email">E-mail de votre compte administrateur</label>
+        <div class="rangee">
+          <div><input id="r-email" type="email" inputmode="email" autocomplete="username" spellcheck="false" placeholder="vous@exemple.fr"></div>
+          <div><button type="button" class="btn btn-secondaire" data-action="code">Recevoir un code</button></div>
+        </div>
+        <div id="bloc-code" hidden>
+          <label for="r-code">Code reçu par e-mail</label>
+          <div class="rangee">
+            <div><input id="r-code" inputmode="numeric" autocomplete="one-time-code" spellcheck="false" maxlength="7" placeholder="123456"></div>
+            <div><button type="button" class="btn" data-action="connecter">Se connecter</button></div>
+          </div>
+        </div>
+      </div>
+
+      <details class="mt">
+        <summary>Réglages avancés du serveur</summary>
+        <label for="r-admin">Jeton d'administration (à la place du compte)</label>
+        <input id="r-admin" type="password" autocomplete="off">
+        <div class="rangee">
+          <div><label for="r-s-hote">Hôte MQTT des socles</label>
+            <input id="r-s-hote" autocomplete="off" spellcheck="false" placeholder="celui du serveur"></div>
+          <div><label for="r-s-port">Port</label>
+            <input id="r-s-port" type="number" min="1" max="65535" inputmode="numeric" placeholder="8883"></div>
+          <div><label for="r-s-ws">Broker de cette page (wss)</label>
+            <input id="r-s-ws" type="url" autocomplete="off" spellcheck="false" placeholder="wss://…/mqtt"></div>
+        </div>
+      </details>
     </div>
 
     <div data-pour="broker" hidden>
@@ -140,7 +169,7 @@
       <button type="button" data-filtre="tous" aria-pressed="false">Tous</button>
     </div>
     <ul id="liste-socles" class="liste-socles-atelier" aria-label="Socles du lot"></ul>
-    <p id="liste-vide" class="aide">Aucun socle ici. « Nouveau socle » commence par la console série.</p>
+    <p id="liste-vide" class="aide">Aucun socle ici. Branche une carte en USB, puis « Nouveau socle ».</p>
     <div class="boutons">
       <button type="button" class="btn btn-secondaire btn-petit" data-action="exporter">Registre (CSV)</button>
     </div>
@@ -149,8 +178,8 @@
   <section id="fiche" class="carte" aria-labelledby="fiche-titre" tabindex="-1">
     <h2 id="fiche-titre">Monter un socle</h2>
     <ol class="etapes">
-      <li><b>Console</b> (USB, 12 V débranché) : identité, auto-test usine, mot de passe de la page locale,
-        Wi-Fi du banc et liaison.</li>
+      <li><b>Console</b> (USB, 12 V débranché) : firmware installé s'il manque ou date, identité, auto-test
+        usine, mot de passe de la page locale, Wi-Fi du banc et liaison.</li>
       <li><b>Sondes</b> (12 V, sur le banc) : chaque sonde serrée dans la main est liée à sa zone.</li>
       <li><b>Chauffe</b> : essai de chaque tapis, verdict du socle.</li>
       <li><b>Rodage</b> : le socle tourne seul, l'atelier note redémarrages et défauts.</li>

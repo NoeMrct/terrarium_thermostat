@@ -7,6 +7,19 @@ affiche le commit dont elle est issue.
 
 ## [Non publié]
 
+### Modifié
+- **Atelier : moins d'étapes.**
+  - Le serveur du déploiement est réglé d'office. L'atelier s'y connecte avec
+    un compte administrateur (code reçu par e-mail, session gardée tant qu'il
+    sert au moins une fois par mois) : plus de jeton d'administration à
+    copier, qui reste possible dans les réglages avancés.
+  - Le mot de passe du Wi-Fi du banc peut être retenu sur l'ordinateur.
+  - Le firmware s'installe dans l'atelier : une carte vierge, ou en retard sur
+    la version publiée, ouvre la fenêtre d'installation d'ESP Web Tools sur le
+    port de la console, puis l'étape 1 continue seule.
+  - « Nouveau socle » ouvre la console tout de suite ; « Étiquette collée :
+    marquer comme expédié » remplace la case et le bouton.
+
 ## [3.5.0] — 2026-11-16
 
 Résumé : première version publiée et signée ; les mises à jour s'installent seules, la nuit.

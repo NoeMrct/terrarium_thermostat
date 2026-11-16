@@ -3,10 +3,12 @@
    -----------------------------------------------------------------------------
    Cinq étapes par socle, suivies dans un registre gardé par ce navigateur :
 
-     1. Console (USB, 12 V débranché) : identité et code d'appairage (« jeton »),
-        version, auto-test usine, mot de passe de la page locale tiré ici et
-        donné au socle, Wi-Fi du banc, liaison MQTT (compte d'appareil créé sur
-        le serveur Terrariums, ou broker de l'atelier).
+     1. Console (USB, 12 V débranché) : une carte vierge, ou en retard sur le
+        firmware publié, le reçoit d'abord (fenêtre d'ESP Web Tools, sur le
+        même port) ; puis identité et code d'appairage (« jeton »), version,
+        auto-test usine, mot de passe de la page locale tiré ici et donné au
+        socle, Wi-Fi du banc, liaison MQTT (compte d'appareil créé sur le
+        serveur Terrariums, ou broker de l'atelier).
      2. Sondes (12 V, sur le banc, par le broker) : chaque sonde serrée dans la
         main est liée à sa zone (« identifier »).
      3. Chauffe : essai de chaque tapis, verdict du socle (« essai »).
@@ -21,6 +23,10 @@
    étapes 1 et 5, le banc (MQTT) aux étapes 2 à 4. Sans liaison, les étapes 2
    à 4 se font sur la page locale du socle et l'opérateur les valide ici.
 
+   Le serveur Terrariums est celui du déploiement (balise terrarium-serveur).
+   L'atelier s'y connecte avec un compte administrateur (code reçu par e-mail,
+   session gardée dans ce navigateur) ou, à défaut, le jeton d'administration.
+
    Le DOM est écrit élément par élément (pas d'innerHTML) : la politique de
    sécurité du site exige les Trusted Types, et rien de ce qui vient de la
    console ou du broker n'est interprété comme du HTML.
@@ -30,12 +36,27 @@
 
   const CLE = 'terrarium.atelier.v1';
   const CLE_SECRETS = 'terrarium.atelier.secrets';     // sessionStorage : jusqu'à la fermeture de l'onglet
+  const CLE_SESSION = 'terrarium.atelier.session';     // localStorage : compte administrateur connecté (session de 30 jours glissants)
+  const CLE_MEMO = 'terrarium.atelier.memo';           // localStorage : ce que l'opérateur fait retenir (mot de passe du Wi-Fi du banc)
+  // Fenêtre d'installation d'ESP Web Tools, servie par le site : la même que
+  // celle de la page « Flasher un socle ». outils/verifier-installateur.js
+  // contrôle que ce fichier existe.
+  const DIALOGUE_INSTALLATION = './installateur/install-dialog-im156JnI.js';
+  const MANIFESTE_FIRMWARE = 'firmware/manifest.json';
   const ALPHABET_MDP = 'abcdefghjkmnpqrstuvwxyz23456789';  // ni i, l, o, 0, 1 : lisible sur une étiquette
   const NB_ZONES = 2;
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const LIGNE_MAX = 118;                               // tampon de la console du socle : 120 caractères
-  const delais = { reponse: 10000, sondage: 2000, essai: 3000, rodageVerif: 30000 };
+  const delais = { reponse: 10000, sondage: 2000, essai: 3000, rodageVerif: 30000, identite: 2500, essaisIdentite: 5 };
   const $ = s => document.querySelector(s);
+  const lireJson = (stockage, cle) => { try { return JSON.parse(stockage.getItem(cle) || 'null'); } catch (e) { return null; } };
+  const ecrireJson = (stockage, cle, v) => { try { if (v) stockage.setItem(cle, JSON.stringify(v)); else stockage.removeItem(cle); } catch (e) { /* stockage refusé */ } };
+  // Serveur Terrariums fixé au déploiement (balise vide dans le dépôt).
+  const serveurDeploye = (() => {
+    const m = document.querySelector('meta[name="terrarium-serveur"]');
+    try { const u = new URL((m && m.getAttribute('content') || '').trim()); return u.protocol === 'https:' ? u.origin : ''; }
+    catch (e) { return ''; }
+  })();
 
   // ------------------------------------------------------------------ outils
   /** Crée un élément : h('p', { class: 'aide' }, 'texte', autreElement). */
@@ -98,8 +119,8 @@
     return {
       urlApp: new URL('./', location.href).href,
       ssid: '',
-      liaison: 'aucune',
-      serveur: { url: '', hote: '', port: 8883, ws: '' },
+      liaison: serveurDeploye ? 'serveur' : 'aucune',
+      serveur: { url: serveurDeploye, hote: '', port: 8883, ws: '' },
       broker: { ws: '', hote: '', port: 8883, prefixe: 'terrarium', utilisateur: '', oublier: true },
       rodageH: 24
     };
@@ -129,6 +150,26 @@
   let secrets = {};
   try { secrets = JSON.parse(sessionStorage.getItem(CLE_SECRETS) || '{}') || {}; } catch (e) { secrets = {}; }
   function sauverSecrets() { try { sessionStorage.setItem(CLE_SECRETS, JSON.stringify(secrets)); } catch (e) { /* onglet sans stockage */ } }
+  // Ce que l'opérateur a fait retenir sur cet ordinateur.
+  const memo = lireJson(localStorage, CLE_MEMO) || {};
+  if (!secrets.wifiMdp && memo.wifiMdp) secrets.wifiMdp = memo.wifiMdp;
+  // Compte administrateur connecté : { serveur (origine), login, jeton }. Son
+  // jeton de session ouvre l'API d'administration et le broker du serveur
+  // (identifiant : l'adresse e-mail), comme le jeton d'administration.
+  let session = lireJson(localStorage, CLE_SESSION);
+  const origineDe = url => { try { return new URL(url).origin; } catch (e) { return ''; } };
+  function sessionValide() {
+    const r = reg.reglages;
+    return session && session.jeton && r.liaison === 'serveur' && session.serveur === origineDe(r.serveur.url) ? session : null;
+  }
+  // Ce qui authentifie l'atelier auprès du serveur : le compte, sinon le jeton.
+  function authServeur() { const s = sessionValide(); return s ? s.jeton : (secrets.adminJeton || ''); }
+  function oublierSession(texte) {
+    session = null;
+    ecrireJson(localStorage, CLE_SESSION, null);
+    relierBanc();
+    if (texte) message(texte, true);
+  }
 
   function socle(id) { return reg.socles[id] || null; }
   function noter(rec, texte) {
@@ -160,10 +201,10 @@
   let serie = null;
   const serieDisponible = () => !!(navigator.serial && window.isSecureContext !== false);
 
-  async function ouvrirConsole() {
+  async function ouvrirConsole(portConnu) {
     if (serie && serie.ouvert) return serie;
     if (!serieDisponible()) throw new Error('Ce navigateur ne parle pas au port série : Chrome ou Edge, sur ordinateur, en HTTPS.');
-    const port = await navigator.serial.requestPort();
+    const port = portConnu || await navigator.serial.requestPort();
     await port.open({ baudRate: 115200 });
     serie = { port, ouvert: true, tampon: '', total: 0, lecteur: port.readable.getReader(), ecrivain: port.writable.getWriter() };
     etatConsole();
@@ -255,6 +296,8 @@
     if (r.liaison === 'serveur') {
       let url = r.serveur.ws;
       if (!url && r.serveur.url) { try { url = 'wss://' + new URL(r.serveur.url).host + '/mqtt'; } catch (e) { url = ''; } }
+      const s = sessionValide();
+      if (url && s) return { url, user: s.login, pass: s.jeton, prefixe: 'terrarium' };
       return url && secrets.adminJeton ? { url, user: 'admin', pass: secrets.adminJeton, prefixe: 'terrarium' } : null;
     }
     // Un utilisateur sans son mot de passe (onglet rouvert) : rien à tenter.
@@ -282,7 +325,11 @@
     client.on('connect', () => { abonnes.clear(); abonner(); etatBanc(); });
     client.on('close', etatBanc);
     client.on('offline', etatBanc);
-    client.on('error', etatBanc);
+    client.on('error', err => {
+      etatBanc();
+      // Un compte refusé par le broker : sa session a peut-être expiré.
+      if (sessionValide() && /refus/i.test(err && err.message || '')) verifierSession();
+    });
     client.on('message', recevoir);
     etatBanc();
   }
@@ -301,7 +348,7 @@
     const c = configBanc();
     let texte = 'Banc non relié', classe = '';
     if (reg.reglages.liaison === 'aucune') texte = 'Sans liaison';
-    else if (!c) { texte = 'Banc : identifiants à saisir'; classe = ' attente'; }
+    else if (!c) { texte = reg.reglages.liaison === 'serveur' ? 'Banc : compte à connecter' : 'Banc : identifiants à saisir'; classe = ' attente'; }
     else if (client && client.connected) { texte = 'Banc relié'; classe = ' ok'; }
     else if (client) { texte = 'Banc : connexion…'; classe = ' attente'; }
     e.textContent = texte;
@@ -394,13 +441,74 @@
     invalider();
   }
 
-  async function lireIdentite() {
+  async function lireIdentite({ silencieux = false } = {}) {
     let m = null;
     // Le socle peut redémarrer à l'ouverture du port : quelques essais.
-    for (let i = 0; i < 5 && !m; i++) m = await commande('jeton', /Appareil (terra[0-9A-Za-z]{6})\s*\r?\nCode d'appairage : ([A-Z0-9]{24})/, 2500);
-    if (!m) throw new Error('Le socle ne répond pas à « jeton » : câble de données ? firmware flashé ? (bouton EN pour redémarrer la carte)');
+    for (let i = 0; i < delais.essaisIdentite && !m; i++) m = await commande('jeton', /Appareil (terra[0-9A-Za-z]{6})\s*\r?\nCode d'appairage : ([A-Z0-9]{24})/, delais.identite);
+    if (!m) {
+      if (silencieux) return null;
+      throw new Error('Le socle ne répond pas à « jeton » : câble de données ? firmware flashé ? (bouton EN pour redémarrer la carte)');
+    }
     const v = await commande('version', /Firmware (\S+), compile le [^\n]*?, protocole (\d+)/, 3000);
     return { id: m[1], code: m[2], firmware: v ? v[1].replace(/,$/, '') : '', proto: v ? parseInt(v[2], 10) : 0 };
+  }
+
+  // ------------------------------------------------ installation du firmware
+  // Le firmware publié : celui que propose la page « Flasher un socle »
+  // (manifeste écrit à la publication du site), ou null. Lu une fois.
+  let manifeste = null;
+  function versionPubliee() {
+    if (!manifeste) {
+      manifeste = Promise.resolve().then(() => fetch(MANIFESTE_FIRMWARE, { cache: 'no-store' }))
+        .then(r => (r && r.ok ? r.json() : null))
+        .then(m => (m && m.version && Array.isArray(m.builds) && m.builds.length ? String(m.version) : null))
+        .catch(() => null);
+    }
+    return manifeste;
+  }
+  // Versions X.Y.Z : négatif si a est plus ancienne que b.
+  function comparerVersions(a, b) {
+    const n = v => String(v || '').split(/[.+-]/).slice(0, 3).map(x => parseInt(x, 10) || 0);
+    const x = n(a), y = n(b);
+    for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] - y[i];
+    return 0;
+  }
+  // La fenêtre d'installation d'ESP Web Tools sur le port de la console : la
+  // console le lui laisse, et le reprend quand la fenêtre se ferme. Les bancs
+  // d'essai la remplacent (Atelier._installateur).
+  let installateur = async port => {
+    await import(DIALOGUE_INSTALLATION);
+    await port.open({ baudRate: 115200, bufferSize: 8192 });
+    await new Promise(resoudre => {
+      const d = /** @type {any} */ (document.createElement('ewt-install-dialog'));
+      d.port = port;
+      d.manifestPath = MANIFESTE_FIRMWARE;
+      d.addEventListener('closed', resoudre, { once: true });
+      document.body.appendChild(d);
+    });
+    try { await port.close(); } catch (e) { /* déjà fermé */ }
+  };
+  async function installerFirmware(version) {
+    const port = serie.port;
+    await fermerConsole(serie);
+    message(`Firmware ${version} : clique « Install » dans la fenêtre, puis ferme-la à la fin.`);
+    try { await installateur(port); }
+    finally { await ouvrirConsole(port); }
+  }
+  // L'identité du socle ; une carte vierge, ou un firmware plus ancien que
+  // celui publié, passe d'abord par l'installation.
+  async function identiteAJour() {
+    let ident = await lireIdentite({ silencieux: true });
+    const publiee = await versionPubliee();
+    if (ident && (!publiee || !ident.firmware || comparerVersions(ident.firmware, publiee) >= 0)) return ident;
+    if (!publiee) throw new Error('Le socle ne répond pas à « jeton », et aucun firmware publié n\'est à installer : câble de données ? (bouton EN pour redémarrer la carte)');
+    coche('firmware', ident ? `Mise à jour du firmware ${ident.firmware} vers ${publiee}` : `Installation du firmware ${publiee}`);
+    await installerFirmware(publiee);
+    ident = await lireIdentite({ silencieux: true });
+    if (!ident) throw new Error('Après l\'installation, le socle ne répond pas : fenêtre fermée trop tôt ? « Reprendre la console » pour recommencer.');
+    if (comparerVersions(ident.firmware, publiee) < 0) throw new Error(`Le socle est toujours en ${ident.firmware} : installation annulée ? « Reprendre la console » pour recommencer.`);
+    coche('firmware', `Firmware ${ident.firmware} installé`, 'fait');
+    return { ...ident, installe: true };
   }
 
   function verifierReglagesConsole() {
@@ -408,7 +516,7 @@
     const espace = x => /\s/.test(x || '');
     if (r.ssid && (espace(r.ssid) || espace(secrets.wifiMdp))) return 'Wi-Fi du banc : ni espace dans le nom ni dans le mot de passe (la console du socle coupe aux espaces).';
     if (r.ssid && !secrets.wifiMdp) return 'Mot de passe du Wi-Fi du banc à saisir (Réglages) : il n\'est gardé que pendant la séance.';
-    if (r.liaison === 'serveur' && (!r.serveur.url || !secrets.adminJeton)) return 'Serveur Terrariums : adresse et jeton d\'administration à saisir (Réglages).';
+    if (r.liaison === 'serveur' && (!r.serveur.url || !authServeur())) return 'Serveur Terrariums : connecte-toi avec ton compte administrateur (Réglages).';
     if (r.liaison === 'broker') {
       if (!r.broker.hote) return 'Broker de l\'atelier : hôte pour les socles à saisir (Réglages).';
       if (espace(r.broker.utilisateur) || espace(secrets.brokerMdp)) return 'Broker : ni espace dans l\'utilisateur ni dans le mot de passe.';
@@ -427,12 +535,13 @@
     let rec = idAttendu ? socle(idAttendu) : null;
     try {
       coche('identite', 'Identité du socle');
-      const ident = await lireIdentite();
+      const ident = await identiteAJour();
       if (idAttendu && ident.id !== idAttendu) throw new Error(`Ce socle est ${ident.id}, pas ${idAttendu}.`);
       rec = obtenirSocle(ident.id);
       // Un socle déjà connu (remis en état, retour SAV) recommence tout : les
       // résultats d'après l'étape 1 ne valent plus.
       if (rec.etape > 1 || rec.etat !== 'actif') noter(rec, 'Reprise à l\'étape 1');
+      if (ident.installe) noter(rec, `Firmware ${ident.firmware} installé par l'atelier`);
       Object.assign(rec, { code: ident.code, firmware: ident.firmware, proto: ident.proto, etape: 1, etat: 'actif', echec: null,
         sondes: [], chauffe: [], rodage: null, expedition: null });
       delete rec.cote;
@@ -475,12 +584,13 @@
       if (r.liaison === 'serveur') {
         coche('liaison', 'Compte d\'appareil sur le serveur');
         const base = r.serveur.url.replace(/\/+$/, '');
-        let rep, d;
-        try {
-          rep = await fetch(`${base}/api/admin/appareils`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secrets.adminJeton}` }, body: JSON.stringify({ id: rec.id }) });
-          d = await rep.json().catch(() => ({}));
-        } catch (e) { throw new Error(`Serveur injoignable (${base}) : adresse, ou cette page absente de ses ORIGINES.`, { cause: e }); }
-        if (!rep.ok) throw new Error(`Serveur : ${d.erreur || 'HTTP ' + rep.status}.`);
+        const rep = await appelServeur(base, '/api/admin/appareils', { methode: 'POST', corps: { id: rec.id }, jeton: authServeur() });
+        if (rep.status === 401 && sessionValide()) {
+          oublierSession();
+          throw new Error('Session expirée : reconnecte-toi dans les réglages, puis « Reprendre la console ».');
+        }
+        if (!rep.ok) throw new Error(`Serveur : ${rep.d.erreur || 'HTTP ' + rep.status}.`);
+        const d = rep.d;
         let hote = r.serveur.hote;
         if (!hote) hote = new URL(base).hostname;
         const port = +r.serveur.port || 8883;
@@ -872,7 +982,7 @@
     const liste = enCours ? procedure.coches : [];
     return [
       etape === 1
-        ? h('p', { class: 'aide' }, '12 V débranché, carte en USB. Socle neuf : ', h('a', { href: 'installer.html', target: '_blank', rel: 'noopener' }, 'flasher le firmware'), ' d\'abord (nouvel onglet), puis revenir ici.')
+        ? h('p', { class: 'aide' }, '12 V débranché, carte en USB. Carte vierge ou firmware en retard : l\'atelier installe d\'abord le firmware publié (« Install » dans la fenêtre qui s\'ouvre), puis enchaîne.')
         : h('p', { class: 'aide' }, 'Débranche le 12 V, branche l\'USB : l\'atelier vérifie que c\'est bien ce socle, lui fait oublier le Wi-Fi du banc, vide l\'historique du rodage.'),
       liste.length ? coches(liste) : null,
       enCours && liste.some(c => c.etat === 'encours') ? null
@@ -969,8 +1079,7 @@
         h('div', { class: 'etiquette-apercu' }, etiquetteSvg(rec),
           h('div', {}, h('p', { class: 'aide' }, `Identité vérifiée sur la console${rec.expedition.wifiOublie ? ', Wi-Fi du banc oublié' : ' (Wi-Fi du banc gardé : firmware trop ancien)'}. L'étiquette porte le lien d'installation (le téléphone l'ouvre sans application), le code et le mot de passe de la page locale.`),
             h('div', { class: 'boutons' }, bouton('Imprimer l\'étiquette', 'imprimer', { 'data-id': rec.id }, 'btn'), bouton('SVG', 'svg', { 'data-id': rec.id }, 'btn btn-secondaire btn-petit')),
-            h('label', { class: 'interrupteur mt', for: 'colle-' + rec.id }, 'Étiquette collée sous le socle', h('input', { type: 'checkbox', id: 'colle-' + rec.id, 'data-colle': rec.id })),
-            h('div', { class: 'boutons' }, bouton('Marquer comme expédié', 'expedier', { 'data-id': rec.id, disabled: true }, 'btn')),
+            h('div', { class: 'boutons' }, bouton('Étiquette collée : marquer comme expédié', 'expedier', { 'data-id': rec.id }, 'btn')),
             h('p', { class: 'discret' }, 'À l\'expédition, le code d\'appairage et le mot de passe sont effacés de cet ordinateur.'))));
     }
     return corps;
@@ -981,8 +1090,6 @@
     // Le focus survit au redessin : même action, même socle, même zone.
     const actif = document.activeElement && f.contains(document.activeElement) ? document.activeElement : null;
     const cleFocus = actif ? [actif.dataset.action, actif.dataset.id, actif.dataset.zone, actif.id].join('|') : '';
-    const coche = f.querySelector('[data-colle]');
-    const colle = coche ? coche.checked : false;
     if (nouveau) {
       f.replaceChildren(h('h2', { id: 'fiche-titre' }, 'Nouveau socle'), pasCarte(1, 'Console', procedure && procedure.coches.some(c => c.etat === 'echec') ? 'echec' : 'encours', '', corpsConsole(null, 1)));
     } else if (!selection || !socle(selection)) {
@@ -1016,8 +1123,6 @@
         echec, ...pas, cote,
         h('details', { class: 'mt' }, h('summary', {}, 'Journal du socle'), h('ul', { class: 'incidents' }, (rec.journal || []).slice().reverse().map(j => h('li', {}, `${dateCourte(j.t)} — ${j.texte}`))))
       ].filter(Boolean));
-      const c = f.querySelector('[data-colle]');
-      if (c) { c.checked = colle; const b = f.querySelector('[data-action="expedier"]'); if (b) b.disabled = !colle; }
     }
     if (cleFocus) {
       const cible = [...f.querySelectorAll('button, input, a, summary')].find(el => [el.dataset.action, el.dataset.id, el.dataset.zone, el.id].join('|') === cleFocus);
@@ -1050,12 +1155,105 @@
   }, 1000);
   setInterval(() => { surveillerRodages(); invaliderBanc(); }, delais.rodageVerif);
 
+  // ------------------------------------------------- serveur et compte
+  async function appelServeur(base, chemin, { methode = 'GET', corps, jeton } = {}) {
+    let rep;
+    try {
+      rep = await fetch(base.replace(/\/+$/, '') + chemin, {
+        method: methode,
+        headers: { ...(corps ? { 'Content-Type': 'application/json' } : {}), ...(jeton ? { Authorization: `Bearer ${jeton}` } : {}) },
+        body: corps ? JSON.stringify(corps) : undefined
+      });
+    } catch (e) { throw new Error(`Serveur injoignable (${base}) : adresse, ou cette page absente de ses ORIGINES.`, { cause: e }); }
+    const d = await rep.json().catch(() => ({}));
+    return { ok: rep.ok, status: rep.status, d: d || {} };
+  }
+  // Une session refusée (expirée, ou compte qui n'est plus administrateur) est
+  // oubliée ; hors ligne, elle est gardée.
+  async function verifierSession() {
+    const s = sessionValide();
+    if (!s) return;
+    let r;
+    try { r = await appelServeur(s.serveur, '/api/moi', { jeton: s.jeton }); } catch (e) { return; }
+    if (session !== s) return;
+    if (r.status === 401) oublierSession('Session expirée : reconnecte-toi dans les réglages de l\'atelier.');
+    else if (r.ok && !r.d.admin) oublierSession('Ce compte n\'est plus administrateur du serveur : reconnecte-toi avec un compte administrateur.');
+  }
+  const serveurSaisi = () => { const v = $('#r-serveur').value.trim(); return /^https:\/\//.test(v) ? origineDe(v) : ''; };
+  function erreurReglages(texte) {
+    const e = $('#reglages-erreur');
+    e.textContent = texte;
+    e.hidden = !texte;
+  }
+  function montrerCompte() {
+    const s = session && session.serveur === (serveurSaisi() || origineDe(reg.reglages.serveur.url)) ? session : null;
+    $('#compte-connecte').hidden = !s;
+    $('#compte-connexion').hidden = !!s;
+    $('#compte-login').textContent = s ? s.login : '';
+  }
+  async function demanderCode() {
+    const base = serveurSaisi();
+    if (!base) return erreurReglages('Adresse du serveur : https://…');
+    const email = $('#r-email').value.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return erreurReglages('Adresse e-mail invalide.');
+    erreurReglages('');
+    let r;
+    try { r = await appelServeur(base, '/api/compte/code', { methode: 'POST', corps: { email } }); }
+    catch (e) { return erreurReglages(e.message); }
+    if (!r.ok) return erreurReglages(`Serveur : ${r.d.erreur || 'HTTP ' + r.status}.`);
+    memo.email = email;
+    ecrireJson(localStorage, CLE_MEMO, memo);
+    $('#bloc-code').hidden = false;
+    $('#r-code').focus();
+    message(`Code envoyé à ${email} : il vaut 10 minutes.`);
+  }
+  async function connecterCompte() {
+    const base = serveurSaisi();
+    if (!base) return erreurReglages('Adresse du serveur : https://…');
+    const email = $('#r-email').value.trim().toLowerCase();
+    const code = $('#r-code').value.replace(/\s/g, '');
+    if (!/^\d{6}$/.test(code)) return erreurReglages('Le code reçu par e-mail fait six chiffres.');
+    erreurReglages('');
+    let r;
+    try { r = await appelServeur(base, '/api/compte/verifier', { methode: 'POST', corps: { email, code } }); }
+    catch (e) { return erreurReglages(e.message); }
+    if (!r.ok || !r.d.jeton) return erreurReglages(`Serveur : ${r.d.erreur || 'HTTP ' + r.status}.`);
+    if (!r.d.admin) {
+      appelServeur(base, '/api/session', { methode: 'DELETE', jeton: r.d.jeton }).catch(() => {});
+      return erreurReglages('Ce compte n\'est pas administrateur du serveur : l\'atelier ne pourrait pas créer les comptes des socles.');
+    }
+    session = { serveur: base, login: r.d.login || email, jeton: r.d.jeton };
+    ecrireJson(localStorage, CLE_SESSION, session);
+    // La liaison suit le compte : le serveur, à cette adresse.
+    reg.reglages.liaison = 'serveur';
+    reg.reglages.serveur.url = base;
+    sauver();
+    montrerLiaison('serveur');
+    $('#r-code').value = '';
+    $('#bloc-code').hidden = true;
+    montrerCompte();
+    relierBanc();
+    message(`Connecté : ${session.login}.`);
+  }
+  function deconnecterCompte() {
+    const s = session;
+    oublierSession();
+    montrerCompte();
+    if (s) appelServeur(s.serveur, '/api/session', { methode: 'DELETE', jeton: s.jeton }).catch(() => {});
+    message('Compte déconnecté de l\'atelier.');
+  }
+
   // ------------------------------------------------------------ réglages
   function ouvrirReglages() {
     const r = reg.reglages;
     const v = (id, x) => { $(id).value = x === undefined || x === null ? '' : x; };
     v('#r-url', r.urlApp); v('#r-ssid', r.ssid); v('#r-wifi-mdp', secrets.wifiMdp);
-    v('#r-serveur', r.serveur.url); v('#r-admin', secrets.adminJeton); v('#r-s-hote', r.serveur.hote); v('#r-s-port', r.serveur.port); v('#r-s-ws', r.serveur.ws);
+    // Retenir le Wi-Fi : coché d'office, sauf si l'opérateur l'a décoché.
+    $('#r-wifi-retenir').checked = !!memo.wifiMdp || !secrets.wifiMdp;
+    v('#r-serveur', r.serveur.url || serveurDeploye); v('#r-admin', secrets.adminJeton); v('#r-s-hote', r.serveur.hote); v('#r-s-port', r.serveur.port); v('#r-s-ws', r.serveur.ws);
+    v('#r-email', (session && session.login) || memo.email); v('#r-code', '');
+    $('#bloc-code').hidden = true;
+    montrerCompte();
     v('#r-b-ws', r.broker.ws); v('#r-b-hote', r.broker.hote); v('#r-b-port', r.broker.port); v('#r-b-prefixe', r.broker.prefixe);
     v('#r-b-user', r.broker.utilisateur); v('#r-b-mdp', secrets.brokerMdp);
     $('#r-b-oublier').checked = r.broker.oublier !== false;
@@ -1092,6 +1290,8 @@
       rodageH
     };
     secrets = { wifiMdp, adminJeton: $('#r-admin').value.trim(), brokerMdp: $('#r-b-mdp').value };
+    if ($('#r-wifi-retenir').checked && wifiMdp) memo.wifiMdp = wifiMdp; else delete memo.wifiMdp;
+    ecrireJson(localStorage, CLE_MEMO, Object.keys(memo).length ? memo : null);
     sauver(); sauverSecrets();
     relierBanc();
     fermerReglages();
@@ -1109,7 +1309,17 @@
     switch (b.dataset.action) {
       case 'reglages': $('#reglages').hidden ? ouvrirReglages() : fermerReglages(); break;
       case 'fermer-reglages': fermerReglages(); break;
-      case 'nouveau': selection = null; nouveau = true; if (procedure && !procedure.id) procedure = null; invalider(); $('#fiche').focus(); break;
+      // Nouveau socle : la console s'ouvre tout de suite (la carte est déjà
+      // branchée) ; sans port choisi, la fiche propose de la connecter.
+      case 'nouveau':
+        selection = null; nouveau = true;
+        if (procedure && !procedure.id) procedure = null;
+        invalider(); $('#fiche').focus();
+        if (!procedure) etapeConsole(null);
+        break;
+      case 'code': demanderCode(); break;
+      case 'connecter': connecterCompte(); break;
+      case 'deconnecter': deconnecterCompte(); break;
       case 'nouveau-lot': { const l = nouveauLot(); if (reg.lots.some(x => x.nom === l.nom)) l.nom += ` (${reg.lots.length + 1})`; reg.lots.push(l); reg.lotCourant = l.id; sauver(); invalider(); message(`${l.nom} créé.`); break; }
       case 'ouvrir': choisir(b.dataset.id); $('#fiche').focus(); break;
       case 'console': etapeConsole(rec ? rec.id : null); break;
@@ -1138,10 +1348,13 @@
   });
   document.addEventListener('change', e => {
     if (e.target.id === 'lot-courant') { reg.lotCourant = e.target.value; sauver(); invalider(); }
-    if (e.target.dataset && e.target.dataset.colle) {
-      const b = $('#fiche [data-action="expedier"]');
-      if (b) b.disabled = !e.target.checked;
-    }
+  });
+  document.addEventListener('input', e => { if (e.target.id === 'r-serveur') montrerCompte(); });
+  // Entrée dans le champ du code : se connecter (et non enregistrer tout le formulaire).
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    if (e.target.id === 'r-code') { e.preventDefault(); connecterCompte(); }
+    else if (e.target.id === 'r-email') { e.preventDefault(); demanderCode(); }
   });
   document.addEventListener('submit', e => {
     const f = e.target;
@@ -1167,6 +1380,7 @@
   dessinerBanc();
   // mqtt.js est chargé avant (defer, dans l'ordre) ; relier le banc s'il est réglé.
   relierBanc();
+  verifierSession();
   if (!localStorage.getItem(CLE)) sauver();
 
   // Pour les bancs d'essai (outils/test-atelier.js).
@@ -1179,6 +1393,8 @@
     etiquette: id => new window.XMLSerializer().serializeToString(etiquetteSvg(socle(id))),
     _delais: d => Object.assign(delais, d),
     _surveiller: surveillerRodages,
-    _connecte: () => !!(client && client.connected)
+    _connecte: () => !!(client && client.connected),
+    _installateur: f => { installateur = f; },
+    _session: () => session
   };
 })();

@@ -118,12 +118,14 @@ async function minifier() {
 // Une adresse invalide arrête le déploiement : mieux vaut un échec visible
 // qu'une application publiée qui chercherait son serveur au mauvais endroit.
 function ecrireServeur() {
-  if (!process.env.TERRARIUM_SERVEUR) { console.log('index.html : aucun serveur fixé (TERRARIUM_SERVEUR absente)'); return; }
-  const { adresseServeur, ecrireBalise } = require('./adresse-serveur');
+  if (!process.env.TERRARIUM_SERVEUR) { console.log('index.html, atelier.html : aucun serveur fixé (TERRARIUM_SERVEUR absente)'); return; }
+  const { adresseServeur, ecrireBalise, PAGES } = require('./adresse-serveur');
   const adresse = adresseServeur(process.env.TERRARIUM_SERVEUR);
-  const chemin = path.join(APP, 'index.html');
-  fs.writeFileSync(chemin, ecrireBalise(fs.readFileSync(chemin, 'utf8'), adresse));
-  console.log(`index.html : serveur ${adresse}`);
+  for (const page of PAGES) {
+    const chemin = path.join(APP, page);
+    fs.writeFileSync(chemin, ecrireBalise(fs.readFileSync(chemin, 'utf8'), adresse, `app/${page}`));
+    console.log(`${page} : serveur ${adresse}`);
+  }
 }
 
 (async () => {

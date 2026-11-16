@@ -114,8 +114,9 @@ l'application publiée : « Se connecter » mène droit au compte.
 - Journaux : `cd /opt/terrarium && sudo docker compose logs -f --tail 100`
 - Redémarrer : `cd /opt/terrarium && sudo docker compose restart`
 - Mettre à jour depuis `main` : `sudo bash /opt/terrarium/mettre-a-jour.sh`
-- Jeton d'administration (page Atelier) : `sudo grep '^ADMIN_JETON=' /opt/terrarium/.env`,
-  à ranger dans un gestionnaire de mots de passe.
+- Jeton d'administration : `sudo grep '^ADMIN_JETON=' /opt/terrarium/.env`, à ranger dans
+  un gestionnaire de mots de passe. La page Atelier n'en a plus besoin : elle se connecte
+  avec un compte administrateur (code reçu par e-mail).
 - Nommer un administrateur. La ligne de commande écrit le fichier des comptes,
   qu'un serveur en marche réécrirait : on l'arrête le temps de la commande.
 

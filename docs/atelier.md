@@ -1,7 +1,8 @@
 # Atelier : monter des socles en série
 
 La page **Atelier** du site (`atelier.html`, lien en bas de la page « Flasher un socle ») suit
-chaque socle du flashage à l'étiquette. Elle remplace la ligne de commande
+chaque socle du flashage à l'étiquette, flashage compris : elle installe elle-même le firmware
+publié sur une carte vierge ou en retard. Elle remplace la ligne de commande
 `outils/provisionner.js` pour la fabrication courante. Le script reste disponible pour un
 poste sans Chrome.
 
@@ -17,23 +18,27 @@ Elle s'ouvre dans **Chrome ou Edge, sur un ordinateur** : il faut le port série
 | Réglage | À quoi il sert |
 |---|---|
 | Adresse de l'application | Le lien imprimé dans le QR de l'étiquette (`https://…/#a/<id>/<code>`) : l'appareil photo du téléphone ouvre l'installation, référence et code déjà remplis. Par défaut, le site qui sert l'atelier. |
-| Wi-Fi du banc | Le réseau que le socle rejoint pour les étapes 2 à 4. La console du socle coupe aux espaces : ni le nom ni le mot de passe ne doivent en contenir. |
-| Liaison : **serveur Terrariums** | Chaque socle reçoit son compte d'appareil (`POST /api/admin/appareils`) et le garde chez l'acheteur. L'atelier suit le banc avec l'utilisateur MQTT `admin` (le jeton d'administration). Le serveur doit accepter l'adresse de l'atelier dans `ORIGINES`. |
+| Wi-Fi du banc | Le réseau que le socle rejoint pour les étapes 2 à 4. La console du socle coupe aux espaces : ni le nom ni le mot de passe ne doivent en contenir. « Retenir le mot de passe du Wi-Fi sur cet ordinateur » (coché d'office) évite de le ressaisir. |
+| Liaison : **serveur Terrariums** | Chaque socle reçoit son compte d'appareil (`POST /api/admin/appareils`) et le garde chez l'acheteur. Le serveur du déploiement (variable Netlify `TERRARIUM_SERVEUR`) est réglé d'office. On s'y connecte avec un **compte administrateur** : e-mail, « Recevoir un code », code reçu, « Se connecter ». La session reste ouverte tant que l'atelier sert au moins une fois par mois ; elle ouvre l'API d'administration et suit le banc par MQTT (identifiant : l'e-mail). À défaut de compte, le jeton d'administration (utilisateur MQTT `admin`) reste possible dans « Réglages avancés du serveur ». Le serveur doit accepter l'adresse de l'atelier dans `ORIGINES`. |
 | Liaison : **broker de l'atelier** | Le socle se rode sur votre broker (HiveMQ, Mosquitto…). À l'expédition, l'atelier peut lui faire oublier ce broker (`mqtt off`, identifiants compris) : l'acheteur réglera le sien. |
 | Liaison : **aucune** | Sans broker : les sondes, l'essai de chauffe et le rodage se font sur la page locale du socle, et l'opérateur les valide dans l'atelier. |
 | Durée du rodage | 24 h par défaut, de 1 à 168 h. |
 
-Le registre (socles, lots, résultats) est gardé par **ce navigateur**. Les mots de passe
-(Wi-Fi du banc, broker) et le jeton d'administration ne le sont que jusqu'à la fermeture de
-l'onglet : ils sont redemandés à chaque séance.
+Le registre (socles, lots, résultats) est gardé par **ce navigateur**, ainsi que la session du
+compte administrateur et, si on le fait retenir, le mot de passe du Wi-Fi du banc (chacun sous
+sa propre clé, jamais dans le registre exporté). Le mot de passe du broker de l'atelier et le
+jeton d'administration ne sont gardés que jusqu'à la fermeture de l'onglet.
 
 ## Les cinq étapes
 
 ### 1. Console (USB, 12 V débranché)
 
-Un socle neuf se flashe d'abord par la page « Flasher un socle ». Ensuite, dans l'atelier, il
-faut cliquer « Nouveau socle », puis « Connecter la console » et choisir le port. L'atelier
-enchaîne alors :
+Branchez la carte en USB, puis cliquez « Nouveau socle » et choisissez le port : la console
+s'ouvre aussitôt. Une carte qui ne répond pas (vierge), ou dont le firmware est plus ancien
+que celui publié sur la page « Flasher un socle », reçoit d'abord ce firmware : la fenêtre
+d'installation d'ESP Web Tools s'ouvre sur le même port (« Install », puis la fermer à la
+fin), et l'atelier reprend la console seul. L'installation est notée au journal du socle.
+L'atelier enchaîne alors :
 
 1. `jeton` et `version` : identifiant, code d'appairage, version du firmware et du protocole.
 2. `test usine` : écran, sondes, mémoire, partitions, Wi-Fi, courant. Un échec arrête tout,
@@ -81,9 +86,9 @@ L'étiquette s'imprime à 62 mm de large (rouleau d'étiquettes courant ; sur un
 il suffit de la découper). Elle porte le QR à lien, la référence, le code d'appairage et le mot de
 passe de la page locale. Elle se télécharge aussi en SVG.
 
-Cochez « Étiquette collée sous le socle », puis cliquez « Marquer comme expédié ». Le code
-d'appairage et le mot de passe sont alors **effacés de l'atelier** : ils ne sont plus que sur
-l'étiquette. En cas de perte, ils se régénèrent sur la console (`jeton nouveau`,
+Collez l'étiquette sous le socle, puis cliquez « Étiquette collée : marquer comme expédié ».
+Le code d'appairage et le mot de passe sont alors **effacés de l'atelier** : ils ne sont plus
+que sur l'étiquette. En cas de perte, ils se régénèrent sur la console (`jeton nouveau`,
 `motdepasse web …`).
 
 Un firmware antérieur à `wifi off` cherche un réseau nommé « off » et n'efface rien. L'atelier
@@ -107,8 +112,11 @@ minutes sans réseau.
 
 | Symptôme | Piste |
 |---|---|
-| Pas de port proposé | Le câble doit transporter les données (pas un câble de charge seul). Sous Windows, le pilote CP210x. |
-| « Le socle ne répond pas à jeton » | Le firmware n'est pas flashé, ou la carte redémarre en boucle (bouton EN, puis regarder la console). |
+| Pas de port proposé | Le câble doit transporter les données (pas un câble de charge seul). Sous Windows, le pilote de la puce USB de la carte : CP210x ou CH340. |
+| « Le socle ne répond pas à jeton » | Aucun firmware publié à installer (page « Flasher un socle »), ou la carte redémarre en boucle (bouton EN, puis regarder la console). |
+| La fenêtre d'installation ne trouve pas la carte | Maintenir le bouton BOOT de la carte pendant le « Install », puis le relâcher quand l'écriture commence. |
+| « Après l'installation, le socle ne répond pas » | Fenêtre fermée avant la fin : « Reprendre la console » recommence l'installation. |
 | Wi-Fi du banc refusé | Mot de passe, ou réseau en 5 GHz seulement (l'ESP32 n'a que le 2,4 GHz). |
 | « Serveur injoignable » | Adresse https, ou l'adresse de l'atelier absente de la variable `ORIGINES` du serveur. |
+| « Session expirée » | Plus d'un mois sans servir : Réglages, se reconnecter avec le code reçu par e-mail. |
 | Le socle n'apparaît pas sur le banc | Le Wi-Fi du banc, puis l'hôte et le port MQTT. `sante` sur la console donne la raison d'un refus du broker. |

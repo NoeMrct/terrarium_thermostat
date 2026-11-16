@@ -38,7 +38,7 @@ async function jusqua(condition, limiteMs = 8000, pas = 40) {
 class ConsoleSocle {
   constructor(o = {}) {
     Object.assign(this, { id: 'terraA1B2C3', code: 'K7M2QXABCDEFGH2345678JKL', firmware: '3.6.0', proto: 4,
-      usineOk: true, wifiOk: true, connaitWifiOff: true }, o);
+      usineOk: true, wifiOk: true, connaitWifiOff: true, vierge: false }, o);
     this.recu = [];
     this.etat = { web: null, wifi: null, mqtt: null, historiqueEfface: false };
     this.sortie = () => {};
@@ -46,6 +46,7 @@ class ConsoleSocle {
   dire(t, apres = 5) { setTimeout(() => this.sortie(t), apres); }
   ligne(l) {
     this.recu.push(l);
+    if (this.vierge) return;                       // carte sans firmware : rien ne répond
     const j = l.split(' ').filter(Boolean);
     if (l === 'jeton') return this.dire(`Appareil ${this.id}\nCode d'appairage : ${this.code}\n`);
     if (l === 'version') return this.dire(`Firmware ${this.firmware}, compile le Nov 14 2026 09:12:00, protocole ${this.proto}\n`);
@@ -201,8 +202,10 @@ class SocleBanc {
 }
 
 // ------------------------------------------------------------------- l'atelier
-function creerAtelier({ broker, stockage = null, fetch = null } = {}) {
-  const html = fs.readFileSync(path.join(DOSSIER, 'atelier.html'), 'utf8');
+function creerAtelier({ broker, stockage = null, fetch = null, serveur = '' } = {}) {
+  // « serveur » : l'adresse que le déploiement écrit dans la balise de la page.
+  const html = fs.readFileSync(path.join(DOSSIER, 'atelier.html'), 'utf8')
+    .replace('<meta name="terrarium-serveur" content="">', `<meta name="terrarium-serveur" content="${serveur}">`);
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://atelier.exemple.fr/atelier.html', pretendToBeVisual: true });
   const w = dom.window;
   for (const s of w.document.querySelectorAll('script[src]')) s.remove();
@@ -228,7 +231,7 @@ function creerAtelier({ broker, stockage = null, fetch = null } = {}) {
   w.eval(fs.readFileSync(path.join(DOSSIER, 'atelier.js'), 'utf8') + '\n//# sourceURL=file://' + path.join(DOSSIER, 'atelier.js'));
   const $ = s => w.document.querySelector(s);
   const A = w.Atelier;
-  A._delais({ reponse: 3000, sondage: 60, essai: 60 });
+  A._delais({ reponse: 3000, sondage: 60, essai: 60, identite: 300, essaisIdentite: 3 });
   // Le rendu suit chaque action après un court délai : on attend l'élément,
   // on clique, puis on laisse le rendu se faire.
   const cliquer = async sel => {
@@ -375,10 +378,8 @@ async function regler(a, r) {
   await a.cliquer('#fiche [data-action="imprimer"]');
   verifier('impression : seule l\'étiquette est dans la zone imprimée', a.etat.impressions === 1 && !!a.$('#etiquette-impression svg'));
   const btnExp = a.$('#fiche [data-action="expedier"]');
-  verifier('« expédié » attend l\'étiquette collée', btnExp && btnExp.disabled);
-  const coche = a.$('#fiche [data-colle]');
-  coche.checked = true; coche.dispatchEvent(new a.w.Event('change', { bubbles: true }));
-  verifier('étiquette collée : « expédié » possible', !a.$('#fiche [data-action="expedier"]').disabled);
+  verifier('un seul bouton : « Étiquette collée : marquer comme expédié »', btnExp && !btnExp.disabled
+    && /Étiquette collée : marquer comme expédié/.test(btnExp.textContent) && !a.$('#fiche [type="checkbox"]'));
   await a.cliquer('#fiche [data-action="expedier"]');
   const brut1 = a.w.localStorage.getItem('terrarium.atelier.v1');
   verifier('expédié : code et mot de passe effacés de l\'atelier', rec().etat === 'expedie' && !rec().code && !rec().web && !brut1.includes(c1.code) && !brut1.includes(c1.etat.web.mdp));
@@ -386,10 +387,11 @@ async function regler(a, r) {
 
   titre('7. Auto-test raté, mise de côté, reprise');
   const c2 = new ConsoleSocle({ id: 'terraB2C3D4', code: 'QQQQQQWWWWWWEEEEEERRRRRR', usineOk: false });
-  await a.cliquer('[data-action="nouveau"]');
+  // La carte est branchée d'abord : « Nouveau socle » ouvre aussitôt la console.
   a.brancher(c2);
-  await a.cliquer('#fiche [data-action="console"]');
+  await a.cliquer('[data-action="nouveau"]');
   const rec2 = () => a.A.registre().socles[c2.id];
+  verifier('« Nouveau socle » ouvre la console sans autre clic', await jusqua(() => c2.recu.includes('jeton'), 3000));
   verifier('auto-test raté : étape 1 en échec, organe cité', await jusqua(() => rec2() && rec2().echec, 6000) && /sondes \(1 detectee\(s\) sur 2/.test(rec2().echec.texte), rec2() && rec2().echec && rec2().echec.texte);
   verifier('rien d\'autre n\'est envoyé après l\'échec', !c2.recu.some(l => l.startsWith('motdepasse') || l.startsWith('wifi')));
   const f = a.$('#fiche form[data-form="cote"]');
@@ -422,6 +424,7 @@ async function regler(a, r) {
   titre('10. Serveur Terrariums, firmware sans « wifi off »');
   const appels = [];
   const fauxFetch = async (url, o) => {
+    if (/firmware\/manifest\.json$/.test(url)) return { ok: false, status: 404, json: async () => null };
     appels.push({ url, o });
     const ok = o.headers.Authorization === 'Bearer jeton-admin-essai';
     return { ok, status: ok ? 201 : 403, json: async () => (ok ? { id: JSON.parse(o.body).id, motDePasse: 'mdpAppareil42' } : { erreur: 'réservé à l\'administration' }) };
@@ -469,6 +472,129 @@ async function regler(a, r) {
   await m.cliquer('#fiche [data-action="manuel-rodage-ok"]');
   verifier('rodage validé : prêt pour l\'étiquette', rec4().etat === 'pret' && rec4().rodage.verdict.ok);
   verifier('pas de banc sans liaison', m.$('#banc').hidden);
+
+  titre('12. Serveur du déploiement, connexion par compte administrateur');
+  // Un faux serveur : code par e-mail, session d'un compte, API d'administration.
+  const SERVEUR = 'https://exotic.exemple.fr';
+  const comptes = { 'noe@exemple.fr': { admin: true }, 'client@exemple.fr': { admin: false } };
+  const sessions = new Map();
+  const requetes = [];
+  let codeEnvoye = null;
+  const serveurFetch = async (url, o = {}) => {
+    const u = new URL(url, 'https://atelier.exemple.fr/');
+    const corps = o.body ? JSON.parse(o.body) : {};
+    const jeton = ((o.headers || {}).Authorization || '').replace(/^Bearer /, '');
+    requetes.push({ chemin: u.pathname, methode: o.method || 'GET', jeton });
+    const rep = (status, d) => ({ ok: status < 300, status, json: async () => d });
+    if (u.pathname === '/firmware/manifest.json') return rep(404, null);
+    if (u.origin !== SERVEUR) return rep(404, {});
+    if (u.pathname === '/api/compte/code') { codeEnvoye = { email: corps.email, code: '424242' }; return rep(200, { ok: true }); }
+    if (u.pathname === '/api/compte/verifier') {
+      if (!codeEnvoye || corps.code !== codeEnvoye.code || corps.email !== codeEnvoye.email) return rep(401, { erreur: 'code invalide ou expiré' });
+      const j = 'session-' + corps.email.split('@')[0] + '-' + sessions.size;
+      sessions.set(j, corps.email);
+      return rep(200, { jeton: j, login: corps.email, admin: !!(comptes[corps.email] || {}).admin });
+    }
+    if (u.pathname === '/api/session' && o.method === 'DELETE') { sessions.delete(jeton); return rep(200, { ok: true }); }
+    const qui = sessions.get(jeton);
+    if (!qui) return rep(401, { erreur: 'session requise' });
+    if (u.pathname === '/api/moi') return rep(200, { login: qui, admin: comptes[qui].admin });
+    if (u.pathname === '/api/admin/appareils' && comptes[qui].admin) return rep(201, { id: corps.id, motDePasse: 'mdpAppareil77' });
+    return rep(403, { erreur: 'réservé à l\'administration' });
+  };
+  const brokerD = new Broker();
+  const d = creerAtelier({ broker: brokerD, fetch: serveurFetch, serveur: SERVEUR });
+  verifier('serveur du déploiement : liaison et adresse déjà réglées', d.A.registre().reglages.liaison === 'serveur' && d.A.registre().reglages.serveur.url === SERVEUR);
+  verifier('le banc demande le compte, pas un jeton', /compte à connecter/.test(d.texte('#etat-banc')));
+  await d.cliquer('[data-action="reglages"]');
+  verifier('réglages : l\'adresse du serveur est remplie, le compte à connecter', d.$('#r-serveur').value === SERVEUR && !d.$('#compte-connexion').hidden && d.$('#compte-connecte').hidden);
+  d.$('#r-email').value = 'Client@Exemple.fr';
+  await d.cliquer('[data-action="code"]');
+  verifier('« Recevoir un code » : le serveur envoie le code, le champ du code apparaît', await jusqua(() => codeEnvoye && codeEnvoye.email === 'client@exemple.fr' && !d.$('#bloc-code').hidden));
+  d.$('#r-code').value = '424 242';
+  await d.cliquer('[data-action="connecter"]');
+  verifier('un compte qui n\'est pas administrateur est refusé, sa session refermée', await jusqua(() => /pas administrateur/.test(d.texte('#reglages-erreur')))
+    && !d.A._session() && await jusqua(() => requetes.some(r => r.chemin === '/api/session' && r.methode === 'DELETE')) && sessions.size === 0);
+  d.$('#r-email').value = 'noe@exemple.fr';
+  await d.cliquer('[data-action="code"]');
+  await jusqua(() => codeEnvoye.email === 'noe@exemple.fr');
+  d.$('#r-code').value = '000000';
+  await d.cliquer('[data-action="connecter"]');
+  verifier('un code faux est refusé', await jusqua(() => /code invalide/.test(d.texte('#reglages-erreur'))) && !d.A._session());
+  d.$('#r-code').value = '424242';
+  await d.cliquer('[data-action="connecter"]');
+  verifier('compte administrateur connecté, montré dans les réglages', await jusqua(() => d.A._session() && !d.$('#compte-connecte').hidden)
+    && d.texte('#compte-login') === 'noe@exemple.fr' && d.$('#reglages-erreur').hidden);
+  verifier('le banc se relie avec le compte (identifiant e-mail, session)', await jusqua(() => d.A._connecte())
+    && brokerD.connexions.slice(-1)[0].url === 'wss://exotic.exemple.fr/mqtt' && brokerD.connexions.slice(-1)[0].opts.username === 'noe@exemple.fr'
+    && sessions.get(brokerD.connexions.slice(-1)[0].opts.password) === 'noe@exemple.fr');
+  verifier('la session est gardée par le navigateur, pas dans le registre', /session-noe/.test(d.w.localStorage.getItem('terrarium.atelier.session'))
+    && !/session-noe/.test(d.w.localStorage.getItem('terrarium.atelier.v1')));
+  d.$('#r-ssid').value = 'AtelierBanc'; d.$('#r-wifi-mdp').value = 'motdepasse8'; d.$('#r-rodage').value = '24';
+  await d.soumettre(d.$('#form-reglages'));
+  verifier('réglages enregistrés, Wi-Fi retenu sur cet ordinateur', d.$('#reglages').hidden && /motdepasse8/.test(d.w.localStorage.getItem('terrarium.atelier.memo') || ''));
+  const c5 = new ConsoleSocle({ id: 'terraE5F6A7', code: 'SSSSSSTTTTTTUUUUUUVVVVVV' });
+  d.brancher(c5);
+  await d.cliquer('[data-action="nouveau"]');
+  const rec5 = () => d.A.registre().socles[c5.id];
+  verifier('étape 1 avec le compte : compte d\'appareil créé avec la session', await jusqua(() => rec5() && rec5().etape === 2, 8000)
+    && requetes.some(r => r.chemin === '/api/admin/appareils' && sessions.get(r.jeton) === 'noe@exemple.fr')
+    && c5.etat.mqtt && c5.etat.mqtt.hote === 'exotic.exemple.fr' && c5.etat.mqtt.mdp === 'mdpAppareil77' && c5.etat.mqtt.tls,
+  rec5() && rec5().echec ? rec5().echec.texte : '');
+
+  titre('13. Rechargement : compte et Wi-Fi retenus ; session expirée');
+  const garde = k => d.w.localStorage.getItem(k);
+  const e2 = creerAtelier({ broker: new Broker(), fetch: serveurFetch, serveur: SERVEUR, stockage: {
+    'terrarium.atelier.v1': garde('terrarium.atelier.v1'), 'terrarium.atelier.session': garde('terrarium.atelier.session'), 'terrarium.atelier.memo': garde('terrarium.atelier.memo') } });
+  verifier('rien à ressaisir : le banc se relie seul', await jusqua(() => e2.A._connecte()) && /Banc relié/.test(e2.texte('#etat-banc')));
+  await e2.cliquer('[data-action="reglages"]');
+  verifier('le mot de passe du Wi-Fi est rempli', e2.$('#r-wifi-mdp').value === 'motdepasse8' && e2.$('#r-wifi-retenir').checked);
+  sessions.clear();          // le serveur a fermé la session (30 jours sans usage)
+  const e3 = creerAtelier({ broker: new Broker(), fetch: serveurFetch, serveur: SERVEUR, stockage: {
+    'terrarium.atelier.v1': garde('terrarium.atelier.v1'), 'terrarium.atelier.session': garde('terrarium.atelier.session') } });
+  verifier('session expirée : oubliée, le banc redemande le compte', await jusqua(() => !e3.A._session() && /compte à connecter/.test(e3.texte('#etat-banc')))
+    && !e3.w.localStorage.getItem('terrarium.atelier.session'));
+  await d.cliquer('[data-action="reglages"]');
+  await d.cliquer('[data-action="deconnecter"]');
+  verifier('« Se déconnecter » oublie la session', !d.A._session() && !d.w.localStorage.getItem('terrarium.atelier.session') && /compte à connecter/.test(d.texte('#etat-banc')));
+
+  titre('14. Firmware : carte vierge, puis firmware en retard');
+  const manifestes = [];
+  const fetchFirmware = async (url) => {
+    if (/firmware\/manifest\.json$/.test(url)) { manifestes.push(url); return { ok: true, status: 200, json: async () => ({ name: 'Socle chauffant', version: '3.5.0', builds: [{ chipFamily: 'ESP32', parts: [] }] }) }; }
+    return { ok: false, status: 404, json: async () => ({}) };
+  };
+  const f1 = creerAtelier({ broker: new Broker(), fetch: fetchFirmware });
+  await regler(f1, { url: 'https://app.exemple.fr/', ssid: '', wifiMdp: '', liaison: 'aucune', rodage: '1' });
+  const installations = [];
+  const c6 = new ConsoleSocle({ id: 'terraF6A7B8', code: 'WWWWWWXXXXXXYYYYYYZZZZZZ', vierge: true, firmware: null });
+  f1.A._installateur(async port => {
+    installations.push({ ouvertPendant: port.ouvert });
+    Object.assign(c6, { vierge: false, firmware: '3.5.0' });
+  });
+  f1.brancher(c6);
+  await f1.cliquer('[data-action="nouveau"]');
+  const rec6 = () => f1.A.registre().socles[c6.id];
+  verifier('carte vierge : la fenêtre d\'installation s\'ouvre sur le port, puis l\'étape continue', await jusqua(() => rec6() && rec6().etape === 2, 8000)
+    && installations.length === 1 && installations[0].ouvertPendant === false && rec6().firmware === '3.5.0', rec6() && rec6().echec ? rec6().echec.texte : '');
+  verifier('l\'installation est notée au journal du socle', (rec6().journal || []).some(j => /Firmware 3\.5\.0 installé par l'atelier/.test(j.texte)));
+  const c7 = new ConsoleSocle({ id: 'terraA7B8C9', code: 'GGGGGGHHHHHHJJJJJJKKKKKK', firmware: '3.4.0' });
+  f1.A._installateur(async () => { installations.push({}); c7.firmware = '3.5.0'; });
+  f1.brancher(c7);
+  await f1.cliquer('[data-action="nouveau"]');
+  const rec7 = () => f1.A.registre().socles[c7.id];
+  verifier('firmware en retard (3.4.0) : mis à jour en 3.5.0', await jusqua(() => rec7() && rec7().etape === 2, 8000) && installations.length === 2 && rec7().firmware === '3.5.0');
+  const c8 = new ConsoleSocle({ id: 'terraB8C9D0', code: 'LLLLLLMMMMMMNNNNNNPPPPPP', firmware: '3.5.0' });
+  f1.brancher(c8);
+  await f1.cliquer('[data-action="nouveau"]');
+  verifier('firmware à jour : pas d\'installation', await jusqua(() => f1.A.registre().socles[c8.id] && f1.A.registre().socles[c8.id].etape === 2, 8000) && installations.length === 2);
+  const c9 = new ConsoleSocle({ id: 'terraC9D0E1', code: 'QQQQQQRRRRRRSSSSSSTTTTTT', vierge: true, firmware: null });
+  f1.A._installateur(async () => { installations.push({}); });     // fenêtre fermée sans rien installer
+  f1.brancher(c9);
+  await f1.cliquer('[data-action="nouveau"]');
+  verifier('installation abandonnée : l\'étape le dit, sans socle fantôme', await jusqua(() => /ne répond pas/.test(f1.texte('#fiche')), 8000)
+    && !f1.A.registre().socles[c9.id] && installations.length === 3, f1.texte('#fiche').slice(0, 160));
+  verifier('le manifeste n\'est lu qu\'une fois', manifestes.length === 1);
 
   console.log(`\n=== ATELIER (${reussites} reussite(s), ${echecs} echec(s)) ===`);
   process.exit(echecs ? 1 : 0);

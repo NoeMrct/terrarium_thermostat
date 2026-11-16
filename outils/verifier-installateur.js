@@ -29,5 +29,14 @@ for (const f of presents) {
   attendues.delete(f);
 }
 attendues.forEach((h, f) => { echec = true; console.log(`   [ECHEC] ${f} : répertorié mais absent`); });
+
+// L'atelier ouvre lui-même la fenêtre d'installation : le module qu'il nomme
+// doit être celui de cette copie (il change de nom à chaque version).
+const atelier = fs.readFileSync(path.join(__dirname, '..', 'app', 'atelier.js'), 'utf8');
+const dialogue = /const DIALOGUE_INSTALLATION = '\.\/installateur\/([^']+)'/.exec(atelier);
+if (!dialogue || !presents.includes(dialogue[1]) || !fs.readFileSync(path.join(DOSSIER, dialogue[1]), 'utf8').includes('ewt-install-dialog')) {
+  echec = true;
+  console.log(`   [ECHEC] atelier.js : DIALOGUE_INSTALLATION (${dialogue ? dialogue[1] : 'introuvable'}) ne désigne pas la fenêtre d'installation de cette copie`);
+}
 console.log(echec ? '\n=== INSTALLATEUR MODIFIE ===' : `\n=== INSTALLATEUR INTACT (${presents.length} fichiers) ===`);
 process.exit(echec ? 1 : 0);

@@ -13,6 +13,16 @@ main.atelier > * + * { margin-top: 14px; }
 #reglages h3 { margin-bottom: 2px; }
 .segment.trois { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 8px; }
 .segment.trois button { min-height: 44px; font-size: 14px; padding: 6px 8px; }
+/* Compte administrateur connecté : l'adresse et « Se déconnecter » sur une ligne. */
+.compte-atelier { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.compte-atelier p { margin: 0; overflow-wrap: anywhere; }
+#reglages details > summary { min-height: 44px; display: flex; align-items: center; font-weight: 500; cursor: pointer; list-style: none; }
+#reglages details > summary::-webkit-details-marker { display: none; }
+#reglages details > summary::before { content: "▸"; display: inline-block; width: 1.2em; transition: transform .15s; }
+#reglages details[open] > summary::before { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { #reglages details > summary::before { transition: none; } }
+#reglages details > summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 8px; }
+#reglages .rangee > div > .btn { width: 100%; }
 
 /* ---- liste des socles ------------------------------------------------------ */
 .lot-tete { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
