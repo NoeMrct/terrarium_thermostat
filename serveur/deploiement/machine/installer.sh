@@ -7,7 +7,7 @@
 # Première installation, en root, depuis un clone du dépôt dans /opt/terrarium :
 #
 #   sudo git clone https://github.com/NoeMrct/terrarium_thermostat /opt/terrarium/depot
-#   sudo bash /opt/terrarium/depot/serveur/deploiement/oracle/installer.sh \
+#   sudo bash /opt/terrarium/depot/serveur/deploiement/machine/installer.sh \
 #        --domaine socle-chauffant.duckdns.org \
 #        --site https://soclechauffant.netlify.app --email vous@exemple.fr \
 #        --nom "Exotic World"
@@ -52,7 +52,7 @@ apt-get install -y -qq docker.io docker-compose-v2 docker-buildx git python3 ca-
 systemctl enable --now docker >/dev/null 2>&1
 systemctl enable --now unattended-upgrades >/dev/null 2>&1 || true
 
-# Petite machine (1 Go, gabarit AMD de secours) : 2 Go d'échange pour la
+# Petite machine (1 Go : e2-micro de Google Cloud) : 2 Go d'échange pour la
 # construction de l'image.
 if [ "$(awk '/MemTotal/ {print $2}' /proc/meminfo)" -lt 1500000 ] && [ -z "$(swapon --show --noheadings)" ]; then
   echo "== Fichier d'échange de 2 Go"
@@ -68,7 +68,7 @@ printf 'DOMAINE=%q\nSITE=%q\nEMAIL=%q\nNOM=%q\n' "$DOMAINE" "$SITE" "$EMAIL" "$N
 install -m 644 "$ICI/compose.yml" "$DOSSIER/compose.yml"
 sed "s|__EMAIL__|$EMAIL|g" "$ICI/traefik/traefik.yml.modele" > "$DOSSIER/traefik/traefik.yml"
 sed "s|__DOMAINE__|$DOMAINE|g" "$ICI/traefik/dynamique.yml.modele" > "$DOSSIER/traefik/dynamique.yml"
-for s in sauvegarder.sh regler-smtp.sh essai-bout-en-bout.sh mettre-a-jour.sh; do
+for s in sauvegarder.sh regler-smtp.sh regler-duckdns.sh duckdns.sh essai-bout-en-bout.sh mettre-a-jour.sh; do
   install -m 700 "$ICI/$s" "$DOSSIER/$s"
 done
 
@@ -123,10 +123,12 @@ systemctl daemon-reload
 systemctl enable --now terrarium-sauvegarde.timer >/dev/null 2>&1
 
 grep -q '^SMTP_URL=' "$DOSSIER/.env" && SMTP="réglé" || SMTP="à régler : sudo bash $DOSSIER/regler-smtp.sh <identifiant SMTP>"
+[ -f "$DOSSIER/duckdns" ] && IP="suivie par DuckDNS toutes les 5 minutes" || IP="fixée à la main (facultatif : sudo bash $DOSSIER/regler-duckdns.sh <sous-domaine>)"
 cat <<EOF
 
 Serveur : https://$DOMAINE        console : https://$DOMAINE/console/
 Socles  : $DOMAINE, port 8883, TLS (« mqtt $DOMAINE 8883 <compte> <mot de passe> » puis « mqtt tls on »)
 E-mails : $SMTP
+IP      : $IP
 Essai   : sudo bash $DOSSIER/essai-bout-en-bout.sh
 EOF

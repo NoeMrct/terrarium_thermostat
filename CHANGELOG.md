@@ -14,14 +14,16 @@ réglages persistés s'enrichissent par la fin : rien n'est perdu à la mise à
 jour.
 
 ### Ajouté
-- **Mise en ligne du serveur sur une machine gratuite** (`serveur/deploiement/oracle/`) :
-  `installer.sh` installe Docker sur un Ubuntu 24.04 (offre « Always Free »
-  d'Oracle Cloud), puis lance le serveur derrière Traefik, avec le certificat
-  Let's Encrypt, l'API et la console en https, et le MQTT chiffré des socles sur
-  le port 8883. Il programme aussi une sauvegarde nocturne, avec copie possible
-  dans Object Storage sans identifiant sur la machine. `regler-smtp.sh` règle
-  l'envoi des e-mails sans que la clé s'affiche ; `essai-bout-en-bout.sh`
-  vérifie HTTPS, MQTT et WebSocket avec un compte d'appareil d'essai.
+- **Mise en ligne du serveur sur une machine gratuite** (`serveur/deploiement/machine/`) :
+  `installer.sh` installe Docker sur un Ubuntu 24.04 (la machine `e2-micro` de
+  l'offre gratuite de Google Cloud), puis lance le serveur derrière Traefik,
+  avec le certificat Let's Encrypt, l'API et la console en https, et le MQTT
+  chiffré des socles sur le port 8883. Il programme aussi une sauvegarde
+  nocturne, avec copie possible dans Cloud Storage sans identifiant sur la
+  machine. `regler-smtp.sh` règle l'envoi des e-mails sans que la clé
+  s'affiche. `regler-duckdns.sh` garde le nom DuckDNS sur l'IP de la machine,
+  et `essai-bout-en-bout.sh` vérifie HTTPS, MQTT et WebSocket avec un compte
+  d'appareil d'essai.
 - **Adresse du serveur fixée au déploiement** : la variable `TERRARIUM_SERVEUR`
   de Netlify remplit la balise `<meta name="terrarium-serveur">` de
   l'application publiée. « Se connecter » mène droit au compte. La balise reste

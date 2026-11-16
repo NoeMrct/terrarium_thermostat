@@ -42,7 +42,7 @@ if REPONSE=$(api POST /api/admin/appareils "{\"id\":\"$ID\"}"); then
   REPONSE=''
   export DOMAINE ESSAI_ID=$ID ESSAI_MDP
   docker run --rm --network host -e DOMAINE -e ESSAI_ID -e ESSAI_MDP terrarium-serveur:local \
-    node serveur/deploiement/oracle/essai-mqtt.js || ECHECS=$((ECHECS + 1))
+    node serveur/deploiement/machine/essai-mqtt.js || ECHECS=$((ECHECS + 1))
   unset ESSAI_MDP
 else
   ko "création du compte d'essai (jeton d'administration refusé ?)"

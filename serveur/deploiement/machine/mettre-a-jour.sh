@@ -8,4 +8,4 @@
 set -euo pipefail
 [ "$(id -u)" = 0 ] || { echo "À lancer avec sudo." >&2; exit 1; }
 git -C /opt/terrarium/depot pull --ff-only
-exec bash /opt/terrarium/depot/serveur/deploiement/oracle/installer.sh
+exec bash /opt/terrarium/depot/serveur/deploiement/machine/installer.sh

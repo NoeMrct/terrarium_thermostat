@@ -1,5 +1,5 @@
-# Serveur Terrariums derrière Traefik, sur une machine Linux (au départ une
-# machine Oracle Cloud « Always Free »). installer.sh copie ce fichier dans
+# Serveur Terrariums derrière Traefik, sur une machine Linux (la e2-micro
+# gratuite de Google Cloud). installer.sh copie ce fichier dans
 # /opt/terrarium, à côté de depot/ (le clone du dépôt), traefik/, acme/
 # (certificats) et .env (variables et secrets du serveur : root, 600, jamais
 # dans le dépôt).

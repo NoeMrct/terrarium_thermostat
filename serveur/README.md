@@ -35,8 +35,8 @@ Ou en conteneur : `docker compose -f serveur/docker-compose.yml up -d` depuis la
 racine (voir le fichier pour les variables). Mettre un **reverse proxy TLS**
 devant (Caddy fait tout seul le certificat) : l'application n'accepte que
 `wss://` hors développement, et le push exige HTTPS. Sur une machine Ubuntu,
-par exemple l'offre gratuite d'Oracle Cloud, `deploiement/oracle/` installe le
-tout en une commande : Traefik et ses certificats, MQTT chiffré des socles sur
+par exemple la machine gratuite de Google Cloud, `deploiement/machine/` installe
+le tout en une commande : Traefik et ses certificats, MQTT chiffré des socles sur
 le port 8883, sauvegarde nocturne et essai de bout en bout (voir son
 `LISEZMOI.md`).
 

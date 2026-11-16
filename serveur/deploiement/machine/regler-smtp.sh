@@ -8,7 +8,7 @@
 # L'identifiant (Brevo : xxxxxx@smtp-brevo.com) n'est pas secret ; la clé SMTP
 # est demandée sans écho, ne passe ni en argument ni dans l'historique, et
 # n'est jamais affichée. Port 587 avec STARTTLS par défaut : le port 25 sortant
-# est bloqué chez Oracle, et le serveur exige STARTTLS sur smtp://.
+# est bloqué chez Google Cloud, et le serveur exige STARTTLS sur smtp://.
 # =============================================================================
 set -euo pipefail
 [ "$(id -u)" = 0 ] || { echo "À lancer avec sudo." >&2; exit 1; }
