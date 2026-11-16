@@ -94,7 +94,11 @@ static const uint8_t PIN_TAPIS[NB_TAPIS] = { 16, 17 };
 // automatique impossible. La paire se génère UNE fois, chez le mainteneur :
 //   node outils/signer-firmware.js --generer-cles <hors du dépôt>/cle-privee.pem --config config.h
 // (docs/publication.md : la clé privée va dans le secret CLE_SIGNATURE_FIRMWARE).
-#define OTA_CLE_PUBLIQUE ""
+#define OTA_CLE_PUBLIQUE                                               \
+  "-----BEGIN PUBLIC KEY-----\n"                                       \
+  "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEEj0lcr6oFsKiIZ+0yeTTLqqB6EsO\n" \
+  "3UevPC8+3cNDc9bbrN2z9JXwsufzDZAK/Ypi7zbxhy9UQpFNTASLulSYNQ==\n"     \
+  "-----END PUBLIC KEY-----\n"
 
 // ------------------------------ Cadences ------------------------------------
 static const uint32_t PERIODE_MESURE_MS = 2000;  // lecture des sondes

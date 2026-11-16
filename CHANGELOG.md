@@ -7,11 +7,17 @@ affiche le commit dont elle est issue.
 
 ## [Non publié]
 
+## [3.5.0] — 2026-11-16
+
+Résumé : première version publiée et signée ; les mises à jour s'installent seules, la nuit.
+
 Firmware 3.5.0 (`FW_VERSION`). Le binaire ne tient plus dans les emplacements
 de 1,5 Mo des socles flashés avant la 3.4.0 : ceux-là se reflashent une fois
 par câble (la mise à jour à distance refuse le binaire sans rien casser). Les
 réglages persistés s'enrichissent par la fin : rien n'est perdu à la mise à
-jour.
+jour. Les images sont signées : la clé publique de l'éditeur est compilée
+(`OTA_CLE_PUBLIQUE`). Le socle n'accepte donc plus que des images signées par
+elle, coupe ArduinoOTA et installe seul ses mises à jour, la nuit.
 
 ### Ajouté
 - **Mise en ligne du serveur sur une machine gratuite** (`serveur/deploiement/machine/`) :
