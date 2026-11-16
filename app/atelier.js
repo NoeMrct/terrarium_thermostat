@@ -138,6 +138,12 @@
     }
     const d = reglagesParDefaut();
     r.reglages = { ...d, ...r.reglages, serveur: { ...d.serveur, ...(r.reglages || {}).serveur }, broker: { ...d.broker, ...(r.reglages || {}).broker } };
+    // Un atelier ouvert avant que le déploiement fixe le serveur, et encore
+    // jamais servi : il prend le serveur du déploiement.
+    if (serveurDeploye && !r.reglages.serveur.url) {
+      r.reglages.serveur.url = serveurDeploye;
+      if (r.reglages.liaison === 'aucune' && !Object.keys(r.socles || {}).length && !r.reglages.ssid) r.reglages.liaison = 'serveur';
+    }
     if (!r.lots.length) { const lot = nouveauLot(); r.lots.push(lot); r.lotCourant = lot.id; }
     if (!r.lots.some(l => l.id === r.lotCourant)) r.lotCourant = r.lots[r.lots.length - 1].id;
     return r;

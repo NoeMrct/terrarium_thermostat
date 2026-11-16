@@ -502,6 +502,13 @@ async function regler(a, r) {
     if (u.pathname === '/api/admin/appareils' && comptes[qui].admin) return rep(201, { id: corps.id, motDePasse: 'mdpAppareil77' });
     return rep(403, { erreur: 'réservé à l\'administration' });
   };
+  // Un atelier ouvert avant que le serveur soit fixé, jamais servi : il le prend ;
+  // un atelier qui a déjà servi sans liaison la garde.
+  const vide = { v: 1, reglages: { liaison: 'aucune', ssid: '', serveur: { url: '' } }, lots: [{ id: 'lot-a', nom: 'Lot A', cree: 1 }], lotCourant: 'lot-a', socles: {} };
+  const ancien = creerAtelier({ broker: new Broker(), serveur: SERVEUR, stockage: { 'terrarium.atelier.v1': JSON.stringify(vide) } });
+  verifier('registre jamais servi : le serveur du déploiement est adopté', ancien.A.registre().reglages.liaison === 'serveur' && ancien.A.registre().reglages.serveur.url === SERVEUR);
+  const servi = creerAtelier({ broker: new Broker(), serveur: SERVEUR, stockage: { 'terrarium.atelier.v1': JSON.stringify({ ...vide, socles: { terraD4E5F6: { id: 'terraD4E5F6', etape: 4, etat: 'actif', journal: [] } } }) } });
+  verifier('atelier déjà servi sans liaison : son choix est gardé', servi.A.registre().reglages.liaison === 'aucune');
   const brokerD = new Broker();
   const d = creerAtelier({ broker: brokerD, fetch: serveurFetch, serveur: SERVEUR });
   verifier('serveur du déploiement : liaison et adresse déjà réglées', d.A.registre().reglages.liaison === 'serveur' && d.A.registre().reglages.serveur.url === SERVEUR);
