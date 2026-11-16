@@ -2,7 +2,7 @@
 /* =============================================================================
    Prépare app/ pour la publication (commande de build Netlify, voir netlify.toml).
    -----------------------------------------------------------------------------
-   L'application reste des fichiers lisibles dans le dépôt. Quatre choses sont
+   L'application reste des fichiers lisibles dans le dépôt. Cinq choses sont
    faites au moment du déploiement, parce qu'elles dépendent de lui :
 
      1. app/version.json — version, commit et date, lus par l'application pour
@@ -17,6 +17,9 @@
      4. app.js, mqtt.js et sw.js sont minifiés (terser) avec leur source map :
         un tiers de moins à télécharger, et les erreurs restent lisibles dans
         le diagnostic grâce aux .map. Les sources du dépôt ne bougent pas.
+     5. La balise <meta name="terrarium-serveur"> de index.html reçoit
+        l'adresse du serveur Terrariums que donne la variable TERRARIUM_SERVEUR
+        de l'hébergeur (adresse-serveur.js). Sans elle, la balise reste vide.
 
    Hors Netlify (en local) : node preparer-publication.js --sans-firmware [--sans-minifier]
    Le dépôt ne doit PAS contenir version.json, firmware/ ni *.map : ils sont
@@ -111,7 +114,20 @@ async function minifier() {
   }
 }
 
+// --- 5. adresse du serveur -------------------------------------------------------
+// Une adresse invalide arrête le déploiement : mieux vaut un échec visible
+// qu'une application publiée qui chercherait son serveur au mauvais endroit.
+function ecrireServeur() {
+  if (!process.env.TERRARIUM_SERVEUR) { console.log('index.html : aucun serveur fixé (TERRARIUM_SERVEUR absente)'); return; }
+  const { adresseServeur, ecrireBalise } = require('./adresse-serveur');
+  const adresse = adresseServeur(process.env.TERRARIUM_SERVEUR);
+  const chemin = path.join(APP, 'index.html');
+  fs.writeFileSync(chemin, ecrireBalise(fs.readFileSync(chemin, 'utf8'), adresse));
+  console.log(`index.html : serveur ${adresse}`);
+}
+
 (async () => {
+  ecrireServeur();
   await minifier();
   if (sansFirmware) { console.log('firmware : ignoré (--sans-firmware)'); return; }
   let release;

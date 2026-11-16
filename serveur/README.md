@@ -34,12 +34,18 @@ node serveur.js audit verifier                              # vérifie la chaîn
 Ou en conteneur : `docker compose -f serveur/docker-compose.yml up -d` depuis la
 racine (voir le fichier pour les variables). Mettre un **reverse proxy TLS**
 devant (Caddy fait tout seul le certificat) : l'application n'accepte que
-`wss://` hors développement, et le push exige HTTPS.
+`wss://` hors développement, et le push exige HTTPS. Sur une machine Ubuntu,
+par exemple l'offre gratuite d'Oracle Cloud, `deploiement/oracle/` installe le
+tout en une commande : Traefik et ses certificats, MQTT chiffré des socles sur
+le port 8883, sauvegarde nocturne et essai de bout en bout (voir son
+`LISEZMOI.md`).
 
 Dans l'application : « Se connecter » mène droit au compte (e-mail et code,
 clé d'accès, ou identifiant et mot de passe) quand l'application connaît son
 serveur — balise `<meta name="terrarium-serveur" content="https://…">` de
-`app/index.html`, à remplir au déploiement, ou serveur qui sert l'application
+`app/index.html`, vide dans le dépôt et remplie au déploiement depuis la
+variable `TERRARIUM_SERVEUR` de l'hébergeur (`outils/preparer-publication.js`),
+ou serveur qui sert l'application
 (`SERVIR_APP=1`, reconnu à son `/api/infos`). Sinon, elle demande l'adresse
 `https://` du serveur. Le formulaire complet du broker (`wss://…/mqtt`,
 préfixe) reste à l'adresse `#/technique` de l'application, pour le support et

@@ -1,0 +1,43 @@
+# Routes de Traefik. installer.sh en écrit /opt/terrarium/traefik/dynamique.yml
+# en remplaçant __DOMAINE__.
+http:
+  routers:
+    terrarium:
+      rule: "Host(`__DOMAINE__`)"
+      entryPoints: [websecure]
+      service: terrarium
+      tls:
+        certResolver: le
+  services:
+    terrarium:
+      loadBalancer:
+        servers:
+          - url: "http://terrarium:8080"
+
+tcp:
+  routers:
+    # MQTT chiffré des socles : Traefik termine TLS avec le certificat du
+    # domaine et passe le MQTT en clair au broker, sur le réseau interne. Les
+    # socles envoient le nom du serveur (SNI) ; « * » accepte aussi un client
+    # qui ne l'envoie pas (il reçoit le certificat par défaut, le même).
+    mqtt:
+      rule: "HostSNI(`*`)"
+      entryPoints: [mqtts]
+      service: mqtt
+      tls:
+        certResolver: le
+        domains:
+          - main: "__DOMAINE__"
+  services:
+    mqtt:
+      loadBalancer:
+        servers:
+          - address: "terrarium:1883"
+
+tls:
+  stores:
+    default:
+      defaultGeneratedCert:
+        resolver: le
+        domain:
+          main: "__DOMAINE__"

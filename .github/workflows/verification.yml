@@ -115,6 +115,9 @@ jobs:
       - name: En-têtes Netlify (mêmes règles aux deux adresses d'une page, contenu en ligne autorisé)
         run: node outils/verifier-netlify.js
 
+      - name: Adresse du serveur fixée au déploiement (balise vide dans le dépôt, TERRARIUM_SERVEUR contrôlée)
+        run: node outils/adresse-serveur.js --verifier
+
       - name: Client MQTT de l'application
         working-directory: outils
         run: node test-mqtt.js --broker ws://localhost:9001/mqtt --tcp mqtt://localhost:1883

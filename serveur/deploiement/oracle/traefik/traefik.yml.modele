@@ -1,0 +1,38 @@
+# Configuration statique de Traefik. installer.sh en écrit
+# /opt/terrarium/traefik/traefik.yml en remplaçant __EMAIL__.
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+# Pas de journal d'accès : il garderait l'adresse IP de chaque client.
+log:
+  level: INFO
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+  websecure:
+    address: ":443"
+  mqtts:
+    address: ":8883"
+
+certificatesResolvers:
+  le:
+    acme:
+      email: "__EMAIL__"
+      storage: /acme/acme.json
+      # Échecs répétés (DNS pas encore propagé…) : décommenter le temps des
+      # essais, pour ne pas atteindre les limites de Let's Encrypt.
+      # caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+      httpChallenge:
+        entryPoint: web
+
+providers:
+  file:
+    filename: /etc/traefik/dynamique.yml
+    watch: true

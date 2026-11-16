@@ -1,0 +1,43 @@
+# Serveur Terrariums derrière Traefik, sur une machine Linux (au départ une
+# machine Oracle Cloud « Always Free »). installer.sh copie ce fichier dans
+# /opt/terrarium, à côté de depot/ (le clone du dépôt), traefik/, acme/
+# (certificats) et .env (variables et secrets du serveur : root, 600, jamais
+# dans le dépôt).
+#
+# Ports publiés : 80 (certificats Let's Encrypt, redirection vers https), 443
+# (API, console, /mqtt de l'application) et 8883 (MQTT chiffré des socles).
+# 8080 et 1883 restent sur le réseau interne : Traefik seul y parle.
+name: terrarium
+
+x-journaux: &journaux
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+services:
+  terrarium:
+    build:
+      context: ./depot
+      dockerfile: serveur/Dockerfile
+    image: terrarium-serveur:local
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - donnees:/donnees
+    expose: ["8080", "1883"]
+    logging: *journaux
+
+  traefik:
+    image: traefik:v3.7.12
+    restart: unless-stopped
+    depends_on: [terrarium]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8883:8883"
+    volumes:
+      - ./traefik:/etc/traefik:ro
+      - ./acme:/acme
+    logging: *journaux
+
+volumes:
+  donnees:
