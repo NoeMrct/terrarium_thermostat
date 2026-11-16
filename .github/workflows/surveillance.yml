@@ -1,0 +1,42 @@
+# Surveillance du serveur en ligne, toutes les 30 minutes, sans compte ni coût :
+#   - l'API répond en HTTPS, avec un certificat valide ;
+#   - le MQTT chiffré des socles (port 8883) accepte une connexion TLS vérifiée ;
+#   - le certificat est encore valable au moins 10 jours (Traefik le renouvelle
+#     30 jours avant l'échéance : s'il ne l'a pas fait, quelque chose bloque).
+# Un échec rend le workflow rouge, et GitHub prévient par e-mail la personne qui
+# a modifié le planning en dernier. Lancement à la main : onglet Actions, « Run
+# workflow ». GitHub suspend les plannings d'un dépôt public resté 60 jours sans
+# commit : il suffit alors de réactiver le workflow dans l'onglet Actions.
+name: Surveillance du serveur
+
+on:
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  SERVEUR: exotic-world.duckdns.org
+
+jobs:
+  serveur:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: API en HTTPS, certificat vérifié
+        run: curl -fsS --retry 3 --retry-delay 30 --retry-all-errors -m 20 -o /dev/null "https://$SERVEUR/api/infos"
+
+      - name: MQTT chiffré des socles (port 8883)
+        run: |
+          for _ in 1 2 3; do
+            if timeout 20 openssl s_client -connect "$SERVEUR:8883" -servername "$SERVEUR" \
+                 -verify_return_error -brief </dev/null; then exit 0; fi
+            sleep 30
+          done
+          exit 1
+
+      - name: Certificat valable encore 10 jours au moins
+        run: |
+          timeout 20 openssl s_client -connect "$SERVEUR:443" -servername "$SERVEUR" </dev/null 2>/dev/null |
+            openssl x509 -noout -enddate -checkend 864000

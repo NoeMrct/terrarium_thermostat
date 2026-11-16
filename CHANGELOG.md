@@ -24,6 +24,10 @@ jour.
   s'affiche. `regler-duckdns.sh` garde le nom DuckDNS sur l'IP de la machine,
   et `essai-bout-en-bout.sh` vérifie HTTPS, MQTT et WebSocket avec un compte
   d'appareil d'essai.
+- **Surveillance du serveur en ligne** (`surveillance.yml`), toutes les 30
+  minutes depuis GitHub : API en HTTPS, MQTT chiffré des socles sur 8883 et
+  certificat valable encore 10 jours. Un échec prévient par e-mail, sans compte
+  ni coût.
 - **Adresse du serveur fixée au déploiement** : la variable `TERRARIUM_SERVEUR`
   de Netlify remplit la balise `<meta name="terrarium-serveur">` de
   l'application publiée. « Se connecter » mène droit au compte. La balise reste

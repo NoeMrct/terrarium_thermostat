@@ -9,6 +9,7 @@
 | déploiement Netlify (chaque push sur `main`) | `npm ci --prefix outils --omit=dev && node outils/preparer-publication.js` : `version.json` (commit de l'application **et** dernière version du firmware publiée), nom de cache de l'agent de service = commit, minification de `app.js`/`mqtt.js`/`sw.js` par terser avec cartes de sources, binaires de la dernière release copiés pour la page « Flasher un socle » |
 | étiquette `vX.Y.Z` | `publication.yml` : clé de signature contrôlée contre `config.h`, compilation reproductible, signature vérifiée si la clé est configurée, manifeste des mises à jour automatiques (`terrarium-version.json`), attestation de provenance, PDF de la documentation, release GitHub avec les binaires, les PDF et les notes du changelog, redéploiement du site si le hook est configuré |
 | à la main (onglet Actions) | `deploiement.yml` : déploiement progressif d'une release — `pause`, `reprendre`, `tous`, `etaler` sur N jours (voir « Mises à jour automatiques ») |
+| toutes les 30 minutes | `surveillance.yml` : le serveur en ligne répond en HTTPS, le MQTT chiffré des socles (8883) accepte une connexion TLS vérifiée, le certificat vaut encore 10 jours ; un échec prévient par e-mail (voir `serveur/deploiement/machine/LISEZMOI.md`) |
 | exécuteur auto-hébergé avec une carte | `materiel.yml` : flashage et test de fumée par port série (`outils/test-materiel.js`) — à la demande ou à chaque étiquette |
 
 L'application n'a pas de numéro à elle : elle est publiée en continu et affiche

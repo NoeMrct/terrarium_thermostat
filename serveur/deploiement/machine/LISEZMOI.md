@@ -138,6 +138,16 @@ métadonnées de Google Cloud : aucun identifiant n'est stocké sur la machine.
    sudo bash /opt/terrarium/sauvegarder.sh
    ```
 
+## Surveillance
+
+`.github/workflows/surveillance.yml` vérifie le serveur toutes les 30 minutes
+depuis GitHub, sans compte ni coût : l'API répond en HTTPS, le MQTT chiffré
+des socles accepte une connexion TLS vérifiée sur 8883, et le certificat vaut
+encore 10 jours au moins. Un échec rend le workflow rouge, et GitHub prévient
+par e-mail. Le nom du serveur est dans le fichier (`SERVEUR`). GitHub suspend
+les plannings d'un dépôt public resté 60 jours sans commit : il suffit alors de
+réactiver le workflow dans l'onglet Actions.
+
 ## Offre gratuite de Google Cloud : à savoir
 
 - Ne changer ni la région, ni le gabarit, ni le type de disque. Ne pas réserver
