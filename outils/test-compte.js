@@ -94,14 +94,20 @@ const EMAIL = 'noe@exemple.fr';
     await page.waitForSelector('#ex-mail:not([disabled])', { timeout: 5000 }).catch(() => {});
     v('l\'interrupteur paraît : serveur avec e-mail, compte avec un socle', await visible('#ex-mail') && !(await page.isChecked('#ex-mail')));
     await page.click('label[for="ex-mail"]');
-    await page.waitForFunction(() => /envoyé à/.test(document.querySelector('#message').textContent), null, { timeout: 8000 }).catch(() => {});
+    // Le message passe (il s'efface au bout de quelques secondes) : on le guette
+    // au moment où il paraît, au lieu de le relire plus tard.
+    const vuEnvoye = await page.waitForFunction(e => document.querySelector('#message').textContent.includes(`envoyé à ${e}`), EMAIL, { timeout: 8000 }).then(() => true, () => false);
     const carnet = boite.filter(x => x.a === EMAIL && /^Carnet /.test(x.sujet)).pop();
     v('activé : le carnet du mois écoulé part tout de suite', !!carnet && s.comptes.utilisateur(EMAIL).carnet.actif === true, carnet ? carnet.sujet : 'aucun');
-    v('…le message et la ligne le disent', (await page.textContent('#message')).includes(`envoyé à ${EMAIL}`)
-      && /Prochain carnet : le 1er /.test(await page.textContent('#reglages [data-r="mail-etat"]')), await page.textContent('#reglages [data-r="mail-etat"]'));
+    v('…le message et la ligne le disent', vuEnvoye && await page.waitForFunction(() => /Prochain carnet : le 1er /.test(document.querySelector('#reglages [data-r="mail-etat"]').textContent), null, { timeout: 3000 }).then(() => true, () => false),
+      await page.textContent('#reglages [data-r="mail-etat"]'));
+    // L'interrupteur se réactive au rendu qui suit la réponse : on l'attend avant de recliquer.
+    await page.waitForSelector('#ex-mail:not([disabled])', { timeout: 5000 }).catch(() => {});
     await page.click('label[for="ex-mail"]');
     await page.waitForFunction(() => /arrêté/.test(document.querySelector('#message').textContent), null, { timeout: 5000 }).catch(() => {});
-    v('désactivé : le serveur n\'enverra plus rien', s.comptes.utilisateur(EMAIL).carnet.actif === false && !(await page.isChecked('#ex-mail')));
+    let coupe = false;
+    for (const fin = Date.now() + 5000; Date.now() < fin && !coupe;) { coupe = s.comptes.utilisateur(EMAIL).carnet.actif === false; if (!coupe) await new Promise(r => setTimeout(r, 50)); }
+    v('désactivé : le serveur n\'enverra plus rien', coupe && !(await page.isChecked('#ex-mail')));
     await page.click('#vue-reglages [data-action="remonter"]');
     await page.click('#vue-reglages [data-action="remonter"]');
     await page.waitForSelector('#vue-liste', { state: 'visible', timeout: 5000 }).catch(() => {});
