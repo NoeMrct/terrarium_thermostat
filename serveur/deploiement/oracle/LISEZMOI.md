@@ -28,7 +28,8 @@ ne sortent pas de la machine.
 sudo git clone https://github.com/NoeMrct/terrarium_thermostat /opt/terrarium/depot
 sudo bash /opt/terrarium/depot/serveur/deploiement/oracle/installer.sh \
   --domaine socle-chauffant.duckdns.org \
-  --site https://soclechauffant.netlify.app --email vous@exemple.fr
+  --site https://soclechauffant.netlify.app --email vous@exemple.fr \
+  --nom "Exotic World"                                         # nom d'expéditeur des e-mails
 sudo bash /opt/terrarium/regler-smtp.sh <identifiant SMTP>    # la clé est demandée sans écho
 sudo bash /opt/terrarium/essai-bout-en-bout.sh
 ```
@@ -53,7 +54,7 @@ l'application publiée : « Se connecter » mène droit au compte.
 | `/opt/terrarium/acme/acme.json` | certificats |
 | volume Docker `terrarium_donnees` | données du serveur : comptes, historique, journal d'audit, support |
 | `/opt/terrarium/sauvegardes` | archives de chaque nuit, 14 jours |
-| `/opt/terrarium/parametres` | domaine, application, e-mail |
+| `/opt/terrarium/parametres` | domaine, application, e-mail, nom d'expéditeur |
 
 ## Au quotidien
 

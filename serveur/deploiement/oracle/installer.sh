@@ -9,10 +9,12 @@
 #   sudo git clone https://github.com/NoeMrct/terrarium_thermostat /opt/terrarium/depot
 #   sudo bash /opt/terrarium/depot/serveur/deploiement/oracle/installer.sh \
 #        --domaine socle-chauffant.duckdns.org \
-#        --site https://soclechauffant.netlify.app --email vous@exemple.fr
+#        --site https://soclechauffant.netlify.app --email vous@exemple.fr \
+#        --nom "Exotic World"
 #
 # --site est l'origine de l'application (Netlify) : origine autorisée de l'API
-# et domaine des clés d'accès. Relancé sans paramètre, le script reprend ceux
+# et domaine des clés d'accès. --nom (facultatif, « Terrariums » par défaut) est
+# le nom d'expéditeur des e-mails. Relancé sans paramètre, le script reprend ceux
 # de /opt/terrarium/parametres (c'est ce que fait mettre-a-jour.sh).
 #
 # Il ne touche jamais à un secret existant : ADMIN_JETON est engendré une seule
@@ -24,7 +26,7 @@ DOSSIER=/opt/terrarium
 ICI=$(cd "$(dirname "$0")" && pwd)
 [ "$(id -u)" = 0 ] || { echo "À lancer en root (sudo)." >&2; exit 1; }
 
-DOMAINE='' SITE='' EMAIL=''
+DOMAINE='' SITE='' EMAIL='' NOM=''
 # shellcheck source=/dev/null
 [ -f "$DOSSIER/parametres" ] && . "$DOSSIER/parametres"
 while [ $# -gt 0 ]; do
@@ -32,12 +34,15 @@ while [ $# -gt 0 ]; do
     --domaine) DOMAINE=${2:-}; shift 2 ;;
     --site) SITE=${2%/}; shift 2 ;;
     --email) EMAIL=${2:-}; shift 2 ;;
+    --nom) NOM=${2:-}; shift 2 ;;
     *) echo "Paramètre inconnu : $1" >&2; exit 2 ;;
   esac
 done
 [[ $DOMAINE =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || { echo "--domaine : nom d'hôte attendu (socle-chauffant.duckdns.org)" >&2; exit 2; }
 [[ $SITE =~ ^https://[a-z0-9.-]+(:[0-9]+)?$ ]] || { echo "--site : origine https:// de l'application attendue" >&2; exit 2; }
 [[ $EMAIL =~ ^[^@[:space:]]+@[^@[:space:]]+\.[a-z]+$ ]] || { echo "--email : adresse e-mail attendue" >&2; exit 2; }
+NOM=${NOM:-Terrariums}
+[[ $NOM =~ ^[A-Za-z0-9][A-Za-z0-9\ ._\'-]{0,39}$ ]] || { echo "--nom : lettres, chiffres, espaces, 40 caractères au plus" >&2; exit 2; }
 HOTE_APP=${SITE#https://}; HOTE_APP=${HOTE_APP%%:*}
 
 echo "== Paquets (Docker, Git, mises à jour de sécurité automatiques)"
@@ -59,7 +64,7 @@ echo "== Fichiers dans $DOSSIER"
 umask 022
 install -d -m 755 "$DOSSIER" "$DOSSIER/traefik"
 install -d -m 700 "$DOSSIER/acme" "$DOSSIER/sauvegardes"
-printf 'DOMAINE=%s\nSITE=%s\nEMAIL=%s\n' "$DOMAINE" "$SITE" "$EMAIL" > "$DOSSIER/parametres"
+printf 'DOMAINE=%q\nSITE=%q\nEMAIL=%q\nNOM=%q\n' "$DOMAINE" "$SITE" "$EMAIL" "$NOM" > "$DOSSIER/parametres"
 install -m 644 "$ICI/compose.yml" "$DOSSIER/compose.yml"
 sed "s|__EMAIL__|$EMAIL|g" "$ICI/traefik/traefik.yml.modele" > "$DOSSIER/traefik/traefik.yml"
 sed "s|__DOMAINE__|$DOMAINE|g" "$ICI/traefik/dynamique.yml.modele" > "$DOSSIER/traefik/dynamique.yml"
@@ -83,7 +88,7 @@ grep -q '^ADMIN_JETON=' "$DOSSIER/.env" || regler ADMIN_JETON "$(openssl rand -h
 regler ORIGINES "$SITE"
 regler RP_ID "$HOTE_APP"
 regler CONTACT_VAPID "mailto:$EMAIL"
-regler COURRIEL_DE "Terrariums <$EMAIL>"
+regler COURRIEL_DE "$NOM <$EMAIL>"
 regler TZ "Europe/Paris"
 umask 022
 
