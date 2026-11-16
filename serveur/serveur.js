@@ -18,7 +18,9 @@
        d'appareil, rapports de diagnostic, journal d'audit chaîné (12 mois) ;
      - back-office support : demandes des clients, accès ouverts par les
        propriétaires (clé de session, le code d'appairage ne quitte pas leur
-       téléphone), diagnostics à distance, frise de chaque socle.
+       téléphone), diagnostics à distance, frise de chaque socle ;
+     - atelier : registre du montage partagé par les postes, Wi-Fi du banc
+       (chiffré), rodage surveillé par le serveur, alertes à l'équipe.
 
    Configuration par variables d'environnement (ou serveur/.env chargé ici) :
      PORT=8080                 HTTP, API et MQTT sur WebSocket (/mqtt)
@@ -44,6 +46,7 @@
      node serveur.js utilisateur mot-de-passe <login> <nouveau>
      node serveur.js utilisateur admin <login> oui|non     droits sur la console
      node serveur.js utilisateur support <login> oui|non   rôle support (demandes, accès ouverts)
+     node serveur.js utilisateur atelier <login> oui|non   rôle atelier (page Atelier : monter des socles)
      node serveur.js audit verifier          vérifie la chaîne du journal d'audit
      node serveur.js appareil ajouter <terraXXXXXX> [mot de passe]
      node serveur.js appareil retirer <terraXXXXXX>
@@ -65,6 +68,7 @@ const { Audit, refCompte } = require('./lib/audit');
 const { Support } = require('./lib/support');
 const { Evenements } = require('./lib/evenements');
 const { Carnets } = require('./lib/carnets');
+const { Atelier } = require('./lib/atelier');
 
 const VERSION = require('./package.json').version;
 
@@ -75,6 +79,12 @@ function chargerEnv(dossier) {
     const m = /^\s*([A-Z_]+)\s*=\s*(.*)\s*$/.exec(l);
     if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
   }
+}
+
+// La page Atelier, pour les liens des alertes : sur la première origine de l'application.
+function lienAtelier(origines) {
+  const o = Array.isArray(origines) ? origines.find(x => /^https:\/\//.test(x)) : null;
+  return o ? `${o.replace(/\/+$/, '')}/atelier.html` : null;
 }
 
 function configuration(surcharge = {}) {
@@ -132,7 +142,13 @@ async function demarrerServeur(surcharge = {}) {
     return (e && typeof e.nom === 'string' && e.nom.replace(/\p{Cc}/gu, ' ').trim().slice(0, 40)) || `Zone ${z + 1}`;
   };
   const carnets = new Carnets({ comptes, historique, evenements, courriel: o.courriel, journal: o.journal, nomZone: nomZoneCarnet });
-  const api = new Api({ comptes, broker, historique, notifications, audit, support, evenements, carnets, options: o });
+  // Atelier : registre partagé, rodage surveillé ici, alertes à l'équipe.
+  const delaiHorsLigneMs = o.delaiHorsLigneMs !== undefined ? o.delaiHorsLigneMs : o.delaiHorsLigneMin * 60000;
+  const atelier = new Atelier(o.donnees, { cleSecrete: o.adminJeton, comptes, broker, audit, notifications, courriel: o.courriel,
+    journal: o.journal, lien: lienAtelier(o.origines), delaiAlertesMs: o.delaiAlertesAtelierMs !== undefined ? o.delaiAlertesAtelierMs : 120000, delaiHorsLigneMs });
+  broker.atelier = atelier;
+  atelier.brancher(broker);
+  const api = new Api({ comptes, broker, historique, notifications, audit, support, evenements, carnets, atelier, options: o });
 
   const serveurHttp = http.createServer((req, res) => api.traiter(req, res));
   await broker.demarrer({ portTcp: o.portMqtt, serveurHttp, cheminWs: '/mqtt' });
@@ -177,7 +193,6 @@ async function demarrerServeur(surcharge = {}) {
   // Hors ligne (U34) : annoncé après un délai de grâce, puis le retour en ligne
   // aussi ; un socle revenu avant la fin du délai ne fait rien sonner.
   const absences = new Map();          // id -> { minuteur, annonce, depuis }
-  const delaiHorsLigneMs = o.delaiHorsLigneMs !== undefined ? o.delaiHorsLigneMs : o.delaiHorsLigneMin * 60000;
   broker.on('enLigne', id => {
     evenements.noter(id, 'en ligne');
     const a = absences.get(id);
@@ -239,6 +254,9 @@ async function demarrerServeur(surcharge = {}) {
   // Carnet du mois : vérifié toutes les heures, envoyé le 1er à partir de 8 h.
   const tourCarnets = setInterval(() => { carnets.tourner().catch(e => o.journal(`carnets : ${e.message}`)); }, o.carnetsMs || 3600000);
   tourCarnets.unref();
+  // Rodages de l'atelier arrivés à terme : verdict du serveur, chaque minute.
+  const tourAtelier = setInterval(() => { try { atelier.tourner(); } catch (e) { o.journal(`atelier : ${e.message}`); } }, o.atelierMs || 60000);
+  tourAtelier.unref();
 
   o.journal(`Serveur Terrariums ${VERSION} — HTTP ${port} (API /api, console /console/, MQTT /mqtt)${portMqtt ? `, MQTT TCP ${portMqtt}` : ''}, données ${o.donnees}${o.amont ? `, pont vers ${o.amont.url}` : ''}${o.app ? ', application servie' : ''}`);
   if (!o.adminJeton) o.journal('ADMIN_JETON absent : console ouverte aux seuls comptes administrateurs (node serveur.js utilisateur admin <login> oui)');
@@ -246,9 +264,10 @@ async function demarrerServeur(surcharge = {}) {
   if (!o.rpId) o.journal('RP_ID et ORIGINES absents : chaque clé d\'accès se lie au domaine de la page qui la crée');
 
   return {
-    port, portMqtt, comptes, broker, historique, notifications, api, audit, support, evenements, carnets,
+    port, portMqtt, comptes, broker, historique, notifications, api, audit, support, evenements, carnets, atelier,
     async arreter() {
-      clearInterval(purge); clearInterval(echeances); clearInterval(tourCarnets);
+      clearInterval(purge); clearInterval(echeances); clearInterval(tourCarnets); clearInterval(tourAtelier);
+      atelier.arreter();
       for (const a of absences.values()) clearTimeout(a.minuteur);
       await broker.arreter(); await new Promise(r => serveurHttp.close(r));
     }
@@ -276,6 +295,13 @@ async function cli(args) {
       comptes.definirSupport(a, b === 'oui');
       new Audit(o.donnees).noter({ qui: 'ligne de commande', action: 'compte.support', cible: refCompte(a), details: { support: b === 'oui' } });
       console.log(`${a} : ${b === 'oui' ? 'rôle support' : 'plus de rôle support'}.`);
+      return 0;
+    }
+    if (cmd === 'utilisateur' && sous === 'atelier') {
+      if (!['oui', 'non'].includes(b)) { console.error('utilisateur atelier <login> oui|non'); return 2; }
+      comptes.definirAtelier(a, b === 'oui');
+      new Audit(o.donnees).noter({ qui: 'ligne de commande', action: 'compte.atelier', cible: refCompte(a), details: { atelier: b === 'oui' } });
+      console.log(`${a} : ${b === 'oui' ? 'rôle atelier' : 'plus de rôle atelier'}.`);
       return 0;
     }
     if (cmd === 'audit' && sous === 'verifier') {

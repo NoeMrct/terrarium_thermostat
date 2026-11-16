@@ -63,13 +63,14 @@ self.addEventListener('fetch', e => {
 });
 
 // Notifications poussées par le serveur Terrariums (serveur/) : affichées
-// telles quelles, application fermée comprise ; un appui ouvre l'application.
+// telles quelles, application fermée comprise ; un appui ouvre l'application,
+// ou la page Atelier pour les alertes de l'atelier (page: 'atelier').
 self.addEventListener('push', e => {
   let d = { titre: 'Terrariums', corps: '' };
   try { d = Object.assign(d, e.data ? e.data.json() : {}); } catch (err) { d.corps = e.data ? e.data.text() : ''; }
   e.waitUntil(sw.registration.showNotification(d.titre, /** @type {any} */ ({
     body: d.corps, tag: d.tag || 'terrariums', renotify: !!d.urgent, requireInteraction: !!d.urgent,
-    icon: './icones/icone-192.png', badge: './icones/icone-192.png', data: { socle: d.socle || null }
+    icon: './icones/icone-192.png', badge: './icones/icone-192.png', data: { socle: d.socle || null, page: d.page === 'atelier' ? 'atelier' : null }
   })));
 });
 
@@ -78,7 +79,18 @@ self.addEventListener('push', e => {
 self.addEventListener('notificationclick', e => {
   e.notification.close();
   const d = e.notification.data || {};
-  const id = typeof d.socle === 'string' && d.socle ? d.socle : null;
+  const id = typeof d.socle === 'string' && /^terra[0-9A-Za-z]{6}$/.test(d.socle) ? d.socle : null;
+  if (d.page === 'atelier') {
+    e.waitUntil(sw.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(fenetres => {
+      const f = fenetres.find(w => 'focus' in w && /\/atelier(\.html)?(#|$)/.test(new URL(w.url).pathname + new URL(w.url).hash));
+      if (f) {
+        if (id) f.postMessage({ type: 'ouvrirSocle', page: 'atelier', socle: id });
+        return f.focus();
+      }
+      return sw.clients.openWindow('./atelier.html' + (id ? '#' + id : ''));
+    }));
+    return;
+  }
   e.waitUntil(sw.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(fenetres => {
     const f = fenetres.find(w => 'focus' in w);
     if (f) {

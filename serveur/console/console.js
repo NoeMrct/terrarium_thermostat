@@ -178,7 +178,7 @@
     try { await ouvrirAvec(r.jeton, 'compte'); }
     catch (e) {
       await requete('DELETE', '/api/session', undefined, { jeton: r.jeton }).catch(() => {});
-      if (e.statut === 403) throw new ErreurApi('ce compte n\'a pas accès à la console (ni administrateur, ni support)', 403);
+      if (e.statut === 403) throw new ErreurApi('ce compte n\'a pas accès à la console : ni administrateur, ni support (le rôle atelier n\'ouvre que la page Atelier)', 403);
       throw e;
     }
   }
@@ -438,7 +438,7 @@
     remplir($('#corps-comptes'), liste.map(x => h('tr', {},
       h('th', { scope: 'row' }, lienCompte(x.login)),
       h('td', {}, x.type === 'email' ? 'e-mail' : 'mot de passe'),
-      h('td', {}, x.admin ? badge('administrateur', 'warn') : x.support ? badge('support', 'warn') : h('span', { class: 'discret', texte: 'propriétaire' })),
+      h('td', {}, x.admin ? badge('administrateur', 'warn') : x.support || x.atelier ? [x.support ? badge('support', 'warn') : null, x.atelier ? badge('atelier', 'warn') : null] : h('span', { class: 'discret', texte: 'propriétaire' })),
       h('td', { class: 'num' }, x.socles.length ? x.socles.map((id, i) => [i ? ' ' : '', lienSocle(id)]) : '0'),
       h('td', { class: 'num' }, nombre(x.cles)),
       h('td', { class: 'num' }, nombre(x.sessions)),
@@ -543,7 +543,8 @@
     'appareil.creer': 'Compte d\'appareil créé', 'appareil.renouveler': 'Mot de passe d\'appareil changé', 'appareil.retirer': 'Compte d\'appareil retiré',
     'rapport.envoyer': 'Rapport de diagnostic envoyé', 'rapport.lire': 'Rapport lu', 'rapport.supprimer': 'Rapport supprimé',
     'audit.export': 'Journal exporté', 'audit.rupture': 'Fin du journal coupée (rupture notée)',
-    'compte.support': 'Rôle support', 'compte.carnet': 'Carnet par e-mail',
+    'compte.support': 'Rôle support', 'compte.atelier': 'Rôle atelier', 'compte.carnet': 'Carnet par e-mail',
+    'atelier.expedier': 'Socle expédié par l\'atelier', 'atelier.wifi': 'Wi-Fi du banc de l\'atelier', 'atelier.wifi.oublier': 'Wi-Fi du banc oublié',
     'socle.partage.inviter': 'Invitation à partager un socle', 'socle.partage.accepter': 'Partage accepté', 'socle.partage.retirer': 'Partage retiré',
     'support.acces.ouvrir': 'Accès support ouvert par le propriétaire', 'support.acces.prolonger': 'Accès support prolongé',
     'support.acces.fermer': 'Accès support fermé', 'support.acces.echu': 'Accès support échu', 'support.acces.demander': 'Accès demandé au propriétaire',
@@ -561,7 +562,7 @@
     motDePasse: 'mot de passe', proprietairesDetaches: 'propriétaires détachés', nom: 'nom', fichier: 'fichier', lignes: 'lignes', raison: 'raison', teteAttendue: 'tête attendue',
     support: 'support', jusqua: 'jusqu\'au', heures: 'heures', action: 'action', valeurs: 'valeurs', ok: 'réussie', erreur: 'erreur', demande: 'demande n°',
     gravite: 'gravité', statut: 'statut', responsable: 'responsable', de: 'de', longueur: 'caractères', copie: 'copie du', par: 'par', proprietaires: 'propriétaires',
-    modele: 'réponse type n°', titre: 'titre', quand: 'pour le', message: 'message au client' };
+    modele: 'réponse type n°', titre: 'titre', quand: 'pour le', message: 'message au client', atelier: 'atelier', lot: 'lot' };
   const valeurDetail = (k, v) => typeof v === 'boolean' ? (v ? 'oui' : 'non')
     : (v && typeof v === 'object') ? JSON.stringify(v) : (k === 'jusqua' || k === 'copie' || k === 'quand') && /^\d{4}-/.test(String(v)) ? date(v) : v;
   function texteDetails(d) {
@@ -886,7 +887,7 @@
     const corps = ouvrirFiche(pii(x.login));
     corps.append(
       h('span', { class: 'badges' }, badge(x.type === 'email' ? 'compte par e-mail' : 'compte à mot de passe', 'neutre'), x.admin ? badge('administrateur', 'warn') : null,
-        x.support ? badge('support', 'warn') : null, moiMeme ? badge('vous', 'ok') : null),
+        x.support ? badge('support', 'warn') : null, x.atelier && !x.admin ? badge('atelier', 'warn') : null, moiMeme ? badge('vous', 'ok') : null),
       stat([['créé', date(x.cree)], ['dernière connexion', depuis(x.derniereConnexion)], ['sessions ouvertes', nombre(x.sessions)],
         ['clés d\'accès', nombre(x.cles)], ['téléphones notifiés', nombre(x.notificationsPush.length)], ['référence au journal', x.reference]]),
       section('Socles',
@@ -911,6 +912,8 @@
           texte: x.admin ? 'Retirer les droits d\'administration' : 'Donner les droits d\'administration' }),
         x.admin ? null : h('button', { type: 'button', class: 'btn btn-secondaire btn-petit', 'data-action': 'basculer-support', 'data-login': x.login, 'data-support': x.support ? '0' : '1',
           texte: x.support ? 'Retirer le rôle support' : 'Donner le rôle support' }),
+        x.admin ? null : h('button', { type: 'button', class: 'btn btn-secondaire btn-petit', 'data-action': 'basculer-atelier', 'data-login': x.login, 'data-atelier': x.atelier ? '0' : '1',
+          texte: x.atelier ? 'Retirer le rôle atelier' : 'Donner le rôle atelier' }),
         x.type === 'motdepasse' ? h('button', { type: 'button', class: 'btn btn-secondaire btn-petit', 'data-action': 'reinitialiser', 'data-login': x.login, texte: 'Réinitialiser le mot de passe' }) : null,
         h('button', { type: 'button', class: 'btn btn-secondaire btn-petit', 'data-action': 'exporter-compte', 'data-login': x.login, texte: 'Exporter ses données (RGPD)' }),
         moiMeme ? null : h('button', { type: 'button', class: 'btn btn-danger btn-petit', 'data-action': 'supprimer-compte', 'data-login': x.login, texte: 'Effacer le compte' }))),
@@ -1159,6 +1162,13 @@
       await admin('POST', `/api/admin/utilisateurs/${encodeURIComponent(login)}/support`, { support: donner });
       message(donner ? 'Rôle support donné.' : 'Rôle support retiré.');
       etat.equipe = null;
+      await actualiser();
+    },
+    async 'basculer-atelier'(el) {
+      const donner = el.dataset.atelier === '1', login = el.dataset.login;
+      if (donner && !await confirmer({ titre: 'Donner le rôle atelier ?', texte: `${pii(login)} pourra se connecter à la page Atelier, créer les comptes d'appareil des socles qu'il monte (jamais ceux des clients) et piloter les socles en cours de montage. Ni la console, ni les comptes, ni les clients.`, bouton: 'Donner le rôle' })) return;
+      await admin('POST', `/api/admin/utilisateurs/${encodeURIComponent(login)}/atelier`, { atelier: donner });
+      message(donner ? 'Rôle atelier donné.' : 'Rôle atelier retiré.');
       await actualiser();
     },
     async 'nouvel-appareil'() { basculerFormulaire('#form-nouvel-appareil', '[data-action="nouvel-appareil"]', '#n-appareil'); },

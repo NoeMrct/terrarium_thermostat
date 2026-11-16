@@ -323,6 +323,15 @@ const JETON = 'admin-console-test';
     v('l\'API refuse aussi (403), la session reste', refus === 403 && await visible('#espace'));
     await page.click('#btn-sortir');
 
+    titre('Rôle atelier');
+    await api('POST', '/api/admin/utilisateurs', { login: 'monteur', motDePasse: 'mot-de-passe-monteur' });
+    const ra = await api('POST', '/api/admin/utilisateurs/monteur/atelier', { atelier: true });
+    v('le rôle atelier se donne par la console', ra.atelier === true);
+    await page.fill('#c-login', 'monteur');
+    await page.fill('#c-mdp', 'mot-de-passe-monteur');
+    await page.click('#form-compte [type="submit"]');
+    v('un compte « atelier » n\'entre pas dans la console, et sait pourquoi', await attendreTexte('#connexion-erreur', /rôle atelier n'ouvre que la page Atelier/) && !(await visible('#espace')));
+
     const violations = await page.evaluate(() => window.__violations);
     v('aucune violation de la politique de sécurité', violations.length === 0, violations.join(' ; '));
     v('aucune erreur dans la page', erreurs.length === 0, erreurs.join(' | '));

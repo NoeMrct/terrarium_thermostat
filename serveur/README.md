@@ -28,6 +28,7 @@ node serveur.js utilisateur ajouter noe 'un mot de passe'   # un compte pour l'a
 node serveur.js appareil ajouter terraA1B2C3                # un compte pour un socle : affiche la commande série à taper
 node serveur.js utilisateur admin noe oui                   # donne à ce compte l'accès à la console
 node serveur.js utilisateur support agent oui               # rôle support : demandes et accès ouverts seulement
+node serveur.js utilisateur atelier jean@exemple.fr oui     # rôle atelier : page Atelier (montage des socles) seulement
 node serveur.js audit verifier                              # vérifie la chaîne du journal d'audit
 ```
 
@@ -257,6 +258,44 @@ message}`, `GET|POST reponses`, `POST|DELETE reponses/:id`, `GET equipe`,
 `POST acces/:id/remettre {confirmation}`, `POST transferer {de, vers,
 confirmation}` ; et `GET /api/admin/socles/:id/frise`.
 
+## Atelier
+
+La page Atelier de l'application (`app/atelier.html`) monte les socles en série.
+Connectée à ce serveur avec un compte de l'équipe — administrateur, ou **rôle
+atelier** (`POST /api/admin/utilisateurs/:login/atelier {atelier}`, bouton de la
+console, ou `utilisateur atelier <login> oui`) —, elle partage son registre ici
+(`donnees/atelier.json`) :
+
+- `GET /api/atelier/registre?depuis=<rev>` : fiches, lots et Wi-Fi du banc
+  changés depuis cette révision, et les préférences d'alerte du compte ;
+- `PUT /api/atelier/socles/:id {socle, base}` : écrit une fiche en disant de
+  quelle révision elle part ; changée entre-temps, la fiche du serveur est
+  rendue (409) au lieu d'être écrasée (une fiche jamais vue, `base` 0, ne
+  l'emporte que si elle est plus récente : registre local d'avant le partage) ;
+  le code d'appairage et le mot de passe de la page locale sont refusés, ils
+  ne quittent pas le poste qui a monté le socle ;
+- `PUT /api/atelier/lots/:id {nom, cree}`, `PUT|DELETE /api/atelier/wifi
+  {ssid, motDePasse}` (chiffré AES-256-GCM par une clé tirée de
+  `ADMIN_JETON`, hors des données sauvegardées ; un autre jeton le rend
+  illisible : il est alors à ressaisir), `POST /api/atelier/alertes {email}`.
+
+Le **rôle atelier** n'ouvre que cela, plus la création du compte d'appareil
+d'un socle sans propriétaire (`POST /api/admin/appareils`) et, sur le broker,
+les socles en cours de montage : au registre, pas encore expédiés, sans
+propriétaire. Ni la console, ni les comptes, ni les clients.
+
+**Rodage surveillé ici** pour les socles reliés à ce serveur : redémarrage
+(durée de marche qui recule), défaut de zone, coupure et retour, notés à la
+fiche en direct ; chaque minute, les rodages arrivés à terme sont conclus
+(durée de marche comparée à celle du rodage, défauts présents, incidents
+graves ; un socle hors ligne est attendu une demi-heure). L'équipe de
+l'atelier (administrateurs et rôle atelier) reçoit les **alertes** — rodage
+réussi ou échoué, incident, socle disparu plus de `DELAI_HORS_LIGNE_MIN` —
+groupées sur deux minutes : un e-mail par membre (sauf s'il les a coupées) et
+une notification sur ses navigateurs abonnés (`page: 'atelier'`, l'appui ouvre
+l'atelier sur le socle). L'expédition d'un socle et le Wi-Fi du banc entrent au
+journal d'audit (`atelier.expedier`, `atelier.wifi`).
+
 ## Journal d'audit
 
 Chaque geste de l'administration, et ce que font les titulaires eux-mêmes
@@ -292,6 +331,7 @@ dix clés au plus par compte.
 |---|---|---|
 | socle `terraXXXXXX` | `terrarium/terraXXXXXX/#`, `homeassistant/#` | `terrarium/terraXXXXXX/cmd`, `…/set` |
 | utilisateur | `terrarium/<id>/cmd` de ses socles | `terrarium/<id>/…` de ses socles, jamais de joker sur le parc |
+| rôle atelier | en plus, `terrarium/<id>/cmd` des socles en montage | en plus, `terrarium/<id>/…` des socles en montage (au registre, pas expédiés, sans propriétaire) |
 | `admin` (jeton) | tout | tout |
 
 Une publication interdite déconnecte le client ; un abonnement interdit est
@@ -329,6 +369,7 @@ donnees/
   support/demandes.json             demandes, messages, notes internes et relances
   support/reponses.json             réponses types de l'équipe
   evenements/<id>/AAAA-MM.ndjson    ce que chaque socle a vécu (frise, alertes)
+  atelier.json                      registre de l'atelier (fiches de montage, lots, Wi-Fi du banc chiffré) ; aucun secret de socle
 ```
 
 Sauvegarde : copier le dossier. Tout est du texte.
@@ -342,7 +383,9 @@ export, effacement), client SMTP contre un faux serveur, journal d'audit
 (chaîne, ruptures, purge), routes de la console et support (demandes, accès
 par clé de session contre un socle factice aux règles du firmware, transfert,
 échéance, rôles, frise), carnet du mois par e-mail (mois couvert, résumé,
-texte, envoi du 1er, routes du titulaire) — sur des ports éphémères. Et depuis
+texte, envoi du 1er, routes du titulaire), atelier (rôle, registre partagé,
+conflits, Wi-Fi chiffré, broker, rodage surveillé, alertes groupées) — sur des
+ports éphémères. Et depuis
 `outils/` : `node test-serveur.js` fait tourner la vraie application (jsdom,
 son propre client MQTT) contre le vrai serveur ; `node test-compte.js`,
 `node test-console.js` et `node test-support.js` (application, console et socle

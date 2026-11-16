@@ -76,16 +76,17 @@
 # L'atelier ouvre la même fenêtre d'installation (ESP Web Tools) sur le port de
 # sa console : ses styles en ligne et la politique Trusted Types « lit-html » de
 # la bibliothèque qui la dessine sont permis ; l'atelier lui-même n'écrit son
-# DOM qu'élément par élément.
+# DOM qu'élément par élément, et sa politique « atelier » n'accepte qu'une URL
+# de script, celle de l'agent de service (notifications de l'atelier).
 [[headers]]
   for = "/atelier.html"
   [headers.values]
-    Content-Security-Policy = "default-src 'self'; connect-src 'self' wss: https:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; require-trusted-types-for 'script'; trusted-types lit-html"
+    Content-Security-Policy = "default-src 'self'; connect-src 'self' wss: https:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; require-trusted-types-for 'script'; trusted-types lit-html atelier"
 
 [[headers]]
   for = "/atelier"
   [headers.values]
-    Content-Security-Policy = "default-src 'self'; connect-src 'self' wss: https:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; require-trusted-types-for 'script'; trusted-types lit-html"
+    Content-Security-Policy = "default-src 'self'; connect-src 'self' wss: https:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; require-trusted-types-for 'script'; trusted-types lit-html atelier"
 
 # version.json dit quelle version est en ligne : jamais mis en cache.
 [[headers]]

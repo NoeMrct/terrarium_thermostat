@@ -38,7 +38,7 @@ class Notifications {
       this.derniers[cleAntiSpam] = Date.now();
     }
     const charge = JSON.stringify({ titre: notification.titre, corps: notification.corps, socle: notification.socle, tag: notification.tag || notification.socle, urgent: !!notification.urgent,
-      ...(notification.genre ? { genre: notification.genre } : {}) });
+      ...(notification.genre ? { genre: notification.genre } : {}), ...(notification.page ? { page: notification.page } : {}) });
     let reussis = 0;
     for (const a of comptes.abonnementsPush(login)) {
       try {

@@ -14,10 +14,11 @@
      outils/adresse-serveur.js) : vide dans le dépôt. -->
 <meta name="terrarium-serveur" content="">
 <!-- Broker en wss:, serveur Terrariums en https: (ws et http en local, pour un banc de
-     développement), aucun script en ligne. L'atelier écrit son DOM élément par élément ; la seule
-     politique Trusted Types permise est « lit-html », celle de la fenêtre d'installation du
-     firmware (ESP Web Tools, servi par le site), qui pose aussi ses styles en ligne. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' wss: https: ws://localhost:* ws://127.0.0.1:* http://localhost:* http://127.0.0.1:*; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; base-uri 'self'; form-action 'self'; require-trusted-types-for 'script'; trusted-types lit-html">
+     développement), aucun script en ligne. L'atelier écrit son DOM élément par élément ; deux
+     politiques Trusted Types : « lit-html », celle de la fenêtre d'installation du firmware (ESP
+     Web Tools, servi par le site), qui pose aussi ses styles en ligne, et « atelier », qui
+     n'accepte qu'une URL de script : l'agent de service (notifications de l'atelier). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' wss: https: ws://localhost:* ws://127.0.0.1:* http://localhost:* http://127.0.0.1:*; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; require-trusted-types-for 'script'; trusted-types lit-html atelier">
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="atelier.css">
 <script src="mqtt.js" defer></script>
@@ -45,17 +46,22 @@
   <p class="aide">Gardés dans ce navigateur. La connexion au compte dure tant que l'atelier sert au moins une fois
     par mois. Les autres mots de passe ne sont gardés que jusqu'à la fermeture de l'onglet, sauf le Wi-Fi du banc
     si vous le faites retenir.</p>
+  <p id="etat-partage" class="discret" role="status" hidden></p>
   <form id="form-reglages" novalidate>
     <h3 class="mt">Étiquette</h3>
     <label for="r-url">Adresse de l'application (lien du QR code)</label>
     <input id="r-url" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://app.exemple.fr/">
 
     <h3 class="mt">Wi-Fi du banc</h3>
-    <p class="aide">Le socle le rejoint pour le rodage, puis l'oublie avant l'expédition. La console du socle coupe
-      aux espaces : ni le nom ni le mot de passe ne doivent en contenir.</p>
+    <p class="aide">Le socle le rejoint pour le rodage, puis l'oublie avant l'expédition. Vide, le premier socle
+      branché propose les réseaux qu'il capte. La console du socle coupe aux espaces : ni le nom ni le mot de passe
+      ne doivent en contenir.</p>
+    <p id="wifi-partage" class="discret" hidden>Partagé avec les autres postes de l'atelier : le serveur le garde
+      chiffré et le donne aux postes connectés.</p>
     <div class="rangee">
       <div><label for="r-ssid">Nom du réseau</label>
-        <input id="r-ssid" autocomplete="off" spellcheck="false" placeholder="vide : pas de Wi-Fi au banc"></div>
+        <input id="r-ssid" autocomplete="off" spellcheck="false" placeholder="vide : choisi au premier socle" list="reseaux-captes">
+        <datalist id="reseaux-captes"></datalist></div>
       <div><label for="r-wifi-mdp">Mot de passe</label>
         <input id="r-wifi-mdp" type="password" autocomplete="off"></div>
     </div>
@@ -71,7 +77,8 @@
 
     <div data-pour="serveur" hidden>
       <p class="aide">Chaque socle reçoit son compte d'appareil sur le serveur (il le garde chez l'acheteur).
-        L'atelier suit le banc avec votre compte administrateur.</p>
+        L'atelier se connecte avec un compte de l'équipe : administrateur, ou rôle « atelier » donné dans la
+        console. Le registre est alors partagé entre les postes, et le serveur surveille les rodages.</p>
       <label for="r-serveur">Adresse du serveur</label>
       <input id="r-serveur" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://terrariums.exemple.fr">
 
@@ -80,7 +87,7 @@
         <button type="button" class="btn btn-fantome btn-petit" data-action="deconnecter">Se déconnecter</button>
       </div>
       <div id="compte-connexion" class="mt">
-        <label for="r-email">E-mail de votre compte administrateur</label>
+        <label for="r-email">E-mail de votre compte de l'atelier</label>
         <div class="rangee">
           <div><input id="r-email" type="email" inputmode="email" autocomplete="username" spellcheck="false" placeholder="vous@exemple.fr"></div>
           <div><button type="button" class="btn btn-secondaire" data-action="code">Recevoir un code</button></div>
@@ -91,6 +98,18 @@
             <div><input id="r-code" inputmode="numeric" autocomplete="one-time-code" spellcheck="false" maxlength="7" placeholder="123456"></div>
             <div><button type="button" class="btn" data-action="connecter">Se connecter</button></div>
           </div>
+        </div>
+      </div>
+
+      <div id="alertes-atelier" class="mt" hidden>
+        <h3>Alertes</h3>
+        <p class="aide">Fin de rodage, incident, socle disparu : l'équipe de l'atelier est prévenue, page fermée ou non.
+          Les alertes proches arrivent ensemble.</p>
+        <label class="interrupteur" for="r-alertes-email">Par e-mail
+          <input id="r-alertes-email" type="checkbox" checked></label>
+        <div class="boutons">
+          <button type="button" class="btn btn-secondaire btn-petit" data-action="notifications">Notifications sur cet ordinateur</button>
+          <span id="etat-notifications" class="discret" role="status"></span>
         </div>
       </div>
 
@@ -142,10 +161,39 @@
         <input id="r-rodage" type="number" min="1" max="168" step="1" inputmode="numeric" placeholder="24"></div>
     </div>
 
+    <h3 class="mt">Console USB</h3>
+    <label class="interrupteur" for="r-auto">Démarrer seul quand une carte est branchée
+      <input id="r-auto" type="checkbox" checked></label>
+    <p class="aide">Étape 1 pour une carte neuve, étape 5 pour un socle prêt. Chrome retient l'adaptateur USB une fois
+      choisi : selon la puce de la carte, il le reconnaît ensuite pour toutes, ou la fenêtre de choix revient.</p>
+
     <p id="reglages-erreur" class="erreur-code" role="alert" hidden></p>
     <div class="boutons">
       <button class="btn" type="submit">Enregistrer</button>
       <button class="btn btn-secondaire" type="button" data-action="fermer-reglages">Fermer</button>
+    </div>
+  </form>
+</section>
+
+<section id="choix-wifi" class="carte" aria-labelledby="t-choix-wifi" hidden>
+  <h2 id="t-choix-wifi">Wi-Fi du banc</h2>
+  <p id="choix-wifi-message" class="aide"></p>
+  <div id="choix-wifi-liste" class="reseaux" role="group" aria-label="Réseaux captés par le socle, du plus fort au plus faible"></div>
+  <form id="form-choix-wifi" novalidate>
+    <div class="rangee">
+      <div><label for="cw-ssid">Nom du réseau</label>
+        <input id="cw-ssid" autocomplete="off" spellcheck="false"></div>
+      <div><label for="cw-mdp">Mot de passe</label>
+        <input id="cw-mdp" type="password" autocomplete="off"></div>
+    </div>
+    <label class="interrupteur mt" for="cw-retenir">Retenir sur cet ordinateur
+      <input id="cw-retenir" type="checkbox" checked></label>
+    <p id="cw-partage" class="discret" hidden>Partagé avec les autres postes de l'atelier (gardé chiffré sur le serveur).</p>
+    <p id="cw-erreur" class="erreur-code" role="alert" hidden></p>
+    <div class="boutons">
+      <button class="btn" type="submit">Continuer</button>
+      <button class="btn btn-secondaire" type="button" data-action="wifi-forcer" hidden>Essayer quand même</button>
+      <button class="btn btn-fantome" type="button" data-action="wifi-annuler">Annuler</button>
     </div>
   </form>
 </section>
@@ -169,7 +217,7 @@
       <button type="button" data-filtre="tous" aria-pressed="false">Tous</button>
     </div>
     <ul id="liste-socles" class="liste-socles-atelier" aria-label="Socles du lot"></ul>
-    <p id="liste-vide" class="aide">Aucun socle ici. Branche une carte en USB, puis « Nouveau socle ».</p>
+    <p id="liste-vide" class="aide">Aucun socle ici. Branche une carte en USB : l'étape 1 démarre (la première fois, « Nouveau socle » pour choisir le port).</p>
     <div class="boutons">
       <button type="button" class="btn btn-secondaire btn-petit" data-action="exporter">Registre (CSV)</button>
     </div>
@@ -182,8 +230,9 @@
         usine, mot de passe de la page locale, Wi-Fi du banc et liaison.</li>
       <li><b>Sondes</b> (12 V, sur le banc) : chaque sonde serrée dans la main est liée à sa zone.</li>
       <li><b>Chauffe</b> : essai de chaque tapis, verdict du socle.</li>
-      <li><b>Rodage</b> : le socle tourne seul, l'atelier note redémarrages et défauts.</li>
-      <li><b>Étiquette</b> (USB de nouveau) : le socle oublie le Wi-Fi du banc, l'étiquette s'imprime.</li>
+      <li><b>Rodage</b> : le socle tourne seul ; redémarrages et défauts sont notés (par le serveur, page fermée
+        ou non, pour un socle qui lui est relié), et l'équipe est prévenue à la fin.</li>
+      <li><b>Étiquette</b> (USB de nouveau) : le socle oublie le Wi-Fi du banc, l'étiquette s'imprime d'elle-même.</li>
     </ol>
     <p class="aide">Règle d'or : USB et 12 V ne sont jamais branchés en même temps.</p>
   </section>

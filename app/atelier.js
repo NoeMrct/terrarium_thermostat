@@ -24,8 +24,19 @@
    à 4 se font sur la page locale du socle et l'opérateur les valide ici.
 
    Le serveur Terrariums est celui du déploiement (balise terrarium-serveur).
-   L'atelier s'y connecte avec un compte administrateur (code reçu par e-mail,
-   session gardée dans ce navigateur) ou, à défaut, le jeton d'administration.
+   L'atelier s'y connecte avec un compte de l'équipe — administrateur ou rôle
+   « atelier » (code reçu par e-mail, session gardée dans ce navigateur) — ou,
+   à défaut, le jeton d'administration. Connecté, le registre est partagé :
+   tous les postes voient les mêmes socles, le Wi-Fi du banc se saisit une fois
+   pour tout l'atelier, et le serveur surveille lui-même les rodages des socles
+   qui lui sont reliés (page fermée ou non), puis prévient l'équipe. Le code
+   d'appairage et le mot de passe de la page locale ne quittent jamais le poste
+   qui a monté le socle (un autre poste les reprend par l'USB).
+
+   Automatismes : une carte branchée lance l'étape qui l'attend (1, ou 5 pour
+   un socle prêt) ; la première fois, le socle propose les réseaux Wi-Fi qu'il
+   capte (Improv série) ; la zone 1 reconnue, la zone 2 s'identifie aussitôt ;
+   l'étiquette s'imprime dès qu'elle est prête.
 
    Le DOM est écrit élément par élément (pas d'innerHTML) : la politique de
    sécurité du site exige les Trusted Types, et rien de ce qui vient de la
@@ -47,7 +58,8 @@
   const NB_ZONES = 2;
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const LIGNE_MAX = 118;                               // tampon de la console du socle : 120 caractères
-  const delais = { reponse: 10000, sondage: 2000, essai: 3000, rodageVerif: 30000, identite: 2500, essaisIdentite: 5 };
+  const delais = { reponse: 10000, sondage: 2000, essai: 3000, rodageVerif: 30000, identite: 2500, essaisIdentite: 5,
+    synchro: 15000, envoi: 400, enchainement: 1500, scan: 10000, branchement: 800 };
   const $ = s => document.querySelector(s);
   const lireJson = (stockage, cle) => { try { return JSON.parse(stockage.getItem(cle) || 'null'); } catch (e) { return null; } };
   const ecrireJson = (stockage, cle, v) => { try { if (v) stockage.setItem(cle, JSON.stringify(v)); else stockage.removeItem(cle); } catch (e) { /* stockage refusé */ } };
@@ -122,7 +134,8 @@
       liaison: serveurDeploye ? 'serveur' : 'aucune',
       serveur: { url: serveurDeploye, hote: '', port: 8883, ws: '' },
       broker: { ws: '', hote: '', port: 8883, prefixe: 'terrarium', utilisateur: '', oublier: true },
-      rodageH: 24
+      rodageH: 24,
+      auto: true                 // une carte branchée lance l'étape qui l'attend
     };
   }
   function nouveauLot() {
@@ -149,19 +162,22 @@
     return r;
   }
   const reg = charger();
-  function sauver() {
+  function ecrireLocal() {
     try { localStorage.setItem(CLE, JSON.stringify(reg)); }
     catch (e) { message('Registre non enregistré : stockage du navigateur plein ou refusé.', true); }
   }
+  // Chaque changement est gardé ici, puis envoyé au registre partagé.
+  function sauver() { ecrireLocal(); planifierSynchro(); }
   let secrets = {};
   try { secrets = JSON.parse(sessionStorage.getItem(CLE_SECRETS) || '{}') || {}; } catch (e) { secrets = {}; }
   function sauverSecrets() { try { sessionStorage.setItem(CLE_SECRETS, JSON.stringify(secrets)); } catch (e) { /* onglet sans stockage */ } }
   // Ce que l'opérateur a fait retenir sur cet ordinateur.
   const memo = lireJson(localStorage, CLE_MEMO) || {};
   if (!secrets.wifiMdp && memo.wifiMdp) secrets.wifiMdp = memo.wifiMdp;
-  // Compte administrateur connecté : { serveur (origine), login, jeton }. Son
-  // jeton de session ouvre l'API d'administration et le broker du serveur
-  // (identifiant : l'adresse e-mail), comme le jeton d'administration.
+  // Compte de l'atelier connecté : { serveur (origine), login, jeton, admin }.
+  // Son jeton de session ouvre le registre partagé, la création des comptes
+  // d'appareil et le broker du serveur (identifiant : l'adresse e-mail), comme
+  // le jeton d'administration.
   let session = lireJson(localStorage, CLE_SESSION);
   const origineDe = url => { try { return new URL(url).origin; } catch (e) { return ''; } };
   function sessionValide() {
@@ -200,6 +216,157 @@
     invalider();
   }
 
+  // ------------------------------------------------------- registre partagé
+  // Connecté au serveur avec un compte de l'atelier (ou le jeton), le registre
+  // vit aussi sur le serveur : on relit ce qui a changé depuis la dernière
+  // révision vue, on envoie les fiches changées ici en disant de quelle
+  // révision elles partent. Une fiche changée entre-temps ailleurs (autre
+  // poste, ou le serveur pendant un rodage) est reprise telle qu'il l'a.
+  // Ne partent jamais : le code d'appairage et le mot de passe de la page
+  // locale (ils restent sur ce poste), ni ce que ce poste note pour lui.
+  const partage = { actif: false, rev: 0, enCours: false, relancer: false, minuteur: 0, wifi: undefined, moi: null, vu: 0 };
+  const CHAMPS_LOCAUX = ['code', 'web', 'rev', 'par', 'recu', '_sync'];
+  function publique(rec) {
+    const p = {};
+    for (const [k, v] of Object.entries(rec)) if (!CHAMPS_LOCAUX.includes(k)) p[k] = v;
+    return p;
+  }
+  // Empreinte d'une fiche (cyrb53) : dit si elle a changé depuis son dernier envoi.
+  function empreinte(texte) {
+    let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (let i = 0; i < texte.length; i++) {
+      const c = texte.charCodeAt(i);
+      h1 = Math.imul(h1 ^ c, 2654435761);
+      h2 = Math.imul(h2 ^ c, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+  }
+  const signature = rec => empreinte(JSON.stringify(publique(rec)));
+  const changeIci = rec => rec._sync !== signature(rec);
+  // La fiche du serveur remplace la nôtre ; nos secrets restent.
+  function adopter(f) {
+    const local = reg.socles[f.id];
+    const rec = { ...f };
+    if (local && local.code) rec.code = local.code;
+    if (local && local.web) rec.web = local.web;
+    rec._sync = signature(rec);
+    reg.socles[f.id] = rec;
+    return rec;
+  }
+  const serveurRegistre = () => (reg.reglages.liaison === 'serveur' && reg.reglages.serveur.url ? origineDe(reg.reglages.serveur.url) : '');
+  // Le serveur surveille lui-même le rodage des socles qui lui sont reliés.
+  const surveilleParServeur = rec => partage.actif && rec.liaison === 'serveur';
+  function planifierSynchro(delai = delais.envoi) {
+    if (!serveurRegistre() || !authServeur()) return;
+    clearTimeout(partage.minuteur);
+    partage.minuteur = setTimeout(() => { synchroniser().catch(() => {}); }, delai);
+  }
+  async function synchroniser() {
+    const base = serveurRegistre(), jeton = authServeur();
+    if (!base || !jeton) { partage.actif = false; return false; }
+    if (partage.enCours) { partage.relancer = true; return false; }
+    partage.enCours = true;
+    let change = false;
+    try {
+      // 1. Ce qui a changé ailleurs.
+      const r = await appelServeur(base, `/api/atelier/registre?depuis=${partage.actif ? partage.rev : 0}`, { jeton });
+      if (r.status === 404 || r.status === 401 || r.status === 403) {
+        // Serveur d'avant le registre partagé, ou compte sans les droits : registre de ce poste seul.
+        partage.actif = false;
+        if (r.status !== 404 && sessionValide()) verifierSession();
+        return false;
+      }
+      if (!r.ok) return false;
+      const dejaActif = partage.actif;
+      partage.actif = true;
+      partage.vu = Date.now();
+      for (const f of r.d.socles || []) {
+        const l = reg.socles[f.id];
+        if (!l || (!changeIci(l) && (f.rev || 0) > (l.rev || 0))) { adopter(f); change = true; }
+      }
+      for (const l of r.d.lots || []) {
+        const x = reg.lots.find(y => y.id === l.id);
+        if (x) { x.nom = l.nom; x.rev = l.rev; } else { reg.lots.push({ id: l.id, nom: l.nom, cree: l.cree, rev: l.rev }); change = true; }
+      }
+      reg.lots.sort((x, y) => (x.cree || 0) - (y.cree || 0));
+      // Premier contact d'un poste neuf : le lot qu'il s'était créé tout seul,
+      // jamais servi, s'efface devant ceux de l'atelier.
+      if (!dejaActif && (r.d.lots || []).length) {
+        const servis = new Set(Object.values(reg.socles).map(x => x.lot));
+        reg.lots = reg.lots.filter(l => l.rev || servis.has(l.id));
+        if (!reg.lots.some(l => l.id === reg.lotCourant) && reg.lots.length) reg.lotCourant = reg.lots[reg.lots.length - 1].id;
+        change = true;
+      }
+      if (r.d.moi) partage.moi = r.d.moi;
+      partage.rev = Math.max(partage.rev, r.d.rev || 0);
+      if ('wifi' in r.d && await recevoirWifi(r.d.wifi, base, jeton)) change = true;
+      // 2. Ce qui a changé ici.
+      for (const l of reg.lots.filter(x => !x.rev)) {
+        const p = await appelServeur(base, `/api/atelier/lots/${encodeURIComponent(l.id)}`, { methode: 'PUT', corps: { nom: l.nom, cree: l.cree }, jeton });
+        if (p.ok && p.d.lot) l.rev = p.d.lot.rev;
+      }
+      let nouveaux = false;
+      for (const rec of Object.values(reg.socles)) {
+        if (!changeIci(rec)) continue;
+        const corps = publique(rec), envoye = empreinte(JSON.stringify(corps));
+        const p = await appelServeur(base, `/api/atelier/socles/${rec.id}`, { methode: 'PUT', corps: { socle: corps, base: rec.rev || 0 }, jeton });
+        const cur = reg.socles[rec.id];
+        if (p.ok && p.d.socle) {
+          // Au registre du serveur pour la première fois : le broker l'ouvre
+          // désormais au compte de l'atelier, l'abonnement est à refaire.
+          if (!cur.rev) nouveaux = true;
+          Object.assign(cur, { rev: p.d.socle.rev, par: p.d.socle.par, recu: p.d.socle.recu, _sync: envoye });
+        }
+        else if (p.status === 409 && p.d.socle) {
+          adopter(p.d.socle);
+          change = true;
+          message(`${rec.id} : fiche changée entre-temps (autre poste, ou serveur pendant le rodage). La version de l'atelier est reprise.`, true);
+        } else if (p.status === 400) cur._sync = envoye;      // refusée telle quelle : ne pas la renvoyer en boucle
+        if (p.d && p.d.rev) partage.rev = Math.max(partage.rev, p.d.rev);
+      }
+      if (nouveaux) abonnes.clear();
+      ecrireLocal();
+    } finally {
+      partage.enCours = false;
+      if (partage.relancer) { partage.relancer = false; planifierSynchro(50); }
+    }
+    if (change) { invalider(); invaliderBanc(); if (!selection && !nouveau) ouvrirDepuisAdresse(); }
+    abonner();
+    montrerPartage();
+    return true;
+  }
+
+  // Le Wi-Fi du banc, saisi une fois pour tout l'atelier. Le serveur le garde
+  // chiffré ; un poste qui le connaît le donne au serveur qui ne l'a pas.
+  async function recevoirWifi(w, base, jeton) {
+    const r = reg.reglages;
+    partage.wifi = w;
+    if ((!w || w.motDePasse === null) && r.ssid && secrets.wifiMdp) {
+      await envoyerWifi(base, jeton);
+      return false;
+    }
+    if (!w || !w.ssid) return false;
+    const mdp = typeof w.motDePasse === 'string' ? w.motDePasse : null;
+    if (w.ssid === r.ssid && (mdp === null || mdp === (secrets.wifiMdp || ''))) return false;
+    r.ssid = w.ssid;
+    if (mdp !== null) {
+      secrets.wifiMdp = mdp;
+      sauverSecrets();
+      if (memo.retenirWifi !== false) { memo.wifiMdp = mdp; ecrireJson(localStorage, CLE_MEMO, memo); }
+    }
+    message(`Wi-Fi du banc reçu de l'atelier : « ${w.ssid} ».`);
+    return true;
+  }
+  async function envoyerWifi(base = serveurRegistre(), jeton = authServeur()) {
+    const r = reg.reglages;
+    if (!base || !jeton || !r.ssid) return false;
+    const p = await appelServeur(base, '/api/atelier/wifi', { methode: 'PUT', corps: { ssid: r.ssid, motDePasse: secrets.wifiMdp || '' }, jeton });
+    if (p.ok) partage.wifi = { ssid: r.ssid, motDePasse: secrets.wifiMdp || '', rev: p.d.wifi && p.d.wifi.rev };
+    return p.ok;
+  }
+
   // -------------------------------------------------------- console série
   // Une seule console à la fois (un câble). Le tampon garde la fin de ce qui
   // est arrivé ; « total » compte tout depuis l'ouverture, pour que les
@@ -207,12 +374,19 @@
   let serie = null;
   const serieDisponible = () => !!(navigator.serial && window.isSecureContext !== false);
 
+  // Le port : celui qu'on connaît (carte branchée, fenêtre d'installation),
+  // sinon le seul déjà autorisé et branché, sinon le choix de l'opérateur.
   async function ouvrirConsole(portConnu) {
     if (serie && serie.ouvert) return serie;
     if (!serieDisponible()) throw new Error('Ce navigateur ne parle pas au port série : Chrome ou Edge, sur ordinateur, en HTTPS.');
-    const port = portConnu || await navigator.serial.requestPort();
+    let port = portConnu;
+    if (!port && navigator.serial.getPorts) {
+      const deja = await navigator.serial.getPorts().catch(() => []);
+      if (deja.length === 1) port = deja[0];
+    }
+    if (!port) port = await navigator.serial.requestPort();
     await port.open({ baudRate: 115200 });
-    serie = { port, ouvert: true, tampon: '', total: 0, lecteur: port.readable.getReader(), ecrivain: port.writable.getWriter() };
+    serie = { port, ouvert: true, tampon: '', total: 0, improv: [], lecteur: port.readable.getReader(), ecrivain: port.writable.getWriter() };
     etatConsole();
     lireEnBoucle(serie);
     return serie;
@@ -223,7 +397,7 @@
       for (;;) {
         const { value, done } = await c.lecteur.read();
         if (done) break;
-        const texte = dec.decode(value, { stream: true });
+        const texte = dec.decode(improvTrier(c, value), { stream: true });
         c.tampon += texte; c.total += texte.length;
         if (c.tampon.length > 120000) c.tampon = c.tampon.slice(-60000);
         journalConsole(texte);
@@ -288,6 +462,66 @@
     const b = $('[data-action="console-libre"]');
     b.textContent = ouvert ? 'Fermer' : 'Connecter';
     b.disabled = !serieDisponible();
+  }
+
+  // ------------------------------------------------------ Improv Wi-Fi (série)
+  // Le firmware parle Improv sur sa console (ESP Web Tools s'en sert après le
+  // flashage) : des paquets « IMPROV » binaires mêlés au texte. On les retire
+  // du texte, et on s'en sert pour demander au socle les réseaux qu'il capte.
+  const ENTETE_IMPROV = [73, 77, 80, 82, 79, 86];                 // « IMPROV »
+  let attenteScan = null;                                          // { reseaux, resoudre, minuteur }
+  function improvTrier(c, octets) {
+    const texte = [];
+    for (const o of octets) {
+      const p = c.improv;
+      if (p.length < 6) {
+        if (o === ENTETE_IMPROV[p.length]) { p.push(o); continue; }
+        texte.push(...p, o);                                       // fausse alerte : c'était du texte
+        p.length = 0;
+        continue;
+      }
+      p.push(o);
+      // Version 1, type 1 à 4 : sinon c'était du texte qui commençait par « IMPROV ».
+      if ((p.length === 7 && p[6] !== 1) || (p.length === 8 && (p[7] < 1 || p[7] > 4))) { texte.push(...p); p.length = 0; continue; }
+      if (p.length < 9) continue;                                  // version, type, longueur
+      const total = 9 + p[8] + 1;
+      if (p.length < total) continue;
+      const somme = p.slice(0, total - 1).reduce((x, y) => (x + y) & 255, 0);
+      if (somme === p[total - 1] && p[6] === 1) improvRecu(p[7], p.slice(9, total - 1));
+      p.length = 0;
+    }
+    return Uint8Array.from(texte);
+  }
+  // Résultat d'un scan : un paquet par réseau (nom, signal, chiffré), puis un vide.
+  function improvRecu(type, d) {
+    if (type !== 4 || d[0] !== 4 || !attenteScan) return;
+    const chaines = [];
+    const dec = new TextDecoder();
+    for (let k = 2; k < 2 + d[1] && k < d.length;) {
+      const l = d[k++];
+      chaines.push(dec.decode(Uint8Array.from(d.slice(k, k + l))));
+      k += l;
+    }
+    if (!chaines.length) { const a = attenteScan; attenteScan = null; clearTimeout(a.minuteur); a.resoudre(a.reseaux); return; }
+    if (chaines[0]) attenteScan.reseaux.push({ ssid: chaines[0], rssi: parseInt(chaines[1], 10) || -100, securise: chaines[2] !== 'NO' });
+  }
+  let reseauxCaptes = [];
+  async function scannerWifi() {
+    if (!serie || !serie.ouvert) return null;
+    const donnees = [4, 0];                                        // commande « scan », sans argument
+    const paquet = [...ENTETE_IMPROV, 1, 3, donnees.length, ...donnees];
+    paquet.push(paquet.reduce((x, y) => (x + y) & 255, 0));
+    const fini = new Promise(resoudre => {
+      attenteScan = { reseaux: [], resoudre, minuteur: setTimeout(() => { attenteScan = null; resoudre(null); }, delais.scan) };
+    });
+    await serie.ecrivain.write(Uint8Array.from(paquet));
+    const liste = await fini;
+    if (!liste) return null;                                       // pas de réponse : firmware sans Improv
+    // Le plus fort d'abord, un nom une fois (plusieurs bornes, même réseau).
+    const parNom = new Map();
+    for (const x of liste.sort((a, b) => b.rssi - a.rssi)) if (!parNom.has(x.ssid)) parNom.set(x.ssid, x);
+    reseauxCaptes = [...parNom.values()];
+    return reseauxCaptes;
   }
 
   // ------------------------------------------------------------ le banc (MQTT)
@@ -369,6 +603,8 @@
     return null;
   }
   function enRodage(rec) { return rec.etat === 'actif' && rec.etape === 4 && rec.rodage && !rec.rodage.verdict; }
+  // Cette page note le rodage des socles que le serveur ne voit pas (broker de l'atelier).
+  const rodageIci = rec => enRodage(rec) && !surveilleParServeur(rec);
   function incident(rec, texte, grave) {
     rec.rodage.incidents.push({ t: Date.now(), texte, grave: !!grave });
     noter(rec, `Rodage : ${texte}`);
@@ -387,19 +623,19 @@
     if (fin !== 'statut') { try { j = JSON.parse(texte); } catch (e) { return; } }
     if (fin === 'statut') {
       const enLigne = texte === 'en ligne';
-      if (direct && enRodage(rec) && enLigne !== v.enLigne) incident(rec, enLigne ? 'de retour en ligne' : 'hors ligne', false);
+      if (direct && rodageIci(rec) && enLigne !== v.enLigne) incident(rec, enLigne ? 'de retour en ligne' : 'hors ligne', false);
       v.enLigne = enLigne;
       if (enLigne && rec.etape === 2 && rec.etat === 'actif' && !v.inventaire && !v.lecture && !v.tache) lireSondes(rec);
     } else if (fin === 'sante') {
       // Un temps de fonctionnement qui recule : le socle a redémarré.
-      if (direct && enRodage(rec) && v.sante && typeof j.uptime === 'number' && j.uptime + 5 < v.sante.uptime)
+      if (direct && rodageIci(rec) && v.sante && typeof j.uptime === 'number' && j.uptime + 5 < v.sante.uptime)
         incident(rec, `redémarrage${j.reset ? ' (' + j.reset + ')' : ''}`, true);
       v.sante = j;
       if (direct) v.enLigne = true;
     } else if (/^zone\d+\/etat$/.test(fin)) {
       const n = parseInt(fin.slice(4), 10) - 1;
       const avant = defautDe(v.zones[n]), apres = defautDe(j);
-      if (direct && enRodage(rec) && apres && apres !== avant) incident(rec, `zone ${n + 1} : ${apres}`, true);
+      if (direct && rodageIci(rec) && apres && apres !== avant) incident(rec, `zone ${n + 1} : ${apres}`, true);
       v.zones[n] = j;
       if (direct) v.enLigne = true;
     } else if (fin === 'reponse') {
@@ -422,6 +658,9 @@
   }
   async function commander(rec, action, params = {}) {
     if (!client || !client.connected) throw new Error('Banc non relié au broker : voir les réglages.');
+    if (!LECTURES.includes(action) && !rec.code) {
+      throw new Error('Le code de ce socle est resté sur le poste qui l\'a monté : continue là-bas, ou « Reprendre sur ce poste » (USB, une minute).');
+    }
     const req = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const cmd = { req, action, ...params };
     let corps;
@@ -503,8 +742,8 @@
   }
   // L'identité du socle ; une carte vierge, ou un firmware plus ancien que
   // celui publié, passe d'abord par l'installation.
-  async function identiteAJour() {
-    let ident = await lireIdentite({ silencieux: true });
+  async function identiteAJour(dejaLue) {
+    let ident = dejaLue !== undefined ? dejaLue : await lireIdentite({ silencieux: true });
     const publiee = await versionPubliee();
     if (ident && (!publiee || !ident.firmware || comparerVersions(ident.firmware, publiee) >= 0)) return ident;
     if (!publiee) throw new Error('Le socle ne répond pas à « jeton », et aucun firmware publié n\'est à installer : câble de données ? (bouton EN pour redémarrer la carte)');
@@ -517,31 +756,104 @@
     return { ...ident, installe: true };
   }
 
+  // Ce qui manque avant d'ouvrir la console. Le Wi-Fi du banc, lui, se choisit
+  // pendant l'étape 1, parmi les réseaux que le socle capte.
   function verifierReglagesConsole() {
     const r = reg.reglages;
     const espace = x => /\s/.test(x || '');
-    if (r.ssid && (espace(r.ssid) || espace(secrets.wifiMdp))) return 'Wi-Fi du banc : ni espace dans le nom ni dans le mot de passe (la console du socle coupe aux espaces).';
-    if (r.ssid && !secrets.wifiMdp) return 'Mot de passe du Wi-Fi du banc à saisir (Réglages) : il n\'est gardé que pendant la séance.';
-    if (r.liaison === 'serveur' && (!r.serveur.url || !authServeur())) return 'Serveur Terrariums : connecte-toi avec ton compte administrateur (Réglages).';
+    if (r.liaison === 'serveur' && (!r.serveur.url || !authServeur())) return 'Serveur Terrariums : connecte-toi avec ton compte de l\'atelier (Réglages).';
     if (r.liaison === 'broker') {
       if (!r.broker.hote) return 'Broker de l\'atelier : hôte pour les socles à saisir (Réglages).';
       if (espace(r.broker.utilisateur) || espace(secrets.brokerMdp)) return 'Broker : ni espace dans l\'utilisateur ni dans le mot de passe.';
       if (r.broker.utilisateur && !secrets.brokerMdp) return 'Mot de passe du broker à saisir (Réglages).';
     }
-    if (r.liaison !== 'aucune' && !r.ssid) return 'Le rodage par le broker demande le Wi-Fi du banc (Réglages).';
     return '';
   }
 
-  async function etapeConsole(idAttendu) {
+  // Le Wi-Fi du banc : celui des réglages s'il est capté par le socle, sinon
+  // l'opérateur le choisit parmi ce que le socle capte (la première fois, ou
+  // un réseau en 5 GHz seulement, que l'ESP32 ne voit pas).
+  async function wifiDuBanc() {
+    const r = reg.reglages;
+    coche('reseau', 'Réseaux Wi-Fi captés par le socle');
+    const reseaux = await scannerWifi();
+    const vu = reseaux && r.ssid ? reseaux.find(x => x.ssid === r.ssid) : null;
+    const mdpConnu = !!secrets.wifiMdp || (vu && !vu.securise);
+    if (r.ssid && mdpConnu && (vu || reseaux === null)) {
+      coche('reseau', vu ? `Wi-Fi du banc « ${r.ssid} » capté (signal ${vu.rssi} dBm)` : `Wi-Fi du banc « ${r.ssid} »`, 'fait');
+      return;
+    }
+    const texte = !r.ssid ? 'Choisis le Wi-Fi du banc : le socle le rejoindra pour le rodage, puis l\'oubliera avant l\'expédition.'
+      : reseaux && !vu ? `« ${r.ssid} » n'est pas capté par le socle : réseau en 5 GHz seulement (l'ESP32 n'a que le 2,4 GHz), ou trop loin. Choisis un réseau de la liste.`
+        : `Mot de passe du Wi-Fi « ${r.ssid} » à saisir.`;
+    coche('reseau', 'Wi-Fi du banc à choisir', 'attention', texte);
+    const choix = await demanderWifi({ reseaux: reseaux || [], texte, forcer: !!(r.ssid && secrets.wifiMdp && reseaux && !vu) });
+    if (!choix) throw new Error('Wi-Fi du banc non choisi : « Reprendre la console » pour recommencer.');
+    if (choix !== 'forcer') {
+      r.ssid = choix.ssid;
+      secrets.wifiMdp = choix.mdp;
+      sauverSecrets();
+      memo.retenirWifi = choix.retenir;
+      if (choix.retenir && choix.mdp) memo.wifiMdp = choix.mdp; else delete memo.wifiMdp;
+      ecrireJson(localStorage, CLE_MEMO, memo);
+      sauver();
+      if (partage.actif) envoyerWifi().catch(() => {});
+    }
+    const v = reseaux ? reseaux.find(x => x.ssid === r.ssid) : null;
+    coche('reseau', `Wi-Fi du banc « ${r.ssid} »${v ? ` (signal ${v.rssi} dBm)` : ''}`, 'fait');
+  }
+  // La fenêtre du choix : une carte au-dessus des socles, remplie une fois
+  // (la fiche se redessine souvent, un champ en cours de saisie y serait perdu).
+  let choixWifi = null;            // { resoudre }
+  function demanderWifi({ reseaux, texte, forcer }) {
+    return new Promise(resoudre => {
+      choixWifi = { resoudre };
+      const r = reg.reglages;
+      $('#choix-wifi-message').textContent = texte;
+      $('#choix-wifi-liste').replaceChildren(...reseaux.map(x => h('button', { type: 'button', class: 'reseau', 'data-action': 'wifi-reseau', 'data-ssid': x.ssid,
+        'aria-pressed': String(x.ssid === r.ssid) }, h('b', {}, x.ssid), h('span', {}, `${x.rssi} dBm${x.securise ? '' : ' · ouvert'}`))));
+      $('#choix-wifi-liste').hidden = !reseaux.length;
+      $('#cw-ssid').value = r.ssid || (reseaux[0] ? reseaux[0].ssid : '');
+      $('#cw-mdp').value = secrets.wifiMdp || '';
+      $('#cw-retenir').checked = memo.retenirWifi !== false;
+      $('#cw-partage').hidden = !partage.actif;
+      $('#cw-erreur').hidden = true;
+      const b = $('[data-action="wifi-forcer"]');
+      b.hidden = !forcer;
+      b.textContent = `Essayer « ${r.ssid} » quand même`;
+      $('#choix-wifi').hidden = false;
+      ($('#cw-ssid').value ? $('#cw-mdp') : $('#cw-ssid')).focus();
+    });
+  }
+  function finirChoixWifi(valeur) {
+    $('#choix-wifi').hidden = true;
+    const c = choixWifi;
+    choixWifi = null;
+    if (c) c.resoudre(valeur);
+  }
+  function validerChoixWifi() {
+    const ssid = $('#cw-ssid').value.trim(), mdp = $('#cw-mdp').value;
+    const erreur = t => { const e = $('#cw-erreur'); e.textContent = t; e.hidden = false; };
+    if (!ssid) return erreur('Nom du réseau à choisir.');
+    if (/\s/.test(ssid) || /\s/.test(mdp)) return erreur('Ni espace dans le nom ni dans le mot de passe : la console du socle coupe aux espaces. Choisis un autre réseau, ou renomme celui du banc.');
+    const vu = reseauxCaptes.find(x => x.ssid === ssid);
+    if (!mdp && !(vu && !vu.securise)) return erreur('Mot de passe du réseau à saisir.');
+    if (mdp && mdp.length < 8) return erreur('Un mot de passe Wi-Fi fait au moins 8 caractères.');
+    finirChoixWifi({ ssid, mdp, retenir: $('#cw-retenir').checked });
+  }
+
+  // port : la carte qu'on vient de brancher ; ident : son identité déjà lue
+  // (null : carte muette, sans doute vierge).
+  async function etapeConsole(idAttendu, { port = null, ident: identLue } = {}) {
     const pb = verifierReglagesConsole();
     if (pb) { message(pb, true); ouvrirReglages(); return; }
-    try { await ouvrirConsole(); }
+    try { await ouvrirConsole(port); }
     catch (e) { if (e && e.name !== 'NotFoundError') message(e.message || String(e), true); return; }
     procedure = { id: idAttendu || null, etape: 1, coches: [] };
     let rec = idAttendu ? socle(idAttendu) : null;
     try {
       coche('identite', 'Identité du socle');
-      const ident = await identiteAJour();
+      const ident = await identiteAJour(identLue);
       if (idAttendu && ident.id !== idAttendu) throw new Error(`Ce socle est ${ident.id}, pas ${idAttendu}.`);
       rec = obtenirSocle(ident.id);
       // Un socle déjà connu (remis en état, retour SAV) recommence tout : les
@@ -556,6 +868,9 @@
       choisir(rec.id);
       coche('identite', `${rec.id} · firmware ${rec.firmware || '?'} · protocole ${rec.proto || '?'}`, 'fait');
       sauver();
+
+      const r = reg.reglages;
+      if (r.liaison !== 'aucune' || r.ssid) await wifiDuBanc();
 
       coche('usine', 'Auto-test usine (30 s)');
       const depuis = serie.total;
@@ -572,12 +887,9 @@
       coche('usine', `Auto-test usine : ${lignes.filter(l => l.ok).length} vérifications OK`, 'fait');
 
       coche('web', 'Mot de passe de la page locale');
-      if (!rec.web) rec.web = { utilisateur: 'admin', motDePasse: motDePasse() };
-      sauver();
-      if (!await commande(`motdepasse web ${rec.web.motDePasse} ${rec.web.utilisateur}`, /Enregistre/, 5000)) throw new Error('Le socle n\'a pas confirmé « motdepasse web ».');
+      await motDePasseWeb(rec);
       coche('web', `Page locale protégée (${rec.web.utilisateur}, mot de passe tiré ici, imprimé sur l'étiquette)`, 'fait');
 
-      const r = reg.reglages;
       if (r.ssid) {
         coche('wifi', `Wi-Fi du banc (${r.ssid})`);
         const w = await commande(`wifi ${r.ssid} ${secrets.wifiMdp || ''}`.trim(), /(Connecte, adresse (\d+\.\d+\.\d+\.\d+))|(Echec de connexion)/, 35000);
@@ -644,6 +956,7 @@
   async function identifier(rec, z) {
     const v = vivant(rec.id);
     if (v.tache) return;
+    let suivante = null;
     v.tache = { type: 'identifier', zone: z, fin: Date.now() + 120000 };
     rec.echec = null;
     invalider();
@@ -680,7 +993,7 @@
         rec.etape = 3;
         noter(rec, 'Étape 2 terminée : sondes liées');
         message(`${rec.id} : sondes liées. Place-les sur leurs plaques, tapis branchés, pour l'essai de chauffe.`);
-      }
+      } else suivante = [1, 2].find(n => !rec.sondes.some(x => x.zone === n)) || null;
       sauver();
     } catch (e) {
       echouer(rec, 2, e.message);
@@ -688,6 +1001,13 @@
     }
     v.tache = null;
     invalider();
+    // Zone reconnue : l'identification de la suivante part d'elle-même.
+    if (suivante) {
+      message(`Zone ${z} reconnue. Prends la sonde de la zone ${suivante} dans ta main.`);
+      setTimeout(() => {
+        if (rec.etat === 'actif' && rec.etape === 2 && !vivant(rec.id).tache && !(rec.sondes || []).some(x => x.zone === suivante)) identifier(rec, suivante);
+      }, delais.enchainement);
+    }
   }
 
   // ------------------------------------------------------ étape 3 : chauffe
@@ -758,10 +1078,11 @@
     sauver();
     invalider();
   }
-  // Vérifie les rodages arrivés à terme (socle en ligne requis).
+  // Vérifie les rodages arrivés à terme (socle en ligne requis) ; ceux des
+  // socles reliés au serveur, c'est le serveur qui les conclut.
   async function surveillerRodages() {
     for (const rec of Object.values(reg.socles)) {
-      if (!enRodage(rec) || rec.liaison === 'aucune' || Date.now() < rec.rodage.fin) continue;
+      if (!rodageIci(rec) || rec.liaison === 'aucune' || Date.now() < rec.rodage.fin) continue;
       const v = vivant(rec.id);
       if (v.conclusion || !client || !client.connected) continue;
       v.conclusion = true;
@@ -803,17 +1124,24 @@
     );
   }
 
-  async function preparerExpedition(rec) {
-    try { await ouvrirConsole(); }
+  async function preparerExpedition(rec, { port = null, ident: identLue = null } = {}) {
+    try { await ouvrirConsole(port); }
     catch (e) { if (e && e.name !== 'NotFoundError') message(e.message || String(e), true); return; }
     procedure = { id: rec.id, etape: 5, coches: [] };
     try {
       coche('identite', 'Identité du socle');
-      const ident = await lireIdentite();
+      const ident = identLue || await lireIdentite();
       if (ident.id !== rec.id) throw new Error(`Ce socle est ${ident.id}, pas ${rec.id} : branche le bon socle avant d'imprimer son étiquette.`);
       if (rec.code && ident.code !== rec.code) noter(rec, 'Code d\'appairage changé depuis l\'étape 1 : l\'étiquette porte le nouveau');
       rec.code = ident.code;
       coche('identite', `${rec.id} : c'est bien lui`, 'fait');
+      // Monté sur un autre poste : le mot de passe de la page locale n'est pas
+      // ici ; un nouveau, que seule l'étiquette portera.
+      if (!rec.web) {
+        coche('web', 'Nouveau mot de passe de la page locale (monté sur un autre poste)');
+        await motDePasseWeb(rec);
+        coche('web', 'Mot de passe de la page locale tiré ici, imprimé sur l\'étiquette', 'fait');
+      }
 
       const exp = rec.expedition = { verifie: Date.now(), wifiOublie: false, brokerOublie: false };
       coche('wifi', 'Oubli du Wi-Fi du banc');
@@ -839,7 +1167,9 @@
       sauver();
       await fermerConsole();
       procedure = null;
-      message(`${rec.id} : étiquette prête à imprimer.`);
+      // L'étiquette part à l'imprimante d'elle-même ; « Réimprimer » au besoin.
+      message(`${rec.id} : étiquette à l'impression. Colle-la, puis « Étiquette collée ».`);
+      imprimerEtiquette(rec);
     } catch (e) {
       const c = procedure && procedure.coches.find(x => x.etat === 'encours');
       if (c) { c.etat = 'echec'; c.detail = e.message; }
@@ -847,6 +1177,66 @@
       message(e.message, true);
     }
     invalider();
+  }
+
+  async function motDePasseWeb(rec) {
+    if (!rec.web) rec.web = { utilisateur: 'admin', motDePasse: motDePasse() };
+    sauver();
+    if (!await commande(`motdepasse web ${rec.web.motDePasse} ${rec.web.utilisateur}`, /Enregistre/, 5000)) throw new Error('Le socle n\'a pas confirmé « motdepasse web ».');
+  }
+
+  // Un socle monté sur un autre poste : son code d'appairage est resté là-bas.
+  // L'USB le redonne (12 V débranché), avec un nouveau mot de passe de la page
+  // locale que seule l'étiquette portera.
+  async function reprendreIci(rec, { port = null, ident: identLue = null } = {}) {
+    try { await ouvrirConsole(port); }
+    catch (e) { if (e && e.name !== 'NotFoundError') message(e.message || String(e), true); return; }
+    procedure = { id: rec.id, etape: 'reprise', coches: [] };
+    try {
+      coche('identite', 'Identité du socle');
+      const ident = identLue || await lireIdentite();
+      if (ident.id !== rec.id) throw new Error(`Ce socle est ${ident.id}, pas ${rec.id}.`);
+      rec.code = ident.code;
+      coche('identite', `${rec.id} : code d'appairage repris`, 'fait');
+      if (!rec.web) {
+        coche('web', 'Nouveau mot de passe de la page locale');
+        await motDePasseWeb(rec);
+        coche('web', 'Mot de passe de la page locale tiré ici', 'fait');
+      }
+      noter(rec, 'Repris sur ce poste (USB) : code d\'appairage relu');
+      sauver();
+      await fermerConsole();
+      procedure = null;
+      message(`${rec.id} repris sur ce poste : débranche l'USB, rebranche le 12 V.`);
+    } catch (e) {
+      const c = procedure && procedure.coches.find(x => x.etat === 'encours');
+      if (c) { c.etat = 'echec'; c.detail = e.message; }
+      message(e.message, true);
+    }
+    invalider();
+  }
+
+  // Une carte branchée sur un port déjà autorisé : l'étape qui l'attend
+  // démarre, sans bouton ni choix du port. Carte inconnue ou muette (vierge) :
+  // étape 1 ; socle prêt : étape 5 ; monté ailleurs : reprise du code.
+  async function auBranchement(port) {
+    if (reg.reglages.auto === false || procedure || choixWifi || (serie && serie.ouvert)) return;
+    await attendre(delais.branchement);              // le temps que la carte démarre
+    if (procedure || choixWifi || (serie && serie.ouvert)) return;
+    let ident;
+    try { await ouvrirConsole(port); ident = await lireIdentite({ silencieux: true }); }
+    catch (e) { message(e.message || String(e), true); return; }
+    const rec = ident ? socle(ident.id) : null;
+    if (rec && rec.etat === 'pret') { choisir(rec.id); return preparerExpedition(rec, { port, ident }); }
+    if (rec && rec.etat === 'actif' && rec.etape >= 2 && rec.etape <= 3 && !rec.code) { choisir(rec.id); return reprendreIci(rec, { port, ident }); }
+    if (rec && (rec.etat !== 'actif' || rec.etape >= 2)) {
+      await fermerConsole();
+      choisir(rec.id);
+      message(`${rec.id} branché en USB : ${resumeSocle(rec).toLowerCase()}. Rien n'est lancé (« Nouveau socle » pour reprendre à l'étape 1).`);
+      return;
+    }
+    if (rec) choisir(rec.id); else { selection = null; nouveau = true; invalider(); }
+    return etapeConsole(rec ? rec.id : null, { port, ident });
   }
 
   function imprimerEtiquette(rec) {
@@ -989,7 +1379,7 @@
     return [
       etape === 1
         ? h('p', { class: 'aide' }, '12 V débranché, carte en USB. Carte vierge ou firmware en retard : l\'atelier installe d\'abord le firmware publié (« Install » dans la fenêtre qui s\'ouvre), puis enchaîne.')
-        : h('p', { class: 'aide' }, 'Débranche le 12 V, branche l\'USB : l\'atelier vérifie que c\'est bien ce socle, lui fait oublier le Wi-Fi du banc, vide l\'historique du rodage.'),
+        : h('p', { class: 'aide' }, 'Débranche le 12 V, branche l\'USB : l\'atelier vérifie que c\'est bien ce socle, lui fait oublier le Wi-Fi du banc, vide l\'historique du rodage, et l\'étiquette s\'imprime d\'elle-même.'),
       liste.length ? coches(liste) : null,
       enCours && liste.some(c => c.etat === 'encours') ? null
         : h('div', { class: 'boutons' }, bouton(etape === 1 ? (liste.length || (rec && rec.echec) ? 'Reprendre la console' : 'Connecter la console') : 'Vérifier et préparer',
@@ -997,8 +1387,19 @@
     ];
   }
 
+  // Monté sur un autre poste : le code d'appairage, que les commandes signées
+  // demandent, est resté là-bas. Une minute d'USB le redonne ici.
+  function corpsReprise(rec) {
+    const enCours = procedure && procedure.etape === 'reprise' && procedure.id === rec.id;
+    return [h('p', { class: 'aide' }, `Ce socle a été monté sur un autre poste${rec.par ? ` (${rec.par})` : ''} : son code d'appairage y est resté. Continue là-bas, ou reprends-le ici : 12 V débranché, USB branché.`),
+      enCours ? coches(procedure.coches) : null,
+      enCours && procedure.coches.some(c => c.etat === 'encours') ? null
+        : h('div', { class: 'boutons' }, bouton('Reprendre sur ce poste (USB)', 'reprendre-ici', { 'data-id': rec.id }, 'btn'))];
+  }
+
   function corpsSondes(rec) {
     const v = vivant(rec.id);
+    if (rec.liaison !== 'aucune' && !rec.code) return corpsReprise(rec);
     if (rec.liaison === 'aucune') {
       return [h('p', { class: 'aide' }, 'Page locale du socle, Réglages → Sondes : « Identifier » à côté de chaque zone, sonde serrée dans la main. Puis valider ici.'),
         h('div', { class: 'boutons' }, bouton('Sondes liées (page locale)', 'manuel-sondes', { 'data-id': rec.id }, 'btn'))];
@@ -1031,6 +1432,7 @@
 
   function corpsChauffe(rec) {
     const v = vivant(rec.id);
+    if (rec.liaison !== 'aucune' && !rec.code) return corpsReprise(rec);
     if (rec.liaison === 'aucune') {
       return [h('p', { class: 'aide' }, 'Page locale, Réglages → Sondes : « Essai de chauffe » pour chaque zone, tapis branchés et sondes sur leurs plaques. Le socle donne son verdict.'),
         h('div', { class: 'boutons' }, bouton('Essais réussis (page locale)', 'manuel-chauffe', { 'data-id': rec.id }, 'btn'))];
@@ -1059,7 +1461,9 @@
         corps.push(h('div', { class: 'mesures' },
           h('div', {}, h('b', {}, v.enLigne ? 'en ligne' : 'hors ligne'), h('span', {}, v.sante ? `en marche depuis ${duree(v.sante.uptime * 1000)}` : 'présence')),
           [0, 1].map(i => { const z = v.zones[i]; return h('div', {}, h('b', {}, z ? `${Number(z.temp).toFixed(1)} °C` : '—'), h('span', {}, `zone ${i + 1}${z ? ' → ' + Number(z.consigne).toFixed(1) + ' °C' : ''}${defautDe(z) ? ' · ' + defautDe(z) : ''}`)); })));
-        corps.push(h('p', { class: 'aide' }, 'Cette page note les redémarrages, défauts et coupures tant qu\'elle reste ouverte ; à la fin, le socle doit être en marche depuis le début du rodage.'));
+        corps.push(h('p', { class: 'aide' }, surveilleParServeur(rec)
+          ? 'Le serveur surveille ce rodage, page fermée ou non : redémarrages, défauts et coupures sont notés, et l\'équipe est prévenue à la fin (e-mail, notification).'
+          : 'Cette page note les redémarrages, défauts et coupures tant qu\'elle reste ouverte ; à la fin, le socle doit être en marche depuis le début du rodage.'));
         if (Date.now() >= ro.fin) corps.push(h('div', { class: 'boutons' }, bouton('Conclure maintenant', 'conclure', { 'data-id': rec.id }, 'btn')));
       } else {
         corps.push(h('div', { class: 'boutons' },
@@ -1084,7 +1488,8 @@
       corps.splice(0, corps.length,
         h('div', { class: 'etiquette-apercu' }, etiquetteSvg(rec),
           h('div', {}, h('p', { class: 'aide' }, `Identité vérifiée sur la console${rec.expedition.wifiOublie ? ', Wi-Fi du banc oublié' : ' (Wi-Fi du banc gardé : firmware trop ancien)'}. L'étiquette porte le lien d'installation (le téléphone l'ouvre sans application), le code et le mot de passe de la page locale.`),
-            h('div', { class: 'boutons' }, bouton('Imprimer l\'étiquette', 'imprimer', { 'data-id': rec.id }, 'btn'), bouton('SVG', 'svg', { 'data-id': rec.id }, 'btn btn-secondaire btn-petit')),
+            h('div', { class: 'boutons' }, bouton(rec.etiquetteImprimee ? 'Réimprimer l\'étiquette' : 'Imprimer l\'étiquette', 'imprimer', { 'data-id': rec.id }, rec.etiquetteImprimee ? 'btn btn-secondaire' : 'btn'),
+              bouton('SVG', 'svg', { 'data-id': rec.id }, 'btn btn-secondaire btn-petit')),
             h('div', { class: 'boutons' }, bouton('Étiquette collée : marquer comme expédié', 'expedier', { 'data-id': rec.id }, 'btn')),
             h('p', { class: 'discret' }, 'À l\'expédition, le code d\'appairage et le mot de passe sont effacés de cet ordinateur.'))));
     }
@@ -1183,7 +1588,8 @@
     try { r = await appelServeur(s.serveur, '/api/moi', { jeton: s.jeton }); } catch (e) { return; }
     if (session !== s) return;
     if (r.status === 401) oublierSession('Session expirée : reconnecte-toi dans les réglages de l\'atelier.');
-    else if (r.ok && !r.d.admin) oublierSession('Ce compte n\'est plus administrateur du serveur : reconnecte-toi avec un compte administrateur.');
+    else if (r.ok && !r.d.admin && !r.d.atelier) oublierSession('Ce compte n\'a plus le rôle atelier : reconnecte-toi avec un compte de l\'atelier.');
+    else if (r.ok && s.admin !== !!r.d.admin) { s.admin = !!r.d.admin; ecrireJson(localStorage, CLE_SESSION, s); }
   }
   const serveurSaisi = () => { const v = $('#r-serveur').value.trim(); return /^https:\/\//.test(v) ? origineDe(v) : ''; };
   function erreurReglages(texte) {
@@ -1224,11 +1630,11 @@
     try { r = await appelServeur(base, '/api/compte/verifier', { methode: 'POST', corps: { email, code } }); }
     catch (e) { return erreurReglages(e.message); }
     if (!r.ok || !r.d.jeton) return erreurReglages(`Serveur : ${r.d.erreur || 'HTTP ' + r.status}.`);
-    if (!r.d.admin) {
+    if (!r.d.admin && !r.d.atelier) {
       appelServeur(base, '/api/session', { methode: 'DELETE', jeton: r.d.jeton }).catch(() => {});
-      return erreurReglages('Ce compte n\'est pas administrateur du serveur : l\'atelier ne pourrait pas créer les comptes des socles.');
+      return erreurReglages('Ce compte n\'a pas le rôle atelier : un administrateur le lui donne dans la console (Comptes → le compte → « Donner le rôle atelier »).');
     }
-    session = { serveur: base, login: r.d.login || email, jeton: r.d.jeton };
+    session = { serveur: base, login: r.d.login || email, jeton: r.d.jeton, admin: !!r.d.admin };
     ecrireJson(localStorage, CLE_SESSION, session);
     // La liaison suit le compte : le serveur, à cette adresse.
     reg.reglages.liaison = 'serveur';
@@ -1240,13 +1646,66 @@
     montrerCompte();
     relierBanc();
     message(`Connecté : ${session.login}.`);
+    synchroniser().catch(() => {});
   }
   function deconnecterCompte() {
     const s = session;
     oublierSession();
+    partage.actif = false;
     montrerCompte();
+    montrerPartage();
     if (s) appelServeur(s.serveur, '/api/session', { methode: 'DELETE', jeton: s.jeton }).catch(() => {});
     message('Compte déconnecté de l\'atelier.');
+  }
+
+  // ------------------------------------------------ partage et alertes (réglages)
+  function montrerPartage() {
+    const actif = partage.actif;
+    const e = $('#etat-partage');
+    if (e) {
+      e.hidden = !actif;
+      e.textContent = actif ? `Registre partagé avec les autres postes de l'atelier${partage.vu ? ` (à jour à ${dateCourte(partage.vu).slice(-5)})` : ''}.` : '';
+    }
+    $('#wifi-partage').hidden = !actif;
+    const alertes = partage.moi && partage.moi.alertes;
+    $('#alertes-atelier').hidden = !(actif && alertes);
+    if (alertes) $('#r-alertes-email').checked = alertes.email !== false;
+  }
+  async function reglerAlertesEmail(oui) {
+    const s = sessionValide();
+    if (!s) return;
+    const r = await appelServeur(s.serveur, '/api/atelier/alertes', { methode: 'POST', corps: { email: oui }, jeton: s.jeton }).catch(e => ({ ok: false, d: { erreur: e.message } }));
+    if (!r.ok) { message(`Alertes : ${r.d.erreur || 'serveur injoignable'}.`, true); return; }
+    if (partage.moi) partage.moi.alertes = r.d.alertes;
+    message(oui ? 'Alertes de l\'atelier par e-mail : activées.' : 'Alertes de l\'atelier par e-mail : coupées.');
+  }
+  // Notifications sur cet ordinateur : l'agent de service de l'application
+  // (même origine), abonné auprès du service de push du navigateur ; le
+  // serveur y envoie les alertes de l'atelier (fin de rodage, incident).
+  const tt = /** @type {any} */ (window).trustedTypes;
+  const politique = tt && typeof tt.createPolicy === 'function'
+    ? (() => { try { return tt.createPolicy('atelier', { createScriptURL: u => { if (u !== 'sw.js') throw new Error('script refusé'); return u; } }); } catch (e) { return null; } })() : null;
+  async function activerNotifications() {
+    const s = sessionValide();
+    const etat = t => { $('#etat-notifications').textContent = t; };
+    if (!s) return etat('Connecte d\'abord ton compte.');
+    if (!navigator.serviceWorker || !('PushManager' in window) || typeof window.Notification !== 'function') return etat('Ce navigateur ne reçoit pas de notifications.');
+    const permis = await window.Notification.requestPermission();
+    if (permis !== 'granted') return etat('Refusées par le navigateur : autorise-les dans les réglages du site (cadenas de la barre d\'adresse).');
+    try {
+      const k = await appelServeur(s.serveur, '/api/push/cle');
+      if (!k.ok || !k.d.cle) return etat('Le serveur n\'envoie pas de notifications.');
+      const reg = await navigator.serviceWorker.register(/** @type {any} */ (politique ? politique.createScriptURL('sw.js') : 'sw.js'));
+      await navigator.serviceWorker.ready;
+      const cle = k.d.cle;
+      const brut = atob(cle.replace(/-/g, '+').replace(/_/g, '/').padEnd(cle.length + (4 - cle.length % 4) % 4, '='));
+      const abo = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: Uint8Array.from(brut, c => c.charCodeAt(0)) });
+      const r = await appelServeur(s.serveur, '/api/push/abonnement', { methode: 'POST', corps: { abonnement: abo.toJSON ? abo.toJSON() : abo }, jeton: s.jeton });
+      if (!r.ok) return etat(`Serveur : ${r.d.erreur || 'HTTP ' + r.status}.`);
+      memo.notifications = true;
+      ecrireJson(localStorage, CLE_MEMO, memo);
+      etat('Activées sur cet ordinateur.');
+    } catch (e) { etat(`Impossible : ${e.message || e}`); }
   }
 
   // ------------------------------------------------------------ réglages
@@ -1255,7 +1714,7 @@
     const v = (id, x) => { $(id).value = x === undefined || x === null ? '' : x; };
     v('#r-url', r.urlApp); v('#r-ssid', r.ssid); v('#r-wifi-mdp', secrets.wifiMdp);
     // Retenir le Wi-Fi : coché d'office, sauf si l'opérateur l'a décoché.
-    $('#r-wifi-retenir').checked = !!memo.wifiMdp || !secrets.wifiMdp;
+    $('#r-wifi-retenir').checked = memo.retenirWifi !== false && (!!memo.wifiMdp || !secrets.wifiMdp);
     v('#r-serveur', r.serveur.url || serveurDeploye); v('#r-admin', secrets.adminJeton); v('#r-s-hote', r.serveur.hote); v('#r-s-port', r.serveur.port); v('#r-s-ws', r.serveur.ws);
     v('#r-email', (session && session.login) || memo.email); v('#r-code', '');
     $('#bloc-code').hidden = true;
@@ -1264,6 +1723,9 @@
     v('#r-b-user', r.broker.utilisateur); v('#r-b-mdp', secrets.brokerMdp);
     $('#r-b-oublier').checked = r.broker.oublier !== false;
     v('#r-rodage', r.rodageH);
+    $('#r-auto').checked = r.auto !== false;
+    $('#reseaux-captes').replaceChildren(...reseauxCaptes.map(x => h('option', { value: x.ssid }, `${x.rssi} dBm`)));
+    montrerPartage();
     montrerLiaison(r.liaison);
     $('#reglages-erreur').hidden = true;
     $('#reglages').hidden = false;
@@ -1289,16 +1751,20 @@
     if (liaison === 'serveur' && !/^https:\/\//.test(val('#r-serveur'))) return erreur('Adresse du serveur : https://…');
     if (liaison === 'broker' && !/^wss?:\/\//.test(val('#r-b-ws'))) return erreur('Broker pour cette page : wss://…');
     const rodageH = Math.min(168, Math.max(1, parseInt(val('#r-rodage'), 10) || 24));
+    const wifiAvant = `${reg.reglages.ssid}\n${secrets.wifiMdp || ''}`;
     reg.reglages = {
       urlApp: url || new URL('./', location.href).href, ssid, liaison,
       serveur: { url: val('#r-serveur'), hote: val('#r-s-hote'), port: parseInt(val('#r-s-port'), 10) || 8883, ws: val('#r-s-ws') },
       broker: { ws: val('#r-b-ws'), hote: val('#r-b-hote'), port: parseInt(val('#r-b-port'), 10) || 8883, prefixe: val('#r-b-prefixe') || 'terrarium', utilisateur: val('#r-b-user'), oublier: $('#r-b-oublier').checked },
-      rodageH
+      rodageH, auto: $('#r-auto').checked
     };
     secrets = { wifiMdp, adminJeton: $('#r-admin').value.trim(), brokerMdp: $('#r-b-mdp').value };
-    if ($('#r-wifi-retenir').checked && wifiMdp) memo.wifiMdp = wifiMdp; else delete memo.wifiMdp;
-    ecrireJson(localStorage, CLE_MEMO, Object.keys(memo).length ? memo : null);
+    memo.retenirWifi = $('#r-wifi-retenir').checked;
+    if (memo.retenirWifi && wifiMdp) memo.wifiMdp = wifiMdp; else delete memo.wifiMdp;
+    ecrireJson(localStorage, CLE_MEMO, memo);
     sauver(); sauverSecrets();
+    // Le Wi-Fi du banc, saisi ici, vaut pour tout l'atelier.
+    if (partage.actif && ssid && `${ssid}\n${wifiMdp}` !== wifiAvant) envoyerWifi().catch(() => {});
     relierBanc();
     fermerReglages();
     message('Réglages enregistrés.');
@@ -1345,6 +1811,15 @@
       case 'manuel-rodage-ok': if (rec) conclureRodage(rec, 'ok'); break;
       case 'manuel-rodage-ko': if (rec) conclureRodage(rec, 'ko'); break;
       case 'preparer': if (rec) preparerExpedition(rec); break;
+      case 'reprendre-ici': if (rec) reprendreIci(rec); break;
+      case 'wifi-reseau':
+        $('#cw-ssid').value = b.dataset.ssid;
+        document.querySelectorAll('[data-action="wifi-reseau"]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+        $('#cw-mdp').focus();
+        break;
+      case 'wifi-forcer': finirChoixWifi('forcer'); break;
+      case 'wifi-annuler': finirChoixWifi(null); break;
+      case 'notifications': activerNotifications(); break;
       case 'imprimer': if (rec) imprimerEtiquette(rec); break;
       case 'svg': if (rec) telechargerEtiquette(rec); break;
       case 'expedier': if (rec) expedier(rec); break;
@@ -1353,7 +1828,8 @@
     }
   });
   document.addEventListener('change', e => {
-    if (e.target.id === 'lot-courant') { reg.lotCourant = e.target.value; sauver(); invalider(); }
+    if (e.target.id === 'lot-courant') { reg.lotCourant = e.target.value; ecrireLocal(); invalider(); }
+    if (e.target.id === 'r-alertes-email') reglerAlertesEmail(e.target.checked);
   });
   document.addEventListener('input', e => { if (e.target.id === 'r-serveur') montrerCompte(); });
   // Entrée dans le champ du code : se connecter (et non enregistrer tout le formulaire).
@@ -1366,6 +1842,7 @@
     const f = e.target;
     e.preventDefault();
     if (f.id === 'form-reglages') enregistrerReglages();
+    else if (f.id === 'form-choix-wifi') validerChoixWifi();
     else if (f.id === 'form-console') {
       const ligne = $('#console-ligne').value.trim();
       if (!ligne) return;
@@ -1377,6 +1854,8 @@
   });
   if (navigator.serial && navigator.serial.addEventListener) {
     navigator.serial.addEventListener('disconnect', ev => { if (serie && ev.target === serie.port) fermerConsole(serie); });
+    // Une carte branchée sur un port déjà autorisé : l'étape qui l'attend démarre.
+    navigator.serial.addEventListener('connect', ev => { auBranchement(ev.target).catch(err => message(err.message || String(err), true)); });
   }
 
   // ------------------------------------------------------------ démarrage
@@ -1387,7 +1866,20 @@
   // mqtt.js est chargé avant (defer, dans l'ordre) ; relier le banc s'il est réglé.
   relierBanc();
   verifierSession();
-  if (!localStorage.getItem(CLE)) sauver();
+  if (!localStorage.getItem(CLE)) ecrireLocal();
+  // Une alerte touchée (notification) ouvre l'atelier sur son socle.
+  function ouvrirDepuisAdresse() { const m = /^#(terra[0-9A-Za-z]{6})$/.exec(location.hash); if (m && socle(m[1])) choisir(m[1]); }
+  ouvrirDepuisAdresse();
+  window.addEventListener('hashchange', ouvrirDepuisAdresse);
+  if (navigator.serviceWorker && navigator.serviceWorker.addEventListener) {
+    navigator.serviceWorker.addEventListener('message', e => {
+      const d = e.data || {};
+      if (d.type === 'ouvrirSocle' && d.page === 'atelier' && socle(d.socle)) choisir(d.socle);
+    });
+  }
+  // Le registre partagé : relu tout de suite, puis toutes les quinze secondes.
+  synchroniser().catch(() => {});
+  setInterval(() => { if (!document.hidden || Date.now() - partage.vu > 60000) synchroniser().catch(() => {}); }, delais.synchro);
 
   // Pour les bancs d'essai (outils/test-atelier.js).
   window.Atelier = {
@@ -1401,6 +1893,12 @@
     _surveiller: surveillerRodages,
     _connecte: () => !!(client && client.connected),
     _installateur: f => { installateur = f; },
-    _session: () => session
+    _session: () => session,
+    _synchro: synchroniser,
+    _partage: () => partage,
+    _branchement: auBranchement,
+    _reseaux: () => reseauxCaptes,
+    _choixWifi: reseaux => { reseauxCaptes = reseaux; return demanderWifi({ reseaux, texte: 'Choisis le Wi-Fi du banc.', forcer: true }); },
+    _montrerPartage: montrerPartage
   };
 })();

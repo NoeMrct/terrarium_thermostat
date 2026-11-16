@@ -7,7 +7,41 @@ affiche le commit dont elle est issue.
 
 ## [Non publié]
 
+### Ajouté
+- **Rôle « atelier »** pour les membres de l'équipe qui montent des socles :
+  connexion à la page Atelier, création du compte d'appareil d'un socle sans
+  propriétaire (jamais celui d'un client), pilotage sur le broker des seuls
+  socles en cours de montage (au registre, pas encore expédiés, sans
+  propriétaire). Ni la console, ni les comptes, ni les clients. Donné dans la
+  console (fiche du compte → « Donner le rôle atelier ») ou en ligne de
+  commande (`node serveur.js utilisateur atelier <login> oui`).
+- **Registre de l'atelier partagé** par le serveur (`donnees/atelier.json`) :
+  tous les postes voient les mêmes socles et les mêmes lots ; chaque fiche
+  porte une révision, une fiche changée entre-temps ailleurs est reprise au
+  lieu d'être écrasée ; un registre local d'avant le partage est versé au
+  premier contact. Aucun secret du socle ne quitte le poste qui l'a monté
+  (code d'appairage, mot de passe de la page locale) ; un autre poste les
+  reprend par l'USB (« Reprendre sur ce poste »).
+- **Rodage surveillé par le serveur** pour les socles qui lui sont reliés,
+  page fermée ou non : redémarrages, défauts, coupures notés en direct,
+  verdict à la fin (durée de marche, défauts, incidents), et **alertes à
+  l'équipe** de l'atelier (administrateurs et rôle atelier) : e-mail groupé et
+  notification sur les navigateurs abonnés (« Notifications sur cet
+  ordinateur »), coupables dans les réglages de l'atelier.
+- **Wi-Fi du banc** saisi une fois pour tout l'atelier : gardé par le serveur,
+  chiffré (AES-256-GCM, clé tirée du jeton d'administration, absente des
+  sauvegardes), donné aux postes connectés ; proposé par le socle lui-même au
+  premier socle (liste des réseaux captés, par Improv série), avec une alerte
+  quand le réseau du banc n'est pas capté (5 GHz seulement, ou trop loin).
+- **Carte branchée, étape lancée** : sur un port déjà autorisé par Chrome,
+  brancher une carte démarre l'étape qui l'attend (1 pour une carte neuve ou
+  vierge, 5 pour un socle prêt), sans bouton ni fenêtre de choix du port ;
+  désactivable dans les réglages.
+
 ### Modifié
+- **Atelier : sondes enchaînées** (la zone 1 reconnue, l'identification de la
+  zone 2 démarre d'elle-même) et **étiquette imprimée d'office** dès que
+  l'étape 5 l'a préparée (« Réimprimer » au besoin).
 - **Atelier : moins d'étapes.**
   - Le serveur du déploiement est réglé d'office. L'atelier s'y connecte avec
     un compte administrateur (code reçu par e-mail, session gardée tant qu'il

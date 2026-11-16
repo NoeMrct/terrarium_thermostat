@@ -5,7 +5,9 @@
      <prefixe>/<id>/cmd. Rien d'autre.
    - Une application se connecte avec un identifiant d'utilisateur et son mot
      de passe (ou un jeton de session) : elle lit <prefixe>/<id>/… et écrit
-     <prefixe>/<id>/cmd pour les seuls socles rattachés à son compte.
+     <prefixe>/<id>/cmd pour les seuls socles rattachés à son compte. Un compte
+     au rôle « atelier » pilote en plus les socles en cours de montage : au
+     registre de l'atelier, pas encore expédiés, sans propriétaire.
    - Un pont facultatif vers un broker amont (HiveMQ…) fait entrer les socles
      qui y restent connectés : ce qu'ils publient là-bas est republié ici, ce
      que les applications commandent ici repart là-bas.
@@ -38,6 +40,7 @@ class Broker extends EventEmitter {
     this.amont = null;
     this.optionsAmont = options.amont || null;
     this.journal = options.journal || (() => {});
+    this.atelier = options.atelier || null;   // registre de l'atelier (lib/atelier.js), branché par le serveur
   }
 
   async demarrer({ portTcp = 1883, serveurHttp = null, cheminWs = '/mqtt' } = {}) {
@@ -90,6 +93,13 @@ class Broker extends EventEmitter {
     cb(e, false);
   }
 
+  // Montage (rôle atelier) : les socles du registre de l'atelier pas encore
+  // expédiés et sans propriétaire. Un socle rattaché à un client n'est plus du
+  // ressort de l'atelier ; ses commandes restent signées par son code.
+  accesAtelier(u, id) {
+    return !!(u && u.atelier && this.atelier && this.atelier.enAtelier(id) && !this.comptes.proprietaires(id).length);
+  }
+
   // <prefixe>/<id>/<reste> -> { id, reste } ou null
   decomposer(sujet) {
     const parts = String(sujet).split('/');
@@ -107,7 +117,7 @@ class Broker extends EventEmitter {
     }
     if (client.role === 'utilisateur') {
       const u = this.comptes.utilisateur(client.login);
-      if (s && s.reste === 'cmd' && this.comptes.peutCommander(u, s.id)) return cb(null);
+      if (s && s.reste === 'cmd' && (this.comptes.peutCommander(u, s.id) || this.accesAtelier(u, s.id))) return cb(null);
       // Un invité en lecture seule (F12) : les lectures non signées seulement
       // (état, statistiques, version, historique), comme le socle les accepte.
       if (s && s.reste === 'cmd' && this.comptes.possede(u, s.id) && lectureNonSignee(packet.payload)) return cb(null);
@@ -132,7 +142,7 @@ class Broker extends EventEmitter {
     }
     if (client.role === 'utilisateur') {
       const u = this.comptes.utilisateur(client.login);
-      if (s && !/[#+]/.test(s.id) && this.comptes.possede(u, s.id)) return cb(null, sub);
+      if (s && !/[#+]/.test(s.id) && (this.comptes.possede(u, s.id) || this.accesAtelier(u, s.id))) return cb(null, sub);
       return cb(null, null);
     }
     cb(null, null);
@@ -153,7 +163,7 @@ class Broker extends EventEmitter {
       if (avant === 'hors ligne' && texte === 'en ligne') this.emit('enLigne', s.id);
     } else if (s.reste === 'sante') {
       const uptimeAvant = f.sante ? f.sante.uptime : undefined;
-      try { f.sante = JSON.parse(texte); } catch (e) { /* ignoré */ }
+      try { f.sante = JSON.parse(texte); f.santeRecue = Date.now(); } catch (e) { /* ignoré */ }
       // La durée de marche qui recule : le socle a redémarré.
       if (f.sante && typeof uptimeAvant === 'number' && typeof f.sante.uptime === 'number' && f.sante.uptime < uptimeAvant) {
         this.emit('redemarrage', s.id, f.sante);

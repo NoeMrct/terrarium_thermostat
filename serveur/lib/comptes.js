@@ -135,7 +135,8 @@ class Comptes {
     if (!u) return null;
     const cle = u.login.toLowerCase();
     return {
-      compte: { identifiant: u.login, email: u.email || null, cree: u.cree, administrateur: !!u.admin, motDePasse: !!u.empreinte },
+      compte: { identifiant: u.login, email: u.email || null, cree: u.cree, administrateur: !!u.admin, motDePasse: !!u.empreinte,
+        ...(u.support ? { roleSupport: true } : {}), ...(u.atelier ? { roleAtelier: true } : {}) },
       socles: u.socles.slice(),
       clesAcces: (u.cles || []).map(c => ({ nom: c.nom, cree: c.cree, derniereUtilisation: c.vu || null, synchronisee: !!c.synchronisee })),
       sessions: [...this.donnees.sessions.values()].filter(s_ => s_.login === cle).map(s_ => ({ ouverte: s_.cree || null, expire: s_.expire, appareil: s_.agent || '' })),
@@ -194,6 +195,29 @@ class Comptes {
     return u;
   }
 
+  // Rôle « atelier » : la page Atelier, pour monter des socles — créer le
+  // compte d'appareil d'un socle sans propriétaire, piloter les socles du
+  // registre de l'atelier pas encore expédiés. Rien des comptes ni des clients.
+  definirAtelier(login, atelier) {
+    const u = this.utilisateur(login);
+    if (!u) throw new Error('utilisateur inconnu');
+    u.atelier = !!atelier;
+    this.sauver();
+    return u;
+  }
+
+  // Qui fait le montage : administrateurs et rôle atelier. Les alertes de
+  // l'atelier (fin de rodage, incident) leur sont envoyées, sauf refus.
+  equipeAtelier() { return [...this.donnees.utilisateurs.values()].filter(u => u.admin || u.atelier); }
+  definirAlertesAtelier(login, email) {
+    const u = this.utilisateur(login);
+    if (!u) throw new Error('utilisateur inconnu');
+    if (email) delete u.alertesAtelier; else u.alertesAtelier = { email: false };
+    this.sauver();
+    return this.alertesAtelier(u);
+  }
+  alertesAtelier(u) { return { email: !(u && u.alertesAtelier && u.alertesAtelier.email === false) }; }
+
   // Sessions en cours d'un compte (sans le jeton, que le disque n'a pas).
   sessionsDe(login) {
     const cle = String(login || '').toLowerCase(), maintenant = Date.now();
@@ -223,7 +247,7 @@ class Comptes {
     }
     return [...this.donnees.utilisateurs.values()].map(u => {
       const x = parLogin.get(u.login.toLowerCase()) || { n: 0, derniere: null };
-      return { login: u.login, email: u.email || null, type: u.empreinte ? 'motdepasse' : 'email', admin: !!u.admin, support: !!u.support,
+      return { login: u.login, email: u.email || null, type: u.empreinte ? 'motdepasse' : 'email', admin: !!u.admin, support: !!u.support, atelier: !!u.atelier,
         socles: u.socles.slice(), cles: (u.cles || []).length, sessions: x.n, derniereConnexion: x.derniere, cree: u.cree || null };
     });
   }

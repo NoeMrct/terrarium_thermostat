@@ -49,8 +49,9 @@ function fichierConsole(nom) {
 }
 
 class Api {
-  constructor({ comptes, broker, historique, notifications, audit, support, evenements, carnets, options }) {
+  constructor({ comptes, broker, historique, notifications, audit, support, evenements, carnets, atelier, options }) {
     this.comptes = comptes; this.broker = broker; this.historique = historique; this.notifications = notifications;
+    this.atelier = atelier || null;          // registre partagé de l'atelier (lib/atelier.js)
     this.carnets = carnets || null;         // carnet du mois par e-mail (F16)
     this.audit = audit || { noter() {}, lire: () => [], verifier: () => ({ ok: true, n: 0 }) };
     this.support = support || null;          // demandes et accès support (V11)
@@ -155,16 +156,21 @@ class Api {
     const jeton = Api.jetonDe(req);
     return jeton ? this.comptes.utilisateurDeSession(jeton) : null;
   }
-  // Qui administre : le jeton d'administration, ou un compte marqué
-  // administrateur (session ouverte). Sert de « qui » au journal d'audit.
+  // Qui administre : le jeton d'administration, ou un compte de l'équipe
+  // (session ouverte) — administrateur, support, ou atelier (montage des
+  // socles). Sert de « qui » au journal d'audit ; support et atelier n'ont
+  // chacun que leurs routes (admin.js, atelier.js).
   identiteAdmin(req) {
     const jeton = Api.jetonDe(req);
     if (!jeton) return null;
-    if (this.o.adminJeton && memeSecret(jeton, this.o.adminJeton)) return { qui: 'jeton d\'administration', login: null, role: 'admin' };
+    if (this.o.adminJeton && memeSecret(jeton, this.o.adminJeton)) return { qui: 'jeton d\'administration', login: null, role: 'admin', support: true, atelier: true };
     const u = this.comptes.utilisateurDeSession(jeton);
-    if (!u || !(u.admin || u.support)) return null;
-    return { qui: u.login, login: u.login, role: u.admin ? 'admin' : 'support' };
+    if (!u || !(u.admin || u.support || u.atelier)) return null;
+    return { qui: u.login, login: u.login, role: u.admin ? 'admin' : u.support ? 'support' : 'atelier',
+      support: !!(u.admin || u.support), atelier: !!(u.admin || u.atelier) };
   }
+  // Ce que l'application et l'atelier savent des droits d'un compte.
+  static droits(u) { return { admin: !!u.admin, equipe: !!(u.admin || u.support), atelier: !!(u.admin || u.atelier) }; }
   estAdmin(req) { return !!this.identiteAdmin(req); }
 
   // Dix échecs par adresse et par quart d'heure sur l'ouverture de session.
@@ -289,7 +295,7 @@ class Api {
         const u = this.comptes.authentifierUtilisateur(d.login, d.motDePasse);
         if (!u) { this.noterEchec(ip); return this.erreur(res, 401, 'identifiants refusés'); }
         const jeton = this.comptes.ouvrirSession(u.login);
-        return this.json(res, 200, { jeton, login: u.login, socles: u.socles, admin: !!u.admin, equipe: !!(u.admin || u.support) });
+        return this.json(res, 200, { jeton, login: u.login, socles: u.socles, ...Api.droits(u) });
       }
       if (methode === 'DELETE') {
         const jeton = Api.jetonDe(req);
@@ -335,7 +341,7 @@ class Api {
       const { u, nouveau } = this.comptes.obtenirParEmail(email);
       const jeton = this.comptes.ouvrirSession(u.login, { agent: req.headers['user-agent'] });
       if (nouveau) { this.o.journal(`compte ouvert : ${masquerEmail(email)}`); this.noterTitulaire('compte.ouvrir', refCompte(email)); }
-      return this.json(res, 200, { jeton, login: u.login, socles: u.socles, admin: !!u.admin, equipe: !!(u.admin || u.support), nouveau, clesAcces: (u.cles || []).length });
+      return this.json(res, 200, { jeton, login: u.login, socles: u.socles, ...Api.droits(u), nouveau, clesAcces: (u.cles || []).length });
     }
     // Connexion par clé d'accès : clés découvrables, aucune liste de clés
     // envoyée (elle dirait quelles adresses ont un compte).
@@ -356,7 +362,7 @@ class Api {
       catch (e) { this.noterEchec(ip); return this.erreur(res, 401, e.message); }
       this.comptes.noterUsageCle(d.id, r.compteur);
       const jeton = this.comptes.ouvrirSession(t.u.login, { agent: req.headers['user-agent'] });
-      return this.json(res, 200, { jeton, login: t.u.login, socles: t.u.socles, admin: !!t.u.admin, equipe: !!(t.u.admin || t.u.support) });
+      return this.json(res, 200, { jeton, login: t.u.login, socles: t.u.socles, ...Api.droits(t.u) });
     }
 
     if (methode === 'GET' && chemin === '/api/push/cle') {
@@ -376,12 +382,25 @@ class Api {
       }
       return await this.admin.traiter(req, res, methode, chemin, url, qui);
     }
+    // Atelier : registre partagé, Wi-Fi du banc, alertes (administrateurs et
+    // rôle atelier). Même limitation des jetons inconnus que l'administration.
+    if (chemin.startsWith('/api/atelier/')) {
+      if (!this.atelier) return this.erreur(res, 404, 'atelier indisponible sur ce serveur');
+      if (this.limiteAtteinte(this.tentativesAdmin, ip, 20, 900000)) return this.erreur(res, 429, 'trop de tentatives, réessayer dans un quart d\'heure');
+      const qui = this.identiteAdmin(req);
+      if (!qui || !(qui.role === 'admin' || qui.atelier)) {
+        const jeton = Api.jetonDe(req);
+        if (jeton && !qui && !this.comptes.session(jeton)) this.limite(this.tentativesAdmin, ip, Infinity, 900000);
+        return this.json(res, 403, { erreur: 'réservé à l\'atelier (administrateurs et rôle atelier)', droits: 'atelier' });
+      }
+      return await this.atelier.traiter(this, req, res, methode, chemin, url, qui);
+    }
 
     // Utilisateur connecté
     const u = this.utilisateurDe(req);
     if (!u) return this.erreur(res, 401, 'session requise');
     if (methode === 'GET' && chemin === '/api/moi') {
-      return this.json(res, 200, { login: u.login, email: u.email || null, socles: u.socles, admin: !!u.admin, equipe: !!(u.admin || u.support), motDePasse: !!u.empreinte, clesAcces: (u.cles || []).length,
+      return this.json(res, 200, { login: u.login, email: u.email || null, socles: u.socles, ...Api.droits(u), motDePasse: !!u.empreinte, clesAcces: (u.cles || []).length,
         partages: Object.fromEntries(Object.entries(u.partages || {}).map(([id, p]) => [id, { droit: p.droit, jusqua: p.jusqua || null }])) });
     }
     // Partage (F12) : accepter une invitation reçue.

@@ -4,6 +4,9 @@
 
    Réservées au jeton d'administration (ADMIN_JETON) et aux comptes marqués
    administrateurs ; l'identité est vérifiée par l'API avant d'arriver ici.
+   Le rôle « support » lit la flotte et traite les demandes ; le rôle
+   « atelier » ne fait qu'une chose ici : créer le compte d'appareil d'un
+   socle qui n'a pas encore de propriétaire (étape 1 de la page Atelier).
    Chaque action qui change quelque chose, et chaque lecture d'un rapport de
    diagnostic (il peut contenir des données personnelles), entre au journal
    d'audit. Les mots de passe tirés ici (compte, appareil) ne sont rendus
@@ -29,9 +32,12 @@ const PERMIS_SUPPORT = [
   ['GET', /^\/api\/admin\/rapports\/[^/]+$/],
   ['*', /^\/api\/admin\/support\//]
 ];
-const permisSupport = (methode, chemin) => PERMIS_SUPPORT.some(([m, r]) => (m === '*' || m === methode) && r.test(chemin));
+// Ce qu'un compte « atelier » peut faire : le compte d'appareil d'un socle
+// qu'il monte (vérifié plus bas : sans propriétaire).
+const PERMIS_ATELIER = [['POST', /^\/api\/admin\/appareils$/]];
+const permis = (liste, methode, chemin) => liste.some(([m, r]) => (m === '*' || m === methode) && r.test(chemin));
 const R_APPAREIL = /^\/api\/admin\/appareils\/(terra[0-9A-Za-z]{6})(\/renouveler)?$/;
-const R_UTILISATEUR = /^\/api\/admin\/utilisateurs\/([^/]+)(\/admin|\/support|\/sessions\/fermer|\/mot-de-passe|\/export|\/socles(?:\/(terra[0-9A-Za-z]{6}))?|\/cles\/([A-Za-z0-9_-]{16,1400}))?$/;
+const R_UTILISATEUR = /^\/api\/admin\/utilisateurs\/([^/]+)(\/admin|\/support|\/atelier|\/sessions\/fermer|\/mot-de-passe|\/export|\/socles(?:\/(terra[0-9A-Za-z]{6}))?|\/cles\/([A-Za-z0-9_-]{16,1400}))?$/;
 const R_RAPPORT = /^\/api\/admin\/rapports\/([^/]+)$/;
 
 // Une route reçoit un identifiant venu de l'adresse : décodé une fois, et
@@ -98,7 +104,7 @@ class Admin {
         sansProprietaire: socles.filter(s => !s.proprietaires.length).length, sansCompteAppareil: socles.filter(s => !s.appareil).length, versions
       },
       comptes: { total: utilisateurs.length, email: utilisateurs.filter(u => u.type === 'email').length, motDePasse: utilisateurs.filter(u => u.type === 'motdepasse').length,
-        admins: utilisateurs.filter(u => u.admin).length, sansSocle: utilisateurs.filter(u => !u.socles.length).length,
+        admins: utilisateurs.filter(u => u.admin).length, atelier: utilisateurs.filter(u => u.atelier && !u.admin).length, sansSocle: utilisateurs.filter(u => !u.socles.length).length,
         clesAcces: utilisateurs.reduce((n, u) => n + u.cles, 0), sessions: utilisateurs.reduce((n, u) => n + u.sessions, 0) },
       rapports: { total: rapports.length, semaine: rapports.filter(r => r.date >= semaine).length },
       audit: { ok: v.ok, n: v.n, tete: v.tete || null, rupture: v.rupture || null },
@@ -158,7 +164,8 @@ class Admin {
   // --- aiguillage -----------------------------------------------------------------------
   async traiter(req, res, methode, chemin, url, qui) {
     const a = this.api, c = a.comptes, b = a.broker;
-    if (qui.role !== 'admin' && !permisSupport(methode, chemin)) return a.json(res, 403, { erreur: 'réservé aux administrateurs', droits: 'admin' });
+    const autorise = qui.role === 'admin' || (qui.support && permis(PERMIS_SUPPORT, methode, chemin)) || (qui.atelier && permis(PERMIS_ATELIER, methode, chemin));
+    if (!autorise) return a.json(res, 403, { erreur: 'réservé aux administrateurs', droits: 'admin' });
     if (chemin.startsWith('/api/admin/support/')) return a.routesSupport.equipe(req, res, methode, chemin, url, qui);
 
     if (methode === 'GET' && chemin === '/api/flotte') return a.json(res, 200, { socles: b.etatFlotte(), comptes: c.resume() });
@@ -212,6 +219,11 @@ class Admin {
       }
       if (methode === 'POST') {
         const d = await a.lireJson(req);
+        // L'atelier crée (ou recrée) le compte d'un socle qu'il monte ; celui
+        // d'un socle déjà chez un client ne se renouvelle que par un administrateur.
+        if (qui.role !== 'admin' && c.proprietaires(String(d.id || '')).length) {
+          return a.json(res, 403, { erreur: 'socle déjà rattaché à un client : son compte d\'appareil ne se renouvelle que par un administrateur', droits: 'admin' });
+        }
         const existait = !!c.appareil(d.id);
         const r = c.ajouterAppareil(d.id, d.motDePasse);
         this.noter(qui, existait ? 'appareil.renouveler' : 'appareil.creer', r.id, d.motDePasse ? { motDePasse: 'fourni' } : null);
@@ -283,6 +295,12 @@ class Admin {
         c.definirSupport(u.login, !!d.support);
         this.noter(qui, 'compte.support', ref, { support: !!d.support });
         return a.json(res, 200, { ok: true, support: !!d.support });
+      }
+      if (quoi === '/atelier' && methode === 'POST') {
+        const d = await a.lireJson(req);
+        c.definirAtelier(u.login, !!d.atelier);
+        this.noter(qui, 'compte.atelier', ref, { atelier: !!d.atelier });
+        return a.json(res, 200, { ok: true, atelier: !!d.atelier });
       }
       if (quoi === '/sessions/fermer' && methode === 'POST') {
         const n = c.fermerSessions(u.login);

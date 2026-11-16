@@ -116,7 +116,10 @@ l'application publiée : « Se connecter » mène droit au compte.
 - Mettre à jour depuis `main` : `sudo bash /opt/terrarium/mettre-a-jour.sh`
 - Jeton d'administration : `sudo grep '^ADMIN_JETON=' /opt/terrarium/.env`, à ranger dans
   un gestionnaire de mots de passe. La page Atelier n'en a plus besoin : elle se connecte
-  avec un compte administrateur (code reçu par e-mail).
+  avec un compte de l'équipe (code reçu par e-mail). Il chiffre aussi le Wi-Fi du banc de
+  l'atelier gardé par le serveur : le changer oblige à ressaisir ce Wi-Fi une fois.
+- Un membre de l'atelier : il crée son compte dans l'application, puis la console (Comptes →
+  sa fiche → « Donner le rôle atelier »). Pas besoin d'arrêter le serveur pour cela.
 - Nommer un administrateur. La ligne de commande écrit le fichier des comptes,
   qu'un serveur en marche réécrirait : on l'arrête le temps de la commande.
 

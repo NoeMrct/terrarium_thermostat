@@ -106,7 +106,12 @@ const ECRANS_ATELIER = [
   ['sondes en échec', () => Atelier.choisir('terraC3D4E5')],
   ['étiquette', () => Atelier.choisir('terraA1B2C3')],
   ['réglages', () => document.querySelector('[data-action="reglages"]').click()],
-  ['de côté', () => { document.querySelector('[data-filtre="cote"]').click(); Atelier.choisir('terraD4E5F6'); }]
+  ['de côté', () => { document.querySelector('[data-filtre="cote"]').click(); Atelier.choisir('terraD4E5F6'); }],
+  ['réglages, registre partagé', () => {
+    const p = Atelier._partage(); p.actif = true; p.vu = Date.now(); p.moi = { alertes: { email: true } };
+    document.querySelector('[data-liaison="serveur"]').click(); Atelier._montrerPartage();
+  }],
+  ['Wi-Fi du banc', () => { Atelier._choixWifi([{ ssid: 'AtelierBanc', rssi: -48, securise: true }, { ssid: 'Voisin', rssi: -81, securise: false }]); }]
 ];
 
 const STATIQUES = ['aide.html', 'aide.en.html', 'mentions-legales.html', 'mentions-legales.en.html',
