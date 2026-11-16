@@ -227,6 +227,7 @@ async function demarrerServeur(surcharge = {}) {
     evenements.purger();
     comptes.purgerSessions();
     comptes.purgerInvitations();
+    const r = api.purgerRapports(); if (r) o.journal(`rapports de diagnostic : ${r} de plus d'un an effacé(s)`);
   }, 6 * 3600000);
   purge.unref();
   // Accès support échus : la clé quitte le disque (le socle, lui, la refuse déjà).

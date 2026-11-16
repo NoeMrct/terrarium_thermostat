@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <title>Privacy</title>
-<meta name="description" content="What the Terrariums app does, and does not do, with your data.">
+<meta name="description" content="What the Terrariums app and the Exotic World server do with your data, where, and for how long.">
 <link rel="icon" href="icone.svg">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'none'; base-uri 'self'">
 <link rel="stylesheet" href="style.css">
@@ -17,46 +17,87 @@
 </header>
 <main class="page">
 <article class="carte prose">
-  <p>The Terrariums app is designed to work <b>without an account and without any server of ours</b>. This page describes
-    precisely where the data goes, so that you can check what follows in the source code, published on
-    <a href="https://github.com/NoeMrct/terrarium_thermostat">GitHub</a>. The French version
-    (<a href="confidentialite.html" lang="fr">Confidentialité</a>) is the authoritative text.</p>
+  <p>This page says which data the Terrariums app and the Exotic World server process, what for, where, and for how long.
+    The source code of the app, the base and the server is published on
+    <a href="https://github.com/NoeMrct/terrarium_thermostat">GitHub</a>: you can check what follows there. The French
+    version (<a href="confidentialite.html" lang="fr">Confidentialité</a>) is the authoritative text.</p>
 
-  <h2>What the app records, and where</h2>
+  <h2>Controller</h2>
+  <p>The app's publisher, named in the <a href="mentions-legales.en.html">legal notice</a>, is responsible for the data the
+    Exotic World server processes. For any question or request: <span class="a-completer">to be completed</span>
+    (contact address).</p>
+
+  <h2>On the Exotic World server, with your account</h2>
+  <p>When you sign in with your e-mail address, the app goes through the publisher's server
+    (<code>exotic-world.duckdns.org</code>), which your bases join too. It records:</p>
   <ul>
-    <li><b>On your device only</b> (browser local storage): the address of your MQTT broker, the username and password
-      you typed there, the list of your bases with their pairing code, your language choice, and the temperatures received
-      over time to draw the charts over several days. None of this leaves your device, except towards the broker you
-      chose. Uninstalling the app or clearing the site data deletes it. If you set a <b>lock code</b>, the broker
-      password and the pairing codes are encrypted with that code (AES-256); the code itself is stored nowhere.</li>
-    <li><b>At your MQTT broker provider</b> (for example HiveMQ Cloud, if that is the one you chose): the messages
-      exchanged between your bases and the app go through that service, under its own terms and its own privacy
-      policy. They contain the temperatures, the setpoints, the commands and each base's identifier. The pairing
-      code is sent in every command, over an encrypted link (TLS) — which is why the app refuses unencrypted addresses.</li>
-    <li><b>At the site's host</b> (Netlify): the usual technical logs of a web server (IP address, requested page, date),
-      kept by the host for the security of the service. The site sets no cookie and embeds no audience measurement tool.</li>
+    <li><b>your account</b>: e-mail address, public keys of your passkeys (with their name and dates of use), hash of a
+      password if there is one, preferences (monthly logbook by e-mail, names given to your bases);</li>
+    <li><b>your sessions</b>, as hashes, and your <b>notification subscriptions</b>: the technical address provided by your
+      browser, with what it says about itself (name, version, system);</li>
+    <li><b>your bases</b>: those attached to your account and those you share, with the invited accounts and their
+      rights;</li>
+    <li><b>your bases' history</b>: temperatures and setpoints of each zone, one point per minute, and what each base went
+      through (connections, faults, restarts, updates);</li>
+    <li><b>support</b>: the diagnostics reports you send, your requests to support, their answers and the team's notes;
+      during an access to the base that you open to support, the temporary key of that access and what is done with it;</li>
+    <li><b>an audit log</b> of the actions on accounts and bases, where addresses are replaced by a pseudonymous
+      reference.</li>
   </ul>
+  <p>Your bases' pairing code stays on your phone: commands are signed with it. It is sent to the server only once, when you
+    attach a base to your account, so that the server can check with the base that you know it; the server does not keep it.
+    The sign-in code received by e-mail is only kept in memory, as a hash. To slow down attacks, the server counts in memory,
+    over a quarter of an hour, the attempts of each IP address; it does not record IP addresses.</p>
 
-  <h2>What the app does not do</h2>
+  <h2>What for</h2>
   <ul>
-    <li>No account creation, no e-mail address requested.</li>
-    <li>No cookie, no tracker, no advertising, no third-party script.</li>
-    <li>No data is sent to the app's publisher. The diagnostics report is only produced if you click
-      "Copy the report", and you decide whom to send it to; it contains no password and no pairing code.</li>
+    <li><b>Providing the service you asked for</b>: sign-in, control and history of your bases, notifications, sharing,
+      support, and the monthly logbook if you turn it on. Legal basis: performance of the service you requested
+      (article 6(1)(b) GDPR).</li>
+    <li><b>Protecting the service</b>: audit log, attempt limits, backups. Legal basis: the publisher's legitimate interest in
+      securing the service and being able to account for what was done (article 6(1)(f)).</li>
   </ul>
+  <p>No data is sold, or used for advertising or profiling.</p>
 
-  <h2>If you use a Terrariums server (optional)</h2>
-  <p>The repository provides a self-hosted server (<code>serveur/</code>) that replaces the bare broker. <b>It is not operated by
-    the app's publisher</b>: whoever installs it becomes responsible for it. Such a server records, on its own machine:
-    the accounts (e-mail address, password hash if there is one, public keys of the passkeys), the list of bases attached to
-    each account, the bases' temperature history (adjustable retention), the push notification subscriptions (technical
-    addresses provided by the browser, never the content of the phone's other notifications), the diagnostics reports sent
-    voluntarily, the requests sent to support and their answers, what the bases went through (online, faults, restarts: as
-    long as the history) and an audit log of the actions on accounts and bases (12 months, addresses replaced by a pseudonymous
-    reference). Support access to a base only exists if its owner opens it: it lasts 24 h (7 days at most), can be closed at any
-    time, and the key that allows it is erased when it ends; the pairing code never leaves the phone. Its administrator must
-    publish their own privacy policy; the <code>serveur/README.md</code> file says where and for how long each piece of data
-    is kept, and how to erase it.</p>
+  <h2>For how long</h2>
+  <ul>
+    <li><b>Account, attached bases, preferences, subscriptions, support requests</b>: until the account is deleted.</li>
+    <li><b>Sessions</b>: 30 days without use. <b>Sign-in code</b>: 10 minutes.</li>
+    <li><b>Bases' history and events</b>: 400 days.</li>
+    <li><b>Diagnostics reports</b> and <b>audit log</b>: 12 months.</li>
+    <li><b>Access to a base opened to support</b>: 24 hours by default, 7 days at most; its key is erased at the end.</li>
+    <li><b>Backups</b>: one per night, kept 14 days on the server and 30 days in Google Cloud's storage. Erased data
+      therefore disappears from them 30 days later at the latest.</li>
+  </ul>
+  <p>Deleting your account immediately erases the account, its sessions, its passkeys, its subscriptions, its support
+    requests and its reports, as well as the history of the bases that have no other owner left.</p>
+
+  <h2>Where, and with whom</h2>
+  <ul>
+    <li><b>Google Cloud</b> (contract with Google Cloud France SARL) hosts the server and its backups, in a Google data
+      centre in South Carolina, United States.</li>
+    <li><b>Brevo</b> (Sendinblue SAS, Paris) sends the e-mails: sign-in codes, and the monthly logbook if you turn it on. It
+      receives your address and the content of the message.</li>
+    <li><b>Your browser's notification service</b> (Google, Apple, Mozilla or Microsoft) carries the notifications. They are
+      encrypted: it does not read their content.</li>
+    <li><b>Netlify</b> (United States) hosts the site. It keeps the usual technical logs of a web server: IP address,
+      requested page, date.</li>
+  </ul>
+  <p>Your data therefore leaves the European Union. These transfers rely on the safeguards these providers offer: the
+    European Commission's standard contractual clauses and, for certified companies, the EU–US Data Privacy Framework.</p>
+
+  <h2>Without an account, with your own broker</h2>
+  <p>The app can also talk directly to an MQTT broker of your choice (advanced setting). The Exotic World server is then not
+    involved: the messages between your bases and the app go through that broker, under its own terms. They contain the
+    temperatures, the setpoints, the commands and each base's identifier.</p>
+
+  <h2>On your device</h2>
+  <p>The app keeps in the browser's local storage the address of the server or broker, your session (or the broker's
+    username and password), your bases with their pairing code, your preferences, and the temperatures received to draw the
+    charts. Uninstalling the app or clearing the site data deletes them. With a <b>lock code</b>, this configuration is
+    encrypted with that code (AES-256), which is stored nowhere. The site sets no cookie and embeds no tracker, advertising,
+    audience measurement or third-party script. The diagnostics report is only produced if you ask for it; it contains no
+    password and no pairing code.</p>
 
   <h2>The base itself</h2>
   <p>The base records its temperature history and its log in its own memory. If it is configured to send alerts or a
@@ -68,11 +109,13 @@
     off does not stop this check, which is also used to warn you; it stops with a firmware built without a manifest.</p>
 
   <h2>Your rights</h2>
-  <p>As the publisher holds no data about you, there is nothing to request, correct or erase on their side: everything is
-    on your device and at the services you chose. For any question: <span class="a-completer">to be completed</span>
-    (contact address).</p>
+  <p>You can access your data, have it corrected or erased, restrict its use, object to processing based on legitimate
+    interest, and get it back in a readable format. In the app, <b>Settings → Your account → My data</b> lets you export your
+    whole account (JSON file) and delete it. For everything else, including the support notes and the audit log lines about
+    you: <span class="a-completer">to be completed</span> (contact address). You can also lodge a complaint with the CNIL,
+    the French data protection authority (<a href="https://www.cnil.fr/">cnil.fr</a>).</p>
 
-  <p class="discret">Last updated: October 2026.</p>
+  <p class="discret">Last updated: November 2026.</p>
 </article>
 <footer class="pied colonne">
   <div class="pied-ligne liens">

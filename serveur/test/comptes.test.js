@@ -294,6 +294,11 @@ test('comptes en libre-service : e-mail, clés d\'accès, sessions, export, effa
     s.comptes.attribuerSocle('noe@exemple.fr', 'terraA1B2C3');
     fs.mkdirSync(path.join(donnees, 'historique', 'terraA1B2C3'), { recursive: true });
     fs.writeFileSync(path.join(donnees, 'historique', 'terraA1B2C3', '2026-11-14.ndjson'), '[1,2400,3000,null,null]\n');
+    // Ses rapports de diagnostic partent avec lui, pas ceux d'un autre compte.
+    const rapports = path.join(donnees, 'rapports');
+    fs.mkdirSync(rapports, { recursive: true });
+    fs.writeFileSync(path.join(rapports, '2026-11-14T10-00-00-000Z-noe_exemple_fr.txt'), 'diagnostic\n');
+    fs.writeFileSync(path.join(rapports, '2026-11-14T10-00-00-000Z-jean_noe_exemple_fr.txt'), 'diagnostic\n');
     assert.equal((await requete(s.port, 'DELETE', '/api/moi', { confirmation: 'autre@exemple.fr' }, { jeton })).status, 400);
     const r = await requete(s.port, 'DELETE', '/api/moi', { confirmation: 'NOE@exemple.fr' }, { jeton });
     assert.equal(r.status, 200);
@@ -302,6 +307,18 @@ test('comptes en libre-service : e-mail, clés d\'accès, sessions, export, effa
     assert.equal(await connexionMqtt(s.portMqtt, 'noe@exemple.fr', jetonCle), false);
     assert.ok(!fs.existsSync(path.join(donnees, 'historique', 'terraA1B2C3')));
     assert.ok(!fs.readFileSync(path.join(donnees, 'comptes.json'), 'utf8').includes('noe@exemple.fr'));
+    assert.deepEqual(fs.readdirSync(rapports), ['2026-11-14T10-00-00-000Z-jean_noe_exemple_fr.txt'], 'les rapports du compte effacé partent, pas les autres');
+  });
+
+  await t.test('rapports de diagnostic : effacés au bout d\'un an', () => {
+    const rapports = path.join(donnees, 'rapports');
+    const vieux = path.join(rapports, '2025-10-01T10-00-00-000Z-ancien_exemple_fr.txt');
+    fs.writeFileSync(vieux, 'diagnostic\n');
+    const ilYA = (Date.now() - 366 * 86400000) / 1000;
+    fs.utimesSync(vieux, ilYA, ilYA);
+    assert.equal(s.api.purgerRapports(), 1);
+    assert.ok(!fs.existsSync(vieux));
+    assert.equal(fs.readdirSync(rapports).length, 1, 'le rapport récent reste');
   });
 });
 

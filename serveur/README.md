@@ -323,7 +323,7 @@ donnees/
   comptes.json                      utilisateurs (scrypt), clés d'accès (publiques), appareils, sessions (empreintes), abonnements push, carnet par e-mail
   vapid.json                        paire de clés des notifications (engendrée)
   historique/<id>/AAAA-MM-JJ.ndjson un point par ligne
-  rapports/<date>-<login>.txt       diagnostics envoyés par l'application
+  rapports/<date>-<login>.txt       diagnostics envoyés par l'application, un an (effacés avec le compte)
   audit/AAAA-MM.ndjson              journal d'audit chaîné, 12 mois
   support/acces.json                accès ouverts (clés de session, 0600, effacées à l'échéance)
   support/demandes.json             demandes, messages, notes internes et relances

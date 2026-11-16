@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <title>Confidentialité</title>
-<meta name="description" content="Ce que l'application Terrariums fait, et ne fait pas, de vos données.">
+<meta name="description" content="Ce que l'application Terrariums et le serveur Exotic World font de vos données, où et pendant combien de temps.">
 <link rel="icon" href="icone.svg">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'none'; base-uri 'self'">
 <link rel="stylesheet" href="style.css">
@@ -17,48 +17,89 @@
 </header>
 <main class="page">
 <article class="carte prose">
-  <p>L'application Terrariums est conçue pour fonctionner <b>sans compte et sans serveur à nous</b>. Cette page décrit
-    précisément où vont les données, pour que vous puissiez vérifier ce qui suit dans le code source, publié sur
-    <a href="https://github.com/NoeMrct/terrarium_thermostat">GitHub</a>. <a href="confidentialite.en.html" lang="en">Read this page in English.</a></p>
+  <p>Cette page dit quelles données l'application Terrariums et le serveur Exotic World traitent, pour quoi faire, où, et
+    pendant combien de temps. Le code source de l'application, du socle et du serveur est publié sur
+    <a href="https://github.com/NoeMrct/terrarium_thermostat">GitHub</a> : vous pouvez y vérifier ce qui suit.
+    <a href="confidentialite.en.html" lang="en">Read this page in English.</a></p>
 
-  <h2>Ce que l'application enregistre, et où</h2>
+  <h2>Responsable</h2>
+  <p>L'éditeur de l'application, présenté dans les <a href="mentions-legales.html">mentions légales</a>, est responsable des
+    données que traite le serveur Exotic World. Pour toute question ou demande : <span class="a-completer">à compléter</span>
+    (adresse de contact).</p>
+
+  <h2>Sur le serveur Exotic World, avec votre compte</h2>
+  <p>Quand vous vous connectez avec votre adresse e-mail, l'application passe par le serveur de l'éditeur
+    (<code>exotic-world.duckdns.org</code>), que vos socles rejoignent aussi. Il enregistre :</p>
   <ul>
-    <li><b>Sur votre appareil uniquement</b> (stockage local du navigateur) : l'adresse de votre broker MQTT, l'identifiant et le mot de passe
-      que vous y avez saisis, la liste de vos socles avec leur code d'appairage, votre choix de langue, et les températures reçues
-      au fil du temps pour tracer les courbes sur plusieurs jours. Rien de tout cela ne quitte votre appareil, sinon vers le broker que vous
-      avez choisi. Désinstaller l'application ou effacer les données du site les supprime. Si vous définissez un <b>code de
-      verrouillage</b>, le mot de passe du broker et les codes d'appairage sont chiffrés avec ce code (AES-256) ; le code lui-même
-      n'est enregistré nulle part.</li>
-    <li><b>Chez votre fournisseur de broker MQTT</b> (par exemple HiveMQ Cloud, si c'est celui que vous avez choisi) : les messages
-      échangés entre vos socles et l'application transitent par ce service, selon ses propres conditions et sa propre politique de
-      confidentialité. Ils contiennent les températures, les consignes, les commandes et l'identifiant de chaque socle. Le code
-      d'appairage est transmis dans chaque commande, sur une liaison chiffrée (TLS) — c'est pourquoi l'application refuse les adresses
-      non chiffrées.</li>
-    <li><b>Chez l'hébergeur du site</b> (Netlify) : les journaux techniques habituels d'un serveur web (adresse IP, page demandée, date),
-      conservés par l'hébergeur pour la sécurité du service. Le site ne pose aucun cookie et n'embarque aucun outil de mesure d'audience.</li>
+    <li><b>votre compte</b> : adresse e-mail, clés publiques de vos clés d'accès (avec leur nom et leurs dates d'usage),
+      empreinte d'un mot de passe s'il y en a un, préférences (carnet du mois par e-mail, noms donnés à vos socles) ;</li>
+    <li><b>vos sessions</b>, sous forme d'empreintes, et vos <b>abonnements aux notifications</b> : l'adresse technique
+      fournie par votre navigateur, avec ce qu'il dit de lui-même (nom, version, système) ;</li>
+    <li><b>vos socles</b> : ceux qui sont rattachés à votre compte et ceux que vous partagez, avec les comptes invités et
+      leurs droits ;</li>
+    <li><b>l'historique de vos socles</b> : températures et consignes de chaque zone, un point par minute, et ce que chaque
+      socle a vécu (connexions, défauts, redémarrages, mises à jour) ;</li>
+    <li><b>l'assistance</b> : les rapports de diagnostic que vous envoyez, vos demandes au support, leurs réponses et les notes
+      de l'équipe ; pendant un accès au socle que vous ouvrez au support, la clé temporaire de cet accès et ce qui y est fait ;</li>
+    <li><b>un journal d'audit</b> des actions sur les comptes et les socles, où les adresses sont remplacées par une référence
+      pseudonyme.</li>
   </ul>
+  <p>Le code d'appairage de vos socles reste sur votre téléphone : les commandes partent signées avec lui. Il n'est transmis
+    qu'une fois au serveur, quand vous rattachez un socle à votre compte, pour que le serveur vérifie auprès du socle que vous
+    le connaissez ; le serveur ne le garde pas. Le code de connexion reçu par e-mail n'est gardé qu'en mémoire, sous forme
+    d'empreinte. Pour freiner les attaques, le serveur compte en mémoire, sur un quart d'heure, les tentatives de chaque
+    adresse IP ; il n'enregistre pas les adresses IP.</p>
 
-  <h2>Ce que l'application ne fait pas</h2>
+  <h2>Pour quoi faire</h2>
   <ul>
-    <li>Aucune création de compte, aucune adresse électronique demandée.</li>
-    <li>Aucun cookie, aucun traceur, aucune publicité, aucun script tiers.</li>
-    <li>Aucune donnée n'est envoyée à l'éditeur de l'application. Le rapport de diagnostic n'est produit que si vous cliquez sur
-      « Copier le rapport », et c'est vous qui décidez à qui l'envoyer ; il ne contient ni mot de passe ni code d'appairage.</li>
+    <li><b>Vous rendre le service demandé</b> : connexion, pilotage et historique de vos socles, notifications, partage,
+      assistance, et carnet du mois si vous l'activez. Base légale : l'exécution du service que vous avez demandé
+      (article 6, 1, b du RGPD).</li>
+    <li><b>Protéger le service</b> : journal d'audit, limitation des tentatives, sauvegardes. Base légale : l'intérêt légitime
+      de l'éditeur à sécuriser le service et à pouvoir rendre compte de ce qui a été fait (article 6, 1, f).</li>
   </ul>
+  <p>Aucune donnée n'est vendue, ni utilisée pour de la publicité ou du profilage.</p>
 
-  <h2>Si vous utilisez un serveur Terrariums (option)</h2>
-  <p>Le dépôt fournit un serveur à héberger soi-même (<code>serveur/</code>) qui remplace le broker nu. <b>Il n'est pas exploité par
-    l'éditeur de l'application</b> : celui qui l'installe en devient le responsable. Un tel serveur enregistre, sur sa propre machine :
-    les comptes (adresse électronique, empreinte du mot de passe s'il y en a un, clés publiques des clés d'accès), la liste des
-    socles rattachés à chaque compte, l'historique de températures des socles (durée de conservation réglable), les abonnements aux
-    notifications push (adresses techniques fournies par le navigateur, jamais le contenu des autres notifications du téléphone),
-    les rapports de diagnostic envoyés volontairement, les demandes adressées au support et leurs réponses, ce que les socles
-    ont vécu (en ligne, défauts, redémarrages : aussi longtemps que l'historique) et un journal d'audit des actions sur les comptes
-    et les socles (12 mois, adresses remplacées par une référence pseudonyme). Un accès du support à un socle n'existe que si son
-    propriétaire l'ouvre : il dure 24 h (7 jours au plus), se ferme à tout moment, et la clé qui le permet est effacée à son
-    terme ; le code d'appairage ne quitte jamais le téléphone.
-    Son administrateur doit publier sa propre politique de confidentialité ; le fichier <code>serveur/README.md</code> indique où et
-    combien de temps chaque donnée est gardée, et comment l'effacer.</p>
+  <h2>Combien de temps</h2>
+  <ul>
+    <li><b>Compte, socles rattachés, préférences, abonnements, demandes au support</b> : jusqu'à la suppression du compte.</li>
+    <li><b>Sessions</b> : 30 jours sans usage. <b>Code de connexion</b> : 10 minutes.</li>
+    <li><b>Historique et événements des socles</b> : 400 jours.</li>
+    <li><b>Rapports de diagnostic</b> et <b>journal d'audit</b> : 12 mois.</li>
+    <li><b>Accès au socle ouvert au support</b> : 24 heures par défaut, 7 jours au plus ; sa clé est effacée à la fin.</li>
+    <li><b>Sauvegardes</b> : une par nuit, gardée 14 jours sur le serveur et 30 jours dans l'espace de stockage de Google
+      Cloud. Une donnée effacée en disparaît donc au plus tard 30 jours après.</li>
+  </ul>
+  <p>Supprimer votre compte efface aussitôt le compte, ses sessions, ses clés d'accès, ses abonnements, ses demandes au
+    support et ses rapports, ainsi que l'historique des socles qui n'ont plus d'autre propriétaire.</p>
+
+  <h2>Où, et chez qui</h2>
+  <ul>
+    <li><b>Google Cloud</b> (contrat avec Google Cloud France SARL) héberge le serveur et ses sauvegardes, dans un centre de
+      données de Google en Caroline du Sud, aux États-Unis.</li>
+    <li><b>Brevo</b> (Sendinblue SAS, Paris) envoie les e-mails : codes de connexion, et carnet du mois si vous l'activez. Il
+      reçoit votre adresse et le contenu du message.</li>
+    <li><b>Le service de notification de votre navigateur</b> (Google, Apple, Mozilla ou Microsoft) achemine les
+      notifications. Elles sont chiffrées : il n'en lit pas le contenu.</li>
+    <li><b>Netlify</b> (États-Unis) héberge le site. Il garde les journaux techniques habituels d'un serveur web : adresse IP,
+      page demandée, date.</li>
+  </ul>
+  <p>Vos données sortent donc de l'Union européenne. Ces transferts s'appuient sur les garanties prévues par ces
+    prestataires : les clauses contractuelles types de la Commission européenne et, pour les entreprises certifiées, le cadre
+    de protection des données UE–États-Unis.</p>
+
+  <h2>Sans compte, avec votre propre broker</h2>
+  <p>L'application peut aussi parler directement à un broker MQTT de votre choix (réglage avancé). Le serveur Exotic World
+    n'intervient alors pas : les messages entre vos socles et l'application passent par ce broker, selon ses propres
+    conditions. Ils contiennent les températures, les consignes, les commandes et l'identifiant de chaque socle.</p>
+
+  <h2>Sur votre appareil</h2>
+  <p>L'application garde dans le stockage local du navigateur l'adresse du serveur ou du broker, votre session (ou
+    l'identifiant et le mot de passe du broker), vos socles avec leur code d'appairage, vos préférences, et les températures
+    reçues pour tracer les courbes. Désinstaller l'application ou effacer les données du site les supprime. Avec un <b>code de
+    verrouillage</b>, cette configuration est chiffrée par ce code (AES-256), qui n'est enregistré nulle part. Le site ne pose
+    aucun cookie et n'embarque ni traceur, ni publicité, ni mesure d'audience, ni script tiers. Le rapport de diagnostic n'est
+    produit que si vous le demandez ; il ne contient ni mot de passe ni code d'appairage.</p>
 
   <h2>Le socle lui-même</h2>
   <p>Le socle enregistre son historique de températures et son journal dans sa propre mémoire. S'il est configuré pour envoyer des
@@ -71,11 +112,13 @@
     prévenir ; elle cesse avec un firmware compilé sans manifeste.</p>
 
   <h2>Vos droits</h2>
-  <p>Comme l'éditeur ne détient aucune donnée vous concernant, il n'y a rien à demander, rectifier ou effacer de son côté : tout est
-    sur votre appareil et chez les services que vous avez choisis. Pour toute question : <span class="a-completer">à compléter</span>
-    (adresse de contact).</p>
+  <p>Vous pouvez accéder à vos données, les faire rectifier ou effacer, en limiter l'usage, vous opposer à un traitement fondé
+    sur l'intérêt légitime, et les récupérer dans un format lisible. Dans l'application, <b>Réglages → Ton compte → Mes
+    données</b> permet d'exporter tout votre compte (fichier JSON) et de le supprimer. Pour le reste, y compris les notes du
+    support et les lignes du journal d'audit qui vous concernent : <span class="a-completer">à compléter</span> (adresse de
+    contact). Vous pouvez aussi adresser une réclamation à la CNIL (<a href="https://www.cnil.fr/">cnil.fr</a>).</p>
 
-  <p class="discret">Dernière mise à jour : octobre 2026.</p>
+  <p class="discret">Dernière mise à jour : novembre 2026.</p>
 </article>
 <footer class="pied colonne">
   <div class="pied-ligne liens">

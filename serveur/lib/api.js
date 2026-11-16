@@ -28,6 +28,10 @@ const empreinteCode = (email, code) => crypto.createHash('sha256').update(`${ema
 const masquerEmail = e => String(e).replace(/^(.{0,2})[^@]*/, '$1…');
 // Comparaison à temps constant de deux secrets de longueurs quelconques.
 const memeSecret = (a, b) => crypto.timingSafeEqual(crypto.createHash('sha256').update(String(a)).digest(), crypto.createHash('sha256').update(String(b)).digest());
+// Rapports de diagnostic : « <date>-<compte>.txt », le compte sans caractère
+// spécial (donc sans tiret) ; gardés un an, et effacés avec le compte.
+const compteDansNom = login => String(login).replace(/[^a-z0-9]/gi, '_');
+const RETENTION_RAPPORTS_JOURS = 365;
 
 // Console d'administration : quelques fichiers nommés, rien d'autre (pas de
 // chemin construit depuis l'adresse). La feuille de style et la police sont
@@ -177,7 +181,8 @@ class Api {
 
   // Un compte effacé (par lui-même ou par l'administration) : l'historique et
   // les événements des socles qui n'ont plus de propriétaire partent, ses
-  // demandes au support aussi, et un accès support ouvert sur ces socles se ferme.
+  // demandes au support et ses rapports de diagnostic aussi, et un accès
+  // support ouvert sur ces socles se ferme.
   async apresEffacement(login, orphelins) {
     for (const id of orphelins) {
       this.historique.supprimer(id);
@@ -185,6 +190,25 @@ class Api {
       if (this.support && this.support.acces.has(id)) await this.routesSupport.fermer(id, 'serveur', 'compte du propriétaire effacé');
     }
     if (this.support) this.support.oublierCompte(login);
+    const suffixe = `-${compteDansNom(login)}.txt`;
+    this.effacerRapports(nom => nom.endsWith(suffixe));
+  }
+
+  // Rapports de plus d'un an : effacés (appelé avec les autres purges).
+  purgerRapports(maintenant = Date.now()) {
+    const limite = maintenant - RETENTION_RAPPORTS_JOURS * 86400000;
+    return this.effacerRapports((nom, f) => fs.statSync(f).mtimeMs < limite);
+  }
+
+  effacerRapports(choisir) {
+    let noms;
+    try { noms = fs.readdirSync(this.dossierRapports); } catch (e) { return 0; }
+    let n = 0;
+    for (const nom of noms) {
+      const f = path.join(this.dossierRapports, nom);
+      try { if (choisir(nom, f)) { fs.unlinkSync(f); n++; } } catch (e) { /* déjà parti */ }
+    }
+    return n;
   }
 
   // Une ligne au journal d'audit pour ce que fait le titulaire lui-même : la
@@ -523,7 +547,7 @@ class Api {
     if (methode === 'POST' && chemin === '/api/rapports') {
       const texte = await this.lireCorps(req);
       fs.mkdirSync(this.dossierRapports, { recursive: true });
-      const nom = `${new Date().toISOString().replace(/[:.]/g, '-')}-${u.login.replace(/[^a-z0-9]/gi, '_')}.txt`;
+      const nom = `${new Date().toISOString().replace(/[:.]/g, '-')}-${compteDansNom(u.login)}.txt`;
       fs.writeFileSync(path.join(this.dossierRapports, nom), texte.slice(0, LIMITE_CORPS));
       this.noterTitulaire('rapport.envoyer', refCompte(u.login), { fichier: nom });
       return this.json(res, 201, { ok: true, fichier: nom });

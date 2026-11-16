@@ -375,6 +375,14 @@ jour.
   pour les lecteurs d'écran. Rafraîchi avec la fiche.
 
 ### Modifié
+- **Politique de confidentialité et mentions légales** (français et anglais) :
+  elles décrivent le serveur Exotic World que l'éditeur exploite désormais :
+  données des comptes et des socles, raisons, durées de conservation,
+  sauvegardes, hébergement chez Google Cloud aux États-Unis, e-mails par
+  Brevo, notifications, droits et export. Restent à compléter l'identité de
+  l'éditeur et l'adresse de contact.
+- **Serveur : rapports de diagnostic** effacés avec le compte de leur auteur,
+  et au bout d'un an.
 - **Application : plus rien de technique pour un client.**
   - Accueil : « Se connecter » mène droit au compte (e-mail et code, clé
     d'accès) sur le serveur de l'application — fixé au déploiement par la
