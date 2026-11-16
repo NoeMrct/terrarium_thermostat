@@ -8,13 +8,14 @@
    créée puis utilisée, signée par le navigateur et vérifiée par le serveur.
    Parcours : adresse du serveur → e-mail → code → connecté ; clé d'accès
    proposée puis créée ; « Mon compte » ; export ; déconnexion ; connexion par
-   la clé ; session expirée ; suppression du compte.
+   la clé ; WebSocket coupé par un bloqueur (repli par le tunnel HTTPS) ;
+   session expirée ; suppression du compte.
 
      npm install --no-save playwright && npx playwright install chromium
      node test-compte.js
    ============================================================================= */
 
-/* global document, localStorage, App */
+/* global document, localStorage, App, window, Event */
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -86,6 +87,36 @@ const EMAIL = 'noe@exemple.fr';
     const creds = (await cdp.send('WebAuthn.getCredentials', { authenticatorId })).credentials;
     v('clé créée par l\'authentificateur, liée à ce domaine', creds.length === 1 && creds[0].rpId === 'localhost' && creds[0].isResidentCredential, `${creds.length} clé(s)`);
     v('…et enregistrée par le serveur', (s.comptes.utilisateur(EMAIL).cles || []).length === 1);
+
+    titre('WebSocket coupé par un bloqueur : le tunnel HTTPS du serveur prend le relais');
+    {
+      // Comme la liste EasyPrivacy (uBlock Origin, Brave, AdGuard) pour duckdns.org :
+      // le WebSocket échoue aussitôt, sans jamais s'ouvrir.
+      const pb = await ctx.newPage();
+      await pb.addInitScript(() => {
+        window.essaisWebSocket = 0;
+        window.WebSocket = class {
+          constructor() {
+            window.essaisWebSocket++;
+            this.readyState = 0;
+            setTimeout(() => { this.readyState = 3; if (this.onerror) this.onerror(new Event('error')); if (this.onclose) this.onclose({ code: 1006 }); }, 2);
+          }
+          send() {}
+          close() {}
+        };
+      });
+      pb.on('pageerror', e => erreurs.push('tunnel : ' + e.message));
+      pb.on('console', m => { if (m.type() === 'error' && !/favicon|ERR_FAILED|Failed to load resource/.test(m.text())) erreurs.push('tunnel : ' + m.text()); });
+      await pb.goto(base + '/');
+      const joint = await pb.waitForFunction(() => document.querySelector('#lien') && document.querySelector('#lien').textContent === 'connecté', null, { timeout: 10000 }).then(() => true, () => false);
+      const essais = await pb.evaluate(() => window.essaisWebSocket);
+      v('WebSocket coupé : l\'application se connecte quand même', joint && essais >= 1, `${essais} WebSocket coupé(s)`);
+      v('…par le tunnel du serveur', s.tunnels.liaisons.size >= 1, `${s.tunnels.liaisons.size} liaison(s)`);
+      await pb.close();
+      let fermee = false;
+      for (const fin = Date.now() + 5000; Date.now() < fin && !fermee;) { fermee = s.tunnels.liaisons.size === 0; if (!fermee) await new Promise(r => setTimeout(r, 50)); }
+      v('page fermée : la liaison se ferme sur le serveur', fermee);
+    }
 
     titre('Carnet par e-mail, depuis les exports');
     s.comptes.attribuerSocle(EMAIL, 'terraCAR001');

@@ -69,6 +69,7 @@ const { Support } = require('./lib/support');
 const { Evenements } = require('./lib/evenements');
 const { Carnets } = require('./lib/carnets');
 const { Atelier } = require('./lib/atelier');
+const { Tunnels } = require('./lib/tunnel');
 
 const VERSION = require('./package.json').version;
 
@@ -152,6 +153,9 @@ async function demarrerServeur(surcharge = {}) {
 
   const serveurHttp = http.createServer((req, res) => api.traiter(req, res));
   await broker.demarrer({ portTcp: o.portMqtt, serveurHttp, cheminWs: '/mqtt' });
+  // Le même MQTT par HTTPS, pour les navigateurs dont un bloqueur coupe le WebSocket.
+  const tunnels = new Tunnels(broker, { max: o.tunnelsMax, parIp: o.tunnelsParIp, delaiLectureMs: o.tunnelDelaiLectureMs });
+  api.tunnels = tunnels;
   await broker.annoncer({ version: o.version, push: !!notifications });
   await new Promise((res, rej) => serveurHttp.listen(o.port, err => (err ? rej(err) : res())));
   const port = serveurHttp.address().port;
@@ -258,17 +262,19 @@ async function demarrerServeur(surcharge = {}) {
   const tourAtelier = setInterval(() => { try { atelier.tourner(); } catch (e) { o.journal(`atelier : ${e.message}`); } }, o.atelierMs || 60000);
   tourAtelier.unref();
 
-  o.journal(`Serveur Terrariums ${VERSION} — HTTP ${port} (API /api, console /console/, MQTT /mqtt)${portMqtt ? `, MQTT TCP ${portMqtt}` : ''}, données ${o.donnees}${o.amont ? `, pont vers ${o.amont.url}` : ''}${o.app ? ', application servie' : ''}`);
+  o.journal(`Serveur Terrariums ${VERSION} — HTTP ${port} (API /api, console /console/, MQTT /mqtt et /mqtt/tunnel)${portMqtt ? `, MQTT TCP ${portMqtt}` : ''}, données ${o.donnees}${o.amont ? `, pont vers ${o.amont.url}` : ''}${o.app ? ', application servie' : ''}`);
   if (!o.adminJeton) o.journal('ADMIN_JETON absent : console ouverte aux seuls comptes administrateurs (node serveur.js utilisateur admin <login> oui)');
   if (!o.courriel) o.journal('SMTP_URL absent : pas de comptes en libre-service par e-mail (identifiant et mot de passe seulement)');
   if (!o.rpId) o.journal('RP_ID et ORIGINES absents : chaque clé d\'accès se lie au domaine de la page qui la crée');
 
   return {
-    port, portMqtt, comptes, broker, historique, notifications, api, audit, support, evenements, carnets, atelier,
+    port, portMqtt, comptes, broker, historique, notifications, api, audit, support, evenements, carnets, atelier, tunnels,
     async arreter() {
       clearInterval(purge); clearInterval(echeances); clearInterval(tourCarnets); clearInterval(tourAtelier);
       atelier.arreter();
       for (const a of absences.values()) clearTimeout(a.minuteur);
+      // Les flux du tunnel d'abord : ouverts, ils retiendraient la fermeture du serveur HTTP.
+      tunnels.arreter();
       await broker.arreter(); await new Promise(r => serveurHttp.close(r));
     }
   };

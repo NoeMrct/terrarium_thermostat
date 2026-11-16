@@ -33,9 +33,10 @@ self.addEventListener('message', e => {
 
 // Toujours le réseau, jamais le cache : la version publiée (version.json),
 // et quand le serveur Terrariums sert aussi l'application, son API (données
-// propres au compte) et sa console ; enfin le firmware de la page de
+// propres au compte), sa console et le tunnel MQTT (un flux sans fin, qu'une
+// copie en cache retiendrait en mémoire) ; enfin le firmware de la page de
 // flashage, qui doit être celui de la dernière release.
-const HORS_CACHE = /\/(api|console|firmware)\/|\/version\.json$/;
+const HORS_CACHE = /\/(api|console|firmware|mqtt)\/|\/version\.json$/;
 
 self.addEventListener('fetch', e => {
   const u = new URL(e.request.url);

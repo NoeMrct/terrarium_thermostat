@@ -55,6 +55,19 @@ voit en plus, dans l'application, les blocs techniques réservés au support
 (santé du socle, alimentation, outils de l'onglet Service, alerte de test) :
 `/api/moi` et les réponses de session portent `equipe: true`.
 
+Quand le WebSocket ne s'ouvre pas — la liste EasyPrivacy, qu'uBlock Origin,
+Brave et AdGuard appliquent d'office, coupe tout WebSocket tiers vers
+`duckdns.org` —, l'application passe par le **tunnel HTTPS** du serveur : le
+même MQTT, par des requêtes ordinaires (`serveur/lib/tunnel.js`). `POST
+/mqtt/tunnel` ouvre une liaison (`201 { id }`), `GET /mqtt/tunnel/<id>` en
+reçoit les octets au fil de l'eau, chaque `POST /mqtt/tunnel/<id>` y envoie des
+paquets, `DELETE` ou la fin du GET la ferme. Le broker y voit une connexion
+comme une autre (identifiants dans le CONNECT, droits, retenus, keepalive).
+Plafonds : 500 liaisons, 30 par adresse, 20 s pour venir lire, 256 Ko par
+envoi. `/api/infos` l'annonce (`mqtt.tunnel`). Un proxy devant le serveur doit
+laisser passer le flux sans le retenir (Traefik le fait ; nginx :
+`proxy_buffering off`, que l'en-tête `X-Accel-Buffering: no` demande aussi).
+
 Connectée au broker, l'application reconnaît le serveur à son annonce MQTT
 retenue (`<prefixe>/serveur`, lisible par tout compte, écrite par lui
 seul), confirme par `/api/infos`, ouvre une session et, à l'ajout d'un socle,
@@ -68,7 +81,7 @@ Variables d'environnement, ou `serveur/.env` :
 
 | Variable | Défaut | Rôle |
 |---|---|---|
-| `PORT` | 8080 | HTTP : API, MQTT sur WebSocket (`/mqtt`), application si `SERVIR_APP=1` |
+| `PORT` | 8080 | HTTP : API, MQTT sur WebSocket (`/mqtt`) et par HTTPS (`/mqtt/tunnel`), application si `SERVIR_APP=1` |
 | `PORT_MQTT` | 1883 | MQTT TCP pour les socles (`off` pour désactiver) |
 | `DONNEES` | `serveur/donnees` | comptes, historique, clés VAPID, rapports |
 | `ADMIN_JETON` | — | console (`/console/`), API d'administration (`Authorization: Bearer`) et utilisateur MQTT `admin`. Sans lui, la console reste ouverte aux comptes administrateurs |

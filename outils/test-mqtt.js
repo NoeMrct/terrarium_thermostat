@@ -5,15 +5,20 @@
    Le client tourne dans un DOM headless, sur le WebSocket de jsdom, face à un
    vrai broker ; un second client (MQTT.js, en TCP) lui sert de correspondant.
    Vérifie l'encodage des paquets, les longueurs multi-octets, le keepalive, la
-   reconnexion, le refus d'identifiants et la fin propre.
+   reconnexion, le refus d'identifiants et la fin propre ; puis le repli par le
+   tunnel HTTPS du serveur (serveur/lib/tunnel.js, relié ici au broker en TCP)
+   quand le WebSocket est coupé comme par un bloqueur de publicité.
 
      node test-mqtt.js --broker ws://localhost:9001/mqtt --tcp mqtt://localhost:1883
    ============================================================================= */
 
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
+const net = require('net');
 const { JSDOM } = require('jsdom');
 const mqttNode = require('mqtt');
+const { Tunnels } = require('../serveur/lib/tunnel');
 
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i >= 0 ? process.argv[i + 1] : d; };
 const BROKER = arg('broker', 'ws://localhost:9001/mqtt');
@@ -35,10 +40,49 @@ const evenement = (client, nom, limite = 6000) => new Promise((res, rej) => {
   client.on(nom, (...a) => { clearTimeout(t); res(a); });
 });
 
-function fenetre() {
+// options.reseau : fetch (celui de Node) dans la page, comme dans un
+// navigateur. options.sansWebSocket : WebSocket coupé comme par la liste
+// EasyPrivacy — erreur aussitôt, jamais ouvert ; la page compte les essais.
+function fenetre(options = {}) {
   const dom = new JSDOM('<!doctype html><title>t</title>', { url: 'http://localhost/', pretendToBeVisual: true, runScripts: 'outside-only' });
-  dom.window.eval(fs.readFileSync(SOURCE, 'utf8') + '\n//# sourceURL=file://' + SOURCE);
-  return dom.window;
+  const w = dom.window;
+  if (options.reseau) { w.fetch = fetch; w.AbortController = AbortController; }
+  if (options.sansWebSocket) {
+    w.essaisWebSocket = 0;
+    w.WebSocket = class {
+      constructor() {
+        w.essaisWebSocket++;
+        this.readyState = 0;
+        setTimeout(() => { this.readyState = 3; if (this.onerror) this.onerror(); if (this.onclose) this.onclose({ code: 1006 }); }, 2);
+      }
+      send() {}
+      close() {}
+    };
+  }
+  w.eval(fs.readFileSync(SOURCE, 'utf8') + '\n//# sourceURL=file://' + SOURCE);
+  return w;
+}
+
+// Un serveur HTTP qui n'offre que le tunnel : chaque liaison devient une
+// connexion TCP au broker, comme le serveur Terrariums la confie au sien.
+async function serveurTunnel(tcp) {
+  const u = new URL(tcp);
+  const tunnels = new Tunnels({ aedes: { handle: liaison => {
+    const s = net.connect(+u.port || 1883, u.hostname);
+    liaison.pipe(s); s.pipe(liaison);
+    s.on('error', () => liaison.destroy());
+    s.on('close', () => liaison.destroy());
+    liaison.on('close', () => s.destroy());
+  } } }, { delaiLectureMs: 3000 });
+  const compte = { ouvertures: 0, envois: 0 };
+  const h = http.createServer((req, res) => {
+    const chemin = new URL(req.url, 'http://x').pathname;
+    if (req.method === 'POST') { if (chemin === '/mqtt/tunnel') compte.ouvertures++; else compte.envois++; }
+    if (Tunnels.concerne(chemin)) { tunnels.traiter(req, res, req.method, chemin, '127.0.0.1'); return; }
+    res.writeHead(404); res.end();
+  });
+  await new Promise(r => h.listen(0, '127.0.0.1', r));
+  return { tunnels, compte, url: `ws://127.0.0.1:${h.address().port}/mqtt`, fermer: () => { tunnels.arreter(); h.closeAllConnections(); h.close(); } };
 }
 
 (async () => {
@@ -165,6 +209,70 @@ function fenetre() {
   f.end();
   await attendre(800);
   v('close émis, puis aucune reconnexion', apres.includes('close') && !apres.includes('reconnect'), apres.join(' > '));
+
+  titre('9. Tunnel HTTPS, quand un bloqueur coupe le WebSocket');
+  {
+    const st = await serveurTunnel(TCP);
+    const wt = fenetre({ reseau: true, sansWebSocket: true });
+    const t = wt.mqtt.connect(st.url, { clientId: 'mini-test-t-' + Date.now(), keepalive: 2, reconnectPeriod: 200 });
+    const erreursT = [];
+    t.on('error', e => erreursT.push(e.message));
+    const recusT = [];
+    t.on('message', (s, charge, paquet) => recusT.push({ s, t: charge.toString(), n: charge.length, retain: paquet.retain }));
+    await evenement(t, 'connect');
+    v('WebSocket coupé : connecté par le tunnel, sans erreur', t.connected && !erreursT.length && wt.essaisWebSocket === 1 && st.compte.ouvertures === 1,
+      `${wt.essaisWebSocket} WebSocket, ${st.compte.ouvertures} tunnel, ${erreursT.join(' | ')}`);
+    const accordeT = await new Promise(r => t.subscribe([`${prefixe}/tunnel/#`], (e, g) => r(g)));
+    v('SUBACK par le flux du tunnel', Array.isArray(accordeT) && accordeT[0] === 0, JSON.stringify(accordeT));
+    pair.publish(`${prefixe}/tunnel/etat`, 'par le tunnel ✓', { retain: true });
+    v('message reçu par le flux descendant', await jusqua(() => recusT.some(m => m.t === 'par le tunnel ✓')));
+    const grandT = 'y'.repeat(70000) + 'FIN';
+    pair.publish(`${prefixe}/tunnel/journal`, grandT);
+    v('charge de 70 Ko reçue entière, en plusieurs morceaux', await jusqua(() => recusT.some(m => m.n === grandT.length && m.t.endsWith('FIN'))));
+    pair.subscribe(`${prefixe}/tunnel-cmd`);
+    await attendre(200);
+    const ackT = await new Promise(r => t.publish(`${prefixe}/tunnel-cmd`, 'commande par le tunnel', { qos: 1 }, e => r(e ? e.message : 'ok')));
+    v('publication QoS 1 par POST, acquittée par le flux', ackT === 'ok' && await jusqua(() => vus.includes('commande par le tunnel')), ackT);
+    const envoisAvant = st.compte.envois;
+    await attendre(3200);                 // deux cycles de ping
+    v('keepalive : PINGREQ envoyés, PINGRESP reçus, toujours connecté', t.connected && st.compte.envois >= envoisAvant + 2 && !erreursT.length,
+      `${st.compte.envois - envoisAvant} envoi(s)`);
+    // Le serveur coupe la liaison : le client revient, par le tunnel d'emblée.
+    const essaisAvant = wt.essaisWebSocket, ouverturesAvant = st.compte.ouvertures;
+    const evsT = [];
+    ['close', 'offline', 'connect'].forEach(n => t.on(n, () => evsT.push(n)));
+    st.tunnels.arreter();
+    v('liaison coupée par le serveur : close, offline, puis reconnecté',
+      await jusqua(() => evsT.includes('close') && evsT.includes('offline') && evsT.includes('connect') && t.connected), evsT.join(' > '));
+    v('…par le tunnel d\'emblée, sans réessayer le WebSocket', wt.essaisWebSocket === essaisAvant && st.compte.ouvertures === ouverturesAvant + 1,
+      `${wt.essaisWebSocket - essaisAvant} WebSocket, ${st.compte.ouvertures - ouverturesAvant} tunnel`);
+    pair.publish(`${prefixe}/tunnel/etat`, '', { retain: true });
+    t.end();
+    v('fin : la liaison se ferme aussi sur le serveur', await jusqua(() => st.tunnels.liaisons.size === 0, 3000), `${st.tunnels.liaisons.size} ouverte(s)`);
+    st.fermer();
+
+    // Un serveur sans tunnel (broker quelconque) : l'erreur habituelle, et le
+    // tunnel n'est plus réessayé.
+    let demandes = 0;
+    const h404 = http.createServer((req, res) => { demandes++; res.writeHead(404); res.end(); });
+    await new Promise(r => h404.listen(0, '127.0.0.1', r));
+    const u = wt.mqtt.connect(`ws://127.0.0.1:${h404.address().port}/mqtt`, { reconnectPeriod: 100, connectTimeout: 2000 });
+    const erreursU = [];
+    u.on('error', e => erreursU.push(e.message));
+    await jusqua(() => erreursU.length >= 3, 4000);
+    v('serveur sans tunnel : « broker injoignable », tunnel demandé une seule fois',
+      erreursU.length >= 3 && erreursU.every(m => m === 'broker injoignable') && demandes === 1, `${erreursU.length} erreur(s), ${demandes} demande(s)`);
+    u.end();
+    h404.close();
+
+    // Une adresse qui n'est pas celle d'un serveur Terrariums (…/mqtt) : pas de tunnel.
+    const autre = wt.mqtt.connect('ws://127.0.0.1:9/autre', { reconnectPeriod: 5000 });
+    const erreursA = [];
+    autre.on('error', e => erreursA.push(e.message));
+    await jusqua(() => erreursA.length >= 1, 2000);
+    v('adresse sans …/mqtt : pas de tunnel, l\'erreur tout de suite', erreursA[0] === 'broker injoignable' && wt.essaisWebSocket >= 1, erreursA.join(' | '));
+    autre.end();
+  }
 
   c.end();
   pair.end(true);

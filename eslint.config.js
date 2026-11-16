@@ -46,7 +46,7 @@ module.exports = [
     languageOptions: { ecmaVersion: 2022, sourceType: 'commonjs',
       globals: { require: 'readonly', module: 'writable', process: 'readonly', __dirname: 'readonly', Buffer: 'readonly',
                  console: 'readonly', setTimeout: 'readonly', clearTimeout: 'readonly', setInterval: 'readonly',
-                 clearInterval: 'readonly', fetch: 'readonly', URL: 'readonly', URLSearchParams: 'readonly', TextEncoder: 'readonly', TextDecoder: 'readonly',
+                 clearInterval: 'readonly', fetch: 'readonly', AbortController: 'readonly', URL: 'readonly', URLSearchParams: 'readonly', TextEncoder: 'readonly', TextDecoder: 'readonly',
                  Uint8Array: 'readonly', Uint8ClampedArray: 'readonly', crypto: 'readonly', __filename: 'readonly', FormData: 'readonly', Blob: 'readonly' } },
     rules: {
       'no-unused-vars': ['error', { args: 'none', caughtErrors: 'none' }],

@@ -21,6 +21,11 @@
    sur une liaison mobile hachée. Volontairement absent : la publication en
    QoS 2, les sessions persistantes, MQTT 5. La réception en QoS 1 et 2 est
    acquittée correctement si un broker en envoie malgré tout.
+
+   Un WebSocket qui n'a jamais pu s'ouvrir (un bloqueur de publicité le coupe,
+   un proxy le refuse) laisse aussitôt la place au tunnel HTTPS d'un serveur
+   Terrariums (…/mqtt/tunnel) : mêmes paquets, par des requêtes ordinaires.
+   Le chemin qui a marché reste le premier essayé ensuite.
    ============================================================================= */
 
 /** @type {any} */ (window).mqtt = (() => {
@@ -55,6 +60,94 @@
   const REFUS = ['', 'version de protocole refusée', 'identifiant refusé',
                  'serveur indisponible', 'identifiants incorrects', 'non autorisé'];
 
+  // ------------------------------------------------------------ tunnel HTTPS
+  // La liste EasyPrivacy (uBlock Origin, Brave, AdGuard l'appliquent d'office)
+  // coupe tout WebSocket tiers vers certains domaines, duckdns.org entier
+  // compris, alors que les requêtes HTTPS y passent. Un serveur Terrariums
+  // offre le même MQTT par HTTPS : POST …/mqtt/tunnel ouvre une liaison,
+  // GET …/mqtt/tunnel/<id> en reçoit les octets au fil de l'eau, chaque
+  // POST …/<id> y envoie des paquets. Cette classe se présente au client comme
+  // un WebSocket : readyState, send, close, onopen, onmessage, onclose.
+  const adresseTunnel = url => {
+    if (typeof fetch !== 'function' || typeof AbortController !== 'function') return null;
+    const m = /^(wss?):\/\/([^/?#]+)\/mqtt\/?$/.exec(String(url));
+    return m ? `${m[1] === 'wss' ? 'https' : 'http'}://${m[2]}/mqtt/tunnel` : null;
+  };
+
+  class Tunnel {
+    constructor(base) {
+      this.readyState = 0;                   // 0 ouverture, 1 ouvert, 3 fermé
+      this.binaryType = 'arraybuffer';
+      this.onopen = null; this.onmessage = null; this.onerror = null; this.onclose = null;
+      this.absent = false;                   // le serveur n'offre pas de tunnel
+      this._base = base;
+      this._url = '';
+      this._file = [];
+      this._envoi = false;
+      this._arret = new AbortController();
+      this._suivre().catch(() => this._clore());
+    }
+
+    async _suivre() {
+      const options = { cache: /** @type {RequestCache} */ ('no-store'), signal: this._arret.signal };
+      const r = await fetch(this._base, Object.assign({ method: 'POST' }, options));
+      if (!r.ok) { this.absent = r.status === 404 || r.status === 405; throw new Error('tunnel ' + r.status); }
+      const { id } = await r.json();
+      if (typeof id !== 'string' || !/^[\w-]{16,64}$/.test(id)) { this.absent = true; throw new Error('tunnel'); }
+      this._url = this._base + '/' + id;
+      const flux = await fetch(this._url, options);
+      if (!flux.ok || !flux.body) throw new Error('tunnel ' + flux.status);
+      if (this.readyState !== 0) return;
+      this.readyState = 1;
+      if (this.onopen) this.onopen();
+      this._vider();
+      const lecteur = flux.body.getReader();
+      for (;;) {
+        const { done, value } = await lecteur.read();
+        if (done || this.readyState !== 1) break;
+        if (value && value.length && this.onmessage) this.onmessage({ data: value });
+      }
+      this._clore();
+    }
+
+    send(octets) {
+      if (this.readyState !== 1) return;
+      this._file.push(octets);
+      this._vider();
+    }
+
+    // Un envoi à la fois, dans l'ordre : ce qui s'accumule pendant ce temps
+    // part en un seul POST.
+    async _vider() {
+      if (this._envoi || !this._file.length || this.readyState !== 1) return;
+      this._envoi = true;
+      const lot = this._file.splice(0);
+      const corps = new Uint8Array(lot.reduce((n, o) => n + o.length, 0));
+      let i = 0;
+      lot.forEach(o => { corps.set(o, i); i += o.length; });
+      try {
+        const r = await fetch(this._url, { method: 'POST', body: corps, cache: 'no-store', signal: this._arret.signal,
+                                           headers: { 'Content-Type': 'application/octet-stream' } });
+        if (!r.ok) throw new Error('tunnel ' + r.status);
+      } catch (e) { this._envoi = false; this._clore(); return; }
+      this._envoi = false;
+      this._vider();
+    }
+
+    // Couper le flux suffit : le serveur ferme la liaison quand son lecteur part.
+    close() { this._clore(); }
+
+    _clore() {
+      if (this.readyState === 3) return;
+      const avant = this.readyState;
+      this.readyState = 3;
+      this._file = [];
+      try { this._arret.abort(); } catch (e) { /* déjà interrompu */ }
+      if (avant === 0 && this.onerror) this.onerror();
+      setTimeout(() => { if (this.onclose) this.onclose({ code: 1006 }); }, 0);
+    }
+  }
+
   // ------------------------------------------------------------------ client
   class Client {
     constructor(url, opts) {
@@ -71,6 +164,8 @@
       this._id = 0;
       this._enVol = new Map();               // id -> publication QoS 1 en attente de PUBACK
       this._attente = this.opts.reconnectPeriod;
+      this._adresseTunnel = adresseTunnel(url);
+      this._parTunnel = false;               // le chemin qui a marché en dernier
       this._ouvrir();
     }
 
@@ -84,22 +179,33 @@
     }
 
     // ---- connexion ---------------------------------------------------------
-    _ouvrir() {
+    // Le chemin préféré d'abord ; s'il ne s'ouvre pas, l'autre aussitôt, une
+    // fois par tour. Un chemin qui s'est ouvert puis a échoué (identifiants
+    // refusés, délai) ne fait pas essayer l'autre : le réseau n'y est pour rien.
+    _ouvrir(relais) {
       if (this._fini) return;
       this._erreurSignalee = false;
+      this._echec = '';
       this._tampon = new Uint8Array(0);
-      let ws;
-      try { ws = new WebSocket(this.url, ['mqtt']); }
-      catch (e) { this._erreur(e.message || 'adresse invalide'); this._reprogrammer(); return; }
+      const parTunnel = (relais ? !this._parTunnel : this._parTunnel) && !!this._adresseTunnel;
+      const relaisPossible = !relais && !!this._adresseTunnel;
+      /** @type {any} */ let ws;
+      try { ws = parTunnel ? new Tunnel(this._adresseTunnel) : new WebSocket(this.url, ['mqtt']); }
+      catch (e) {
+        if (relaisPossible) { this._ouvrir(true); return; }
+        this._erreur(e.message || 'adresse invalide'); this._reprogrammer(); return;
+      }
       ws.binaryType = 'arraybuffer';
       this._ws = ws;
+      let ouvert = false;
 
       this._minuteurConnexion = setTimeout(() => {
-        this._erreur('délai de connexion dépassé');
+        this._echec = 'délai de connexion dépassé';
         this._fermer();
       }, this.opts.connectTimeout);
 
       ws.onopen = () => {
+        ouvert = true;
         const o = this.opts;
         let drapeaux = o.clean === false ? 0 : 0x02;
         const identifiants = [];
@@ -108,16 +214,19 @@
         ws.send(paquet(1, 0, [...chaine('MQTT'), 4, drapeaux, o.keepalive >> 8, o.keepalive & 255,
                               ...chaine(o.clientId), ...identifiants]));
       };
-      ws.onmessage = e => this._recevoir(new Uint8Array(e.data));
+      ws.onmessage = e => { if (this._ws === ws) this._recevoir(new Uint8Array(e.data)); };
       ws.onerror = () => { /* le close qui suit porte l'information utile */ };
       ws.onclose = () => {
+        if (this._ws !== ws) return;
         clearTimeout(this._minuteurConnexion);
         clearInterval(this._minuteurPing);
         const etait = this.connected;
         this.connected = false;
         this._ws = null;
+        if (ws.absent) { this._adresseTunnel = null; this._parTunnel = false; }   // pas de tunnel sur ce serveur
         if (etait) { this._emettre('close'); this._emettre('offline'); }
-        else if (!this._fini && !this._erreurSignalee) this._erreur('broker injoignable');
+        else if (!ouvert && relaisPossible && (parTunnel || this._adresseTunnel) && !this._fini) { this._ouvrir(true); return; }
+        else if (!this._fini && !this._erreurSignalee) this._erreur(this._echec || 'broker injoignable');
         this._reprogrammer();
       };
     }
@@ -191,6 +300,7 @@
             return;
           }
           this.connected = true;
+          this._parTunnel = this._ws instanceof Tunnel;
           this._attente = this.opts.reconnectPeriod;
           this._demarrerPing();
           // Ce qui attendait encore un acquittement repart, marqué DUP.

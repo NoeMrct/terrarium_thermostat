@@ -73,6 +73,17 @@ socles déjà chez leur propriétaire, rien ne change.
   - « Nouveau socle » ouvre la console tout de suite ; « Étiquette collée :
     marquer comme expédié » remplace la case et le bouton.
 
+### Corrigé
+- **Application et atelier derrière un bloqueur de publicité** : la liste
+  EasyPrivacy (appliquée d'office par uBlock Origin, Brave et AdGuard) coupe
+  tout WebSocket tiers vers `duckdns.org`. L'application restait alors sur
+  « connexion… » et le banc de l'atelier ne se reliait pas, alors que l'API
+  répondait. Le serveur offre désormais le même MQTT par HTTPS ordinaire
+  (`/mqtt/tunnel` : un flux descendant, un POST par envoi) ; le client de
+  l'application y passe de lui-même quand le WebSocket ne s'ouvre pas, sans
+  message d'erreur, et le garde pour les reconnexions. Identifiants, droits par
+  sujet et messages retenus sont ceux du broker, inchangés.
+
 ## [3.5.0] — 2026-11-16
 
 Résumé : première version publiée et signée ; les mises à jour s'installent seules, la nuit.

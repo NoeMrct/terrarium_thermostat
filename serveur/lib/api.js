@@ -3,9 +3,10 @@
    identifiant et mot de passe), sessions, rattachement d'un socle à un compte
    (preuve par le code d'appairage, vérifiée auprès du socle), historique,
    abonnements push, rapports de diagnostic, export et effacement du compte,
-   administration (routes dans admin.js, console web sur /console/). Les
-   fichiers de l'application peuvent être servis depuis ici (SERVIR_APP=1)
-   pour un déploiement entièrement auto-hébergé. */
+   administration (routes dans admin.js, console web sur /console/), MQTT par
+   HTTPS pour les navigateurs privés de WebSocket (tunnel.js). Les fichiers de
+   l'application peuvent être servis depuis ici (SERVIR_APP=1) pour un
+   déploiement entièrement auto-hébergé. */
 
 const fs = require('fs');
 const path = require('path');
@@ -16,6 +17,7 @@ const { Admin } = require('./admin');
 const { refCompte } = require('./audit');
 const { RoutesSupport } = require('./support');
 const { moisCouvert, prochainEnvoi } = require('./carnets');
+const { Tunnels } = require('./tunnel');
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
                 '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.map': 'application/json',
@@ -272,6 +274,7 @@ class Api {
     if (methode === 'OPTIONS') { res.writeHead(204); res.end(); return; }
     try {
       if (chemin.startsWith('/api/')) return await this.api(req, res, methode, chemin, url, ip);
+      if (this.tunnels && Tunnels.concerne(chemin)) return this.tunnels.traiter(req, res, methode, chemin, ip);
       if (chemin === '/console') { res.writeHead(301, { Location: '/console/' }); res.end(); return; }
       if (chemin.startsWith('/console/')) return this.console(res, chemin.slice('/console/'.length));
       if (this.o.app) return this.statique(req, res, chemin);
@@ -285,7 +288,7 @@ class Api {
   async api(req, res, methode, chemin, url, ip) {
     // Public
     if (methode === 'GET' && chemin === '/api/infos') {
-      return this.json(res, 200, { serveur: 'terrariums', version: this.o.version, mqtt: { ws: '/mqtt', tcp: this.o.portMqttEcoute !== undefined ? this.o.portMqttEcoute : this.o.portMqtt }, push: !!this.notifications, prefixe: this.broker.prefixe,
+      return this.json(res, 200, { serveur: 'terrariums', version: this.o.version, mqtt: { ws: '/mqtt', tunnel: '/mqtt/tunnel', tcp: this.o.portMqttEcoute !== undefined ? this.o.portMqttEcoute : this.o.portMqtt }, push: !!this.notifications, prefixe: this.broker.prefixe,
         comptes: { email: !!this.courriel, clesAcces: true, carnet: !!(this.courriel && this.carnets) } });
     }
     if (chemin === '/api/session') {
