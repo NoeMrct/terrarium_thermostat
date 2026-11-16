@@ -76,6 +76,14 @@ sudo bash /opt/terrarium/regler-duckdns.sh exotic-world        # facultatif, le 
 sudo bash /opt/terrarium/essai-bout-en-bout.sh
 ```
 
+Depuis Windows, quand la console ne colle pas dans la session SSH (Ctrl+V
+envoie alors un caractère de contrôle), la clé peut venir du presse-papiers :
+
+```powershell
+Read-Host "Copie la clé, puis Entrée" | Out-Null
+(Get-Clipboard).Trim() | ssh <machine> "sudo bash /opt/terrarium/regler-smtp.sh <identifiant SMTP>"
+```
+
 `installer.sh` installe Docker, écrit `/opt/terrarium` (fichiers ci-dessous),
 engendre le jeton d'administration, construit l'image, démarre le serveur et
 Traefik, puis programme la sauvegarde nocturne. Relancé, il met tout à jour

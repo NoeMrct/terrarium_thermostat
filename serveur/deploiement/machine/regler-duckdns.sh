@@ -7,6 +7,9 @@
 #
 #   sudo bash /opt/terrarium/regler-duckdns.sh <sous-domaine>     # ex. exotic-world
 #
+# Le jeton peut aussi arriver par l'entrée standard, par exemple depuis le
+# presse-papiers d'un PC Windows (voir regler-smtp.sh).
+#
 # Facultatif : l'IP éphémère d'une machine Google Cloud ne change que si la
 # machine est arrêtée puis relancée, pas à un redémarrage. Ce réglage évite
 # alors d'avoir à corriger l'IP à la main sur duckdns.org.
@@ -18,8 +21,11 @@ SOUS_DOMAINE=${SOUS_DOMAINE%.duckdns.org}
 [[ $SOUS_DOMAINE =~ ^[a-z0-9-]+$ ]] || { echo "Sous-domaine attendu : lettres, chiffres et tirets." >&2; exit 2; }
 DOSSIER=/opt/terrarium
 
-read -rsp "Jeton DuckDNS (rien ne s'affiche : colle-le puis appuie sur Entrée) : " JETON
+JETON=''
+read -rsp "Jeton DuckDNS (rien ne s'affiche : colle-le puis appuie sur Entrée) : " JETON || true
 echo
+JETON=${JETON//$'\r'/}
+JETON=${JETON//[[:space:]]/}
 [[ $JETON =~ ^[0-9a-f-]{36}$ ]] || { echo "Ce n'est pas un jeton DuckDNS (36 caractères, en haut de duckdns.org) : rien n'a changé." >&2; exit 1; }
 umask 077
 printf 'SOUS_DOMAINE=%s\nJETON=%s\n' "$SOUS_DOMAINE" "$JETON" > "$DOSSIER/duckdns"
