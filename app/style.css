@@ -518,7 +518,7 @@ dialog.scan video { width: 100%; aspect-ratio: 4 / 3; border-radius: 14px; backg
 
 /* Écran vide : une illustration sobre et une phrase d'invitation. */
 .etat-vide { text-align: center; padding: 28px 16px; }
-.etat-vide svg { width: 150px; height: 100px; display: block; margin: 0 auto 10px; }
+.etat-vide > .ill { width: 150px; height: 100px; display: block; margin: 0 auto 10px; }
 .etat-vide h2 { margin-bottom: 6px; }
 .etat-vide .aide { max-width: 360px; margin: 0 auto; }
 

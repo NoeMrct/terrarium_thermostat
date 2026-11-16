@@ -510,6 +510,9 @@ jour.
 
 ### Corrigé
 
+- Application : le bouton « Installer un socle » de la liste vide (compte sans
+  socle) était démesuré. La taille de l'illustration (150 × 100) s'appliquait
+  aussi à l'icône « + » du bouton ; elle ne vise plus que l'illustration.
 - Firmware : un envoi d'image par l'interface locale, refusé (version, format,
   signature) puis coupé par le navigateur avant la fin, laissait le chauffage
   coupé jusqu'au redémarrage suivant ; la mise à jour se rétablit désormais
