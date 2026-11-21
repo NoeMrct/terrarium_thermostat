@@ -427,7 +427,7 @@ export default {
     'inst-piste-24': 'The base only sees 2.4 GHz networks. If your router splits the bands, pick the 2.4 GHz one.',
     'inst-piste-mdp': 'Wi-Fi password: capitals included. The base\'s screen shows why a connection failed.',
     'inst-piste-signal': 'Signal too weak: bring the base closer to the router while installing it.',
-    'inst-piste-serveur': 'The base must reach the same server as the app: set at the workshop, otherwise on its page (Network tab).',
+    'inst-piste-serveur': 'The base must reach the same server as the app: that is set at the workshop, nothing to do on your side. If everything else is fine, ask for help: App settings → Help.',
     'inst-reg-titre': 'Starting settings',
     'inst-reg-texte': 'Your base leaves the workshop with these settings. Adjust them to your animal; you can come back to them.',
     'inst-nom': 'Terrarium name', 'inst-horaires': 'Schedule', 'inst-fixes': 'Fixed times', 'inst-soleil': 'Follow the sun',

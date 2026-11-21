@@ -7,6 +7,12 @@ affiche le commit dont elle est issue.
 
 ## [Non publié]
 
+### Modifié
+- **Application, installation d'un socle** : quand le socle n'est pas encore en
+  ligne, la dernière piste ne renvoie plus à l'onglet Réseau de sa page locale
+  (réservé à l'équipe depuis 3.5.2) : le serveur est réglé à l'atelier, et le
+  client est orienté vers l'Aide de l'application.
+
 ## [3.5.2] — 2026-11-21
 
 Résumé : page locale du socle simplifiée ; rien ne change dans l'application.
