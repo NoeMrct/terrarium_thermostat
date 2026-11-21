@@ -1444,11 +1444,18 @@
         : h('div', { class: 'boutons' }, bouton('Reprendre sur ce poste (USB)', 'reprendre-ici', { 'data-id': rec.id }, 'btn'))];
   }
 
+  // La page locale du socle, en mode technique : le propriétaire n'en voit que
+  // l'essentiel ; sondes, essais, alimentation et le reste s'ouvrent à #technique.
+  function lienPageLocale(rec) {
+    const adresse = `http://${rec.id.toLowerCase()}.local/#technique`;
+    return h('a', { href: adresse, target: '_blank', rel: 'noopener' }, adresse.replace(/^http:\/\//, ''));
+  }
+
   function corpsSondes(rec) {
     const v = vivant(rec.id);
     if (rec.liaison !== 'aucune' && !rec.code) return corpsReprise(rec);
     if (rec.liaison === 'aucune') {
-      return [h('p', { class: 'aide' }, 'Page locale du socle, Réglages → Sondes : « Identifier » à côté de chaque zone, sonde serrée dans la main. Puis valider ici.'),
+      return [h('p', { class: 'aide' }, 'Page locale du socle en mode technique, ', lienPageLocale(rec), ', Réglages → Sondes : « Identifier » à côté de chaque zone, sonde serrée dans la main. Puis valider ici.'),
         h('div', { class: 'boutons' }, bouton('Sondes liées (page locale)', 'manuel-sondes', { 'data-id': rec.id }, 'btn'))];
     }
     const corps = [];
@@ -1481,7 +1488,7 @@
     const v = vivant(rec.id);
     if (rec.liaison !== 'aucune' && !rec.code) return corpsReprise(rec);
     if (rec.liaison === 'aucune') {
-      return [h('p', { class: 'aide' }, 'Page locale, Réglages → Sondes : « Essai de chauffe » pour chaque zone, tapis branchés et sondes sur leurs plaques. Le socle donne son verdict.'),
+      return [h('p', { class: 'aide' }, 'Page locale en mode technique, ', lienPageLocale(rec), ', Réglages → Essai de chauffe : un essai pour chaque zone, tapis branchés et sondes sur leurs plaques. Le socle donne son verdict.'),
         h('div', { class: 'boutons' }, bouton('Essais réussis (page locale)', 'manuel-chauffe', { 'data-id': rec.id }, 'btn'))];
     }
     const t = v.tache && v.tache.type === 'essai' ? v.tache : null;

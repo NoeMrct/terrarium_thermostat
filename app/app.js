@@ -191,7 +191,7 @@ const App = (() => {
       cycleActif: 'Cycle saisonnier actif', abaissement: 'Abaissement (°C)', descente: 'Descente (jours)', plateau: 'Plateau (jours)', remontee: 'Remontée (jours)',
       decalageApplique: 'Décalage appliqué en ce moment : {v} °C.', aucunDecalage: 'Aucun décalage appliqué.',
       entretienAppareil: 'Entretien de l\'appareil',
-      aideEntretienAppareil: 'Les réglages réseau, le journal et la mise à jour du firmware restent sur l\'interface locale du socle, sur ton réseau domestique.',
+      aideEntretienAppareil: 'Le Wi-Fi du socle et le mot de passe de sa page locale se règlent sur cette page, depuis ton réseau domestique (son adresse est dans « Santé du socle »).',
       redemarrerSocle: 'Redémarrer le socle', effacerHistorique: 'Effacer l\'historique', retirerSocle: 'Retirer ce socle de l\'application',
       sauvegarde: 'Sauvegarde des réglages', aideSauvegarde: 'Un fichier avec les consignes, horaires et réglages de l\'appareil : pour un socle de rechange, ou avant une expérimentation.',
       sur24h: 'Sur 24 heures', chargementStats: 'Chargement des statistiques…', minC: 'min °C', maxC: 'max °C', moyenneC: 'moyenne °C',

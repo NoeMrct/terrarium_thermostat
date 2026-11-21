@@ -126,7 +126,7 @@ export default {
     cycleActif: 'Seasonal cycle active', abaissement: 'Drop (°C)', descente: 'Descent (days)', plateau: 'Plateau (days)', remontee: 'Rise (days)',
     decalageApplique: 'Offset applied right now: {v} °C.', aucunDecalage: 'No offset applied.',
     entretienAppareil: 'Device maintenance',
-    aideEntretienAppareil: 'Network settings, the log and firmware updates stay on the base\'s local interface, on your home network.',
+    aideEntretienAppareil: 'The base\'s Wi-Fi and the password of its local page are set on that page, from your home network (its address is under "Base health").',
     redemarrerSocle: 'Restart the base', effacerHistorique: 'Clear history', retirerSocle: 'Remove this base from the app',
     sauvegarde: 'Settings backup', aideSauvegarde: 'A file with the setpoints, schedules and device settings: for a spare base, or before an experiment.',
     sur24h: 'Over 24 hours', chargementStats: 'Loading statistics…', minC: 'min °C', maxC: 'max °C', moyenneC: 'average °C',

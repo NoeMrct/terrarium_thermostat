@@ -2,7 +2,14 @@
    Même langage visuel que l'application (app/style.css) : fond blanc, cartes
    grises sans ombre, noir pour les commandes, orange et bleu pour les zones,
    grands chiffres fins ; sombre automatique. Après toute modification :
-   node outils/compresser-page.js (régénère page_web_gz.h). */
+   node outils/compresser-page.js (régénère page_web_gz.h).
+   Deux publics : le propriétaire, qui reçoit son socle monté et réglé, ne voit
+   que l'essentiel (zones, consignes, Wi-Fi, code d'appairage, mises à jour
+   automatiques) ; l'équipe (atelier, service après-vente) ouvre
+   http://terraXXXXXX.local/#technique pour le reste — sondes, essais,
+   alimentation, MQTT, alertes, heure, firmware, sauvegarde, journal. Ce n'est
+   pas une barrière (le mot de passe en est une) : un tri. Classe « t » :
+   technique seulement ; classe « c » : propriétaire seulement. */
 #ifndef PAGE_WEB_H
 #define PAGE_WEB_H
 
@@ -49,6 +56,7 @@ progress{width:100%;height:9px}a{color:inherit}
 .stat div{background:var(--k);border-radius:12px;padding:9px 10px}.stat b{display:block;font-size:16px;font-weight:650}.stat span{font-size:11.5px;color:var(--g)}
 .tbl{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:12.5px}td,th{padding:6px;text-align:left;border-bottom:1px solid var(--l);vertical-align:top}th{color:var(--g);font-weight:600}
 @media(min-width:760px){#zones{display:grid;grid-template-columns:1fr 1fr;gap:14px}#zones .card{margin:0}#zones+.card{margin-top:14px}}
+body:not(.tech) .t{display:none!important}body.tech .c{display:none!important}
 </style></head><body>
 <div id="connexion" hidden><form class="card" onsubmit="connecter(event)"><h3 style="margin-top:0">Connexion</h3>
 <div class="g">Le mot de passe ne quitte pas ce navigateur : il sert à répondre à un défi du socle.</div>
@@ -68,7 +76,7 @@ progress{width:100%;height:9px}a{color:inherit}
 <button onclick="onglet('reg',this)">Réglages</button>
 <button onclick="onglet('res',this)">Réseau</button>
 <button onclick="onglet('sta',this)">Appareil</button>
-<button onclick="onglet('log',this)">Journal</button>
+<button class="t" onclick="onglet('log',this)">Journal</button>
 </div>
 <div id="vue"><div id="zones"></div><div class="card"><canvas id="g" width="760" height="230"></canvas>
 <div class="g" style="margin-top:7px">Trait plein : température · pointillés : consigne
@@ -77,7 +85,7 @@ progress{width:100%;height:9px}a{color:inherit}
 <div id="sta" style="display:none"><div class="card" id="stxt">…</div>
 <div class="card" id="sante">…</div>
 <div class="card"><h3 style="margin-top:0">Résumés journaliers</h3><div class="tbl" id="jours">…</div></div>
-<div class="card"><h3 style="margin-top:0">Sauvegarde de la configuration</h3>
+<div class="card t"><h3 style="margin-top:0">Sauvegarde de la configuration</h3>
 <div class="g">Zones, réglages, sondes liées et alertes : de quoi remplacer une carte en une minute. Ni le Wi-Fi
 ni les mots de passe ne sont dans le fichier, mais l'URL d'alerte y est (une URL ntfy vaut un mot de passe).</div>
 <button class="s" onclick="location.href='/api/sauvegarde'">Télécharger</button>
@@ -95,6 +103,10 @@ ni les mots de passe ne sont dans le fichier, mais l'URL d'alerte y est (une URL
 <div id="log" style="display:none"><div class="card"><pre id="jtxt">…</pre>
 <button class="s" onclick="fetch('/api/journal',{method:'DELETE',headers:{'X-Terrarium':'1'}}).then(charge)">Effacer le journal</button></div></div>
 <script>
+// Mode technique (équipe : atelier, service après-vente) : l'adresse finit par
+// #technique. Sans lui, la page ne montre que ce qui sert au propriétaire.
+const TECH=location.hash==='#technique';if(TECH)document.body.classList.add('tech');
+addEventListener('hashchange',()=>{if((location.hash==='#technique')!==TECH)location.reload();});
 // Couleurs des zones, celles de la feuille de style (clair ou sombre).
 const C=['--z1','--z2'].map(v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#e0661c');let S=null;
 // Une décimale, virgule française : « 30,6 ».
@@ -143,7 +155,7 @@ document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));b
 if(id=='log')charge();if(id=='sta')stats();}
 async function stats(){
  const d=await J('/api/stats');if(!d)return;
- let h='<div class="g">Firmware '+esc(d.version)+' — compilé le '+esc(d.compile)+
+ let h='<div class="g">Firmware '+esc(d.version)+'<span class="t"> — compilé le '+esc(d.compile)+'</span>'+
   '<br>'+d.zonesSimultanees+' zone(s) peuvent chauffer en même temps'+
   (d.saison?' · décalage saisonnier '+d.saison.toFixed(1)+' °C':'')+
   (d.maintenanceRestanteS?' · <b>entretien : '+Math.ceil(d.maintenanceRestanteS/60)+' min restantes</b>':'')+'</div>';
@@ -163,18 +175,18 @@ function sante(){
  const q=s.rssi>=-60?'excellent':s.rssi>=-70?'bon':s.rssi>=-80?'faible':'très faible';
  let h='<h3 style="margin-top:0">Santé du socle</h3><div class="stat">'+
   '<div><b>'+(s.rssi?q+' · '+s.rssi+' dBm':'—')+'</b><span>signal Wi-Fi</span></div>'+
-  '<div><b>'+Math.round(s.heap/1024)+' Ko</b><span>mémoire libre · min '+Math.round(s.heapMin/1024)+' Ko · bloc '+Math.round(s.blocMax/1024)+' Ko</span></div>'+
+  '<div class="t"><b>'+Math.round(s.heap/1024)+' Ko</b><span>mémoire libre · min '+Math.round(s.heapMin/1024)+' Ko · bloc '+Math.round(s.blocMax/1024)+' Ko</span></div>'+
   '<div><b>'+Math.floor(s.uptime/3600)+' h</b><span>de service</span></div>'+
-  '<div><b>'+esc(s.reset)+'</b><span>dernier redémarrage</span></div>'+
-  (s.courantA!==undefined?'<div><b>'+s.courantA.toFixed(2)+' A</b><span>courant mesuré · '+(s.energieWh/1000).toFixed(3)+' kWh réels'+(s.anomalieCourant?' · <span class="bad">'+esc(s.anomalieCourant)+'</span>':'')+'</span></div>':'')+
+  '<div class="t"><b>'+esc(s.reset)+'</b><span>dernier redémarrage</span></div>'+
+  (s.courantA!==undefined?'<div class="t"><b>'+s.courantA.toFixed(2)+' A</b><span>courant mesuré · '+(s.energieWh/1000).toFixed(3)+' kWh réels'+(s.anomalieCourant?' · <span class="bad">'+esc(s.anomalieCourant)+'</span>':'')+'</span></div>':'')+
   '</div>';
  if(s.otaEnAttente)h+='<div class="g" style="margin-top:8px"><span class="pill warn">mise à jour en cours de validation</span> — elle sera confirmée après 90 s sans plantage, sinon le socle revient à la version précédente.</div>';
  if(s.maj){const m=s.maj,cl=m.etape==='echec'||m.etape==='retour arriere'?'bad':m.etape==='validee'?'ok':'warn';
-  h+='<div class="g" style="margin-top:8px">Dernière mise à jour : <span class="pill '+cl+'">'+esc(m.etape)+'</span> '+esc(m.version)+' — '+esc(m.detail)+'</div>';}
+  h+='<div class="g t" style="margin-top:8px">Dernière mise à jour : <span class="pill '+cl+'">'+esc(m.etape)+'</span> '+esc(m.version)+' — '+esc(m.detail)+'</div>';}
  h+='<div class="g" style="margin-top:8px">Interface locale : <code>http://'+esc(s.hote||'')+'/</code>'+(s.ip?' ou <code>http://'+esc(s.ip)+'/</code>':'')+'</div>';
- if(s.mqtt)h+='<div class="g" style="margin-top:8px">MQTT : <span class="pill '+(s.mqtt==='connecte'?'ok':s.mqtt==='desactive'?'':'warn')+'">'+esc(s.mqtt)+'</span></div>';
- h+='<div class="g" style="margin-top:8px">Images de mise à jour signées : '+(s.signatureOta?'<b>exigées</b>':'non exigées')+' · protocole '+s.proto+'</div>';
- if(s.plantage)h+='<div class="avert" style="margin-top:10px"><b>Dernier plantage :</b> '+esc(s.plantage)+
+ if(s.mqtt)h+='<div class="g t" style="margin-top:8px">MQTT : <span class="pill '+(s.mqtt==='connecte'?'ok':s.mqtt==='desactive'?'':'warn')+'">'+esc(s.mqtt)+'</span></div>';
+ h+='<div class="g t" style="margin-top:8px">Images de mise à jour signées : '+(s.signatureOta?'<b>exigées</b>':'non exigées')+' · protocole '+s.proto+'</div>';
+ if(s.plantage)h+='<div class="avert t" style="margin-top:10px"><b>Dernier plantage :</b> '+esc(s.plantage)+
   '<br><a href="/api/coredump">Télécharger le coredump</a> · <a href="#" onclick="effacerCoredump();return false">effacer</a></div>';
  el.innerHTML=h;}
 async function effacerCoredump(){if(!confirm('Effacer le coredump enregistré ?'))return;await supprimer('/api/coredump');}
@@ -190,7 +202,7 @@ async function maj(){
   (S.alertesEnAttente?`<span class="pill warn">${S.alertesEnAttente} alerte(s) en attente</span>`:'')+
   (S.sante&&S.sante.otaEnAttente?`<span class="pill warn">mise à jour à valider</span>`:'')+
   (S.sante&&S.sante.service?`<span class="pill warn">support connecté</span>`:'')+
-  `<span class="pill">v${esc(S.version||'?')}</span>`;
+  `<span class="pill">v${esc(S.version||'?')}</span>`+(TECH?'<span class="pill warn">mode technique</span>':'');
  document.getElementById('zones').innerHTML=S.zones.map((z,i)=>
   `<div class="card"><div class="zone${i?' z2':''}">${esc(z.nom)}${z.autotune?' · AUTOTUNE':''}</div>
    <div class="big">${z.defaut?'—':fr(z.temp)+'°'}</div>
@@ -206,14 +218,14 @@ async function maj(){
  const av=[];
  // Avec une clé de signature compilée, ArduinoOTA reste coupée de toute façon :
  // rien à signaler, la mise à jour passe par les images signées.
- if(S.otaProtegee===false&&!(S.sante&&S.sante.signatureOta))av.push(
+ if(TECH&&S.otaProtegee===false&&!(S.sante&&S.sante.signatureOta))av.push(
   `<b>Mise à jour sans fil désactivée.</b> Aucun mot de passe OTA n'est défini, donc
    ArduinoOTA n'est pas démarrée — sans quoi n'importe quel appareil du réseau local
    pourrait réécrire ce firmware. Définis-en un dans l'onglet Réseau pour l'activer ;
    le téléversement depuis cette page reste disponible entre-temps.`);
  if(S.sante&&S.sante.webProtege===false)av.push(`<b>Interface locale sans mot de passe.</b> Tout appareil de ton réseau Wi-Fi peut
    changer les consignes. Définis un utilisateur et un mot de passe dans l'onglet Réseau.`);
- if(S.sante&&S.sante.plantage)av.push(`<b>Le socle a redémarré après un plantage.</b> Le résumé est dans l'onglet Appareil, le fichier complet est téléchargeable : joins-le à un rapport de bogue.`);
+ if(TECH&&S.sante&&S.sante.plantage)av.push(`<b>Le socle a redémarré après un plantage.</b> Le résumé est dans l'onglet Appareil, le fichier complet est téléchargeable : joins-le à un rapport de bogue.`);
  if(S.sante&&S.sante.service)av.push(`<b>Accès support ouvert</b> jusqu'au ${new Date(S.sante.service.jusqua*1e3).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})} : le support peut diagnostiquer et régler ce socle, ses gestes sont notés au journal. <button onclick="fermerSupport()">Fermer l'accès</button>`);
  document.getElementById('avertissements').innerHTML=
   av.map(t=>`<div class="avert">${t}</div>`).join('');
@@ -235,39 +247,39 @@ function formulaires(){
    <div><label>Début nuit</label><input id="N${i}" value="${z.debutNuit}"></div>
    <div><label>Rampe (min)</label><input id="R${i}" value="${z.rampe}"></div>
    <div><label>Bande °C</label><input id="b${i}" value="${z.bande}"></div>
-   <div><label>Gain intégral</label><input id="k${i}" value="${z.ki}"></div>
+   <div class="t"><label>Gain intégral</label><input id="k${i}" value="${z.ki}"></div>
    <div><label>Coupure max °C</label><input id="m${i}" value="${z.max}"></div>
    <div><label>Calibration °C</label><input id="o${i}" value="${z.offset}"></div>
-   <div><label>Sans effet (min)</label><input id="I${i}" value="${z.inefficaceMin}"></div>
-   <div><label>Hausse mini °C</label><input id="D${i}" value="${z.inefficaceDelta}"></div>
-   <div><label>Dérive °C</label><input id="d${i}" value="${z.deriveSeuil}"></div>
-   <div><label>Dérive (min)</label><input id="E${i}" value="${z.deriveMin}"></div>
-   <div><label>Chute brutale °C</label><input id="C${i}" value="${z.chuteSeuil}"></div>
-   <div><label>Fenêtre chute (s)</label><input id="F${i}" value="${z.chuteSecondes}"></div>
+   <div class="t"><label>Sans effet (min)</label><input id="I${i}" value="${z.inefficaceMin}"></div>
+   <div class="t"><label>Hausse mini °C</label><input id="D${i}" value="${z.inefficaceDelta}"></div>
+   <div class="t"><label>Dérive °C</label><input id="d${i}" value="${z.deriveSeuil}"></div>
+   <div class="t"><label>Dérive (min)</label><input id="E${i}" value="${z.deriveMin}"></div>
+   <div class="t"><label>Chute brutale °C</label><input id="C${i}" value="${z.chuteSeuil}"></div>
+   <div class="t"><label>Fenêtre chute (s)</label><input id="F${i}" value="${z.chuteSecondes}"></div>
    </div>
    <button onclick="envoyer(${i})">Enregistrer</button>
    <button class="s" id="at${i}" onclick="post('/api/autotune?z=${i}')">Lancer l'autotune</button>
    <button class="danger" id="sat${i}" hidden onclick="supprimer('/api/autotune?z=${i}')">Arrêter l'autotune</button></div>`).join('')
-  +`<div class="card"><h3 style="margin-top:0">Sondes</h3>
+  +`<div class="card t"><h3 style="margin-top:0">Sondes</h3>
     <div class="g">Chaque zone suit l'adresse de sa sonde. Pour savoir laquelle est laquelle : « Identifier »,
      puis serrer la sonde voulue dans la main.</div><div id="sondes">…</div>
     <button class="s" onclick="scan(1)">Relire le bus</button>
     <button class="s" onclick="calibrer()">Calibrer (sondes côte à côte)</button></div>
-    <div class="card"><h3 style="margin-top:0">Essai de chauffe</h3>
+    <div class="card t"><h3 style="margin-top:0">Essai de chauffe</h3>
     <div class="g">Mise en service d'un tapis : la zone chauffe seule, 10 min au plus, et l'essai dit si c'est
      bien sa sonde qui monte. Sécurités actives.</div><div id="essai">…</div>
     ${S.zones.map((z,i)=>`<button class="s" onclick="essai(${i})">Essai ${esc(z.nom)}</button>`).join('')}
     <button class="danger" onclick="arreterEssai()">Arrêter l'essai</button></div>
     <div class="card"><h3 style="margin-top:0">Réglages généraux</h3>
     <div class="g">Ces réglages valent pour l'appareil entier, pas pour une zone.</div>
-    <h3>Alimentation</h3>
+    <div class="t"><h3>Alimentation</h3>
     <div class="g">C'est elle qui décide combien de zones peuvent chauffer en même temps.</div>
     <div class="row">
      <div><label>Ampérage (A)</label><input id="gA"></div>
      <div><label>Tapis (W)</label><input id="gW"></div>
      <div><label>Tension (V)</label><input id="gV"></div>
     </div>
-    <div class="g" id="gZones" style="margin-top:6px"></div>
+    <div class="g" id="gZones" style="margin-top:6px"></div></div>
     <h3>Confort</h3>
     <div class="row">
      <div><label>Entretien par défaut (min)</label><input id="gE"></div>
@@ -276,14 +288,15 @@ function formulaires(){
      <div><label>LED de la carte</label><select id="gL"><option value="0">allumée</option><option value="1">éteinte</option></select></div>
     </div>
     <h3>Rapport quotidien et coût</h3>
-    <div class="g">Un résumé par jour (températures, chauffe, kWh, euros, défauts) vers l'URL d'alerte et le sujet MQTT « rapport ».</div>
+    <div class="g t">Un résumé par jour (températures, chauffe, kWh, euros, défauts) vers l'URL d'alerte et le sujet MQTT « rapport ».</div>
+    <div class="g c">Un résumé par jour : températures, chauffe, kWh, euros, défauts.</div>
     <div class="row">
      <div><label>Rapport</label><select id="gRA"><option value="0">non</option><option value="1">oui</option></select></div>
      <div><label>Heure (HH:MM)</label><input id="gRH"></div>
      <div><label>Prix du kWh (€)</label><input id="gP"></div>
     </div>
     <button class="s" onclick="voirRapport()">Voir le rapport</button>
-    <button class="s" onclick="post('/api/rapport')">Envoyer maintenant</button>
+    <button class="s t" onclick="post('/api/rapport')">Envoyer maintenant</button>
     <pre id="rapport" hidden></pre>
     <h3>Jour et nuit calés sur le soleil</h3>
     <div class="g">Les horaires suivent le lever et le coucher du soleil au lieu des heures fixes de chaque zone.
@@ -312,8 +325,9 @@ function formulaires(){
     <button onclick="envoyerGlobaux()">Enregistrer</button>
     <button class="s" onclick="envoyerGlobaux(1)">Enregistrer et repartir du jour 1</button></div>`;
  document.getElementById('res').innerHTML=
-  `<div class="card"><div class="g">Ces réglages sont enregistrés dans la flash : aucune recompilation nécessaire.
+  `<div class="card"><div class="g t">Ces réglages sont enregistrés dans la flash : aucune recompilation nécessaire.
    Laisser un champ vide désactive la fonction correspondante.</div>
+   <div class="g c">Le Wi-Fi de la maison et l'accès à cette page. Un mot de passe laissé vide reste inchangé.</div>
    <label>SSID WiFi</label><input class="w" id="ssid">
    <label>Mot de passe WiFi (vide = inchangé)</label><input class="w" id="wpass" type="password">
    <label>Réseau de secours (SSID, vide = aucun)</label><input class="w" id="ssid2">
@@ -321,7 +335,7 @@ function formulaires(){
    <div class="g">Essayé en alternance quand le premier ne répond pas (box en panne, répéteur…).</div>
    <label>Utilisateur de cette interface (ne change qu'avec un nouveau mot de passe)</label><input class="w" id="wu">
    <label>Mot de passe de cette interface (vide = inchangé)</label><input class="w" id="wp" type="password">
-   <label>Mot de passe OTA (vide = inchangé)</label><input class="w" id="op" type="password">
+   <div class="t"><label>Mot de passe OTA (vide = inchangé)</label><input class="w" id="op" type="password">
    <label>Mot de passe du point d'accès de secours (8 car. min, vide = inchangé)</label><input class="w" id="ap" type="password">
    <h3>Alertes et surveillance</h3>
    <label>URL d'alerte (https accepté)</label><input class="w" id="ua">
@@ -341,9 +355,9 @@ function formulaires(){
    <label>Découverte Home Assistant</label><select id="ha"><option value="1">activée</option><option value="0">désactivée</option></select>
    <h3>Heure</h3>
    <label>Fuseau horaire (chaîne TZ)</label><input class="w" id="tz">
-   <label>Serveur NTP</label><input class="w" id="ntp">
+   <label>Serveur NTP</label><input class="w" id="ntp"></div>
    <button onclick="envoyerRes()">Enregistrer et redémarrer</button>
-   <button class="s" onclick="effacerJetonAlerte()">Retirer le jeton d'alerte</button></div>
+   <button class="s t" onclick="effacerJetonAlerte()">Retirer le jeton d'alerte</button></div>
    <div class="card"><div class="g">Ce qu'il faut saisir dans l'application pour rattacher ce socle.
    Le code d'appairage vaut preuve de propriété : ne le communique à personne d'autre.</div>
    <label>Identifiant de l'appareil</label>
@@ -351,7 +365,7 @@ function formulaires(){
    <label>Code d'appairage</label>
    <div style="font-family:monospace;font-size:19px;letter-spacing:2px;margin:9px 0;word-break:break-all"
         id="jet">…</div></div>
-   <div class="card"><h3 style="margin-top:0">Mise à jour du firmware</h3>
+   <div class="card t"><h3 style="margin-top:0">Mise à jour du firmware</h3>
    <div class="g">Envoie le fichier <code>.ino.bin</code> produit par « Croquis → Exporter les binaires »
    (ou le fichier signé de la release). Le chauffage continue pendant l'envoi ; il ne s'arrête que
    quelques secondes, le temps de vérifier l'image et de redémarrer. Ne coupe pas l'alimentation.
@@ -366,8 +380,8 @@ function formulaires(){
    l'installe et redémarre ; elle n'est validée qu'après 90 s de fonctionnement, sinon il revient
    à cette version. Version actuelle : <b id="vact">?</b>.</div>
    <label>Version à installer (X.Y.Z) ou URL https</label><input class="w" id="majCible" placeholder="3.6.0">
-   <button onclick="majDistante()">Télécharger et installer</button>
-   <h3>Mises à jour automatiques</h3>
+   <button onclick="majDistante()">Télécharger et installer</button></div>
+   <div class="card"><h3 style="margin-top:0">Mises à jour automatiques</h3>
    <div class="g">Chaque jour, le socle regarde si une version est publiée. Il l'installe seul la nuit,
    dans la plage choisie, jamais pendant un défaut, un autotune, un essai, un entretien ou un accès
    support, et seulement si elle est signée. Il prévient avant (alerte) et revient seul en arrière

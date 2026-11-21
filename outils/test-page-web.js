@@ -7,7 +7,8 @@
    avec pour seul symptôme une page muette. Ce test extrait la page de
    page_web.h, la charge dans un DOM sans navigateur, et lui répond à la place
    du socle. Il vérifie ce qui casse en silence : le rendu, les formulaires,
-   les requêtes réellement émises, et le graphique.
+   les requêtes réellement émises, et le graphique. La page complète est celle
+   de l'équipe (#technique) ; la section 15 vérifie ce que voit le propriétaire.
 
      npm install jsdom
      node test-page-web.js
@@ -107,7 +108,9 @@ function creerSocle(options = {}) {
   };
 }
 
-function creerPage(socle) {
+// Par défaut, la page complète de l'équipe (#technique) : les sections 1 à 13
+// l'exercent tout entière. La section 15 ouvre celle du propriétaire.
+function creerPage(socle, adresse = 'http://terrarium.local/#technique') {
   const src = fs.readFileSync(SOURCE, 'utf8');
   const html = src.split('R"HTML(')[1].split(')HTML"')[0];
   // jsdom ne sait pas recharger une page : après une restauration réussie, la
@@ -115,7 +118,7 @@ function creerPage(socle) {
   const console2 = new VirtualConsole();
   console2.sendTo(console, { omitJSDOMErrors: true });
   console2.on('jsdomError', e => { if (!/navigation/.test(e.message)) console.error(e); });
-  const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'http://terrarium.local/', pretendToBeVisual: true, virtualConsole: console2 });
+  const dom = new JSDOM(html, { runScripts: 'outside-only', url: adresse, pretendToBeVisual: true, virtualConsole: console2 });
   const w = dom.window;
 
   w.alert = m => socle.envois.push({ alerte: String(m) });
@@ -550,6 +553,54 @@ const dernier = (socle, chemin, methode) =>
     await attendre(2000);
     v('réussite : le socle a rejoint « Maison », retour à l\'application', /rejoint « Maison » \(−58 dBm\)/.test($('#msg').textContent) && $('#f').hidden, $('#msg').textContent.slice(0, 50));
     v('le mot de passe ne repasse jamais par la page', !JSON.stringify(p.etat).includes('mot de passe'));
+  }
+
+  titre('15. Propriétaire et équipe : l\'essentiel d\'abord, le reste à #technique');
+  {
+    // jsdom applique mal « !important » : la règle est vérifiée telle quelle,
+    // puis son effet calculé ici comme un navigateur le ferait.
+    const src = fs.readFileSync(SOURCE, 'utf8');
+    v('la feuille de style cache « t » hors du mode technique, et « c » dedans',
+      src.includes('body:not(.tech) .t{display:none!important}body.tech .c{display:none!important}'));
+    const cache = (page, el) => !el || !!(el.closest('.t') && !page.w.document.body.classList.contains('tech'))
+      || !!(el.closest('.c') && page.w.document.body.classList.contains('tech'));
+    const sP = creerSocle({ otaProtegee: false, plantage: 'abort() dans tache_mqtt' });
+    sP.reseau = Object.assign({}, sP.reseau, { mqttHote: 'exotic-world.duckdns.org' });
+    const q = creerPage(sP, 'http://terrarium.local/');
+    await attendre(900);
+    const techniques = ['#op', '#ap', '#ua', '#aj', '#uh', '#mh', '#mu', '#mt', '#tz', '#ntp', '#binaire', '#majCible', '#gA', '#gW', '#gV',
+      '#sondes', '#essai', '#fSauv', '#k0', '#I0', '#D0', '#d0', '#E0', '#C0', '#F0', '#k1', '#F1'];
+    const essentiels = ['#nom0', '#j0', '#n0', '#H0', '#N0', '#R0', '#b0', '#m0', '#o0', '#at0', '#j1', '#ssid', '#wpass', '#ssid2', '#wu', '#wp',
+      '#jet', '#app', '#majAuto', '#majDebut', '#gE', '#gS', '#gP', '#gRA', '#gSo', '#gZP', '#gSA', '#jours'];
+    const montres = techniques.filter(id => !cache(q, q.$(id)));
+    v('propriétaire : sondes, essais, alimentation, MQTT, alertes, heure, firmware, sauvegarde cachés', !montres.length, montres.join(' ') || techniques.length + ' champs');
+    const caches = essentiels.filter(id => !q.$(id) || cache(q, q.$(id)));
+    v('…consignes, horaires, Wi-Fi, accès, code d\'appairage, mises à jour automatiques visibles', !caches.length, caches.join(' ') || essentiels.length + ' champs');
+    const journal = [...q.w.document.querySelectorAll('.tabs button')].find(b => /Journal/.test(b.textContent));
+    v('…l\'onglet Journal est caché', cache(q, journal));
+    v('…pas d\'avertissement OTA ni de plantage, pas de « mode technique »',
+      !/OTA|plantage/.test(q.texte('#avertissements')) && !/mode technique/.test(q.texte('#entete')), q.texte('#avertissements').slice(0, 50));
+    await q.w.eval("onglet('sta',document.querySelector('.tabs button'))"); await attendre(400);
+    const sante = q.$('#sante');
+    const memoire = [...sante.querySelectorAll('.stat > div')].find(d => /mémoire/.test(d.textContent));
+    const signal = [...sante.querySelectorAll('.stat > div')].find(d => /signal Wi-Fi/.test(d.textContent));
+    v('…santé : le signal Wi-Fi reste, la mémoire et le plantage sont pour l\'équipe',
+      signal && !cache(q, signal) && cache(q, memoire) && [...sante.querySelectorAll('.avert')].every(a => cache(q, a)));
+    // Enregistrer depuis la vue du propriétaire n'efface rien de ce qu'il ne voit pas.
+    q.$('#j0').value = '31.5';
+    await q.w.eval('envoyer(0)'); await attendre(200);
+    const cfg = dernier(sP, '/api/config', 'POST');
+    v('…enregistrer une zone garde les seuils de l\'atelier', cfg && /jour=31\.5/.test(cfg.corps) && /ki=0\.0006/.test(cfg.corps) && /chuteSeuil=/.test(cfg.corps), cfg && cfg.corps.slice(0, 60));
+    q.$('#ssid').value = 'Maison 2';
+    await q.w.eval('envoyerRes()'); await attendre(200);
+    const res = dernier(sP, '/api/reseau', 'POST');
+    v('…changer de Wi-Fi garde le serveur MQTT réglé à l\'atelier', res && /ssid=Maison%202/.test(res.corps) && /mqttHote=exotic-world\.duckdns\.org/.test(res.corps), res && res.corps.slice(0, 60));
+
+    const t = creerPage(creerSocle({ otaProtegee: false }), 'http://terrarium.local/#technique');
+    await attendre(900);
+    v('#technique : tout est là, le mode se voit dans l\'entête', t.w.document.body.classList.contains('tech')
+      && techniques.every(id => !cache(t, t.$(id))) && /mode technique/.test(t.texte('#entete')));
+    v('#technique : l\'avertissement OTA revient', /OTA/.test(t.texte('#avertissements')));
   }
 
   console.log(`\n=== ${ko ? 'DES TESTS ONT ECHOUE' : 'INTERFACE WEB EMBARQUEE OK'}` +

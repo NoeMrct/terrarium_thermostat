@@ -52,11 +52,14 @@ Sans Chrome : l'IDE Arduino, avec les réglages de carte décrits dans `INSTALLA
    le socle voit. Choisis le tien, donne son mot de passe, **Connecter le socle** : il essaie, dit si la
    box a accepté (ou pourquoi elle refuse : mot de passe, réseau en 5 GHz seulement, signal trop
    faible), puis redémarre dessus. L'application, si tu t'en sers, guide ces gestes pas à pas (§ 6).
-3. Le reste se règle dans l'**interface complète** (lien en bas de cette page, puis
+3. Le reste se règle sur la **page locale** (lien en bas de cette page, puis
    `http://terraXXXXXX.local`). À la première ouverture, elle demande de créer son mot de passe
-   (8 caractères au moins ; un socle monté à l'atelier a déjà le sien, sur son étiquette). Onglet
-   **Réseau** : un mot de passe OTA si tu veux mettre à jour sans câble, et, pour le pilotage à
-   distance, le serveur MQTT (déjà réglé sur un socle monté à l'atelier).
+   (8 caractères au moins ; un socle monté à l'atelier a déjà le sien, sur son étiquette). Le
+   propriétaire n'y voit que l'essentiel : zones, Wi-Fi de la maison, accès à la page, code
+   d'appairage, mises à jour automatiques. L'équipe ajoute `#technique` à l'adresse
+   (`http://terraXXXXXX.local/#technique`) pour le reste : sondes, essais de chauffe,
+   alimentation, onglet **Réseau** complet (mot de passe OTA, serveur MQTT — déjà réglé sur un
+   socle monté à l'atelier —, alertes, heure), firmware, sauvegarde, journal.
 4. Il est ensuite joignable sur `http://terraXXXXXX.local` (son identifiant, affiché sur l'écran et
    dans l'application) ou sur son adresse IP. L'interface demande l'utilisateur et le mot de passe
    choisis ; le mot de passe ne quitte jamais le navigateur (connexion par défi).
@@ -69,7 +72,8 @@ et en QR code. Il se retrouve ensuite dans l'onglet Réseau et avec la commande 
 Les sondes DS18B20 ont chacune une adresse unique, et chaque zone suit l'adresse de **sa** sonde :
 une sonde n'est jamais liée à deux zones, et une zone sans sonde reste en défaut, chauffe coupée.
 Au premier démarrage, les sondes sont liées dans l'ordre du bus ; rien ne dit que cet ordre est
-celui des plaques. Pour en être sûr, dans l'interface locale, onglet **Réglages → Sondes** :
+celui des plaques. Pour en être sûr, dans l'interface locale en mode technique
+(`http://terraXXXXXX.local/#technique`), onglet **Réglages → Sondes** :
 
 1. **Identifier** à côté d'une zone, puis serre dans la main la sonde de cette zone pendant une
    minute. Le socle la reconnaît (c'est elle qui se réchauffe) et la lie à la zone. Le chauffage
@@ -288,7 +292,8 @@ Le socle garde ses derniers événements ; les plus anciens s'effacent d'eux-mê
   l'application tire au sort un sujet [ntfy](https://ntfy.sh) privé, le donne au socle, et te
   montre comment y abonner ton téléphone (application ntfy gratuite, sans compte). Le sujet n'est
   gardé que sur ce téléphone : qui le connaît peut lire les alertes. Une autre adresse (webhook,
-  ntfy à toi) se règle dans Service, ou dans « URL d'alerte » de l'onglet Réseau de la page locale ;
+  ntfy à toi) se règle dans Service, ou dans « URL d'alerte » de l'onglet Réseau de la page locale
+  (mode technique) ;
   détails dans `docs/alertes-telephone.md`. Avec le serveur Terrariums : « Activer les
   notifications du serveur » dans la rubrique Alertes, et c'est le serveur qui pousse les alertes,
   titrées du nom que tu donnes au socle ; un socle hors ligne n'est annoncé qu'après cinq minutes,
@@ -310,7 +315,7 @@ Le socle garde ses derniers événements ; les plus anciens s'effacent d'eux-mê
   seul à l'heure dite.
 - **Sauvegarde des réglages** (rubrique Appareil) : un fichier JSON avec consignes, horaires et
   réglages de l'appareil, à réimporter sur un socle de rechange.
-- **Sauvegarde de la configuration du socle** (interface locale, onglet Appareil) : zones, réglages,
+- **Sauvegarde de la configuration du socle** (interface locale en mode technique, onglet Appareil) : zones, réglages,
   sondes liées et alertes dans un fichier, à restaurer sur une carte de remplacement. Le Wi-Fi et
   les mots de passe n'y sont pas ; l'URL d'alerte, si.
 - **Résumés journaliers** (interface locale, onglet Appareil, ou `jours`) : un an de journées —
@@ -347,7 +352,8 @@ Le socle garde ses derniers événements ; les plus anciens s'effacent d'eux-mê
 - **Le firmware** : dans l'application, rubrique **Mises à jour**, la carte **Mise à jour du firmware** dit
   si une version plus récente est publiée et un bouton la fait **télécharger et installer par le socle
   lui-même** (signature vérifiée si le socle l'exige). Sinon : l'atelier (USB), onglet
-  Réseau de l'interface locale (envoi du fichier `.bin`, ou « Mise à jour depuis GitHub »), ou OTA
+  Réseau de l'interface locale en mode technique (envoi du fichier `.bin`, ou « Mise à jour depuis
+  GitHub »), ou OTA
   depuis l'IDE si un mot de passe OTA est défini. Le chauffage continue pendant le téléchargement ou
   l'envoi : il ne s'arrête que quelques secondes, le temps de se connecter, de vérifier l'image et de
   redémarrer (avant le firmware 3.5.0, il était coupé pendant toute l'écriture). Au redémarrage, la
@@ -363,7 +369,8 @@ Le socle garde ses derniers événements ; les plus anciens s'effacent d'eux-mê
   `maj plage 01:00 02:00`, `maj reporter 7` sur la console). Rien ne s'installe seul sur un socle
   qui n'exige pas d'images signées : la carte le dit, et la mise à jour se lance alors à la main.
 - **Jamais en arrière à distance** : une version plus ancienne que celle qui tourne est refusée,
-  même signée. Pour revenir en arrière malgré tout, onglet Réseau de l'interface locale, choisis
+  même signée. Pour revenir en arrière malgré tout, onglet Réseau de l'interface locale en mode
+  technique, choisis
   « autorisée cette fois » sous « Version plus ancienne ou inconnue » avant d'envoyer le fichier.
 
 ## 13. Sécurité

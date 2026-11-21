@@ -7,6 +7,32 @@ affiche le commit dont elle est issue.
 
 ## [Non publié]
 
+## [3.5.2] — 2026-11-21
+
+Résumé : page locale du socle simplifiée ; rien ne change dans l'application.
+
+Firmware 3.5.2 (`FW_VERSION`), protocole 4 inchangé : seule la page locale
+change. Le socle se vend monté ; son propriétaire n'a pas à voir ce que
+l'atelier règle.
+
+### Modifié
+- **Page locale du socle** (`http://terraXXXXXX.local`) : le propriétaire n'y
+  voit plus que l'essentiel — zones, consignes et horaires, réglages de confort,
+  jour et nuit au soleil, priorité, cyclage, Wi-Fi de la maison et accès à la
+  page, code d'appairage, mises à jour automatiques, santé (signal, durée de
+  service), entretien. Le reste — sondes, essais de chauffe, alimentation,
+  seuils de surveillance, MQTT, alertes et heure, mots de passe OTA et du point
+  d'accès, firmware par fichier ou depuis GitHub, sauvegarde, journal, détails
+  de santé — s'ouvre à `http://terraXXXXXX.local/#technique`, pour l'équipe
+  (atelier, service après-vente). Rien n'est perdu à l'enregistrement : les
+  champs cachés gardent leurs valeurs. Les avertissements « mise à jour sans
+  fil désactivée » et « plantage » ne s'affichent qu'en mode technique.
+- **Atelier** : sans liaison, les étapes 2 à 4 donnent le lien direct vers la
+  page locale du socle en mode technique.
+- **Application** : « Entretien de l'appareil » dit ce qui reste sur la page
+  locale (le Wi-Fi et l'accès à la page), sans renvoyer au journal ni au
+  firmware.
+
 ### Supprimé
 - Pages **« Flasher un socle »** (`/installer`) et **« Démarrage rapide »**
   (`/demarrage-rapide.html`, et son PDF dans les releases) : le socle se vend

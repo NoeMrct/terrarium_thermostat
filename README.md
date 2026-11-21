@@ -235,14 +235,27 @@ passe réellement.
 
 ## La page web
 
-`http://terraXXXXXX.local` — quatre onglets :
+`http://terraXXXXXX.local` — ce que voit le propriétaire, qui reçoit son socle
+monté et réglé :
 
 - **Vue** : températures en direct, état de chauffe, courbes sur 6 h à 14 jours,
   export CSV.
-- **Réglages** : tout ce qui concerne les zones (consignes, horaires, réglages
-  de régulation, calibration, seuils d'alerte), bouton d'autotune.
-- **Réseau** : WiFi, mots de passe, URL d'alertes, MQTT, fuseau horaire.
-- **Journal** : l'historique des événements (défauts, redémarrages, changements).
+- **Réglages** : consignes et horaires des zones, rampe, bande, coupure max,
+  calibration, autotune ; confort, rapport et prix du kWh, jour et nuit au
+  soleil, priorité, cyclage saisonnier.
+- **Réseau** : Wi-Fi de la maison (et de secours), accès à la page, code
+  d'appairage, mises à jour automatiques.
+- **Appareil** : statistiques, signal Wi-Fi, résumés journaliers, entretien,
+  redémarrage.
+
+`http://terraXXXXXX.local/#technique` — la page complète, pour l'équipe
+(atelier, service après-vente) : en plus, sondes et essais de chauffe,
+alimentation, seuils de surveillance et gain intégral, URL d'alertes, MQTT,
+fuseau horaire et NTP, mots de passe OTA et du point d'accès, firmware par
+fichier ou depuis GitHub, sauvegarde de la configuration, détails de santé
+(mémoire, plantage) et l'onglet **Journal**. Ce n'est pas une barrière — le mot
+de passe de la page en est une — mais un tri : rien de technique sous les yeux
+du propriétaire.
 
 ## L'écran
 
@@ -350,7 +363,7 @@ ou le bouton dans l'interface), et il survit à un redémarrage.
 ## Alertes et surveillance à distance
 
 - **Alertes** : à chaque défaut ou retour à la normale, un message part vers
-  une URL de ton choix. Deux formats (onglet Réseau) : **JSON** pour un serveur,
+  une URL de ton choix. Deux formats (onglet Réseau, mode technique) : **JSON** pour un serveur,
   Home Assistant ou n8n, dont la charge identifie l'appareil, la zone et la
   nature de l'événement sans analyser une phrase ; **texte lisible**, avec un
   titre et une priorité, pour ntfy et les services de notification — c'est le
@@ -405,15 +418,15 @@ rebrancher de câble. Deux chemins, voir la section 6 dédiée :
 - depuis l'IDE Arduino ou `espota.py`, **à condition qu'un mot de passe OTA soit
   défini et qu'aucune clé de signature ne soit compilée** — sinon ArduinoOTA
   n'est pas démarrée du tout (elle ne vérifie aucune signature) ;
-- depuis l'onglet Réseau de l'interface web, en envoyant le fichier `.bin`, ce
+- depuis l'onglet Réseau de l'interface web en mode technique, en envoyant le fichier `.bin`, ce
   qui ne demande rien d'autre que le mot de passe de l'interface — et, si une
   clé publique est compilée (`OTA_CLE_PUBLIQUE`), une image **signée** par
   `outils/signer-firmware.js`.
 
 Et un troisième, le plus simple : **le socle télécharge lui-même** le binaire
 d'une release GitHub, sur ordre de l'application (carte « Mise à jour du
-firmware »), de la commande série `maj 3.4.0`, ou de l'onglet Réseau (« Mise à
-jour depuis GitHub »). HTTPS, origine limitée aux releases du dépôt, signature
+firmware »), de la commande série `maj 3.4.0`, ou de l'onglet Réseau en mode
+technique (« Mise à jour depuis GitHub »). HTTPS, origine limitée aux releases du dépôt, signature
 vérifiée si le socle l'exige, progression publiée sur MQTT.
 
 Et, quand le socle exige des images signées, **il s'installe seul** les
@@ -617,11 +630,12 @@ https://github.com/NoeMrct/terrarium_thermostat/releases/download/…`), ou
 acceptées comme origine (`MAJ_ORIGINES_AUTORISEES` dans `config.h`) : un code
 d'appairage volé ne permet pas de faire charger un binaire hébergé ailleurs.
 
-## Depuis l'onglet Réseau de l'interface web (rien à installer)
+## Depuis l'onglet Réseau de l'interface web, mode technique (rien à installer)
 
 1. Dans l'IDE Arduino, **Croquis → Exporter les binaires compilés** : un fichier
    `terrarium_thermostat.ino.bin` apparaît à côté du croquis.
-2. Ouvrir l'interface web du socle, onglet **Réseau**, section
+2. Ouvrir l'interface web du socle en mode technique
+   (`http://terraXXXXXX.local/#technique`), onglet **Réseau**, section
    « Mise à jour du firmware », choisir ce fichier, téléverser.
 3. Une barre de progression suit l'envoi ; l'appareil redémarre tout seul.
 
@@ -698,7 +712,8 @@ sont dans des zones de mémoire que le téléversement ne touche pas.
   n'importe quel appareil du réseau local — un invité, une caméra compromise —
   pourrait réécrire le programme d'un montage dont dépend un animal vivant. Le
   firmware refuse donc de l'offrir, le dit dans le journal, et l'affiche en haut
-  de l'interface web. `motdepasse ota <mdp>`, ou l'onglet Réseau, l'active.
+  de l'interface web en mode technique. `motdepasse ota <mdp>`, ou l'onglet Réseau
+  (mode technique), l'active.
 - Lance les bancs d'essai avant de téléverser : `cd sim && make test`.
 
 ---

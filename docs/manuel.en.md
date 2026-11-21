@@ -53,11 +53,13 @@ Without Chrome: the Arduino IDE, with the board settings described in the reposi
    yours, enter its password, **Connect the base**: it tries, tells you whether the router accepted
    (or why it refuses: password, 5 GHz-only network, signal too weak), then restarts on it. The app,
    if you use it, guides you through these steps (§ 6).
-3. Everything else is set in the **full interface** (link at the bottom of that page, then
+3. Everything else is set on the **local page** (link at the bottom of that page, then
    `http://terraXXXXXX.local`). On first opening, it asks you to create its password (8 characters
-   at least; a base assembled at the workshop already has one, on its label). **Network** tab: an
-   OTA password if you want to update without a cable, and, for remote control, the MQTT server
-   (already set on a base assembled at the workshop).
+   at least; a base assembled at the workshop already has one, on its label). The owner only sees
+   the essentials there: zones, home Wi-Fi, access to the page, pairing code, automatic updates.
+   The team adds `#technique` to the address (`http://terraXXXXXX.local/#technique`) for the
+   rest: probes, heating tests, power supply, the full **Network** tab (OTA password, MQTT server —
+   already set on a base assembled at the workshop —, alerts, time), firmware, backup, log.
 4. It is then reachable at `http://terraXXXXXX.local` (its identifier, shown on the screen and
    in the app) or at its IP address. The interface asks for the username and password you chose;
    the password never leaves the browser (challenge login).
@@ -70,7 +72,8 @@ as a QR code. It can be found again in the Network tab and with the `jeton` seri
 Each DS18B20 probe has a unique address, and each zone follows the address of **its** probe: a
 probe is never linked to two zones, and a zone without a probe stays in fault, heating off. At
 the first boot, probes are linked in bus order; nothing says this order is that of the plates. To
-be sure, in the local interface, **Settings → Probes**:
+be sure, in the local interface in technique mode (`http://terraXXXXXX.local/#technique`),
+**Settings → Probes**:
 
 1. **Identify** next to a zone, then hold that zone's probe in your hand for a minute. The base
    recognises it (it is the one warming up) and links it to the zone. Heating is suspended
@@ -284,7 +287,7 @@ erased on their own.
   [ntfy](https://ntfy.sh) topic, gives it to the base, and shows how to subscribe your phone (free
   ntfy app, no account). The topic is only kept on this phone: whoever knows it can read the alerts.
   Another address (webhook, your own ntfy) is set in Service, or in "Alert URL" of the local page's
-  Network tab; details in `docs/alertes-telephone.md`. With the Terrariums server: "Turn on server
+  Network tab (technique mode); details in `docs/alertes-telephone.md`. With the Terrariums server: "Turn on server
   notifications" in the Alerts section, and the server pushes the alerts, titled with the name you
   give the base; an offline base is only announced after five minutes, and so is its return.
 - **Test alert**: "Send a test alert", in the Alerts section, has the base send it through its alert
@@ -304,7 +307,7 @@ erased on their own.
   itself at the given time.
 - **Settings backup** (Device section): a JSON file with setpoints, schedules and device settings,
   to import again on a spare base.
-- **Base configuration backup** (local interface, Device tab): zones, settings, linked probes and
+- **Base configuration backup** (local interface in technique mode, Device tab): zones, settings, linked probes and
   alerts in one file, to restore on a replacement board. Wi-Fi and passwords are not in it; the
   alert URL is.
 - **Daily summaries** (local interface, Device tab, or `jours`): a year of days — temperatures,
@@ -339,7 +342,8 @@ erased on their own.
 - **The firmware**: in the app, **Updates** section, the **Firmware update** card says whether a newer
   version is published and a button makes the base **download and install it by itself**
   (signature checked if the base requires it). Otherwise: the workshop (USB), the
-  Network tab of the local interface (upload of the `.bin` file, or "Update from GitHub"), or
+  Network tab of the local interface in technique mode (upload of the `.bin` file, or "Update
+  from GitHub"), or
   OTA from the IDE if an OTA password is set. The heating keeps running during the download or
   upload: it only stops for a few seconds, to connect, check the image and restart (before
   firmware 3.5.0 it was off for the whole write). At restart, the new version must declare itself
@@ -355,7 +359,8 @@ erased on their own.
   console). Nothing installs by itself on a base that does not require signed images: the card
   says so, and you then start the update by hand.
 - **Never backwards remotely**: a version older than the running one is refused, even if signed.
-  To roll back anyway, in the Network tab of the local interface, choose "allowed this time" under
+  To roll back anyway, in the Network tab of the local interface in technique mode, choose
+  "allowed this time" under
   "Older or unknown version" before uploading the file.
 
 ## 13. Safety
