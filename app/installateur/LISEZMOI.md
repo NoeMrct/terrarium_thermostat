@@ -1,12 +1,12 @@
 # ESP Web Tools 10.4.0 — copie servie par le site
 
 Ces fichiers sont la distribution `dist/web/` du paquet npm `esp-web-tools`
-version 10.4.0 (licence Apache-2.0, voir LICENSE), copiée telle quelle. Elle fait
-tourner la page `/installer.html` : flasher un socle depuis le navigateur par
-USB (Web Serial), sans IDE Arduino.
+version 10.4.0 (licence Apache-2.0, voir LICENSE), copiée telle quelle. L'atelier
+(`/atelier.html`) en ouvre la fenêtre d'installation pour flasher un socle
+depuis le navigateur par USB (Web Serial), sans IDE Arduino.
 
 Pourquoi une copie plutôt qu'un CDN : la politique de sécurité du site
-n'autorise que ses propres scripts, et une page de flashage qui chargerait du
+n'autorise que ses propres scripts, et une page qui flashe un socle en chargeant du
 code depuis un tiers serait exactement ce qu'il faut éviter.
 
 Mise à jour :

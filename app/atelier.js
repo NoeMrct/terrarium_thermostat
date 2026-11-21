@@ -52,9 +52,9 @@
   const CLE_SECRETS = 'terrarium.atelier.secrets';     // sessionStorage : jusqu'à la fermeture de l'onglet
   const CLE_SESSION = 'terrarium.atelier.session';     // localStorage : compte administrateur connecté (session de 30 jours glissants)
   const CLE_MEMO = 'terrarium.atelier.memo';           // localStorage : ce que l'opérateur fait retenir (mot de passe du Wi-Fi du banc)
-  // Fenêtre d'installation d'ESP Web Tools, servie par le site : la même que
-  // celle de la page « Flasher un socle ». outils/verifier-installateur.js
-  // contrôle que ce fichier existe.
+  // Fenêtre d'installation d'ESP Web Tools, copie servie par le site
+  // (app/installateur/) : outils/verifier-installateur.js contrôle que ce
+  // fichier existe.
   const DIALOGUE_INSTALLATION = './installateur/install-dialog-im156JnI.js';
   const MANIFESTE_FIRMWARE = 'firmware/manifest.json';
   const ALPHABET_MDP = 'abcdefghjkmnpqrstuvwxyz23456789';  // ni i, l, o, 0, 1 : lisible sur une étiquette
@@ -702,8 +702,8 @@
   }
 
   // ------------------------------------------------ installation du firmware
-  // Le firmware publié : celui que propose la page « Flasher un socle »
-  // (manifeste écrit à la publication du site), ou null. Lu une fois.
+  // Le firmware publié : celui de la dernière release (manifeste écrit à la
+  // publication du site), ou null. Lu une fois.
   let manifeste = null;
   function versionPubliee() {
     if (!manifeste) {

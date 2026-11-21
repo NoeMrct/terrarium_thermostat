@@ -31,8 +31,8 @@ simulé et aux tests : l'application, elle, a son propre client (`app/mqtt.js`).
 | `npm run test:qr` | L'encodeur QR du firmware relu par jsQR |
 | `npm run lighthouse` | Lighthouse CI : performance, accessibilité, bonnes pratiques, SEO ≥ seuils de `.lighthouserc.json` |
 | `npm run page:gz` | Régénère `page_web_gz.h` après une modification de `page_web.h` |
-| `npm run aide` | Régénère `app/aide.html` et `app/aide.en.html` depuis `docs/manuel.md` et `docs/manuel.en.md` |
-| `npm run pdf` | Imprime en PDF la fiche de démarrage rapide et les deux manuels (`pdf/`, joints à chaque release) (Playwright) |
+| `npm run aide` | Régénère `app/aide.html` et `app/aide.en.html` depuis `docs/guide.md` et `docs/guide.en.md` |
+| `npm run pdf` | Imprime en PDF le manuel, en français et en anglais (`pdf/`, joints à chaque release) (Playwright) |
 | `npm run hooks` | Active le hook de pré-commit du dépôt (`.githooks/pre-commit` : lint, types, générateurs à jour) |
 | `npm run icones` | Régénère les PNG de `app/icones/` depuis `app/icone.svg` (Playwright) |
 | `npm run captures` | Photographie la démonstration en clair/sombre, téléphone/ordinateur (Playwright) ; `captures:manifest` écrit aussi les captures du manifeste |

@@ -52,7 +52,8 @@ montre l'ordre dans lequel tout s'enchaîne.
 2. `git tag vX.Y.Z && git push --tags`. Le workflow *Publication* compile
    (reproductible, attesté), signe si la clé est configurée, imprime la
    documentation en PDF, crée la release avec les binaires et redéploie le site.
-3. Vérifier la page « Flasher un socle » du site, qui doit proposer la nouvelle
-   version, et la carte « Mise à jour du firmware » de l'application.
+3. Vérifier que le site propose la nouvelle version (`version.json`, que lit
+   l'atelier pour installer le firmware) et la carte « Mise à jour du firmware »
+   de l'application.
 
 Détails : `docs/publication.md`.

@@ -790,20 +790,9 @@ main.page > * + * { margin-top: 14px; }
 .etapes { padding-left: 22px; margin: 10px 0 0; line-height: 1.55; font-size: 14px; }
 .etapes li + li { margin-top: 6px; }
 .a-completer { background: var(--attention-doux); color: var(--attention); padding: 1px 6px; border-radius: 6px; font-weight: 600; }
-/* Fiche de démarrage rapide : lisible à l'écran, pensée pour une feuille A4 recto verso. */
-.fiche h1 { font-size: 22px; margin: 0 0 4px; }
-.fiche .fiche-sous-titre { color: var(--texte-2); margin-bottom: 14px; }
-.fiche h2 { font-size: 15px; margin: 12px 0 6px; }
-.fiche ol { padding-left: 20px; margin-bottom: 8px; font-size: 13.5px; }
-.fiche li + li { margin-top: 3px; }
-.fiche li.important { color: var(--danger); }
-.fiche-colonnes { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
-.fiche table { font-size: 12.5px; }
-.fiche .fiche-pied { color: var(--texte-2); font-size: 12px; margin: 0; }
-@media (max-width: 640px) { .fiche-colonnes { grid-template-columns: 1fr; } }
 @media print {
-  /* Toute page de lecture (aide, fiche, pages légales) s'imprime sans en-tête ni
-     pied de site, sur fond blanc, texte noir : l'encre sert au contenu. */
+  /* Toute page de lecture (aide, pages légales) s'imprime sans en-tête ni pied
+     de site, sur fond blanc, texte noir : l'encre sert au contenu. */
   body[data-vue="page"] { background: #fff; color: #000; }
   body[data-vue="page"] #entete, body[data-vue="page"] .pied, .sans-impression { display: none !important; }
   body[data-vue="page"] main.page { max-width: none; padding: 0; margin: 0; }
@@ -813,12 +802,6 @@ main.page > * + * { margin-top: 14px; }
   .prose a { color: #000; }
   .prose .sommaire { background: none; padding-left: 30px; }
   .prose .discret { display: none; }
-  .fiche { box-shadow: none; border: 0; border-radius: 0; padding: 0; background: #fff; color: #000; break-after: page; page-break-after: always; }
-  .fiche:last-of-type { break-after: auto; page-break-after: auto; }
-  .fiche h1, .fiche h2, .fiche th, .fiche .fiche-sous-titre, .fiche .fiche-pied { color: #000; }
-  .fiche li.important { color: #b91c1c; }
-  .fiche th, .fiche td { border-bottom: 1px solid #999; }
-  .fiche code { background: none; padding: 0; }
   @page { size: A4; margin: 12mm; }
 }
 

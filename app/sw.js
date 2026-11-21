@@ -10,7 +10,7 @@ const sw = /** @type {any} */ (self);
 const CACHE = 'terrariums-dev';
 const COQUE = ['./', './index.html', './app.js', './textes.en.js', './service.js', './mqtt.js', './style.css', './polices/inter-latin-wght.woff2', './icone.svg',
                './manifest.json', './aide.html', './mentions-legales.html', './confidentialite.html',
-               './aide.en.html', './aide-index.json', './mentions-legales.en.html', './confidentialite.en.html', './demarrage-rapide.html',
+               './aide.en.html', './aide-index.json', './mentions-legales.en.html', './confidentialite.en.html',
                './icones/icone-192.png', './icones/icone-512.png',
                './icones/icone-maskable-512.png', './icones/apple-touch-icon.png'];
 

@@ -61,8 +61,7 @@ const serveur = servirApp({ port: PORT, versionTest: { version: 'test', commit: 
 
   console.log('\n== Connexion');
   v('premier lancement : l\'accueil s\'affiche', await page.isVisible('#bienvenue') && !(await page.isVisible('#form-broker')));
-  v('l\'accueil ne propose rien de technique (ni diagnostic, ni flashage)', !(await page.isVisible('#vue-broker [data-action="diagnostic"]'))
-    && !(await page.isVisible('#vue-broker a[href="installer.html"]')));
+  v('l\'accueil ne propose rien de technique (pas de diagnostic)', !(await page.isVisible('#vue-broker [data-action="diagnostic"]')));
   await page.click('[data-action="accueil"][data-etape="connexion"]');
   v('« Se connecter » sans serveur connu : adresse, identifiant, mot de passe, rien sur le broker',
     await page.isVisible('#b-url') && await page.isVisible('#b-user') && !(await page.isVisible('#b-prefixe')) && !(await page.isVisible('[data-action="testerBroker"]')));

@@ -31,7 +31,7 @@ la documentation accompagnant une distribution binaire : c'est ce fichier.
 
 | Composant | Version | Licence | Où |
 |---|---|---|---|
-| ESP Web Tools | 10.4.0 | Apache-2.0 | `app/installateur/` (copie telle quelle, licence jointe dans `app/installateur/LICENSE`, sommes dans `LISEZMOI.md`) |
+| ESP Web Tools | 10.4.0 | Apache-2.0 | `app/installateur/`, fenêtre d'installation de l'atelier (copie telle quelle, licence jointe dans `app/installateur/LICENSE`, sommes dans `LISEZMOI.md`) |
 | esptool-js, Improv Wi-Fi (dépendances d'ESP Web Tools) | incluses dans le paquet | Apache-2.0 | idem |
 
 L'application elle-même (`app/app.js`, `app/mqtt.js`, `app/sw.js`, styles,

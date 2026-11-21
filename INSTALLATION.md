@@ -179,12 +179,11 @@ rater :
 
 ## Flasher sans rien installer
 
-La page **« Flasher un socle »** du site (`installer.html`) écrit le firmware
-de la dernière release par USB, depuis Chrome ou Edge sur un ordinateur, sans
-IDE. Pour une carte neuve, c'est le chemin le plus court : brancher, cliquer,
-choisir le port, accepter l'effacement — puis, sur la même page, **configurer
-le Wi-Fi par le câble** (Improv) : choisir le réseau, taper le mot de passe. Le
-reste de cette section sert à compiler soi-même.
+La page **Atelier** du site (`/atelier`, réservée à l'équipe de montage : le
+socle se vend monté) écrit le firmware de la dernière release par USB, depuis
+Chrome ou Edge sur un ordinateur, sans IDE, puis enchaîne la mise en service
+(Wi-Fi du banc, sondes, essais, étiquette) : voir `docs/atelier.md`. Le reste
+de cette section sert à compiler soi-même.
 
 ## L'environnement de développement
 

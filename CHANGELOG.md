@@ -7,6 +7,14 @@ affiche le commit dont elle est issue.
 
 ## [Non publié]
 
+### Supprimé
+- Pages **« Flasher un socle »** (`/installer`) et **« Démarrage rapide »**
+  (`/demarrage-rapide.html`, et son PDF dans les releases) : le socle se vend
+  monté. Le firmware s'installe à l'atelier, qui ouvre la même fenêtre
+  d'installation (ESP Web Tools reste servi pour lui) ; la fiche expliquait le
+  câblage et la saisie d'un broker, rien qui concerne un acheteur. Les anciennes
+  adresses redirigent vers l'atelier et vers l'aide.
+
 ## [3.5.1] — 2026-11-16
 
 Résumé : préparation à l'expédition sans câble, à l'atelier ; rien ne change à l'usage.

@@ -31,11 +31,13 @@ distance, les alertes sur le téléphone, la domotique.
 
 ## 3. Installer le firmware
 
-Le plus simple : la page **Flasher un socle** du site, dans Chrome ou Edge, sur un ordinateur.
-Branche la carte en USB, clique, choisis le port. Sur une carte neuve, accepte l'effacement
-complet ; sur un socle déjà en service, refuse-le pour garder les réglages et le code d'appairage.
-Juste après le flashage, la même page propose de **configurer le Wi-Fi** par le câble (protocole
-Improv) : choisis ton réseau dans la liste, entre le mot de passe, c'est fait.
+Le socle se vend monté : le firmware s'installe à l'atelier. Le plus simple : la page **Atelier**
+du site (`/atelier`, réservée à l'équipe), dans Chrome ou Edge, sur un ordinateur. Branche la carte
+en USB, « Nouveau socle », choisis le port : une carte vierge ou en retard reçoit le firmware de la
+dernière release (fenêtre « Install »). Sur une carte neuve, accepte l'effacement complet ; sur un
+socle déjà en service, refuse-le pour garder les réglages et le code d'appairage. L'atelier règle
+ensuite le **Wi-Fi du banc** par le câble (protocole Improv) et enchaîne la mise en service
+(`docs/atelier.md`).
 
 Sans Chrome : l'IDE Arduino, avec les réglages de carte décrits dans `INSTALLATION.md` du dépôt
 (carte « ESP32 Dev Module », schéma de partition « Custom », flash 4 Mo).
@@ -344,7 +346,7 @@ Le socle garde ses derniers événements ; les plus anciens s'effacent d'eux-mê
   apparaît. Rien n'est forcé au milieu d'un réglage.
 - **Le firmware** : dans l'application, rubrique **Mises à jour**, la carte **Mise à jour du firmware** dit
   si une version plus récente est publiée et un bouton la fait **télécharger et installer par le socle
-  lui-même** (signature vérifiée si le socle l'exige). Sinon : page Flasher un socle (USB), onglet
+  lui-même** (signature vérifiée si le socle l'exige). Sinon : l'atelier (USB), onglet
   Réseau de l'interface locale (envoi du fichier `.bin`, ou « Mise à jour depuis GitHub »), ou OTA
   depuis l'IDE si un mot de passe OTA est défini. Le chauffage continue pendant le téléchargement ou
   l'envoi : il ne s'arrête que quelques secondes, le temps de se connecter, de vérifier l'image et de

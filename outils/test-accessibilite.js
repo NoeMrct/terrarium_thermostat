@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /* =============================================================================
    Accessibilité : axe-core sur chaque écran de la démonstration, puis sur les
-   pages statiques du site (aide dans les deux langues, pages légales, fiche de
-   démarrage rapide, installateur, 404), enfin sur l'atelier à chaque étape.
+   pages statiques du site (aide dans les deux langues, pages légales, 404),
+   enfin sur l'atelier à chaque étape.
    -----------------------------------------------------------------------------
    Les contrastes, les étiquettes de champs, les rôles et les noms accessibles
    sont vérifiés par un moteur indépendant, en clair et en sombre, sur mobile
@@ -115,7 +115,7 @@ const ECRANS_ATELIER = [
 ];
 
 const STATIQUES = ['aide.html', 'aide.en.html', 'mentions-legales.html', 'mentions-legales.en.html',
-  'confidentialite.html', 'confidentialite.en.html', 'demarrage-rapide.html', 'installer.html', '404.html'];
+  'confidentialite.html', 'confidentialite.en.html', '404.html'];
 // Les pages statiques sont servies en HTTP : 404.html référence /style.css en
 // absolu (elle peut être servie à n'importe quelle adresse), ce que file:// ne
 // résoudrait pas.

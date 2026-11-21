@@ -7,7 +7,7 @@
 [build]
   publish = "app"
   # Écrit version.json, nomme le cache de l'agent de service d'après le commit,
-  # et récupère le firmware de la dernière release pour la page de flashage.
+  # et récupère le firmware de la dernière release pour l'atelier.
   # (terser pour la minification est dans outils/package.json : on l'installe
   # sans les dépendances de développement, puis on prépare.)
   command = "npm ci --prefix outils --omit=dev && node outils/preparer-publication.js"
@@ -59,22 +59,8 @@
   [headers.values]
     Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 
-# La page de flashage embarque ESP Web Tools, qui injecte ses propres styles,
-# et parle au port série : style en ligne autorisé, port série autorisé.
-[[headers]]
-  for = "/installer.html"
-  [headers.values]
-    Content-Security-Policy = "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
-    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=(), serial=(self)"
-
-[[headers]]
-  for = "/installer"
-  [headers.values]
-    Content-Security-Policy = "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
-    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=(), serial=(self)"
-
-# L'atelier ouvre la même fenêtre d'installation (ESP Web Tools) sur le port de
-# sa console : ses styles en ligne et la politique Trusted Types « lit-html » de
+# L'atelier ouvre la fenêtre d'installation d'ESP Web Tools sur le port de sa
+# console : ses styles en ligne et la politique Trusted Types « lit-html » de
 # la bibliothèque qui la dessine sont permis ; l'atelier lui-même n'écrit son
 # DOM qu'élément par élément, et sa politique « atelier » n'accepte qu'une URL
 # de script, celle de l'agent de service (notifications de l'atelier).
@@ -105,3 +91,27 @@
   for = "/icones/*"
   [headers.values]
     Cache-Control = "public, max-age=604800"
+
+# Pages retirées : le socle se vend monté. Le firmware s'installe à l'atelier
+# (« Flasher un socle » n'avait plus lieu d'être) et la fiche de démarrage
+# rapide, faite pour qui câblait son socle, ne servait plus. Les anciennes
+# adresses mènent là où l'on cherche désormais.
+[[redirects]]
+  from = "/installer"
+  to = "/atelier"
+  status = 301
+
+[[redirects]]
+  from = "/installer.html"
+  to = "/atelier"
+  status = 301
+
+[[redirects]]
+  from = "/demarrage-rapide"
+  to = "/aide.html"
+  status = 301
+
+[[redirects]]
+  from = "/demarrage-rapide.html"
+  to = "/aide.html"
+  status = 301

@@ -17,8 +17,8 @@ String tampon;
 
 // ---------------------------------------------------------------------------
 // Improv Wi-Fi (série) : le protocole que parle ESP Web Tools juste après le
-// flashage, pour configurer le réseau depuis la page « Flasher un socle » sans
-// passer par le point d'accès. Paquet : "IMPROV" ver type longueur données
+// flashage, et la console de l'atelier, pour configurer le réseau sans passer
+// par le point d'accès. Paquet : "IMPROV" ver type longueur données
 // somme (somme des octets précédents, modulo 256). Les octets qui ne forment
 // pas un paquet restent des caractères de la console texte.
 //   https://www.improv-wifi.com/serial/

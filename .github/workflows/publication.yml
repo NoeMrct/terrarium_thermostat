@@ -2,9 +2,9 @@
 # compilé, signé si la clé est configurée, et attaché à une release GitHub avec
 # la section correspondante du CHANGELOG et le manifeste des mises à jour
 # automatiques (terrarium-version.json, lu chaque jour par les socles). Le site
-# Netlify, au déploiement suivant, récupère ces binaires pour la page
-# « Flasher un socle ». Le déploiement progressif se pilote ensuite avec le
-# workflow « Déploiement du firmware » (pause, reprise, tous).
+# Netlify, au déploiement suivant, récupère ces binaires pour l'atelier, qui
+# les installe sur les socles qu'il monte. Le déploiement progressif se pilote
+# ensuite avec le workflow « Déploiement du firmware » (pause, reprise, tous).
 #
 #   git tag v3.3.0 && git push --tags
 #
@@ -118,13 +118,12 @@ jobs:
           node outils/manifeste-version.js --version "$TAG" --changelog CHANGELOG.md \
             --firmware "sortie/terrarium-$TAG-firmware.bin" $SIGNEE --sortie sortie/terrarium-version.json
 
-      - name: Documentation imprimable (fiche de démarrage rapide, manuels) en PDF
+      - name: Documentation imprimable (manuels) en PDF
         run: |
           TAG="${GITHUB_REF_NAME#v}"
           (cd outils && npm ci && npm install --no-save playwright@1.56.0 && npx playwright install --with-deps chromium)
           node outils/construire-aide.js --verifier
           node outils/construire-pdf.js --sortie pdf
-          cp pdf/demarrage-rapide.pdf "sortie/terrarium-$TAG-demarrage-rapide.pdf"
           cp pdf/manuel.pdf            "sortie/terrarium-$TAG-manuel.pdf"
           cp pdf/manual.en.pdf         "sortie/terrarium-$TAG-manual-en.pdf"
           (cd sortie && sha256sum *.pdf >> "terrarium-$TAG-SHA256SUMS.txt")
@@ -140,7 +139,7 @@ jobs:
           TAG="${GITHUB_REF_NAME#v}"
           awk -v v="$TAG" '/^## \[/{p = index($0, "[" v "]") > 0; next} p' CHANGELOG.md > notes.md
           echo "" >> notes.md
-          echo "Installation sans IDE : page « Flasher un socle » du site. Mise à jour d'un socle en service : seul, la nuit, s'il exige des images signées (mises à jour automatiques, déploiement progressif décrit par \`terrarium-version.json\`) ; depuis l'application (bouton « Mettre à jour » du socle, qui télécharge l'image ici même) ; ou onglet Réseau de son interface locale avec \`terrarium-$TAG-firmware.bin\` (\`.signe.bin\` si le socle exige des images signées). Compilation reproductible : \`SOURCE_DATE_EPOCH\` = date du commit, voir docs/publication.md ; provenance vérifiable avec \`gh attestation verify\`." >> notes.md
+          echo "Installation sur un socle neuf : à l'atelier (page Atelier du site, réservée à l'équipe de montage). Mise à jour d'un socle en service : seul, la nuit, s'il exige des images signées (mises à jour automatiques, déploiement progressif décrit par \`terrarium-version.json\`) ; depuis l'application (bouton « Mettre à jour » du socle, qui télécharge l'image ici même) ; ou onglet Réseau de son interface locale avec \`terrarium-$TAG-firmware.bin\` (\`.signe.bin\` si le socle exige des images signées). Compilation reproductible : \`SOURCE_DATE_EPOCH\` = date du commit, voir docs/publication.md ; provenance vérifiable avec \`gh attestation verify\`." >> notes.md
 
       - name: Release GitHub
         uses: softprops/action-gh-release@v2
@@ -149,6 +148,6 @@ jobs:
           body_path: notes.md
           files: sortie/*
 
-      - name: Redéployer le site (page de flashage)
+      - name: Redéployer le site (firmware proposé par l'atelier)
         if: ${{ env.HOOK_NETLIFY != '' }}
         run: curl -fsS -X POST -d '{}' "$HOOK_NETLIFY"

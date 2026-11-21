@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* =============================================================================
-   Imprime la documentation en PDF : la fiche de démarrage rapide (recto
-   français, verso anglais) et les deux manuels (aide.html, aide.en.html).
+   Imprime la documentation en PDF : le manuel de l'utilisateur, en français
+   et en anglais (aide.html, aide.en.html).
    -----------------------------------------------------------------------------
    Les PDF sont joints à chaque release GitHub (.github/workflows/publication.yml)
    pour qu'un acheteur ait quelque chose à imprimer et à glisser dans la boîte,
@@ -29,7 +29,6 @@ const SORTIE = path.resolve(arg('sortie', path.join(__dirname, 'pdf')));
 const serveur = servirApp();
 
 const DOCUMENTS = [
-  { page: 'demarrage-rapide.html', pdf: 'demarrage-rapide.pdf', titre: 'Démarrage rapide / Quick start' },
   { page: 'aide.html', pdf: 'manuel.pdf', titre: 'Manuel du socle chauffant', entete: true },
   { page: 'aide.en.html', pdf: 'manual.en.pdf', titre: 'Heating base manual', entete: true }
 ];
@@ -47,8 +46,7 @@ const DOCUMENTS = [
   for (const d of DOCUMENTS) {
     await page.goto(`http://localhost:${port}/${d.page}`, { waitUntil: 'load' });
     await page.emulateMedia({ media: 'print' });
-    // Les manuels gardent l'en-tête et le pied imprimés (titre, numéro de page) ;
-    // la fiche de démarrage rapide, non : elle doit tenir sur une feuille.
+    // Les manuels gardent l'en-tête et le pied imprimés (titre, numéro de page).
     const sortie = path.join(SORTIE, d.pdf);
     await page.pdf({
       path: sortie, format: 'A4', printBackground: true, preferCSSPageSize: true,

@@ -1,6 +1,6 @@
 # Atelier : monter des socles en série
 
-La page **Atelier** du site (`atelier.html`, lien en bas de la page « Flasher un socle ») suit
+La page **Atelier** du site (`/atelier`, réservée à l'équipe : le socle se vend monté) suit
 chaque socle du flashage à l'étiquette, flashage compris : elle installe elle-même le firmware
 publié sur une carte vierge ou en retard. Elle remplace la ligne de commande
 `outils/provisionner.js` pour la fabrication courante. Le script reste disponible pour un
@@ -63,7 +63,7 @@ registre.
 
 Branchez la carte en USB : l'étape démarre seule si Chrome connaît déjà le port ; sinon,
 « Nouveau socle » et choisissez le port. Une carte qui ne répond pas (vierge), ou dont le firmware est plus ancien
-que celui publié sur la page « Flasher un socle », reçoit d'abord ce firmware : la fenêtre
+que celui de la dernière release publiée, reçoit d'abord ce firmware : la fenêtre
 d'installation d'ESP Web Tools s'ouvre sur le même port (« Install », puis la fermer à la
 fin), et l'atelier reprend la console seul. L'installation est notée au journal du socle.
 L'atelier enchaîne alors :
@@ -161,7 +161,7 @@ minutes sans réseau.
 | Symptôme | Piste |
 |---|---|
 | Pas de port proposé | Le câble doit transporter les données (pas un câble de charge seul). Sous Windows, le pilote de la puce USB de la carte : CP210x ou CH340. |
-| « Le socle ne répond pas à jeton » | Aucun firmware publié à installer (page « Flasher un socle »), ou la carte redémarre en boucle (bouton EN, puis regarder la console). |
+| « Le socle ne répond pas à jeton » | Aucun firmware publié à installer (pas encore de release, ou site pas redéployé depuis), ou la carte redémarre en boucle (bouton EN, puis regarder la console). |
 | La fenêtre d'installation ne trouve pas la carte | Maintenir le bouton BOOT de la carte pendant le « Install », puis le relâcher quand l'écriture commence. |
 | « Après l'installation, le socle ne répond pas » | Fenêtre fermée avant la fin : « Reprendre la console » recommence l'installation. |
 | Wi-Fi du banc refusé | Mot de passe, ou réseau en 5 GHz seulement (l'ESP32 n'a que le 2,4 GHz) : la liste des réseaux captés le montre. |

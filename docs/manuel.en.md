@@ -32,11 +32,13 @@ app, alerts on your phone, home automation.
 
 ## 3. Installing the firmware
 
-The simplest way: the **Flash a base** page of the site, in Chrome or Edge, on a computer. Plug
-the board in over USB, click, pick the port. On a new board, accept the full erase; on a base
-already in service, refuse it to keep the settings and the pairing code. Right after flashing,
-the same page offers to **configure Wi-Fi** over the cable (Improv protocol): pick your network in
-the list, type the password, done.
+The base is sold assembled: the firmware is installed at the workshop. The simplest way: the
+site's **Workshop** page (`/atelier`, for the assembly team only), in Chrome or Edge, on a
+computer. Plug the board in over USB, "Nouveau socle", pick the port: a blank or outdated board
+receives the firmware of the latest release (the "Install" window). On a new board, accept the
+full erase; on a base already in service, refuse it to keep the settings and the pairing code.
+The workshop then sets the **bench Wi-Fi** over the cable (Improv protocol) and carries on with
+the commissioning (`docs/atelier.md`).
 
 Without Chrome: the Arduino IDE, with the board settings described in the repository's
 `INSTALLATION.md` (board "ESP32 Dev Module", partition scheme "Custom", 4 MB flash).
@@ -336,7 +338,7 @@ erased on their own.
   forced in the middle of a setting.
 - **The firmware**: in the app, **Updates** section, the **Firmware update** card says whether a newer
   version is published and a button makes the base **download and install it by itself**
-  (signature checked if the base requires it). Otherwise: the Flash a base page (USB), the
+  (signature checked if the base requires it). Otherwise: the workshop (USB), the
   Network tab of the local interface (upload of the `.bin` file, or "Update from GitHub"), or
   OTA from the IDE if an OTA password is set. The heating keeps running during the download or
   upload: it only stops for a few seconds, to connect, check the image and restart (before

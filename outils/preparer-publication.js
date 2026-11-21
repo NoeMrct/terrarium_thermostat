@@ -12,8 +12,8 @@
         « terrariums-<commit> » : chaque publication installe son propre cache,
         plus de constante à incrémenter à la main.
      3. app/firmware/ — les binaires de la dernière release GitHub et le
-        manifeste lu par la page « Flasher un socle » (ESP Web Tools). Sans
-        release, le dossier reste vide et la page le dit.
+        manifeste qu'installe l'atelier (ESP Web Tools). Sans release, le
+        dossier reste vide et l'atelier le dit.
      4. app.js, mqtt.js et sw.js sont minifiés (terser) avec leur source map :
         un tiers de moins à télécharger, et les erreurs restent lisibles dans
         le diagnostic grâce aux .map. Les sources du dépôt ne bougent pas.
@@ -140,7 +140,7 @@ function ecrireServeur() {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     release = await r.json();
   } catch (e) {
-    console.log(`firmware : aucune release lisible (${e.message}) — la page de flashage le dira`);
+    console.log(`firmware : aucune release lisible (${e.message}) — l'atelier le dira`);
     return;
   }
   const versionFw = String(release.tag_name || '').replace(/^v/, '');

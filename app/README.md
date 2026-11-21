@@ -95,12 +95,12 @@ importé avant l'ajout de ce fichier, un nouveau déploiement suffit à le prend
 en compte. La commande de build (`npm ci --prefix outils --omit=dev && node
 outils/preparer-publication.js`) écrit `version.json`, nomme le cache de
 l'agent de service d'après le commit, minifie les scripts (terser, cartes de
-sources à côté) et copie le firmware de la dernière release pour la page
-« Flasher un socle » ; sur un autre hébergeur, l'exécuter avant de publier.
+sources à côté) et copie le firmware de la dernière release pour l'atelier,
+qui l'installe ; sur un autre hébergeur, l'exécuter avant de publier.
 
 Netlify sert chaque page à deux adresses, avec et sans extension
 (`demo.html` aussi à `/demo`), et choisit les en-têtes d'après l'adresse
-demandée. Les règles propres à la démonstration et à la page de flashage sont
+demandée. Les règles propres à la démonstration et à l'atelier sont
 donc écrites pour les deux adresses ; `outils/verifier-netlify.js` (CI) vérifie
 qu'elles restent identiques et que chaque page reçoit une politique qui permet
 ce qu'elle contient.
@@ -126,8 +126,8 @@ mais tout le reste fonctionne.
 
 `atelier.html` (avec `atelier.js`, `atelier.css` et l'encodeur `qr.js`) est
 publiée avec l'application, sans lien depuis elle : c'est l'outil du monteur,
-pas de l'acheteur (la page « Flasher un socle » y mène, et elle n'est pas
-indexée). Montage en série, rodage et étiquettes : `docs/atelier.md`. Elle
+pas de l'acheteur, qui reçoit son socle monté (elle n'est pas indexée).
+Flashage, montage en série, rodage et étiquettes : `docs/atelier.md`. Elle
 demande Chrome ou Edge sur ordinateur (port série du navigateur), en HTTPS ou
 sur `localhost`.
 

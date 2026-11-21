@@ -2,7 +2,7 @@
   "ci": {
     "collect": {
       "staticDistDir": "./app",
-      "url": ["/index.html", "/aide.html", "/installer.html"],
+      "url": ["/index.html", "/aide.html"],
       "numberOfRuns": 1,
       "settings": {
         "chromeFlags": "--no-sandbox --headless=new",

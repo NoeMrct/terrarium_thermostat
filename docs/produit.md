@@ -39,9 +39,9 @@ Une liste de contrôle, pas un plan : chaque point se coche avant la première v
   liaison au serveur ou au broker, sondes identifiées, essai de chauffe,
   rodage, oubli du Wi-Fi du banc, étiquette à lien — avec un registre par lot
   (CSV) ; `outils/provisionner.js` en fait l'essentiel en une commande ;
-  flashage par la page web ou par USB ; fiche de démarrage rapide imprimée
-  (PDF de la release) dans la boîte ; `docs/securisation-serie.md` pour les
-  fusibles de l'ESP32 ; `outils/test-materiel.js` sur un exécuteur avec une
+  flashage par l'atelier (dans le navigateur) ou par l'IDE ; le socle part
+  monté, le manuel de l'utilisateur en PDF avec chaque release ;
+  `docs/securisation-serie.md` pour les fusibles de l'ESP32 ; `outils/test-materiel.js` sur un exécuteur avec une
   carte branchée pour que chaque release soit essayée sur du vrai matériel.
 - Pièces critiques avec leurs références exactes (MOSFET, bilame, thermofusible,
   fusible, convertisseur) et un fournisseur de secours.

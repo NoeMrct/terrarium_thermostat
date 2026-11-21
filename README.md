@@ -16,7 +16,8 @@ double-clic. Aucun serveur, aucun matériel — l'application réelle avec un so
 simulé dans la page. Le guide complet est dans `INSTALLATION.md` ; la notice
 technique, dans `docs/manuel.md` ; le guide de l'utilisateur, servi par
 l'application sous « Aide », dans `docs/guide.md`.
-Pour flasher une carte sans IDE : la page « Flasher un socle » du site.
+Pour flasher une carte sans IDE : la page Atelier du site (`/atelier`, réservée à l'équipe ;
+le socle se vend monté).
 
 ---
 
@@ -141,8 +142,8 @@ moniteur série à **115200 bauds** : le thermostat parle.
 
 Aucun réseau n'est configuré au départ. Trois façons de le donner :
 
-- **Par le câble, juste après le flashage** : la page « Flasher un socle » du
-  site propose de configurer le Wi-Fi (protocole Improv) ; c'est le plus court.
+- **Par le câble, juste après le flashage** : l'atelier règle le Wi-Fi du banc
+  par la console (protocole Improv) ; c'est le plus court.
 - **Par le point d'accès** que l'ESP32 ouvre tant qu'il n'a pas de réseau :
   **`terrarium-config-XXXXXX`** (les six derniers caractères de son
   identifiant), avec le mot de passe affiché sur l'écran du socle (propre à
@@ -425,8 +426,8 @@ distant ne revient à une version plus ancienne (anti-retour), même signée.
 Dans tous les cas, l'image installée n'est **validée qu'après 90 s** de
 fonctionnement normal : une mise à jour qui plante est annulée au redémarrage
 suivant, le socle revient à la version précédente et le dit (journal, alerte,
-interface, application). Au premier flashage sans câble ni IDE : la page
-« Flasher un socle » du site, par USB depuis Chrome.
+interface, application). Au premier flashage sans IDE : la page Atelier du
+site, par USB depuis Chrome.
 
 ## Écran qui se met en veille
 
@@ -1037,8 +1038,7 @@ défaut.
 | `app/icones/` | Icônes PNG de l'application installée — **fichiers générés**, voir `outils/generer-icones.js` |
 | `app/demo.html` | Démonstration autonome, ouvrable d'un double-clic — **fichier généré**, voir `outils/construire-demo.js` |
 | `app/aide.html`, `app/aide.en.html` | Le guide de l'utilisateur en français et en anglais, servi par l'application — **fichiers générés** depuis `docs/guide.md` et `docs/guide.en.md`, voir `outils/construire-aide.js` (la notice technique `docs/manuel.md` n'est pas servie) |
-| `app/demarrage-rapide.html` | Fiche de démarrage rapide imprimable (recto français, verso anglais), aussi en PDF dans chaque release |
-| `app/installer.html`, `app/installateur/` | Flashage d'un socle depuis le navigateur (ESP Web Tools, copie vérifiée par somme) |
+| `app/installateur/` | Fenêtre d'installation du firmware ouverte par l'atelier (ESP Web Tools, copie vérifiée par somme) |
 | `app/mentions-legales.html`, `app/confidentialite.html` (+ `.en.html`), `app/404.html` | Pages du site |
 | `serveur/` | Serveur auto-hébergé facultatif : broker MQTT avec comptes et droits par socle, historique, notifications push, administration (`serveur/README.md`) |
 | `INSTALLATION.md` | Guide d'installation, des trois niveaux à la mise en service |
