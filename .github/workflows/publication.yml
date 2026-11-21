@@ -27,7 +27,7 @@ permissions:
 jobs:
   release:
     name: Compiler, signer, publier
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Les secrets ne sont pas lisibles dans un « if » d'étape : ils passent par
     # l'environnement du job, et les étapes testent la variable.
     env:

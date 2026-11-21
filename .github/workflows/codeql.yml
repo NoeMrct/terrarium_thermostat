@@ -22,7 +22,7 @@ permissions:
 jobs:
   javascript:
     name: JavaScript
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: github/codeql-action/init@v3
@@ -36,7 +36,7 @@ jobs:
 
   firmware:
     name: C++ (firmware)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: arduino/setup-arduino-cli@v2

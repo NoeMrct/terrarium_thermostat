@@ -15,6 +15,12 @@
 #   serveur      le serveur auto-hébergeable (comptes, historique, push, console)
 #   firmware     compilation ESP32 reproductible sans avertissement, taille
 #   installateur intégrité de la copie d'ESP Web Tools
+#
+# Image des exécuteurs : ubuntu-24.04, épinglée, dans tous les workflows. Depuis
+# novembre 2026, ubuntu-latest est Ubuntu 26.04 : Playwright 1.56 (épinglé, les
+# références visuelles en dépendent) n'y installe pas Chromium, Mosquitto n'y
+# lit pas sa configuration et un cppcheck plus récent y relève de nouveaux
+# avertissements. Passer à 26.04 se fera d'un bloc, ces trois points traités.
 name: Vérification
 
 on:
@@ -31,7 +37,7 @@ permissions:
 jobs:
   banc-dessai:
     name: Bancs d'essai (PC)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -74,7 +80,7 @@ jobs:
 
   reseau:
     name: Protocole, application et interface web
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -200,7 +206,7 @@ jobs:
 
   navigateurs:
     name: Application dans ${{ matrix.moteur }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         moteur: [webkit, firefox]
@@ -232,7 +238,7 @@ jobs:
 
   serveur:
     name: Serveur auto-hébergeable
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -266,7 +272,7 @@ jobs:
 
   installateur:
     name: Intégrité de l'installateur web
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -275,7 +281,7 @@ jobs:
 
   firmware:
     name: Compilation ESP32
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
