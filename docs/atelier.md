@@ -63,9 +63,15 @@ registre.
 
 Branchez la carte en USB : l'étape démarre seule si Chrome connaît déjà le port ; sinon,
 « Nouveau socle » et choisissez le port. Une carte qui ne répond pas (vierge), ou dont le firmware est plus ancien
-que celui de la dernière release publiée, reçoit d'abord ce firmware : la fenêtre
-d'installation d'ESP Web Tools s'ouvre sur le même port (« Install », puis la fermer à la
-fin), et l'atelier reprend la console seul. L'installation est notée au journal du socle.
+que celui de la dernière release publiée, reçoit d'abord ce firmware, dans la fiche même : le
+moteur d'ESP Web Tools écrit la carte sur le même port, et une barre suit la connexion,
+l'effacement (carte vierge seulement : un socle identifié garde ses réglages et son code
+d'appairage), l'écriture (part écrite, temps restant) et le redémarrage ; puis l'atelier reprend
+la console seul. Une installation muette trop longtemps s'abandonne d'un bouton ; après un échec,
+la fenêtre d'ESP Web Tools (en anglais) reste proposée en secours. L'installation est notée au
+journal du socle. Chaque étape a sa barre : vérifications de la console, arrivée du socle sur le
+banc, identification des sondes (ce que la sonde serrée a pris), essais de chauffe (ce que la
+zone a gagné), rodage.
 L'atelier enchaîne alors :
 
 1. `jeton` et `version` : identifiant, code d'appairage, version du firmware et du protocole.
@@ -109,6 +115,10 @@ Avec le broker de l'atelier, c'est la page qui surveille, tant qu'elle reste ouv
 conclut à la fin de la même façon. Avec un redémarrage ou un défaut, le rodage échoue. On peut
 le recommencer, l'accepter malgré tout (c'est noté au journal du socle) ou mettre le socle de
 côté.
+
+**Passer le rodage** : un bouton de l'étape 4 l'arrête pour un socle, et le réglage « Passer le
+rodage » (Réglages de l'atelier) envoie chaque socle directement à l'étiquette après ses essais
+de chauffe. Dans les deux cas, c'est noté au journal du socle et au registre (« rodage passé »).
 
 ### 5. Étiquette et expédition
 
@@ -162,8 +172,10 @@ minutes sans réseau.
 |---|---|
 | Pas de port proposé | Le câble doit transporter les données (pas un câble de charge seul). Sous Windows, le pilote de la puce USB de la carte : CP210x ou CH340. |
 | « Le socle ne répond pas à jeton » | Aucun firmware publié à installer (pas encore de release, ou site pas redéployé depuis), ou la carte redémarre en boucle (bouton EN, puis regarder la console). |
-| La fenêtre d'installation ne trouve pas la carte | Maintenir le bouton BOOT de la carte pendant le « Install », puis le relâcher quand l'écriture commence. |
-| « Après l'installation, le socle ne répond pas » | Fenêtre fermée avant la fin : « Reprendre la console » recommence l'installation. |
+| « La carte ne répond pas à son chargeur » | Débrancher et rebrancher l'USB, puis « Reprendre la console » ; si ça recommence, maintenir le bouton BOOT de la carte en cliquant, et le relâcher quand la barre avance. |
+| « Après l'installation, le socle ne répond pas » | USB débranché pendant l'écriture (ou fenêtre de secours fermée trop tôt) : « Reprendre la console » recommence l'installation. |
+| Les deux sondes à « — » (0 °C), zones en défaut SONDE, dès que les tapis chauffent | La masse : le courant des tapis passe par la masse de la carte ou des sondes. Une seule masse, en étoile, sur le bornier du − de l'alimentation : sources des MOSFET et IN− du LM2596 y arrivent chacun par son fil ; le noir des sondes va au GND de la carte. Puis « Lever les défauts » (étape 3) ou `reset` en USB : le socle garde un défaut même après un redémarrage. |
+| Tapis qui ne chauffent pas | Le − du tapis va au drain du MOSFET, la source au bornier ; la masse de la carte doit rejoindre ce bornier (sans elle, la grille n'a pas de référence et le MOSFET ne conduit jamais). Zone en défaut : la lever d'abord. |
 | Wi-Fi du banc refusé | Mot de passe, ou réseau en 5 GHz seulement (l'ESP32 n'a que le 2,4 GHz) : la liste des réseaux captés le montre. |
 | « Ce compte n'a pas le rôle atelier » | Un administrateur le lui donne : console → Comptes → la fiche → « Donner le rôle atelier ». |
 | « Le code de ce socle est resté sur le poste qui l'a monté » | Continuer sur ce poste-là, ou « Reprendre sur ce poste » (USB, 12 V débranché). |

@@ -18,6 +18,7 @@
     "test:accessibilite": "node test-accessibilite.js",
     "test:qr": "make -C ../sim test-qr && node test-qr.js",
     "test:atelier": "node test-atelier.js",
+    "test:installation": "node test-installation.js",
     "lighthouse": "cd .. && node outils/preparer-publication.js --sans-firmware && outils/node_modules/.bin/lhci autorun --config=.lighthouserc.json ; git checkout -- app/app.js app/mqtt.js app/sw.js app/textes.en.js app/service.js && rm -f app/*.map app/version.json",
     "page:gz": "node compresser-page.js",
     "icones": "node generer-icones.js",

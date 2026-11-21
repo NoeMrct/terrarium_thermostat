@@ -35,9 +35,9 @@ app, alerts on your phone, home automation.
 The base is sold assembled: the firmware is installed at the workshop. The simplest way: the
 site's **Workshop** page (`/atelier`, for the assembly team only), in Chrome or Edge, on a
 computer. Plug the board in over USB, "Nouveau socle", pick the port: a blank or outdated board
-receives the firmware of the latest release (the "Install" window). On a new board, accept the
-full erase; on a base already in service, refuse it to keep the settings and the pairing code.
-The workshop then sets the **bench Wi-Fi** over the cable (Improv protocol) and carries on with
+receives the firmware of the latest release, followed in the page with a progress bar (about
+two minutes). A new board is erased first; a base already in service keeps its settings and its
+pairing code. The workshop then sets the **bench Wi-Fi** over the cable (Improv protocol) and carries on with
 the commissioning (`docs/atelier.md`).
 
 Without Chrome: the Arduino IDE, with the board settings described in the repository's

@@ -111,8 +111,35 @@ main.atelier > * + * { margin-top: 14px; }
 .mesures b { display: block; font-size: 22px; font-weight: 300; letter-spacing: -.02em; }
 .mesures span { font-size: 12px; color: var(--texte-2); }
 
-.compte-a-rebours { font-size: 28px; font-weight: 200; letter-spacing: -.02em; }
-.progres-rodage { display: block; width: 100%; height: 8px; accent-color: var(--accent); }
+/* Barres de progression : ce qui avance se voit (la partie remplie défile
+   tant que c'est en cours), ce qui traîne le dit (liseré et détail). */
+.barre { display: grid; gap: 7px; padding: 12px 14px; border-radius: var(--rayon-petit); background: var(--carte); }
+.barre-tete { display: flex; align-items: baseline; justify-content: space-between; gap: 6px 12px; flex-wrap: wrap; font-size: 14px; }
+.barre-libelle { font-weight: 600; overflow-wrap: anywhere; }
+.barre-valeur { color: var(--texte-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.barre progress {
+  -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 10px;
+  border: 0; border-radius: 99px; background: var(--creux); color: var(--accent); overflow: hidden;
+}
+.barre progress::-webkit-progress-bar { background: var(--creux); border-radius: 99px; }
+.barre progress::-webkit-progress-value {
+  border-radius: 99px; background-color: var(--accent); transition: width .5s ease;
+  background-image: linear-gradient(135deg, rgba(255,255,255,.28) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.28) 50%, rgba(255,255,255,.28) 75%, transparent 75%);
+  background-size: 20px 20px; animation: barre-rayures 1s linear infinite;
+}
+.barre progress::-moz-progress-bar { border-radius: 99px; background: var(--accent); }
+/* Sans part connue : un segment va et vient. */
+.barre progress:indeterminate {
+  background: var(--creux) linear-gradient(90deg, transparent, var(--accent), transparent) no-repeat;
+  background-size: 40% 100%; animation: barre-va-et-vient 1.4s ease-in-out infinite;
+}
+.barre progress:indeterminate::-webkit-progress-bar { background: transparent; }
+.barre progress:indeterminate::-moz-progress-bar { background: transparent; }
+.barre-detail { margin: 0; color: var(--texte-2); font-size: 12.5px; overflow-wrap: anywhere; }
+.barre[data-alerte="oui"] { box-shadow: inset 0 0 0 1.5px var(--attention); }
+.barre[data-alerte="oui"] .barre-detail { color: var(--texte); }
+@keyframes barre-rayures { to { background-position: 20px 0; } }
+@keyframes barre-va-et-vient { from { background-position: -60% 0; } to { background-position: 160% 0; } }
 .incidents { margin: 0; padding-left: 18px; font-size: 13px; }
 .incidents li[data-grave="true"] { color: var(--danger); }
 .mise-de-cote { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
@@ -154,4 +181,7 @@ main.atelier > * + * { margin-top: 14px; }
 
 @media (prefers-reduced-motion: reduce) {
   .coches li[data-etat="encours"]::before { animation: none; }
+  /* Sans animation, le temps affiché à côté, qui change chaque seconde, montre que ça vit. */
+  .barre progress::-webkit-progress-value, .barre progress:indeterminate { animation: none; transition: none; }
+  .barre progress:indeterminate { background-size: 100% 100%; }
 }

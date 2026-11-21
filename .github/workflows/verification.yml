@@ -173,6 +173,10 @@ jobs:
         working-directory: outils
         run: node test-atelier.js
 
+      - name: Atelier, installation du firmware dans la fiche (vrai moteur d'ESP Web Tools, vrai Chromium)
+        working-directory: outils
+        run: node test-installation.js
+
       - name: Lighthouse (performance, accessibilité, bonnes pratiques, SEO), sur la version minifiée
         # preparer-publication.js minifie app.js, mqtt.js et sw.js en place et
         # écrit version.json et les cartes de sources : tout est remis en l'état

@@ -185,7 +185,9 @@ class Client extends EventEmitter {
 class SocleBanc {
   constructor(b, o) {
     Object.assign(this, { prefixe: 'terrarium', uptime: 600, roms: ['28FF0000000000A1', '28FF0000000000B2'], echecIdent: new Set(), echecEssai: new Set(),
-      version: null, connaitExpedier: true }, o);
+      version: null, connaitExpedier: true, dureeIdent: 1500, dureeEssai: 200 }, o);
+    // Température de chaque sonde du bus, que les bancs font varier.
+    this.tempsSondes = Object.fromEntries(this.roms.map(r => [r, 23.5]));
     this.expedition = null;
     this.b = b; this.ident = null; this.identResultat = ''; this.essai = { zone: 0, resultat: '' };
     this.refus = 0; this.liaisons = [null, null]; this.zones = [{ temp: 24.1, consigne: 32, defaut: '0', defaut_libelle: 'OK' }, { temp: 22.0, consigne: 28, defaut: '0', defaut_libelle: 'OK' }];
@@ -213,7 +215,7 @@ class SocleBanc {
     switch (d.action) {
       case 'etat': return this.repondre(d.req, true, { uptime: this.uptime, zones: this.zones.map(x => ({ temp: x.temp, consigne: x.consigne, defaut: x.defaut === '1' ? x.defaut_libelle : null })) });
       case 'sondes': return this.repondre(d.req, true, { sondes: {
-        sondes: this.roms.map(r => ({ rom: r, temp: 23.5, zone: this.liaisons.indexOf(r) })), parasite: false,
+        sondes: this.roms.map(r => ({ rom: r, temp: this.tempsSondes[r], zone: this.liaisons.indexOf(r) })), parasite: false,
         liaisons: this.liaisons.map(r => (r ? { rom: r, presente: true } : null)),
         identification: this.ident !== null ? { zone: this.ident + 1, restantS: 117 } : null, resultat: this.identResultat } });
       case 'identifier':
@@ -224,7 +226,7 @@ class SocleBanc {
           const rom = this.roms[z];
           this.liaisons[z] = rom;
           this.identResultat = `Zone ${z + 1} : sonde ${rom} identifiee (+1.4 C). Sonde ${rom} liee a la zone ${z + 1}`;
-        }, 1500);
+        }, this.dureeIdent);
         return this.repondre(d.req, true, { message: `Zone ${z + 1} : serrez sa sonde dans la main` });
       case 'essai':
         if (z === undefined) return this.repondre(d.req, true, { essai: { zone: this.essai.zone, restantS: this.essai.zone ? 590 : 0, resultat: this.essai.resultat } });
@@ -233,8 +235,14 @@ class SocleBanc {
           this.essai = { zone: 0, resultat: this.echecEssai.has(z)
             ? `zone ${z + 1} : ECHEC, +0.1 C en 10 min. Verifier le 12 V, le tapis, son bilame, le MOSFET (D25), et que la sonde est bien sur la plaque.`
             : `zone ${z + 1} OK : sa sonde a pris +0.6 C en 1 min 05 s, l'autre rien. Tapis, MOSFET et sonde de cette zone sont bien associes.` };
-        }, 200);
-        return this.repondre(d.req, true, { message: `Zone ${z + 1} : chauffe seule a pleine puissance` });
+        }, this.dureeEssai);
+        // Le texte d'essai.cpp : l'atelier y lit la hausse attendue.
+        return this.repondre(d.req, true, { message: `Zone ${z + 1} : chauffe seule a pleine puissance, verdict des que sa sonde gagne 0.5 C (10 min au plus). Ne pas laisser sans surveillance.` });
+      // Lever les défauts (comme protocole.cpp) : les zones repartent, et le disent.
+      case 'reset':
+        this.reset = (this.reset || 0) + 1;
+        this.zones.forEach((x, i) => { Object.assign(x, { defaut: '0', defaut_libelle: 'OK' }); this.b.publier(`${this.base}/zone${i + 1}/etat`, JSON.stringify(x), false); });
+        return this.repondre(d.req, true, {});
       // Firmware 3.5.1 : fin d'atelier par le réseau (comme protocole.cpp).
       case 'expedier':
         if (!this.connaitExpedier) return this.repondre(d.req, false, { erreur: 'action inconnue' });
@@ -709,8 +717,8 @@ async function connecter(a, email) {
   await regler(f1, { url: 'https://app.exemple.fr/', ssid: '', wifiMdp: '', liaison: 'aucune', rodage: '1' });
   const installations = [];
   const c6 = new ConsoleSocle({ id: 'terraF6A7B8', code: 'WWWWWWXXXXXXYYYYYYZZZZZZ', vierge: true, firmware: null });
-  f1.A._installateur(async port => {
-    installations.push({ ouvertPendant: port.ouvert });
+  f1.A._installateur(async (port, o) => {
+    installations.push({ ouvertPendant: port.ouvert, effacer: o && o.effacer });
     Object.assign(c6, { vierge: false, firmware: '3.5.0' });
   });
   f1.brancher(c6);
@@ -718,13 +726,15 @@ async function connecter(a, email) {
   const rec6 = () => f1.A.registre().socles[c6.id];
   verifier('carte vierge : la fenêtre d\'installation s\'ouvre sur le port, puis l\'étape continue', await jusqua(() => rec6() && rec6().etape === 2, 8000)
     && installations.length === 1 && installations[0].ouvertPendant === false && rec6().firmware === '3.5.0', rec6() && rec6().echec ? rec6().echec.texte : '');
+  verifier('carte vierge : mémoire effacée avant l\'écriture', installations[0].effacer === true);
   verifier('l\'installation est notée au journal du socle', (rec6().journal || []).some(j => /Firmware 3\.5\.0 installé par l'atelier/.test(j.texte)));
   const c7 = new ConsoleSocle({ id: 'terraA7B8C9', code: 'GGGGGGHHHHHHJJJJJJKKKKKK', firmware: '3.4.0' });
-  f1.A._installateur(async () => { installations.push({}); c7.firmware = '3.5.0'; });
+  f1.A._installateur(async (port, o) => { installations.push({ effacer: o && o.effacer }); c7.firmware = '3.5.0'; });
   f1.brancher(c7);
   await f1.cliquer('[data-action="nouveau"]');
   const rec7 = () => f1.A.registre().socles[c7.id];
   verifier('firmware en retard (3.4.0) : mis à jour en 3.5.0', await jusqua(() => rec7() && rec7().etape === 2, 8000) && installations.length === 2 && rec7().firmware === '3.5.0');
+  verifier('socle identifié : mis à jour sans effacement (réglages et code gardés)', installations[1].effacer === false);
   const c8 = new ConsoleSocle({ id: 'terraB8C9D0', code: 'LLLLLLMMMMMMNNNNNNPPPPPP', firmware: '3.5.0' });
   f1.brancher(c8);
   await f1.cliquer('[data-action="nouveau"]');
@@ -930,6 +940,124 @@ async function connecter(a, email) {
   await xa.cliquer('#fiche [data-action="preparer-reseau"]');
   verifier('action inconnue : le message renvoie vers l\'USB, les deux chemins restent', await jusqua(() => xa.A.registre().socles[c31.id].echec && /USB/.test(xa.A.registre().socles[c31.id].echec.texte), 4000)
     && await jusqua(() => !!xa.$('#fiche [data-action="preparer"]')));
+
+  titre('19. Barres de progression ; fiche stable pendant les mesures');
+  // Les seuils dont l'atelier mesure l'avancement sont ceux du firmware.
+  const sourceAtelier = fs.readFileSync(path.join(DOSSIER, 'atelier.js'), 'utf8');
+  const constante = (texte, nom) => { const m = new RegExp(`\\b${nom}\\s*=\\s*(\\d+(?:\\.\\d+)?)`).exec(texte); return m ? parseFloat(m[1]) : NaN; };
+  const enTete = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  verifier('seuils de l\'atelier = ceux du firmware (identification, essai)',
+    constante(sourceAtelier, 'IDENT_ECART') === constante(enTete('liaisons.h'), 'IDENT_ECART')
+    && constante(sourceAtelier, 'ESSAI_HAUSSE') === constante(enTete('essai.h'), 'ESSAI_HAUSSE')
+    && constante(sourceAtelier, 'IDENTIFICATION_MS') === constante(enTete('sondes.h'), 'IDENTIFICATION_S') * 1000
+    && constante(sourceAtelier, 'ESSAI_MAX_MS') === constante(enTete('essai.h'), 'ESSAI_MS'));
+
+  const manifesteB = async (url) => (/firmware\/manifest\.json$/.test(url)
+    ? { ok: true, status: 200, json: async () => ({ name: 'Socle chauffant', version: '3.5.0', builds: [{ chipFamily: 'ESP32', parts: [] }] }) }
+    : { ok: false, status: 404, json: async () => ({}) });
+  const brokerB = new Broker();
+  const pb19 = creerAtelier({ broker: brokerB, fetch: manifesteB });
+  await regler(pb19, REGLAGES);
+  const barre19 = () => pb19.$('#fiche .barre');
+  const valeur19 = () => { const p = pb19.$('#fiche .barre progress'); return p && p.hasAttribute('value') ? p.value : null; };
+
+  // Une installation qui échoue : le message dit quoi faire, la fenêtre reste en secours.
+  const c40 = new ConsoleSocle({ id: 'terraE4E4E4', code: 'EEEEEEFFFFFFGGGGGGHHHHHH', firmware: '3.4.0' });
+  pb19.A._installateur(async () => ({ state: 'error', message: 'Failed to initialize. Try resetting your device.', details: { error: 'failed_initialize' } }));
+  pb19.brancher(c40);
+  await pb19.cliquer('[data-action="nouveau"]');
+  await pb19.cliquer('#fiche [data-action="console"]');
+  verifier('échec de l\'installation : expliqué en français', await jusqua(() => /ne répond pas à son chargeur/.test(pb19.texte('#fiche')), 8000), pb19.texte('#fiche').slice(0, 200));
+  verifier('… et la fenêtre d\'ESP Web Tools proposée en secours', !!pb19.$('#fiche [data-action="console-fenetre"]'));
+
+  // Une installation qui ne donne plus de nouvelles : la barre le dit, et l'on peut abandonner.
+  pb19.A._silences({ connexion: 150 });
+  pb19.A._installateur(async (port, o) => { o.suivre({ state: 'initializing', message: 'Initializing...', details: { done: false } }); return new Promise(() => {}); });
+  await pb19.cliquer('#fiche [data-action="console"]');
+  verifier('installation muette : la barre le dit et propose d\'abandonner', await jusqua(() => /Rien de neuf depuis/.test(pb19.texte('#fiche .barre'))
+    && pb19.$('#fiche .barre [data-action="abandonner-installation"]') && !pb19.$('#fiche .barre .boutons').hidden, 4000), pb19.texte('#fiche .barre'));
+  await pb19.cliquer('#fiche .barre [data-action="abandonner-installation"]');
+  verifier('… abandonnée : l\'atelier rend la main', await jusqua(() => /Installation abandonnée/.test(pb19.texte('#fiche')) && !!pb19.$('#fiche [data-action="console"]'), 4000), pb19.texte('#fiche').slice(0, 200));
+  pb19.A._silences({ connexion: 30000 });
+
+  // L'installation suivie dans la fiche : phase, part écrite, octets, puis la suite.
+  let relacher = null;
+  const options40 = [];
+  pb19.A._installateur(async (port, o) => {
+    options40.push(o);
+    o.suivre({ state: 'initializing', message: 'Initializing...', details: { done: false } });
+    o.suivre({ state: 'initializing', message: 'Initialized. Found ESP32', details: { done: true } });
+    o.suivre({ state: 'preparing', message: 'Preparing installation...', details: { done: false } });
+    o.suivre({ state: 'writing', message: 'Writing progress: 42%', details: { bytesTotal: 1000000, bytesWritten: 420000, percentage: 42 } });
+    await new Promise(r => { relacher = r; });
+    c40.firmware = '3.5.0';
+    return { state: 'finished', message: 'All done!' };
+  });
+  await pb19.cliquer('#fiche [data-action="console"]');
+  verifier('installation : barre en français, part écrite et taille', await jusqua(() => barre19() && /Firmware 3\.5\.0 : écriture 42 %/.test(pb19.texte('#fiche .barre'))
+    && /410 Ko sur 977 Ko/.test(pb19.texte('#fiche .barre')) && /ne débranche pas la carte/.test(pb19.texte('#fiche .barre')), 6000), pb19.texte('#fiche .barre'));
+  verifier('… la barre avance (part de toute l\'étape, en %)', valeur19() > 10 && valeur19() < 60 && /^\d+ %$/.test(pb19.texte('#fiche .barre-valeur')), `${valeur19()} ${pb19.texte('#fiche .barre-valeur')}`);
+  verifier('… sans fenêtre : rien n\'est ajouté à la page', !pb19.$('ewt-install-dialog') && options40[0] && options40[0].effacer === false);
+  relacher();
+  const rec40 = () => pb19.A.registre().socles[c40.id];
+  verifier('… puis l\'étape continue jusqu\'au banc', await jusqua(() => rec40() && rec40().etape === 2, 8000), rec40() && rec40().echec ? rec40().echec.texte : '');
+
+  // Arrivée sur le banc : la barre compte le temps.
+  pb19.A.choisir(c40.id);
+  verifier('en attente du banc : une barre et le temps écoulé', await jusqua(() => /En attente du socle sur le banc/.test(pb19.texte('#fiche .barre')) && /\d+ s/.test(pb19.texte('#fiche .barre-valeur')), 3000));
+
+  // Identification : ce que la sonde serrée a pris, sur 1 °C.
+  const banc40 = new SocleBanc(brokerB, { id: c40.id, code: c40.code, dureeIdent: 4000 });
+  banc40.enLigne();
+  await jusqua(() => pb19.A.vif(c40.id).inventaire, 4000);
+  await pb19.cliquer('#fiche [data-action="identifier"][data-zone="1"]');
+  await jusqua(() => banc40.ident === 0, 3000);
+  banc40.tempsSondes['28FF0000000000A1'] = 24.3;
+  verifier('identification : la barre montre ce que la sonde a pris', await jusqua(() => /0\.8 °C sur 1\.0 °C/.test(pb19.texte('#fiche .barre')) && Math.round(valeur19()) === 80, 4000),
+    `${pb19.texte('#fiche .barre')} ${valeur19()}`);
+  banc40.dureeIdent = 100;
+  banc40.tempsSondes['28FF0000000000A1'] = 23.5;
+  verifier('les deux zones liées : étape 3', await jusqua(() => rec40().etape === 3, 12000), rec40().echec ? rec40().echec.texte : '');
+
+  // Sonde muette : le socle publie 0 °C avec un défaut SONDE ; l'atelier affiche « — » et la piste.
+  await jusqua(() => !!pb19.$('#fiche [data-action="essais"]'), 3000);
+  brokerB.publier(`${banc40.base}/zone1/etat`, JSON.stringify({ temp: 0, consigne: 32, defaut: '1', defaut_libelle: 'SONDE' }), false);
+  verifier('sonde muette : « — » au lieu de 0 °C, et la piste du câblage', await jusqua(() => /Zone 1 sans mesure : sonde muette/.test(pb19.texte('#fiche'))
+    && /—/.test(pb19.texte('#fiche .mesures')) && !/0\.0 °C/.test(pb19.texte('#fiche .mesures')) && /—/.test(pb19.texte('#banc-grille')), 3000), pb19.texte('#fiche .mesures'));
+  verifier('… et l\'on peut lever les défauts d\'ici (ils survivent au redémarrage)', /lever les défauts/.test(pb19.texte('#fiche [data-action="lever-defauts"]')) && /garde/.test(pb19.texte('#fiche .erreur-code')));
+  await pb19.cliquer('#fiche [data-action="lever-defauts"]');
+  verifier('défauts levés : commande signée, la zone repart', await jusqua(() => banc40.reset === 1 && !/sans mesure/.test(pb19.texte('#fiche')) && !pb19.$('#fiche [data-action="lever-defauts"]'), 4000)
+    && banc40.refus === 0 && (rec40().journal || []).some(j => /Défauts levés depuis l'atelier/.test(j.texte)));
+
+  // Essai de chauffe : ce que la sonde de la zone a gagné, sur la hausse annoncée par le socle.
+  banc40.dureeEssai = 4000;
+  await jusqua(() => !!pb19.$('#fiche [data-action="essais"]'), 3000);
+  await pb19.cliquer('#fiche [data-action="essais"]');
+  await jusqua(() => banc40.essai.zone === 1, 3000);
+  brokerB.publier(`${banc40.base}/zone1/etat`, JSON.stringify({ ...banc40.zones[0], temp: 24.4 }), false);
+  verifier('essai : la barre montre ce que la zone a gagné', await jusqua(() => /\+0\.3 °C sur \+0\.5 °C/.test(pb19.texte('#fiche .barre')) && Math.round(valeur19()) === 60, 4000),
+    `${pb19.texte('#fiche .barre')} ${valeur19()}`);
+  verifier('… et dit le verdict attendu', /Verdict dès que sa sonde gagne 0\.5 °C/.test(pb19.texte('#fiche .barre')));
+
+  // Fiche stable : un volet ouvert reste ouvert, le focus reste en place, à chaque mesure.
+  const journal19 = () => [...pb19.w.document.querySelectorAll('#fiche details')].find(d => /Journal du socle/.test(d.querySelector('summary').textContent));
+  journal19().open = true;
+  journal19().querySelector('summary').focus();
+  brokerB.publier(`${banc40.base}/zone2/etat`, JSON.stringify({ ...banc40.zones[1], temp: 22.3 }), false);
+  await attendre(120);
+  verifier('nouvelle mesure : le journal reste ouvert', journal19() && journal19().open);
+  verifier('… et le focus reste sur lui', pb19.w.document.activeElement && pb19.w.document.activeElement.tagName === 'SUMMARY' && /Journal du socle/.test(pb19.w.document.activeElement.textContent));
+  banc40.dureeEssai = 100;
+  verifier('essais réussis : rodage, avec sa barre', await jusqua(() => rec40().etape === 4 && /Rodage en cours/.test(pb19.texte('#fiche .barre')), 12000) && valeur19() !== null);
+
+  // Passer le rodage : d'un bouton, noté au journal et au registre ; ou d'office, par réglage.
+  await pb19.cliquer('#fiche [data-action="passer-rodage"]');
+  verifier('rodage passé : le socle va à l\'étiquette, c\'est noté', await jusqua(() => rec40().etape === 5 && rec40().etat === 'pret', 3000)
+    && rec40().rodage.verdict.passe === true && (rec40().journal || []).some(j => /Rodage passé : passé par l'opérateur/.test(j.texte)));
+  await pb19.cliquer('[data-action="reglages"]');
+  pb19.$('#r-sans-rodage').checked = true;
+  await pb19.soumettre(pb19.$('#form-reglages'));
+  verifier('réglage « sans rodage » enregistré', pb19.A.registre().reglages.sansRodage === true && pb19.$('#reglages').hidden);
 
   console.log(`\n=== ATELIER (${reussites} reussite(s), ${echecs} echec(s)) ===`);
   process.exit(echecs ? 1 : 0);

@@ -4,8 +4,8 @@
    Cinq étapes par socle, suivies dans un registre gardé par ce navigateur :
 
      1. Console (USB, 12 V débranché) : une carte vierge, ou en retard sur le
-        firmware publié, le reçoit d'abord (fenêtre d'ESP Web Tools, sur le
-        même port) ; puis identité et code d'appairage (« jeton »), version,
+        firmware publié, le reçoit d'abord (le moteur d'ESP Web Tools, sur le
+        même port, suivi dans la fiche) ; puis identité et code d'appairage (« jeton »), version,
         auto-test usine, mot de passe de la page locale tiré ici et donné au
         socle, Wi-Fi du banc, liaison MQTT (compte d'appareil créé sur le
         serveur Terrariums, ou broker de l'atelier).
@@ -41,6 +41,13 @@
    capte (Improv série) ; la zone 1 reconnue, la zone 2 s'identifie aussitôt ;
    l'étiquette s'imprime dès qu'elle est prête.
 
+   Tout ce qui prend du temps a sa barre de progression : installation du
+   firmware (part écrite, temps restant), vérifications de la console (durées
+   attendues), arrivée du socle sur le banc, identification des sondes (ce que
+   la sonde serrée a pris), essais de chauffe (ce que la sonde a gagné),
+   rodage. Une attente plus longue que d'habitude le dit, avec la piste à
+   suivre : l'opérateur voit toujours si ça avance.
+
    Le DOM est écrit élément par élément (pas d'innerHTML) : la politique de
    sécurité du site exige les Trusted Types, et rien de ce qui vient de la
    console ou du broker n'est interprété comme du HTML.
@@ -62,7 +69,19 @@
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const LIGNE_MAX = 118;                               // tampon de la console du socle : 120 caractères
   const delais = { reponse: 10000, sondage: 2000, essai: 3000, rodageVerif: 30000, identite: 2500, essaisIdentite: 5,
-    synchro: 15000, envoi: 400, enchainement: 1500, scan: 10000, branchement: 800 };
+    synchro: 15000, envoi: 400, enchainement: 1500, scan: 10000, branchement: 800, finInstallation: 5000 };
+  // Durée habituelle de chaque vérification des procédures USB (ms) : la barre
+  // d'une procédure les additionne, et le temps écoulé fait avancer celle en
+  // cours sans jamais passer 95 % avant la réponse réelle.
+  const DUREES = { identite: 6000, firmware: 120000, reseau: 10000, usine: 32000, web: 3000, wifi: 15000, liaison: 4000,
+    broker: 3000, historique: 3000, expedier: 8000 };
+  // Ce qui, sans nouvelle, devient suspect (ms) : au-delà, la barre le dit.
+  const SILENCES = { connexion: 30000, preparation: 30000, effacement: 60000, ecriture: 20000, redemarrage: 15000 };
+  // Seuils du firmware, pour mesurer l'avancement : IDENT_ECART (liaisons.h),
+  // ESSAI_HAUSSE (essai.h), IDENTIFICATION_S (sondes.h) et ESSAI_MS (essai.h).
+  // test-atelier.js vérifie qu'ils concordent avec le firmware.
+  const IDENT_ECART = 1.0, ESSAI_HAUSSE = 0.5, IDENTIFICATION_MS = 120000, ESSAI_MAX_MS = 600000;
+  const ATTENTE_BANC_MS = 60000;                       // le socle rejoint le banc en une minute au plus
   const $ = s => document.querySelector(s);
   const lireJson = (stockage, cle) => { try { return JSON.parse(stockage.getItem(cle) || 'null'); } catch (e) { return null; } };
   const ecrireJson = (stockage, cle, v) => { try { if (v) stockage.setItem(cle, JSON.stringify(v)); else stockage.removeItem(cle); } catch (e) { /* stockage refusé */ } };
@@ -138,6 +157,7 @@
       serveur: { url: serveurDeploye, hote: '', port: 8883, ws: '' },
       broker: { ws: '', hote: '', port: 8883, prefixe: 'terrarium', utilisateur: '', oublier: true },
       rodageH: 24,
+      sansRodage: false,         // après les essais, directement à l'étiquette
       auto: true                 // une carte branchée lance l'étape qui l'attend
     };
   }
@@ -532,7 +552,24 @@
   const abonnes = new Set();
   const attentes = {};
   const vif = {};          // état vivant par socle : présence, zones, santé, tâche en cours
-  const vivant = id => (vif[id] = vif[id] || { enLigne: false, zones: [], sante: null, tache: null, inventaire: null });
+  const vivant = id => (vif[id] = vif[id] || { enLigne: false, zones: [], sante: null, tache: null, inventaire: null, absentDepuis: 0 });
+  // La température de chaque sonde du bus ({ rom: °C }), ou null sans mesure.
+  function tempsSondes(inv) {
+    if (!inv || !Array.isArray(inv.sondes)) return null;
+    const t = {};
+    for (const x of inv.sondes) if (x && x.temp !== null && Number.isFinite(Number(x.temp))) t[x.rom] = Number(x.temp);
+    return Object.keys(t).length ? t : null;
+  }
+  // La température d'une zone (1 ou 2) publiée par le socle, ou null. Sans
+  // mesure (sonde muette), le firmware publie 0 °C avec un défaut SONDE : ce
+  // n'est pas une température, l'atelier affiche « — ».
+  function tempZone(v, z) {
+    const x = v.zones[z - 1];
+    if (!x || x.temp === null || x.temp === undefined || !Number.isFinite(Number(x.temp))) return null;
+    const d = defautDe(x);
+    return d && /SONDE/i.test(d) ? null : Number(x.temp);
+  }
+  const texteTemp = (v, z) => { const t = tempZone(v, z); return t === null ? '—' : `${t.toFixed(1)} °C`; };
 
   function configBanc() {
     const r = reg.reglages;
@@ -646,6 +683,7 @@
       if (a) { clearTimeout(a.minuteur); delete attentes[j.req]; a.resoudre(j); }
       return;
     } else return;
+    if (v.enLigne) v.absentDepuis = 0;
     invaliderBanc();
     if (selection === id) invalider();
   }
@@ -681,12 +719,30 @@
 
   // ------------------------------------------------------- étape 1 : console
   // La procédure de console en cours (étape 1 ou 5), affichée dans la fiche.
-  let procedure = null;    // { id|null, etape, coches: [{ cle, texte, etat, detail }] }
+  // plan : les vérifications prévues (clés de DUREES), pour la barre.
+  let procedure = null;    // { id|null, etape, plan: [cle], coches: [{ cle, texte, etat, detail, debut }] }
   function coche(cle, texte, etat = 'encours', detail = '') {
     const c = procedure.coches.find(x => x.cle === cle);
-    if (c) Object.assign(c, { texte, etat, detail });
-    else procedure.coches.push({ cle, texte, etat, detail });
+    if (c) {
+      if (etat === 'encours' && c.etat !== 'encours') c.debut = Date.now();
+      Object.assign(c, { texte, etat, detail });
+    } else procedure.coches.push({ cle, texte, etat, detail, debut: Date.now() });
+    if (procedure.plan && !procedure.plan.includes(cle)) procedure.plan.push(cle);
     invalider();
+  }
+  // Un échec va à la vérification en cours la plus récente ; une autre encore
+  // en cours ne l'est plus : la fiche rend la main (« Reprendre la console »).
+  function cocheEchouee(texte) {
+    if (!procedure) return;
+    const enCours = procedure.coches.filter(x => x.etat === 'encours');
+    enCours.forEach((c, i) => { c.etat = 'echec'; if (i === enCours.length - 1) c.detail = texte; });
+  }
+  // Les vérifications de l'étape 1, selon les réglages : le Wi-Fi du banc et
+  // la liaison n'ont lieu que s'il y en a.
+  function planConsole() {
+    const r = reg.reglages;
+    return ['identite', ...(r.liaison !== 'aucune' || r.ssid ? ['reseau', 'wifi'] : []), 'usine', 'web',
+      ...(r.liaison === 'serveur' || r.liaison === 'broker' ? ['liaison'] : [])];
   }
 
   async function lireIdentite({ silencieux = false } = {}) {
@@ -721,10 +777,67 @@
     for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] - y[i];
     return 0;
   }
-  // La fenêtre d'installation d'ESP Web Tools sur le port de la console : la
-  // console le lui laisse, et le reprend quand la fenêtre se ferme. Les bancs
-  // d'essai la remplacent (Atelier._installateur).
-  let installateur = async port => {
+  // L'installation en cours, suivie dans la fiche (null hors installation) :
+  // { version, effacer, phase, debut, debutPhase, maj, ecrit, octets, total, puce }.
+  // phase : connexion, preparation, effacement, ecriture, redemarrage.
+  let installation = null;
+  // La prochaine installation passe par la fenêtre d'ESP Web Tools (en
+  // anglais) : le secours proposé après un échec dans la fiche.
+  let installationParFenetre = false;
+
+  // Le moteur d'ESP Web Tools (la copie vérifiée de app/installateur/) écrit
+  // la carte, mais sa fenêtre en anglais ne s'ouvre pas : l'élément n'est
+  // jamais inséré dans la page, on ne se sert que de son installation, dont
+  // chaque état (connexion, préparation, effacement, écriture, fin, erreur)
+  // arrive à `suivre`. outils/verifier-installateur.js contrôle que ce dont on
+  // se sert existe dans cette copie. Rend l'état final ({ state: 'finished' }
+  // ou { state: 'error', … }). Les bancs d'essai remplacent cette fonction
+  // (Atelier._installateur).
+  async function installateurPage(port, { effacer = false, suivre = () => {} } = {}) {
+    await import(DIALOGUE_INSTALLATION);
+    const rep = await fetch(MANIFESTE_FIRMWARE, { cache: 'no-store' });
+    if (!rep.ok) return { state: 'error', message: `manifeste : HTTP ${rep.status}`, details: { error: 'failed_firmware_download' } };
+    const manifeste = await rep.json();
+    const d = /** @type {any} */ (document.createElement('ewt-install-dialog'));
+    if (typeof d._confirmInstall !== 'function' || typeof d._initialize !== 'function') return installateurFenetre(port);
+    // Le port tel que le moteur le voit : après la fin (ou une erreur), la
+    // fenêtre le rouvrirait pour relire la carte ; la console de l'atelier
+    // s'en charge.
+    let fini = false;
+    const vu = {
+      getInfo: () => port.getInfo(),
+      setSignals: s => port.setSignals(s),
+      open: o => (fini ? Promise.resolve() : port.open(o)),
+      close: () => (port.readable || port.writable ? port.close() : Promise.resolve()),
+      get readable() { return port.readable; },
+      get writable() { return port.writable; }
+    };
+    let etat;
+    const final = new Promise(resoudre => {
+      Object.defineProperty(d, '_installState', {
+        configurable: true,
+        get: () => etat,
+        set: v => {
+          etat = v;
+          if (!v) return;
+          if (v.state === 'finished' || v.state === 'error') { fini = true; resoudre(v); }
+          try { suivre(v); } catch (e) { /* l'affichage ne doit pas casser l'installation */ }
+        }
+      });
+    });
+    d._initialize = async () => { d._client = null; };
+    Object.assign(d, { port: vu, manifestPath: MANIFESTE_FIRMWARE, _manifest: manifeste, _installErase: !!effacer });
+    await d._confirmInstall();
+    const v = await final;
+    // Le moteur ferme le port de lui-même (juste après le signalement d'une erreur) : on l'attend.
+    const limite = Date.now() + delais.finInstallation;
+    while ((port.readable || port.writable) && Date.now() < limite) await attendre(50);
+    if (port.readable || port.writable) { try { await port.close(); } catch (e) { /* déjà fermé */ } }
+    return v;
+  }
+  // Le secours : la fenêtre d'installation d'ESP Web Tools, en anglais, sur
+  // le port de la console (« Install », puis la fermer à la fin).
+  async function installateurFenetre(port) {
     await import(DIALOGUE_INSTALLATION);
     await port.open({ baudRate: 115200, bufferSize: 8192 });
     await new Promise(resoudre => {
@@ -735,25 +848,89 @@
       document.body.appendChild(d);
     });
     try { await port.close(); } catch (e) { /* déjà fermé */ }
-  };
-  async function installerFirmware(version) {
+    return null;
+  }
+  let installateur = installateurPage;
+
+  // Chaque état du moteur fait avancer la barre ; un changement de phase
+  // redessine la fiche, une simple avancée ne touche que la barre.
+  const PHASES = { initializing: 'connexion', preparing: 'preparation', erasing: 'effacement', writing: 'ecriture', finished: 'redemarrage' };
+  function suivreInstallation(v) {
+    const i = installation;
+    if (!i || !v) return;
+    const maintenant = Date.now();
+    i.maj = maintenant;
+    const phase = PHASES[v.state];
+    const change = !!phase && phase !== i.phase;
+    if (change) { i.phase = phase; i.debutPhase = maintenant; }
+    const d = v.details || {};
+    if (v.state === 'writing') {
+      if (d.bytesTotal) i.total = d.bytesTotal;
+      if (typeof d.bytesWritten === 'number') i.octets = d.bytesWritten;
+      if (typeof d.percentage === 'number') i.ecrit = Math.max(0, Math.min(1, d.percentage / 100));
+    }
+    const puce = v.state === 'initializing' && /Found (\S+)/.exec(v.message || '');
+    if (puce) i.puce = puce[1];
+    if (change) invalider(); else majBarres();
+  }
+  // Ce qu'un échec du moteur veut dire, et quoi faire.
+  function erreurInstallation(v) {
+    const d = v.details || {}, brut = String(v.message || '').trim();
+    switch (d.error) {
+      case 'failed_initialize':
+        return 'La carte ne répond pas à son chargeur : débranche et rebranche l\'USB, puis « Reprendre la console ». Si ça recommence, maintiens le bouton BOOT de la carte en cliquant, et relâche-le quand la barre avance.';
+      case 'not_supported':
+        return `Cette carte n'est pas un ESP32 classique (${d.details || brut || '?'}) : le firmware publié ne s'y installe pas.`;
+      case 'failed_firmware_download':
+        return `Firmware publié introuvable (${brut || 'téléchargement impossible'}) : connexion Internet ? Puis « Reprendre la console ».`;
+      case 'write_failed':
+        return `Écriture interrompue (${brut || 'raison inconnue'}) : câble USB débranché ou fatigué ? Rebranche-le, puis « Reprendre la console ».`;
+      default:
+        return `Installation interrompue : ${brut || 'raison inconnue'}. « Reprendre la console » pour recommencer.`;
+    }
+  }
+  async function installerFirmware(version, { effacer = false } = {}) {
     const port = serie.port;
     await fermerConsole(serie);
-    message(`Firmware ${version} : clique « Install » dans la fenêtre, puis ferme-la à la fin.`);
-    try { await installateur(port); }
-    finally { await ouvrirConsole(port); }
+    const fenetre = installationParFenetre;
+    installationParFenetre = false;
+    const t = Date.now();
+    const i = installation = { version, effacer, fenetre, phase: fenetre ? 'fenetre' : 'connexion', debut: t, debutPhase: t, maj: t, ecrit: 0, octets: 0, total: 0, puce: '', abandonner: null };
+    // Une installation muette trop longtemps s'abandonne d'un bouton : l'atelier
+    // rend la main, le moteur s'arrêtera de lui-même au débranchement de l'USB.
+    const abandon = new Promise((_, rejeter) => { i.abandonner = () => rejeter(new Error('Installation abandonnée : débranche l\'USB, rebranche-le, puis « Reprendre la console ».')); });
+    invalider();
+    if (fenetre) message(`Firmware ${version} : dans la fenêtre d'ESP Web Tools, « Install », puis ferme-la à la fin.`);
+    let erreur = null, abandonnee = false;
+    try {
+      const fin = await Promise.race([fenetre ? installateurFenetre(port) : installateur(port, { effacer, suivre: e => { if (installation === i) suivreInstallation(e); } }), abandon]);
+      if (fin && fin.state === 'error') throw new Error(erreurInstallation(fin));
+      if (installation === i) Object.assign(i, { phase: 'redemarrage', debutPhase: Date.now(), maj: Date.now(), ecrit: 1, abandonner: null });
+      invalider();
+    } catch (e) { erreur = e; abandonnee = /abandonnée/.test(e.message || ''); }
+    i.abandonner = null;
+    // Après un abandon, le moteur tient peut-être encore le port : la console attendra le rebranchement.
+    if (!abandonnee) { try { await ouvrirConsole(port); } catch (e) { if (!erreur) erreur = e; } }
+    if (erreur) throw erreur;
   }
   // L'identité du socle ; une carte vierge, ou un firmware plus ancien que
-  // celui publié, passe d'abord par l'installation.
+  // celui publié, passe d'abord par l'installation. Une carte qui ne répond
+  // pas est effacée avant l'écriture ; un socle identifié garde ses réglages
+  // et son code d'appairage.
   async function identiteAJour(dejaLue) {
     let ident = dejaLue !== undefined ? dejaLue : await lireIdentite({ silencieux: true });
     const publiee = await versionPubliee();
     if (ident && (!publiee || !ident.firmware || comparerVersions(ident.firmware, publiee) >= 0)) return ident;
     if (!publiee) throw new Error('Le socle ne répond pas à « jeton », et aucun firmware publié n\'est à installer : câble de données ? (bouton EN pour redémarrer la carte)');
+    coche('identite', ident ? `${ident.id} · firmware ${ident.firmware || '?'}, plus ancien que celui publié` : 'Carte sans firmware (vierge, ou qui ne répond pas)', 'fait');
     coche('firmware', ident ? `Mise à jour du firmware ${ident.firmware} vers ${publiee}` : `Installation du firmware ${publiee}`);
-    await installerFirmware(publiee);
-    ident = await lireIdentite({ silencieux: true });
-    if (!ident) throw new Error('Après l\'installation, le socle ne répond pas : fenêtre fermée trop tôt ? « Reprendre la console » pour recommencer.');
+    try {
+      await installerFirmware(publiee, { effacer: !ident });
+      ident = await lireIdentite({ silencieux: true });
+    } finally {
+      installation = null;
+    }
+    if (!ident) throw new Error('Après l\'installation, le socle ne répond pas : USB débranché pendant l\'écriture, ou fenêtre fermée trop tôt ? « Reprendre la console » pour recommencer.');
     if (comparerVersions(ident.firmware, publiee) < 0) throw new Error(`Le socle est toujours en ${ident.firmware} : installation annulée ? « Reprendre la console » pour recommencer.`);
     coche('firmware', `Firmware ${ident.firmware} installé`, 'fait');
     return { ...ident, installe: true };
@@ -852,7 +1029,7 @@
     if (pb) { message(pb, true); ouvrirReglages(); return; }
     try { await ouvrirConsole(port); }
     catch (e) { if (e && e.name !== 'NotFoundError') message(e.message || String(e), true); return; }
-    procedure = { id: idAttendu || null, etape: 1, coches: [] };
+    procedure = { id: idAttendu || null, etape: 1, plan: planConsole(), coches: [] };
     let rec = idAttendu ? socle(idAttendu) : null;
     try {
       coche('identite', 'Identité du socle');
@@ -935,8 +1112,7 @@
       relierBanc();
     } catch (e) {
       const texte = e && e.message ? e.message : String(e);
-      const c = procedure && procedure.coches.find(x => x.etat === 'encours');
-      if (c) { c.etat = 'echec'; c.detail = texte; }
+      cocheEchouee(texte);
       if (rec) echouer(rec, 1, texte); else invalider();
       message(texte, true);
     }
@@ -960,19 +1136,22 @@
     const v = vivant(rec.id);
     if (v.tache) return;
     let suivante = null;
-    v.tache = { type: 'identifier', zone: z, fin: Date.now() + 120000 };
+    // depart : la température de chaque sonde au lancement, pour montrer ce
+    // que prend celle qu'on serre (le firmware compare de même).
+    v.tache = { type: 'identifier', zone: z, fin: Date.now() + IDENTIFICATION_MS, depart: tempsSondes(v.inventaire) };
     rec.echec = null;
     invalider();
     try {
       const r = await commander(rec, 'identifier', { z: z - 1 });
       if (!r.ok) throw new Error(r.erreur || r.message || 'refusé');
-      const limite = Date.now() + 135000;
+      const limite = Date.now() + IDENTIFICATION_MS + 15000;
       let resultat = '';
       await attendre(1000);
       while (Date.now() < limite) {
         const s_ = await commander(rec, 'sondes');
         const inv = s_.sondes || {};
         v.inventaire = inv;
+        if (v.tache && !v.tache.depart) v.tache.depart = tempsSondes(inv);
         if (inv.identification && inv.identification.zone === z) {
           v.tache.fin = Date.now() + inv.identification.restantS * 1000;
           invalider();
@@ -1014,6 +1193,21 @@
   }
 
   // ------------------------------------------------------ étape 3 : chauffe
+  // Lever les défauts (action « reset », signée) : le socle les garde même
+  // après un redémarrage, pour ne jamais rechauffer seul une zone en panne.
+  async function leverDefauts(rec) {
+    try {
+      const r = await commander(rec, 'reset');
+      if (!r.ok) throw new Error(r.erreur || r.message || 'refusé');
+      noter(rec, 'Défauts levés depuis l\'atelier');
+      sauver();
+      message(`${rec.id} : défauts levés. S'ils reviennent, la cause est toujours là (câblage des sondes, masse).`);
+    } catch (e) {
+      message(`Lever les défauts : ${e.message}`, true);
+    }
+    invalider();
+  }
+
   async function essais(rec) {
     const v = vivant(rec.id);
     if (v.tache) return;
@@ -1021,10 +1215,14 @@
     rec.chauffe = [];
     try {
       for (let z = 1; z <= NB_ZONES; z++) {
-        v.tache = { type: 'essai', zone: z, fin: Date.now() + 600000 };
+        // depart : la température de la zone au lancement ; hausse : ce que sa
+        // sonde doit gagner pour le verdict (le socle le dit en lançant l'essai).
+        v.tache = { type: 'essai', zone: z, debut: Date.now(), fin: Date.now() + ESSAI_MAX_MS, depart: tempZone(v, z), hausse: ESSAI_HAUSSE };
         invalider();
         const r = await commander(rec, 'essai', { z: z - 1 });
         if (!r.ok) throw new Error(`Zone ${z} : ${r.erreur || r.message || 'essai refusé'}`);
+        const gagne = /gagne (\d+(?:\.\d+)?) C/.exec(r.message || '');
+        if (gagne && v.tache) v.tache.hausse = parseFloat(gagne[1]);
         const limite = Date.now() + 11 * 60000;
         let resultat = '';
         while (Date.now() < limite) {
@@ -1039,8 +1237,13 @@
         sauver();
         if (!ok) throw new Error(resultat ? `Essai de chauffe : ${resultat}` : `Zone ${z} : pas de verdict en 11 min.`);
       }
-      demarrerRodage(rec);
-      message(`${rec.id} : essais réussis, rodage de ${reg.reglages.rodageH} h lancé.`);
+      if (reg.reglages.sansRodage) {
+        passerRodage(rec, 'sans rodage (réglage de l\'atelier)');
+        message(`${rec.id} : essais réussis ; sans rodage, place à l'étiquette.`);
+      } else {
+        demarrerRodage(rec);
+        message(`${rec.id} : essais réussis, rodage de ${reg.reglages.rodageH} h lancé.`);
+      }
     } catch (e) {
       echouer(rec, 3, e.message);
       message(e.message, true);
@@ -1056,6 +1259,18 @@
     rec.rodage = { debut, fin: debut + (+reg.reglages.rodageH || 24) * 3600000, incidents: [], verdict: null };
     noter(rec, `Rodage lancé (${reg.reglages.rodageH} h)`);
     sauver();
+  }
+
+  // Passer le rodage (bouton de l'étape 4, ou réglage « sans rodage ») : c'est
+  // noté au journal du socle et au registre, et le socle va à l'étiquette.
+  function passerRodage(rec, texte) {
+    const t = Date.now();
+    if (!rec.rodage) rec.rodage = { debut: t, fin: t, incidents: [], verdict: null };
+    rec.rodage.verdict = { ok: true, texte, t, passe: true };
+    noter(rec, `Rodage passé : ${texte}`);
+    Object.assign(rec, { etat: 'pret', etape: 5, echec: null });
+    sauver();
+    invalider();
   }
 
   async function conclureRodage(rec, force = '') {
@@ -1130,7 +1345,8 @@
   async function preparerExpedition(rec, { port = null, ident: identLue = null } = {}) {
     try { await ouvrirConsole(port); }
     catch (e) { if (e && e.name !== 'NotFoundError') message(e.message || String(e), true); return; }
-    procedure = { id: rec.id, etape: 5, coches: [] };
+    procedure = { id: rec.id, etape: 5, coches: [],
+      plan: ['identite', ...(rec.web ? [] : ['web']), 'wifi', ...(rec.liaison === 'broker' && reg.reglages.broker.oublier ? ['broker'] : []), 'historique'] };
     try {
       coche('identite', 'Identité du socle');
       const ident = identLue || await lireIdentite();
@@ -1174,8 +1390,7 @@
       message(`${rec.id} : étiquette à l'impression. Colle-la, puis « Étiquette collée ».`);
       imprimerEtiquette(rec);
     } catch (e) {
-      const c = procedure && procedure.coches.find(x => x.etat === 'encours');
-      if (c) { c.etat = 'echec'; c.detail = e.message; }
+      cocheEchouee(e.message);
       echouer(rec, 5, e.message);
       message(e.message, true);
     }
@@ -1197,7 +1412,7 @@
     const v = vivant(rec.id);
     if (v.tache || procedure) return;
     v.tache = { type: 'expedier' };
-    procedure = { id: rec.id, etape: 5, coches: [] };
+    procedure = { id: rec.id, etape: 5, plan: ['expedier'], coches: [] };
     try {
       coche('expedier', 'Oubli du Wi-Fi du banc et de l\'historique, par le réseau');
       const broker = rec.liaison === 'broker' && reg.reglages.broker.oublier;
@@ -1238,7 +1453,7 @@
   async function reprendreIci(rec, { port = null, ident: identLue = null } = {}) {
     try { await ouvrirConsole(port); }
     catch (e) { if (e && e.name !== 'NotFoundError') message(e.message || String(e), true); return; }
-    procedure = { id: rec.id, etape: 'reprise', coches: [] };
+    procedure = { id: rec.id, etape: 'reprise', plan: ['identite', ...(rec.web ? [] : ['web'])], coches: [] };
     try {
       coche('identite', 'Identité du socle');
       const ident = identLue || await lireIdentite();
@@ -1256,8 +1471,7 @@
       procedure = null;
       message(`${rec.id} repris sur ce poste : débranche l'USB, rebranche le 12 V.`);
     } catch (e) {
-      const c = procedure && procedure.coches.find(x => x.etat === 'encours');
-      if (c) { c.etat = 'echec'; c.detail = e.message; }
+      cocheEchouee(e.message);
       message(e.message, true);
     }
     invalider();
@@ -1411,6 +1625,198 @@
   function coches(liste) {
     return h('ul', { class: 'coches' }, liste.map(c => h('li', { 'data-etat': c.etat }, h('span', {}, c.texte, c.detail ? h('span', { class: 'detail' }, c.detail) : null))));
   }
+
+  // ------------------------------------------------- barres de progression
+  // Une barre se recalcule chaque seconde sans redessiner la fiche. Sa
+  // fonction rend { libelle, part (0 à 1, ou null : indéterminée), valeur,
+  // detail, alerte } : ce qui se passe, où l'on en est, ce qui reste ou ce
+  // qu'il faut vérifier.
+  let barres = [];
+  function barre(calcul) {
+    const el = h('div', { class: 'barre' },
+      h('div', { class: 'barre-tete' }, h('span', { class: 'barre-libelle' }), h('span', { class: 'barre-valeur' })),
+      h('progress', { max: 100 }),
+      h('p', { class: 'barre-detail' }),
+      h('div', { class: 'boutons', hidden: true }, bouton('', '', {}, 'btn btn-secondaire btn-petit')));
+    const b = { el, calcul };
+    appliquerBarre(b);
+    barres.push(b);
+    return el;
+  }
+  function appliquerBarre(b) {
+    let v;
+    try { v = b.calcul(); } catch (e) { return; }
+    if (!v) return;
+    const [tete, prog, detail, actions] = /** @type {HTMLElement[]} */ ([...b.el.children]);
+    const [lib, val] = /** @type {HTMLElement[]} */ ([...tete.children]);
+    const p = /** @type {HTMLProgressElement} */ (prog);
+    if (lib.textContent !== v.libelle) lib.textContent = v.libelle;
+    const valeur = v.valeur || '';
+    if (val.textContent !== valeur) val.textContent = valeur;
+    if (v.part === null || v.part === undefined) p.removeAttribute('value');
+    else p.value = Math.round(Math.max(0, Math.min(1, v.part)) * 1000) / 10;
+    p.setAttribute('aria-label', v.libelle);
+    if (valeur) p.setAttribute('aria-valuetext', valeur); else p.removeAttribute('aria-valuetext');
+    const d = v.detail || '';
+    if (detail.textContent !== d) detail.textContent = d;
+    detail.hidden = !d;
+    b.el.dataset.alerte = v.alerte ? 'oui' : 'non';
+    // Un bouton seulement quand il sert (abandonner une installation muette).
+    const btn = /** @type {HTMLButtonElement} */ (actions.firstElementChild);
+    actions.hidden = !v.bouton;
+    if (v.bouton) { if (btn.textContent !== v.bouton.texte) btn.textContent = v.bouton.texte; btn.dataset.action = v.bouton.action; }
+  }
+  function majBarres() {
+    barres = barres.filter(b => b.el.isConnected);
+    barres.forEach(appliquerBarre);
+  }
+  const pourcent = p => `${Math.floor(Math.max(0, Math.min(1, p)) * 100)} %`;
+  const taille = n => (n >= 1048576 ? `${(n / 1048576).toFixed(2).replace('.', ',')} Mo` : `${Math.round(n / 1024)} Ko`);
+  const degres = x => `${x >= 0 ? '+' : '−'}${Math.abs(x).toFixed(1)} °C`;
+
+  // Où en est une procédure USB : la part faite (durées habituelles de ses
+  // vérifications), celle en cours, ou l'attente d'un choix de l'opérateur.
+  function avancement(proc) {
+    const plan = proc.plan && proc.plan.length ? proc.plan : proc.coches.map(c => c.cle);
+    const poids = k => DUREES[k] || 5000;
+    const total = plan.reduce((s, k) => s + poids(k), 0) || 1;
+    const derniere = proc.coches[proc.coches.length - 1];
+    const attente = choixWifi && derniere && derniere.etat === 'attention' ? derniere : null;
+    let fait = 0, courante = null;
+    for (const c of proc.coches) {
+      if (!plan.includes(c.cle) || c === attente || c.etat === 'echec') continue;
+      if (c.etat === 'encours') { courante = c; fait += poids(c.cle) * partCoche(c); }
+      else fait += poids(c.cle);                    // faite, ou signalée sans bloquer
+    }
+    return { part: Math.min(1, fait / total), courante, attente };
+  }
+  function partCoche(c) {
+    if (c.cle === 'firmware' && installation) return partInstallation(installation);
+    return Math.min(0.95, (Date.now() - (c.debut || Date.now())) / (DUREES[c.cle] || 5000));
+  }
+  // Une installation, de 0 à 1 : connexion et téléchargement comptent pour
+  // peu, l'effacement (carte vierge) un peu plus, l'écriture pour l'essentiel,
+  // suivie octet par octet.
+  function partInstallation(i) {
+    if (i.phase === 'fenetre') return 0;
+    const bornes = i.effacer
+      ? { connexion: [0, 0.06], preparation: [0.06, 0.1], effacement: [0.1, 0.25], ecriture: [0.25, 0.97], redemarrage: [0.97, 1] }
+      : { connexion: [0, 0.06], preparation: [0.06, 0.1], ecriture: [0.1, 0.97], redemarrage: [0.97, 1] };
+    const attendus = { connexion: 8000, preparation: 3000, effacement: 20000, redemarrage: 10000 };
+    const [a, b] = bornes[i.phase] || [0, 0];
+    const dans = i.phase === 'ecriture' ? i.ecrit || 0 : Math.min(0.9, (Date.now() - i.debutPhase) / (attendus[i.phase] || 10000));
+    return a + (b - a) * dans;
+  }
+  // Ce que dit la barre pendant l'installation du firmware.
+  function etatInstallation(i) {
+    const maintenant = Date.now(), dansPhase = maintenant - i.debutPhase, v = i.version;
+    let libelle, detail;
+    if (i.phase === 'fenetre') {
+      return { libelle: `Firmware ${v} : fenêtre d'ESP Web Tools`, part: null,
+        detail: 'Dans la fenêtre (en anglais) : « Install », puis ferme-la quand elle affiche « Installation complete! ».' };
+    }
+    switch (i.phase) {
+      case 'connexion':
+        libelle = `Firmware ${v} : connexion à la carte`;
+        detail = `Le chargeur de l'ESP32 répond d'habitude en quelques secondes (${secondes(dansPhase / 1000)}).`;
+        break;
+      case 'preparation':
+        libelle = `Firmware ${v} : téléchargement`;
+        detail = `${i.puce ? `Carte ${i.puce} reconnue. ` : ''}Le firmware publié arrive.`;
+        break;
+      case 'effacement':
+        libelle = `Firmware ${v} : effacement de la mémoire`;
+        detail = `Carte neuve : sa mémoire est vidée avant l'écriture, une trentaine de secondes au plus (${secondes(dansPhase / 1000)}).`;
+        break;
+      case 'ecriture': {
+        libelle = `Firmware ${v} : écriture ${Math.floor((i.ecrit || 0) * 100)} %`;
+        const debit = i.octets / Math.max(1, dansPhase);
+        const reste = debit > 0 && i.total && i.octets > i.total * 0.03 ? (i.total - i.octets) / debit : null;
+        detail = `${taille(i.octets)} sur ${taille(i.total)}${reste !== null && reste >= 1000 ? ` · encore ${secondes(reste / 1000)} environ` : ''} · ne débranche pas la carte.`;
+        break;
+      }
+      default:
+        libelle = `Firmware ${v} écrit : la carte redémarre`;
+        detail = 'L\'atelier reprend la console et relit son identité.';
+    }
+    const silence = maintenant - i.maj;
+    const alerte = silence > (SILENCES[i.phase] || 30000);
+    if (alerte) detail = `Rien de neuf depuis ${secondes(silence / 1000)} : câble USB bien branché ? S'il a bougé, abandonne, rebranche-le, puis « Reprendre la console ».`;
+    return { libelle, detail, alerte, bouton: alerte && i.abandonner ? { texte: 'Abandonner l\'installation', action: 'abandonner-installation' } : null };
+  }
+  // La piste à suivre quand une vérification traîne.
+  const PISTES = {
+    identite: 'carte qui redémarre en boucle (bouton EN), ou câble de charge sans données ?',
+    reseau: 'le socle passe en revue les réseaux Wi-Fi qu\'il capte.',
+    usine: 'l\'auto-test s\'arrête de lui-même au bout de 40 s.',
+    wifi: 'réseau du banc à portée ? mot de passe ? (35 s au plus)',
+    liaison: 'serveur ou broker joignable ?',
+    expedier: 'le socle est-il toujours en ligne sur le banc ?'
+  };
+  // La barre d'une procédure USB (étapes 1 et 5, reprise d'un socle).
+  function barreProcedure(proc) {
+    return barre(() => {
+      const { part, courante, attente } = avancement(proc);
+      const valeur = pourcent(part);
+      if (attente) return { libelle: 'À toi : choisis le Wi-Fi du banc', part, valeur, detail: 'La suite attend ce choix.' };
+      if (!courante) return { libelle: proc.coches.some(c => c.etat === 'echec') ? 'Interrompu' : 'Terminé', part, valeur };
+      if (courante.cle === 'firmware' && installation) return { ...etatInstallation(installation), part, valeur };
+      const ecoule = Date.now() - (courante.debut || Date.now()), d = DUREES[courante.cle] || 5000;
+      const long = ecoule > d * 1.3 + 3000;
+      return { libelle: courante.texte, part, valeur, alerte: long,
+        detail: `${secondes(ecoule / 1000)}${d >= 8000 ? `, d'habitude ${secondes(d / 1000)} environ` : ''}`
+          + (long ? ` — plus long que d'habitude${PISTES[courante.cle] ? ' : ' + PISTES[courante.cle] : '.'}` : '') };
+    });
+  }
+  // Le socle n'est pas (encore) sur le banc : il le rejoint en une minute.
+  function barreAttenteBanc(rec, v) {
+    if (!v.absentDepuis) v.absentDepuis = Date.now();
+    const lien = rec.liaison === 'serveur' ? 'serveur' : 'broker';
+    return barre(() => {
+      const ecoule = Date.now() - (v.absentDepuis || Date.now());
+      const long = ecoule > ATTENTE_BANC_MS * 1.5;
+      return { libelle: 'En attente du socle sur le banc', part: Math.min(0.95, ecoule / ATTENTE_BANC_MS), valeur: secondes(ecoule / 1000), alerte: long,
+        detail: long ? `Toujours absent : USB débranché et 12 V branché ? Wi-Fi du banc à portée ? ${lien === 'serveur' ? 'Serveur' : 'Broker'} joignable ?`
+          : `USB débranché, 12 V branché : il rejoint le Wi-Fi du banc puis le ${lien}, en une minute au plus.` };
+    });
+  }
+  // L'écart le plus grand pris par une sonde du bus depuis le lancement de
+  // l'identification (le firmware compare de même), ou null sans mesure.
+  function ecartSondes(v, t) {
+    const now = tempsSondes(v.inventaire);
+    if (!t.depart || !now) return null;
+    let max = null;
+    for (const [rom, d] of Object.entries(t.depart)) if (rom in now) max = Math.max(max || 0, Math.abs(now[rom] - d));
+    return max;
+  }
+  function barreIdentification(v, t) {
+    return barre(() => {
+      const reste = Math.max(0, t.fin - Date.now());
+      const ecart = ecartSondes(v, t);
+      const part = ecart === null ? Math.min(0.95, 1 - reste / IDENTIFICATION_MS) : Math.min(1, ecart / IDENT_ECART);
+      return { libelle: `Serre la sonde de la zone ${t.zone} dans ta main`, part,
+        valeur: ecart === null ? `reste ${secondes(reste / 1000)}` : `${ecart.toFixed(1)} °C sur ${IDENT_ECART.toFixed(1)} °C`,
+        detail: `Sans lâcher : le socle la reconnaît dès qu'elle a varié de ${IDENT_ECART.toFixed(1)} °C. Reste ${secondes(reste / 1000)} ; chauffe suspendue pendant ce temps.` };
+    });
+  }
+  // Les deux zones : température (« — » sans mesure), consigne, défaut.
+  function mesuresZones(v, ...avant) {
+    return h('div', { class: 'mesures' }, avant, [1, 2].map(z => {
+      const x = v.zones[z - 1], d = defautDe(x);
+      return h('div', {}, h('b', {}, texteTemp(v, z)), h('span', {}, `zone ${z}${x ? ' → ' + Number(x.consigne).toFixed(1) + ' °C' : ''}${d ? ' · ' + d : ''}`));
+    }));
+  }
+  function barreEssai(v, t) {
+    return barre(() => {
+      const temp = tempZone(v, t.zone);
+      const montee = temp !== null && t.depart !== null ? temp - t.depart : null;
+      const reste = Math.max(0, t.fin - Date.now()), ecoule = Date.now() - t.debut;
+      const part = montee === null ? Math.min(0.95, ecoule / ESSAI_MAX_MS) : Math.max(0, Math.min(1, montee / t.hausse));
+      return { libelle: `Essai ${t.zone} sur ${NB_ZONES} : zone ${t.zone} à pleine puissance`, part,
+        valeur: montee === null ? secondes(ecoule / 1000) : `${degres(montee)} sur +${t.hausse.toFixed(1)} °C`,
+        detail: `Verdict dès que sa sonde gagne ${t.hausse.toFixed(1)} °C, ${secondes(reste / 1000)} au plus${temp !== null ? ` (zone à ${temp.toFixed(1)} °C)` : ''}. Ne pas laisser sans surveillance.` };
+    });
+  }
   function pasCarte(n, titre, etat, resume, corps) {
     return h('section', { class: 'pas-atelier', 'data-etat': etat, 'aria-label': `Étape ${n} : ${titre}` },
       h('h3', {}, h('span', { class: 'num', 'aria-hidden': 'true' }, etat === 'fait' ? '✓' : String(n)), titre),
@@ -1418,19 +1824,27 @@
       corps ? h('div', { class: 'pas-corps' }, corps) : null);
   }
   const bouton = (texte, action, attrs = {}, classe = 'btn btn-petit') => h('button', { type: 'button', class: classe, 'data-action': action, ...attrs }, texte);
-  const compte = (fin, prefixeTexte = '') => h('span', { 'data-fin': fin, 'data-prefixe': prefixeTexte }, prefixeTexte + secondes((fin - Date.now()) / 1000));
 
   function corpsConsole(rec, etape) {
     const enCours = procedure && procedure.etape === etape && (procedure.id === (rec ? rec.id : null) || (!rec && !procedure.id));
     const liste = enCours ? procedure.coches : [];
+    const actif = enCours && (liste.some(c => c.etat === 'encours') || !!choixWifi);
+    const parReseau = liste.some(c => c.cle === 'expedier');
+    // Une installation ratée dans la fiche : la fenêtre d'ESP Web Tools reste
+    // possible, en secours.
+    const secours = etape === 1 && !actif && liste.some(c => c.cle === 'firmware' && c.etat === 'echec');
     return [
       etape === 1
-        ? h('p', { class: 'aide' }, '12 V débranché, carte en USB. Carte vierge ou firmware en retard : l\'atelier installe d\'abord le firmware publié (« Install » dans la fenêtre qui s\'ouvre), puis enchaîne.')
-        : h('p', { class: 'aide' }, 'Débranche le 12 V, branche l\'USB : l\'atelier vérifie que c\'est bien ce socle, lui fait oublier le Wi-Fi du banc, vide l\'historique du rodage, et l\'étiquette s\'imprime d\'elle-même.'),
+        ? h('p', { class: 'aide' }, '12 V débranché, carte en USB. Carte vierge ou firmware en retard : l\'atelier installe d\'abord le firmware publié (deux minutes environ, suivies ci-dessous ; ne débranche pas la carte), puis enchaîne.')
+        : parReseau
+          ? h('p', { class: 'aide' }, 'Par le réseau : le socle oublie le Wi-Fi du banc et vide son historique, puis affiche « Pret a expedier ».')
+          : h('p', { class: 'aide' }, 'Débranche le 12 V, branche l\'USB : l\'atelier vérifie que c\'est bien ce socle, lui fait oublier le Wi-Fi du banc, vide l\'historique du rodage, et l\'étiquette s\'imprime d\'elle-même.'),
+      actif ? barreProcedure(procedure) : null,
       liste.length ? coches(liste) : null,
       enCours && liste.some(c => c.etat === 'encours') ? null
         : h('div', { class: 'boutons' }, bouton(etape === 1 ? (liste.length || (rec && rec.echec) ? 'Reprendre la console' : 'Connecter la console') : 'Vérifier et préparer',
-          etape === 1 ? 'console' : 'preparer', rec ? { 'data-id': rec.id } : {}, 'btn'))
+          etape === 1 ? 'console' : 'preparer', rec ? { 'data-id': rec.id } : {}, 'btn'),
+        secours ? bouton('Installer avec la fenêtre d\'ESP Web Tools (en anglais)', 'console-fenetre', rec ? { 'data-id': rec.id } : {}, 'btn btn-secondaire') : null)
     ];
   }
 
@@ -1438,10 +1852,11 @@
   // demandent, est resté là-bas. Une minute d'USB le redonne ici.
   function corpsReprise(rec) {
     const enCours = procedure && procedure.etape === 'reprise' && procedure.id === rec.id;
+    const actif = enCours && procedure.coches.some(c => c.etat === 'encours');
     return [h('p', { class: 'aide' }, `Ce socle a été monté sur un autre poste${rec.par ? ` (${rec.par})` : ''} : son code d'appairage y est resté. Continue là-bas, ou reprends-le ici : 12 V débranché, USB branché.`),
+      actif ? barreProcedure(procedure) : null,
       enCours ? coches(procedure.coches) : null,
-      enCours && procedure.coches.some(c => c.etat === 'encours') ? null
-        : h('div', { class: 'boutons' }, bouton('Reprendre sur ce poste (USB)', 'reprendre-ici', { 'data-id': rec.id }, 'btn'))];
+      actif ? null : h('div', { class: 'boutons' }, bouton('Reprendre sur ce poste (USB)', 'reprendre-ici', { 'data-id': rec.id }, 'btn'))];
   }
 
   // La page locale du socle, en mode technique : le propriétaire n'en voit que
@@ -1460,7 +1875,7 @@
     }
     const corps = [];
     if (!v.enLigne) {
-      corps.push(h('p', { class: 'aide' }, 'En attente du socle sur le banc : USB débranché, 12 V branché. Il rejoint le Wi-Fi du banc puis le broker (une minute au plus).'));
+      corps.push(barreAttenteBanc(rec, v));
       return corps;
     }
     const inv = v.inventaire;
@@ -1472,8 +1887,7 @@
     const lies = new Map((rec.sondes || []).map(x => [x.zone, x.rom]));
     const t = v.tache && v.tache.type === 'identifier' ? v.tache : null;
     if (t) {
-      corps.push(h('p', { class: 'compte-a-rebours' }, compte(t.fin)),
-        h('p', {}, `Serre la sonde de la zone ${t.zone} dans ta main, sans lâcher : le socle la reconnaît dès qu'elle a pris 1 °C. Chauffe suspendue pendant ce temps.`));
+      corps.unshift(barreIdentification(v, t));
     } else {
       corps.push(h('ul', { class: 'coches' }, [1, 2].map(z => h('li', { 'data-etat': lies.has(z) ? 'fait' : '' },
         h('span', {}, lies.has(z) ? `Zone ${z} : sonde ${lies.get(z)}` : `Zone ${z} : à identifier`)))));
@@ -1493,11 +1907,18 @@
     }
     const t = v.tache && v.tache.type === 'essai' ? v.tache : null;
     const faits = (rec.chauffe || []).map(c => ({ etat: c.ok ? 'fait' : 'echec', texte: `Zone ${c.zone} : ${c.ok ? 'OK' : 'ÉCHEC'}`, detail: c.texte }));
+    // Une zone sans mesure (sonde muette) : l'essai serait refusé ; la piste, tout de suite.
+    const muettes = v.enLigne ? [1, 2].filter(z => v.zones[z - 1] && tempZone(v, z) === null) : [];
     return [
       h('p', { class: 'aide' }, 'Tapis branchés, chaque sonde sur sa plaque. Chaque zone chauffe seule à pleine puissance, dix minutes au plus, jusqu\'au verdict du socle. Ne pas laisser sans surveillance.'),
+      t ? barreEssai(v, t) : null,
+      v.enLigne ? mesuresZones(v) : null,
+      muettes.length ? h('p', { class: 'erreur-code' }, `${muettes.map(z => 'Zone ' + z).join(' et ')} sans mesure : sonde muette. 12 V débranché, vérifie les fils communs des sondes (jaune broche 4, rouge 3V3, noir GND), la résistance de 4,7 kΩ et la masse en étoile (le courant des tapis ne passe ni par la masse de la carte ni par celle des sondes) ; en USB, « scan » sur la console doit lister deux sondes. Puis « Lever les défauts » : le socle les garde même après un redémarrage.`) : null,
+      // Un défaut se garde, redémarrage compris : on le lève d'ici une fois la cause réparée.
+      v.enLigne && !t && [1, 2].some(z => defautDe(v.zones[z - 1]))
+        ? h('div', { class: 'boutons' }, bouton('Cause réparée : lever les défauts', 'lever-defauts', { 'data-id': rec.id }, 'btn btn-secondaire')) : null,
       faits.length ? coches(faits) : null,
-      t ? h('p', { class: 'compte-a-rebours' }, `Zone ${t.zone} : `, compte(t.fin, 'verdict d\'ici ')) : null,
-      t || !v.enLigne ? (v.enLigne ? null : h('p', { class: 'aide' }, 'En attente du socle sur le banc…'))
+      t || !v.enLigne ? (v.enLigne ? null : barreAttenteBanc(rec, v))
         : h('div', { class: 'boutons' }, bouton(faits.length ? 'Refaire les essais' : 'Lancer les essais de chauffe', 'essais', { 'data-id': rec.id }, 'btn'))
     ];
   }
@@ -1506,23 +1927,26 @@
     const ro = rec.rodage;
     if (!ro) return null;
     const v = vivant(rec.id);
-    const total = ro.fin - ro.debut, ecoule = Math.min(total, Date.now() - ro.debut);
     const corps = [];
     if (!ro.verdict) {
-      corps.push(h('progress', { class: 'progres-rodage', max: total, value: ecoule, 'aria-label': 'Avancement du rodage' }),
-        h('p', { class: 'aide' }, `Depuis le ${dateCourte(ro.debut)} — fin prévue le ${dateCourte(ro.fin)} (encore ${duree(ro.fin - Date.now())}).`));
+      corps.push(barre(() => {
+        const total = Math.max(1, ro.fin - ro.debut), ecoule = Math.min(total, Date.now() - ro.debut);
+        return { libelle: Date.now() >= ro.fin ? 'Rodage : durée atteinte' : 'Rodage en cours', part: ecoule / total, valeur: pourcent(ecoule / total),
+          detail: `Depuis le ${dateCourte(ro.debut)} — fin prévue le ${dateCourte(ro.fin)}${Date.now() < ro.fin ? ` (encore ${duree(ro.fin - Date.now())})` : ''}.` };
+      }));
       if (rec.liaison !== 'aucune') {
-        corps.push(h('div', { class: 'mesures' },
-          h('div', {}, h('b', {}, v.enLigne ? 'en ligne' : 'hors ligne'), h('span', {}, v.sante ? `en marche depuis ${duree(v.sante.uptime * 1000)}` : 'présence')),
-          [0, 1].map(i => { const z = v.zones[i]; return h('div', {}, h('b', {}, z ? `${Number(z.temp).toFixed(1)} °C` : '—'), h('span', {}, `zone ${i + 1}${z ? ' → ' + Number(z.consigne).toFixed(1) + ' °C' : ''}${defautDe(z) ? ' · ' + defautDe(z) : ''}`)); })));
+        corps.push(mesuresZones(v, h('div', {}, h('b', {}, v.enLigne ? 'en ligne' : 'hors ligne'), h('span', {}, v.sante ? `en marche depuis ${duree(v.sante.uptime * 1000)}` : 'présence'))));
         corps.push(h('p', { class: 'aide' }, surveilleParServeur(rec)
           ? 'Le serveur surveille ce rodage, page fermée ou non : redémarrages, défauts et coupures sont notés, et l\'équipe est prévenue à la fin (e-mail, notification).'
           : 'Cette page note les redémarrages, défauts et coupures tant qu\'elle reste ouverte ; à la fin, le socle doit être en marche depuis le début du rodage.'));
-        if (Date.now() >= ro.fin) corps.push(h('div', { class: 'boutons' }, bouton('Conclure maintenant', 'conclure', { 'data-id': rec.id }, 'btn')));
+        corps.push(h('div', { class: 'boutons' },
+          Date.now() >= ro.fin ? bouton('Conclure maintenant', 'conclure', { 'data-id': rec.id }, 'btn') : null,
+          bouton('Passer le rodage', 'passer-rodage', { 'data-id': rec.id }, 'btn btn-secondaire')));
       } else {
         corps.push(h('div', { class: 'boutons' },
           bouton('Rodage sans incident', 'manuel-rodage-ok', { 'data-id': rec.id, disabled: Date.now() < ro.fin }, 'btn'),
-          bouton('Incident constaté', 'manuel-rodage-ko', { 'data-id': rec.id }, 'btn btn-danger')));
+          bouton('Incident constaté', 'manuel-rodage-ko', { 'data-id': rec.id }, 'btn btn-danger'),
+          bouton('Passer le rodage', 'passer-rodage', { 'data-id': rec.id }, 'btn btn-secondaire')));
       }
     } else if (rec.etape === 4) {
       corps.push(h('p', { class: ro.verdict.ok ? 'aide' : 'erreur-code' }, ro.verdict.texte));
@@ -1561,11 +1985,19 @@
     return corps;
   }
 
+  // Ce qui désigne un élément d'un redessin à l'autre : action, socle, zone,
+  // identifiant, et le texte d'un volet (journal, auto-test).
+  const cleElement = el => [el.tagName, el.dataset.action, el.dataset.id, el.dataset.zone, el.id, el.tagName === 'SUMMARY' ? el.textContent : ''].join('|');
   function dessinerFiche() {
     const f = $('#fiche');
-    // Le focus survit au redessin : même action, même socle, même zone.
-    const actif = document.activeElement && f.contains(document.activeElement) ? document.activeElement : null;
-    const cleFocus = actif ? [actif.dataset.action, actif.dataset.id, actif.dataset.zone, actif.id].join('|') : '';
+    // La fiche se redessine à chaque mesure : rien ne doit bouger sous les
+    // yeux de l'opérateur. Le focus (même action, même socle, même zone), les
+    // volets ouverts et le défilement de la page survivent au redessin.
+    const actif = document.activeElement && document.activeElement !== f && f.contains(document.activeElement) ? document.activeElement : null;
+    const cleFocus = actif ? cleElement(actif) : '';
+    const ouverts = new Set([...f.querySelectorAll('details[open] > summary')].map(x => x.textContent));
+    const defilement = window.scrollY;
+    barres = barres.filter(b => !f.contains(b.el));
     if (nouveau) {
       f.replaceChildren(h('h2', { id: 'fiche-titre' }, 'Nouveau socle'), pasCarte(1, 'Console', procedure && procedure.coches.some(c => c.etat === 'echec') ? 'echec' : 'encours', '', corpsConsole(null, 1)));
     } else if (!selection || !socle(selection)) {
@@ -1600,10 +2032,12 @@
         h('details', { class: 'mt' }, h('summary', {}, 'Journal du socle'), h('ul', { class: 'incidents' }, (rec.journal || []).slice().reverse().map(j => h('li', {}, `${dateCourte(j.t)} — ${j.texte}`))))
       ].filter(Boolean));
     }
+    if (ouverts.size) f.querySelectorAll('details > summary').forEach(x => { if (ouverts.has(x.textContent)) /** @type {HTMLDetailsElement} */ (x.parentElement).open = true; });
     if (cleFocus) {
-      const cible = [...f.querySelectorAll('button, input, a, summary')].find(el => [el.dataset.action, el.dataset.id, el.dataset.zone, el.id].join('|') === cleFocus);
-      if (cible) cible.focus();
+      const cible = /** @type {HTMLElement|undefined} */ ([...f.querySelectorAll('button, input, a, summary')].find(el => cleElement(/** @type {HTMLElement} */ (el)) === cleFocus));
+      if (cible) cible.focus({ preventScroll: true });
     }
+    if (window.scrollY !== defilement) window.scrollTo(0, defilement);
   }
 
   function dessinerBanc() {
@@ -1614,7 +2048,7 @@
       const etat = r.etat === 'pret' ? 'prêt — à débrancher' : ['', '', 'sondes', 'chauffe', 'rodage'][r.etape];
       return h('div', { class: 'banc-carte' },
         h('div', { class: 'carte-tete' }, h('span', { class: 'id' }, r.id), h('span', { class: 'etat' + (v.enLigne ? ' ok' : '') }, v.enLigne ? 'en ligne' : 'absent')),
-        h('div', { class: 'temps' }, [0, 1].map(i => h('span', {}, v.zones[i] ? `${Number(v.zones[i].temp).toFixed(1)} °C` : '—'))),
+        h('div', { class: 'temps' }, [0, 1].map(i => h('span', { title: defautDe(v.zones[i]) || null }, texteTemp(v, i + 1)))),
         h('span', { class: 'discret' }, etat + (r.etape === 4 && r.rodage && !r.rodage.verdict ? ` · encore ${duree(r.rodage.fin - Date.now())}` : '')
           + (r.rodage && r.rodage.incidents.length ? ` · ${r.rodage.incidents.length} incident(s)` : '')),
         bouton('Ouvrir', 'ouvrir', { 'data-id': r.id }, 'btn btn-secondaire btn-petit'));
@@ -1623,12 +2057,8 @@
 
   function dessiner() { dessinerListe(); dessinerFiche(); }
 
-  // Comptes à rebours : le texte change chaque seconde, l'arbre ne bouge pas.
-  setInterval(() => {
-    document.querySelectorAll('[data-fin]').forEach(el => {
-      el.textContent = (el.dataset.prefixe || '') + secondes((+el.dataset.fin - Date.now()) / 1000);
-    });
-  }, 1000);
+  // Barres de progression : leurs valeurs changent chaque seconde, l'arbre ne bouge pas.
+  setInterval(majBarres, 1000);
   setInterval(() => { surveillerRodages(); invaliderBanc(); }, delais.rodageVerif);
 
   // ------------------------------------------------- serveur et compte
@@ -1788,6 +2218,7 @@
     v('#r-b-user', r.broker.utilisateur); v('#r-b-mdp', secrets.brokerMdp);
     $('#r-b-oublier').checked = r.broker.oublier !== false;
     v('#r-rodage', r.rodageH);
+    $('#r-sans-rodage').checked = !!r.sansRodage;
     $('#r-auto').checked = r.auto !== false;
     $('#reseaux-captes').replaceChildren(...reseauxCaptes.map(x => h('option', { value: x.ssid }, `${x.rssi} dBm`)));
     montrerPartage();
@@ -1821,7 +2252,7 @@
       urlApp: url || new URL('./', location.href).href, ssid, liaison,
       serveur: { url: val('#r-serveur'), hote: val('#r-s-hote'), port: parseInt(val('#r-s-port'), 10) || 8883, ws: val('#r-s-ws') },
       broker: { ws: val('#r-b-ws'), hote: val('#r-b-hote'), port: parseInt(val('#r-b-port'), 10) || 8883, prefixe: val('#r-b-prefixe') || 'terrarium', utilisateur: val('#r-b-user'), oublier: $('#r-b-oublier').checked },
-      rodageH, auto: $('#r-auto').checked
+      rodageH, sansRodage: $('#r-sans-rodage').checked, auto: $('#r-auto').checked
     };
     secrets = { wifiMdp, adminJeton: $('#r-admin').value.trim(), brokerMdp: $('#r-b-mdp').value };
     memo.retenirWifi = $('#r-wifi-retenir').checked;
@@ -1860,6 +2291,11 @@
       case 'nouveau-lot': { const l = nouveauLot(); if (reg.lots.some(x => x.nom === l.nom)) l.nom += ` (${reg.lots.length + 1})`; reg.lots.push(l); reg.lotCourant = l.id; sauver(); invalider(); message(`${l.nom} créé.`); break; }
       case 'ouvrir': choisir(b.dataset.id); $('#fiche').focus(); break;
       case 'console': etapeConsole(rec ? rec.id : null); break;
+      // Après un échec de l'installation dans la fiche : la fenêtre d'ESP Web Tools, en secours.
+      case 'console-fenetre': installationParFenetre = true; etapeConsole(rec ? rec.id : null); break;
+      case 'abandonner-installation': if (installation && installation.abandonner) installation.abandonner(); break;
+      case 'lever-defauts': if (rec) leverDefauts(rec); break;
+      case 'passer-rodage': if (rec && rec.etape === 4 && rec.etat === 'actif') passerRodage(rec, 'passé par l\'opérateur'); break;
       // Console seule, pour taper des commandes (dépannage, SAV) : sans procédure.
       case 'console-libre':
         if (serie && serie.ouvert) fermerConsole();
@@ -1959,6 +2395,8 @@
     _surveiller: surveillerRodages,
     _connecte: () => !!(client && client.connected),
     _installateur: f => { installateur = f; },
+    _installerPage: (port, o) => installateurPage(port, o),
+    _silences: o => Object.assign(SILENCES, o),
     _session: () => session,
     _synchro: synchroniser,
     _partage: () => partage,

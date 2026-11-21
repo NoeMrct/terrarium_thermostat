@@ -7,11 +7,36 @@ affiche le commit dont elle est issue.
 
 ## [Non publié]
 
+### Ajouté
+- **Atelier, barres de progression partout** : installation du firmware (phase, part écrite,
+  octets et temps restant), vérifications de la console (durée habituelle de chacune), arrivée du
+  socle sur le banc, identification d'une sonde (ce que la sonde serrée a pris, sur 1 °C), essai
+  de chauffe (ce que la zone a gagné, sur la hausse annoncée par le socle), rodage. Une attente
+  plus longue que d'habitude le dit, avec la piste à suivre.
+- **Atelier, passer le rodage** : un bouton à l'étape 4, et un réglage « Passer le rodage » qui
+  envoie chaque socle à l'étiquette après ses essais ; noté au journal et au registre.
+- **Atelier, lever les défauts** à l'étape 3 (action `reset`, signée) : un défaut survit au
+  redémarrage du socle, il fallait la console USB pour le lever.
+
 ### Modifié
+- **Atelier, installation du firmware dans la fiche, en français** : le moteur d'ESP Web Tools
+  (copie vérifiée, inchangée) écrit la carte sans ouvrir sa fenêtre en anglais. Une carte vierge
+  est effacée d'abord, un socle identifié garde ses réglages et son code d'appairage. Une
+  installation muette s'abandonne d'un bouton ; après un échec, la fenêtre reste proposée en
+  secours. `verifier-installateur.js` contrôle que ce dont l'atelier se sert existe dans la
+  copie, et `test-installation.js` le fait tourner dans un vrai Chromium.
+- **Atelier, fiche stable** : la fiche se redessine à chaque mesure ; les volets ouverts (journal,
+  auto-test), le focus et le défilement ne bougent plus (la page remontait en haut).
+- **Atelier, « — » au lieu de 0 °C** pour une zone sans mesure (le socle publie 0 avec un défaut
+  SONDE), et la piste du câblage à l'étape 3.
 - **Application, installation d'un socle** : quand le socle n'est pas encore en
   ligne, la dernière piste ne renvoie plus à l'onglet Réseau de sa page locale
   (réservé à l'équipe depuis 3.5.2) : le serveur est réglé à l'atelier, et le
   client est orienté vers l'Aide de l'application.
+
+### Corrigé
+- **Atelier** : après une installation du firmware ratée, la fiche restait sans bouton
+  (« Identité du socle » restait en cours) ; elle rend la main avec « Reprendre la console ».
 
 ## [3.5.2] — 2026-11-21
 

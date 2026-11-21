@@ -34,8 +34,9 @@ distance, les alertes sur le téléphone, la domotique.
 Le socle se vend monté : le firmware s'installe à l'atelier. Le plus simple : la page **Atelier**
 du site (`/atelier`, réservée à l'équipe), dans Chrome ou Edge, sur un ordinateur. Branche la carte
 en USB, « Nouveau socle », choisis le port : une carte vierge ou en retard reçoit le firmware de la
-dernière release (fenêtre « Install »). Sur une carte neuve, accepte l'effacement complet ; sur un
-socle déjà en service, refuse-le pour garder les réglages et le code d'appairage. L'atelier règle
+dernière release, suivi dans la fiche avec une barre de progression (deux minutes environ). Une
+carte neuve est d'abord effacée ; un socle déjà en service garde ses réglages et son code
+d'appairage. L'atelier règle
 ensuite le **Wi-Fi du banc** par le câble (protocole Improv) et enchaîne la mise en service
 (`docs/atelier.md`).
 
